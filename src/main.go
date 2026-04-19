@@ -15,6 +15,10 @@ import (
 )
 
 const version = "1.0.0-rc1"
+const (
+	copyrightYear = "2022-2026"
+	author        = "Jim Collier (ID: 1cv◂‡Vᛦ)"
+)
 
 const etcConfigPath = "/etc/convert-base-v2/convert-base-v2.conf"
 
@@ -27,18 +31,19 @@ func main() {
 
 func run() error {
 	var (
-		fromName    = flag.String("from", "", "input base name/alias (e.g. 10, hex, 64u); default 10")
-		toName      = flag.String("to", "", "output base name/alias; default 10; also accepted as a positional arg")
-		fromSymbols = flag.String("from-symbols", "", `custom input base (spec form: "SYMS [neg=X] [dec=Y]")`)
-		toSymbols   = flag.String("to-symbols", "", `custom output base (spec form: "SYMS [neg=X] [dec=Y]")`)
-		precision   = flag.Int("precision", 50, "max fractional digits in output")
-		lower       = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
-		raw         = flag.Bool("raw", false, "write output as raw bytes with no trailing newline (for binary output)")
-		list        = flag.Bool("list", false, "list all known bases and exit")
-		configFile  = flag.String("config", userConfigPath(), "user-level YAML config file; /etc is always tried too (missing file is OK)\n        ")
-		showVersion = flag.Bool("version", false, "print version and exit")
-		helpFlag    = flag.Bool("help", false, "show help and exit")
-		hFlag       = flag.Bool("h", false, "alias for -help")
+		fromName     = flag.String("from", "", "input base name/alias (e.g. 10, hex, 64u); default 10")
+		toName       = flag.String("to", "", "output base name/alias; default 10; also accepted as a positional arg")
+		fromSymbols  = flag.String("from-symbols", "", `custom input base (spec form: "SYMS [neg=X] [dec=Y]")`)
+		toSymbols    = flag.String("to-symbols", "", `custom output base (spec form: "SYMS [neg=X] [dec=Y]")`)
+		precision    = flag.Int("precision", 50, "max fractional digits in output")
+		lower        = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
+		raw          = flag.Bool("raw", false, "write output as raw bytes with no trailing newline (for binary output)")
+		list         = flag.Bool("list", false, "list all known bases and exit")
+		configFile   = flag.String("config", userConfigPath(), "user-level YAML config file; /etc is always tried too (missing file is OK)\n        ")
+		showVersion  = flag.Bool("version", false, "print version and exit")
+		helpFlag     = flag.Bool("help", false, "show help and exit")
+		hFlag        = flag.Bool("h", false, "alias for -help")
+		examplesFlag = flag.Bool("examples", false, "show usage examples and exit")
 	)
 
 	// Suppress Go's default auto-exit on -h/-help; we handle help ourselves
@@ -73,6 +78,12 @@ func run() error {
 	// --help (with or without accompanying flags).
 	if *helpFlag || *hFlag {
 		printHelp(reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
+		return nil
+	}
+
+	// --examples
+	if *examplesFlag {
+		printExamples()
 		return nil
 	}
 
@@ -260,25 +271,16 @@ func userConfigPath() string {
 // where each base would be resolved from in a real run.
 func printHelp(reg *Registry, etcPath, userPath, fromName, toName, fromSyms, toSyms string) {
 	out := os.Stderr
-	fmt.Fprintf(out, `convert-base-v2 %s - convert numbers between arbitrary bases.
+	printCopyright()
+	fmt.Fprintf(out, `Convert an arbitrarily large number to/from arbitrary bases.
 
 Usage:
   convert-base-v2 [flags] NUMBER [OUTBASE]
-  convert-base-v2 [flags] - [OUTBASE]                  # read NUMBER from stdin
-  something | convert-base-v2 [flags] [OUTBASE]        # read NUMBER from stdin if no arg
+  convert-base-v2 [flags] - [OUTBASE]              # read NUMBER from stdin
+  something | convert-base-v2 [flags] [OUTBASE]    # read NUMBER from stdin if no arg
 
 If --from is unset, input base defaults to 10. If neither --to nor OUTBASE is
 given, output base also defaults to 10.
-
-Examples:
-  convert-base-v2 255 16                                                  # = FF
-  convert-base-v2 --from 16  FF                                           # = 255
-  convert-base-v2 -- -12345  16                                           # Neg ( -- to end flags)
-  convert-base-v2 9999999999999999999999999999991 2048                    # = NಊఏGଖʮନҥၕ၇
-  convert-base-v2 --from-symbols ABCD  --to 10  CBBA.B                    # Custom base 4, = 148.25
-  convert-base-v2 --from-symbols "01234567-_ neg=N dec=:" --to 10 "N1-3_" # Custom base 10
-  cat file.bin | convert-base-v2 --from binary --to 64u > out.b64         # File -> base64url
-  cat out.b64  | convert-base-v2 --from 64u --to binary > file2.bin       # base64url -> File (bit-perfect)
 
 Flags:
 `, version)
@@ -402,4 +404,45 @@ func fmtMarker(p *string) string {
 		return "(disabled)"
 	}
 	return fmt.Sprintf("%q", *p)
+}
+
+func printCopyright() {
+	fmt.Fprintf(os.Stderr, `convert-base-v2 %s
+Copyright (c) %s %s.
+Licensed under the GNU General Public License v2.0 or later. Full text at:
+  https://spdx.org/licenses/GPL-2.0-or-later.html
+There is no warranty, to the extent permitted by law.
+
+`, version, copyrightYear, author)
+}
+
+func printExamples() {
+	fmt.Fprint(os.Stderr, `Examples:
+  # Convert 255 (in default base-10) to hex output; = FF
+  convert-base-v2  255  16
+
+  # Convert from hex (to default base-10 output); = 255
+  convert-base-v2  --from 16  FF
+
+  # Negative base-10 value to hex ( -- to end flags); = -1E240
+  convert-base-v2  --  -123456  16
+
+  # Big base-10 value to qntm's base-2048; = ɼధശಳপݷટථރŦၓƨ൝
+  convert-base-v2  1234567899999999999999999999999999987654321  2048
+
+  # Custom base and input value, to base-10; = 148.25
+  convert-base-v2 --from-symbols ABCD  --to 10  CBBA.B
+
+  # Custom base and input value, to wordsafe base-20 output; = -9FCC.8M6
+  convert-base-v2  --from-symbols "aeiouy.-_0 neg=~ dec=/"  --to 20w  "~y0-._/ooo"
+
+  # Convert a binary file to any 2^N base (i.e. 4, 8, 16, 32, 64 ... 65536)
+  # Unlike base-to-base conversion in N(O^2) time, this is done in linear time.
+  # But 'basenc' is much faster, and base-64 is maximally efficient in UTF-8
+  # vs larger bases. TLDR, for speed and compactness, use 'basenc --base64'.
+  cat file.bin | convert-base-v2 --from binary --to 64u > out.b64
+
+  cat out.b64  | convert-base-v2 --from 64u --to binary > file2.bin       # base64url -> File (bit-perfect)
+
+	`)
 }

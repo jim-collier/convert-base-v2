@@ -244,12 +244,21 @@ func convertBitPacked(input string, from, to *Base, kIn, kOut int) (string, erro
 	}
 
 	// Leftover bits at end.
-	if accBits > 0 && !to.Binary {
-		// Pad LSB with zeros to make one more full output digit.
-		sb.WriteString(to.Symbols[int(acc<<(kOut-accBits))])
+	if accBits > 0 {
+		if to.Binary {
+			// We're about to drop accBits worth of trailing bits. This is only
+			// safe when they're padding (all zero) — that's what the encoder
+			// adds when a binary source doesn't align to kIn. If any trailing
+			// bit is set, the source wasn't a padded encoding of a binary
+			// blob, and discarding would corrupt data.
+			if acc != 0 {
+				return "", fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero — input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
+			}
+		} else {
+			// Pad LSB with zeros to make one more full output digit.
+			sb.WriteString(to.Symbols[int(acc<<(kOut-accBits))])
+		}
 	}
-	// If to.Binary, any leftover < 8 bits are discarded - they're the LSB
-	// padding that the encoding side introduced.
 
 	if to.Binary {
 		return string(out), nil
