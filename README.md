@@ -33,7 +33,7 @@
 -->
 
 <!-- TOC ignore:true -->
-# convert-base-v1
+# convert-base-v2
 
 Converts arbitrarily large numbers between most common predefined standard, and large custom bases - up to base-288.
 
