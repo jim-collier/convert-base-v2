@@ -8,11 +8,18 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.0.0-rc3
+
+### Added
+
 - Added at over a dozen more bases, including other languages for base-10, a few novelty bases, and v1 backwards-compatibility bases.  [20260419]
+
+### Changed
 
 - Made word-safe bases all consistent, while maintaining backward-compatibility with `convert-base-v1`. [20260419]
 
 - Fixed an _eggregious_ bug where RFCs 4648 §4 and §5 were defined completely wrong. Like not even close.
+
 	- They were defined - totally rationally - as "hex-style".
 
 	- But the RFC standards define numbers as coming almost last, inexplicably.

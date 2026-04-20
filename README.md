@@ -85,8 +85,8 @@ _Note: The command `convert-base-v2` has a version number on the end, to disting
 - [Status](#status)
 - [Limitations](#limitations)
 	- [Streaming binary conversion](#streaming-binary-conversion)
-- [Bases](#bases)
 - [Example output](#example-output)
+- [List of bases and their alphabet tokens](#list-of-bases-and-their-alphabet-tokens)
 - [Document history](#document-history)
 - [Copyright and license](#copyright-and-license)
 
@@ -122,76 +122,9 @@ Furthermore, base-64 - which `basenc` supports - is statistically the most compa
 
 The only good reason for using this program for streaming binary conversion, is for bases that no other program supports. (Such as aforementioned bases 2048, 65536 - as well as specialty byte-aligned bases such as the myriad variations of base 32 this supports. Or your own custom 2^N base alphabet.) But until a future fix is put in place, it will gracefully error, if the input is not byte-aligned.
 
-## Bases
-
-Any number of any size can be converted to and from any of these bases. Most support negative numbers and decimals, if the intention makes sense.
-
-| Base  | Name [arg]           | Aliases
-| --:   | :--                  | :--
-| 2     | 2                    | binary, bike
-| 3     | 3                    | ternary, trike
-| 4     | 4                    | quarternary, quad
-| 5     | 5                    | quinary, stuiver
-| 6     | 6                    | senary, seximal, bestagon
-| 7     | 7                    | septenary
-| 8     | 8                    | octal, oct, octopus
-| 9     | 9                    | nonary, non
-| 10    | 10                   | decimal, dec, arabic, dime
-| 10    | kanji                | 10kanji, japan, nippon, 日本
-| 10    | hanzi                | 10hanzi, china, zhōngguó, 中国
-| 10    | hindi                | 10hindi, india, hārat, भारत
-| 10    | arabicindic          | 10arabicindic, 10easternarabic, easternarabic
-| 10    | rods                 | 10rods
-| 12    | 12                   | 12hex, 12h, dozenal, duodecimal
-| 16    | 16                   | 16hex, 16h, hex, hexadecimal, nerdnumber, onepounder
-| 20    | 20                   | 20hex, 20h, vigesimal, venti
-| 20    | 20wordsafe           | 20ws, 20w, 20google, 20g, 20nofks
-| 20    | mayan                | 20maya
-| 24    | 24                   | 24hex, 24h
-| 26    | 26                   | alphabet
-| 30    | 30rock               | 30hex, 30h, 30
-| 32    | 32                   | 32hex, 32h, triacontakaidecimal, theonetrue32
-| 32    | 32rfc                | 32r
-| 32    | crockford            | 32crockford, 32crock, 32c
-| 32    | 32wordsafe           | 32ws, 32w, 32google, 32g, 32nofks
-| 32    | zbase32              | 32zbase, 32z
-| 32    | 32bip                | 32bitcoin, 32btc, 32segwit, bech32, bech32m
-| 36    | 36                   | 36hex, 36h
-| 38    | hostname             | 38hostname, 38jc
-| 39    | username             | 39username, 39jc
-| 42    | 42                   | 42hex, 42h
-| 45    | email                | 45email, 45jc
-| 48    | 48                   | 48hex, 48h
-| 48    | 48wordsafe           | 48w, 48ws, 48jcws, 48nofks
-| 48    | 48v1compat           | 48j1
-| 52    | 52                   | upperlower
-| 58    | 58bitcoin            | 58btc
-| 60    | 60jc                 | sexagesimal, hexagesimal
-| 60    | 60tc                 | newbase60
-| 62    | 62                   | 62hex, 62h
-| 64    | 64hex                | 64hexurl, 64hexu, 64hu
-| 64    | 64jc                 | 64p, 64j1u
-| 64    | 64rfc                | 64r
-| 64    | 64rfcurl             | 64rfcu, 64ru
-| 64    | 64wordsafe           | 64ws, 64w, 64jcws, 64nofks
-| 64    | 64v1compat           | 64j1uw
-| 69    | 69pshihn             |  85    | z85                  | 85z, 85zeromq
-| 85    | postscript           | 85adobe, 85postscript, 85ps
-| 85    | 85ipv6               | 85rfc1924, 85aprilfools, 85fools, 85elz
-| 91    | 91hk                 | 91bas
-| 128   | 128jc                | 128p
-| 128   | 128v1compat          | 128j1
-| 256   | 256jc                | 256p, 256j1
-| 256   | binary               | bin, bytes, raw
-| 288   | 288jc                | 288p, 288j1
-| 2048  | 2048twitter          | 2048x, 2048qntm
-| 2048  | 2048rust             | 2048llfourn
-| 32768 | 32768qntm            | 32768utf16
-| 65536 | 65536                | 65536qntm, 65536utf32
-
 ## Example output
 
-The chart below shows a big random base 10 number '2023090613425900000000000000001' in various bases.
+The chart below shows a big random base 10 number '0000000000000001' in various bases.
 
 <!--
 Note that some of the larger bases appear to have longer output - but that's only due to being rendered with proportional fonts, combined with some of the wider Unicode characters. Look at the "Chars" column to see the actual # of characters in the output.
@@ -222,6 +155,76 @@ This is a partial list carried over from `convert-base-v1`. This new version has
 | 256[j1]    |    13 | Pĵㅍ‡sĨǍᚧYrぇ01
 | 288[j1]    |    13 | 6zф⅖ẄÃЋゲㅎぇúkᛎ
 -->
+
+## List of bases and their alphabet tokens
+
+Any number of any size can be converted to and from any of these bases. Most support negative numbers and decimals, if the intention makes sense.
+
+(_About missing base alphabets: they exist in the program, just not in this doc yet._)
+
+| Base  | Name [arg]           | Aliases                                               | Description                      | Specification | Alphabet [or at least first and last 64 tokens]
+| --:   | :--                  | :--                                                   | :--                             | :--           | :---
+| 2     | 2                    | binary, bike                                          | Text ones and zeros              |               | 01
+| 3     | 3                    | ternary, trike                                        | Rarely used in computers         |               | 012
+| 4     | 4                    | quarternary, quad                                     |                                  |               | 0123
+| 5     | 5                    | quinary, stuiver                                      |                                  |               | 01234
+| 6     | 6                    | senary, seximal, bestagon                             |                                  |               | 012345
+| 7     | 7                    | septenary                                             |                                  |               | 0123456
+| 8     | 8                    | octal, oct, octopus                                   | Older base for programming       |               | 01234567
+| 9     | 9                    | nonary, non                                           |                                  |               | 012345678
+| 10    | 10                   | decimal, dec, arabic, dime                            |                                  |               | 0123456789
+| 10    | kanji                | 10kanji, japan, nippon, 日本                           |                                 |                | 〇一二三四五六七八九
+| 10    | hanzi                | 10hanzi, china, zhōngguó, 中国                         |                                 |                | 零一二三四五六七八九
+| 10    | hindi                | 10hindi, india, hārat, भारत                            |                                  |               | 0१२३४५६७८९
+| 10    | arabicindic          | 10arabicindic, 10easternarabic, easternarabic         |                                  |               | ٠١٢٣٤٥٦٧٨٩
+| 10    | rods                 | 10rods                                                |                                  |               | 〇𝍠𝍡𝍢𝍣𝍤𝍥𝍦𝍧𝍨
+| 12    | 12                   | 12hex, 12h, dozenal, duodecimal                       |                                  |               | 0123456789AB
+| 16    | 16                   | 16hex, 16h, hex, hexadecimal, nerdnumber, onepounder  |                                  |               | 0123456789ABCDEF
+| 20    | 20                   | 20hex, 20h, vigesimal, venti                          |                                  |               | 0123456789ABCDEFGHIJ
+| 20    | 20wordsafe           | 20ws, 20w, 20google, 20g, 20nofks                     |                                  |               | 23456789CFGHJMPQRVWX
+| 20    | mayan                | 20maya                                                |                                  |               | 𝋠𝋡𝋢𝋣𝋤𝋥𝋦𝋧𝋨𝋩𝋪𝋫𝋬𝋭𝋮𝋯𝋰𝋱𝋲𝋳
+| 24    | 24                   | 24hex, 24h                                            |                                  |               | 0123456789ABCDEFGHIJKLMN
+| 26    | 26                   | alphabet                                              |                                  |               |
+| 30    | 30rock               | 30hex, 30h, 30                                        |                                  |               |
+| 32    | 32                   | 32hex, 32h, triacontakaidecimal, theonetrue32         |                                  |               |
+| 32    | 32rfc                | 32r                                                   |                                  |               |
+| 32    | crockford            | 32crockford, 32crock, 32c                             |                                  |               |
+| 32    | 32wordsafe           | 32ws, 32w, 32google, 32g, 32nofks                     |                                  |               |
+| 32    | zbase32              | 32zbase, 32z                                          |                                  |               |
+| 32    | 32bip                | 32bitcoin, 32btc, 32segwit, bech32, bech32m           |                                  |               |
+| 36    | 36                   | 36hex, 36h                                            |                                  |               |
+| 38    | hostname             | 38hostname, 38jc                                      |                                  |               |
+| 39    | username             | 39username, 39jc                                      |                                  |               |
+| 42    | 42                   | 42hex, 42h                                            |                                  |               |
+| 45    | email                | 45email, 45jc                                         |                                  |               |
+| 48    | 48                   | 48hex, 48h                                            |                                  |               |
+| 48    | 48wordsafe           | 48w, 48ws, 48jcws, 48nofks                            |                                  |               |
+| 48    | 48v1compat           | 48j1                                                  |                                  |               |
+| 52    | 52                   | upperlower                                            |                                  |               |
+| 58    | 58bitcoin            | 58btc                                                 |                                  |               |
+| 60    | 60jc                 | sexagesimal, hexagesimal                              |                                  |               |
+| 60    | 60tc                 | newbase60                                             |                                  |               |
+| 62    | 62                   | 62hex, 62h                                            |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
+| 64    | 64hex                | 64hexurl, 64hexu, 64hu                                | Tightest binary-to-text encoding for UTF-8 (Lunix, macOS, Windows). |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_
+| 64    | 64jc                 | 64p, 64j1u                                            |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ
+| 64    | 64rfc                | 64r                                                   |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/
+| 64    | 64rfcurl             | 64rfcu, 64ru                                          |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
+| 64    | 64wordsafe           | 64ws, 64w, 64jcws, 64nofks                            |                                  |               | 23456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱ
+| 64    | 64v1compat           | 64j1uw                                                |                                  |               |
+| 69    | 69pshihn             |                                                       |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/-*<>\|
+| 85    | z85                  | 85z, 85zeromq                                         |                                  |               |
+| 85    | postscript           | 85adobe, 85postscript, 85ps                           |                                  |               |
+| 85    | 85ipv6               | 85rfc1924, 85aprilfools, 85fools, 85elz               |                                  |               |
+| 91    | 91hk                 | 91bas                                                 |                                  |               |
+| 128   | 128jc                | 128p                                                  |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱΞψϠδϟЋЖЯѢф¢£¥§¿ɤʬ⍤⍩⌲⍋⍒⍢ÂĈÊĜĤÎĴÔŜÛŴ
+| 128   | 128v1compat          | 128j1                                                 |                                  |               |
+| 256   | 256jc                | 256p, 256j1                                           |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ ...to... óŕśúẃýźĀĒĪŌŪȲāēīōūȳǍČĎĚǦȞǨŇǑŘŠǓǎčďěǧȟǩňǒřšǔǝɹʇʌ₸᛬웃유ㅈㅊㅍㅎㅱㅸㅠソッゞぅぇォ
+| 256   | binary               | bin, bytes, raw                                       |                                  |               |
+| 288   | 288jc                | 288p, 288j1                                           |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ ...to... čďěǧȟǩňǒřšǔǝɹʇʌ₸᛬웃유ㅈㅊㅍㅎㅱㅸㅠソッゞぅぇォゲサじすスせちづでネビべぺまモゟヲ½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞
+| 2048  | 2048twitter          | 2048x, 2048qntm                                       |                                  |               | 89ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÆÐØÞßæðøþĐ ...to... ྈྉྊྋྌကခဂဃငစဆဇဈဉညဋဌဍဎဏတထဒဓနပဖဗဘမယရလဝသဟဠအဢဣဤဥဧဨဩဪဿ၀၁၂၃၄၅၆၇၈၉ၐၑၒၓၔၕ
+| 2048  | 2048rust             | 2048llfourn                                           | Tightest binary-to-text encoding for Twitter. |               | ØµºÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ ...to... ႫႬႭႮႯႰႱႲႳႴႵႶႷႸႹႺႻႼႽႾႿჀჁჂჃჄჅაბგდევზთიკლმნოპჟრსტუფქღყშჩცძწჭხჯჰჱჲჳ྾
+| 32768 | 32768qntm            | 32768utf16                                            | Tightest binary-to-text encoding for UTF-16.  |               | ҠҡҢңҤҥҦҧҨҩҪҫҬҭҮүҰұҲҳҴҵҶҷҸҹҺһҼҽҾҿԀԁԂԃԄԅԆԇԈԉԊԋԌԍԎԏԐԑԒԓԔԕԖԗԘԙԚԛԜԝԞԟ ...to... ꞀꞁꞂꞃꞄꞅꞆꞇꞈ꞉꞊ꞋꞌꞍꞎꞏꞐꞑꞒꞓꞔꞕꞖꞗꞘꞙꞚꞛꞜꞝꞞꞟꡀꡁꡂꡃꡄꡅꡆꡇꡈꡉꡊꡋꡌꡍꡎꡏꡐꡑꡒꡓꡔꡕꡖꡗꡘꡙꡚꡛꡜꡝꡞꡟ
+| 65536 | 65536                | 65536qntm, 65536utf32                                 | Tightest binary-to-text encoding for UTF-32.  |               | 㐀㐁㐂㐃㐄㐅㐆㐇㐈㐉㐊㐋㐌㐍㐎㐏㐐㐑㐒㐓㐔㐕㐖㐗㐘㐙㐚㐛㐜㐝㐞㐟㐠㐡㐢㐣㐤㐥㐦㐧㐨㐩㐪㐫㐬㐭㐮㐯㐰㐱㐲㐳㐴㐵㐶㐷㐸㐹㐺㐻㐼㐽㐾㐿 ...to... 𨗀𨗁𨗂𨗃𨗄𨗅𨗆𨗇𨗈𨗉𨗊𨗋𨗌𨗍𨗎𨗏𨗐𨗑𨗒𨗓𨗔𨗕𨗖𨗗𨗘𨗙𨗚𨗛𨗜𨗝𨗞𨗟𨗠𨗡𨗢𨗣𨗤𨗥𨗦𨗧𨗨𨗩𨗪𨗫𨗬𨗭𨗮𨗯𨗰𨗱𨗲𨗳𨗴𨗵𨗶𨗷𨗸𨗹𨗺𨗻𨗼𨗽𨗾𨗿
 
 ## Document history
 
