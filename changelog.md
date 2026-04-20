@@ -8,6 +8,16 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.0.0-rc4
+
+### Added
+
+- CI/CD scripts.
+
+### Changed
+
+- Fixed a bug that only affects backwards-compatibility, which are already discouraged to be used in help and README. The bug.
+
 ## v1.0.0-rc3
 
 ### Added
