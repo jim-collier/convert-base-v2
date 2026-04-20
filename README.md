@@ -94,19 +94,15 @@ _Note: The command `convert-base-v2` has a version number on the end, to disting
 
 ## Status
 
-- [v1.0.0-rc1](https://github.com/jim-collier/convert-base-v2/releases/tag/v1.0.0-rc1) works fine for almost everything, except for:
+- [v1.0.0-rc3](https://github.com/jim-collier/convert-base-v2/releases/tag/v1.0.0-rc3) works great for almost everything, except for:
 
-	- Streaming binary conversions: This is a rare edge use-case for a number-converter application, that you have to go out of your way to do and have a good reason.
+	- Streaming binary conversions: This is a rare edge use-case for a number-converter application, that you have to go out of your way to do and have a good reason. If the data is not aligned to the base, the program will intentionally error to avoid dropping significant digits. A future fix will pad with placeholders if not byte-aligned.
 
 		The v1 of this tool didn't even support this and isn't an inherent mode of most "base converters". When data is not aligned on byte boundaries, silent data loss will result.
 
 	- Floating-point: Another rare edge use-case. For decimal places less than 50, the result will get stretched out to 50 places. Sometimes with inherent floating-point imprecision. There is no loss of data to the original value, there's just "hallucinated" precision that wasn't there before. Future versions will limit precision to what was given. Most uses of base converters are for integers.
 
-- Latest commit as of 2026-04-18:
-
-	- Streaming binary conversions:  The streaming conversion bug has been fixed - now it purposely errors to protect potential data integrity. A future fix will pad with placeholders if not byte-aligned.
-
-	- Floating-point: The precision hallucination bug still exists, but still doesn't affect integer conversions, which is the most common use-case for this.
+		The data isn't "wrong", just usually too precise.
 
 ## Limitations
 
