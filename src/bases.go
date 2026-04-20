@@ -240,14 +240,14 @@ func predefinedBases() []*Base {
 		mkSpec(base_32ws+leftTokens(unicodeExt_94, 16),
 			"48wordsafe", "48w", "48ws", "48jcws", "48nofks"),
 
-		// Deprecated word-safe base-48 "48j1"
-		// Subset of base "64j1uw".
+		// Deprecated word-safe base-48 "48v1compat"
+		// Subset of base "64v1compat" and "128v1compat".
 		// Exists for backwards-compatability with convert-base-v1. Use base-48ws above instead.
 		// Word-safe base with the same letter selection as "Word-safe base-32", but more numbers, and unicode to finish out the rest.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "48j1" is backwards-compatable with convert-base-v1, don't remove.
 		mkSpec(base_34ws_depr+leftTokens(unicodeExt_94, 14),
-			"48v1compat", "48j1"),
+			"48v1compat", "48depr", "48j1"),
 
 		// Base-52, all upper and lower-case english letters
 		// An obvious pseudo-standard
@@ -318,13 +318,13 @@ func predefinedBases() []*Base {
 		mkSpec(base_32ws+leftTokens(unicodeExt_94, 32),
 			"64wordsafe", "64ws", "64w", "64jcws", "64nofks"),
 
-		// Deprecated word-safe base-64 "64j1uw"
+		// Deprecated word-safe base-64 "64v1compat"
 		// Exists for backwards-compatability with convert-base-v1.
-		// Extends base "48j1", subset of base "128j1"
+		// Extends base "48v1compat", subset of base "128v1compat"
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "64j1uw" is backwards-compatable with convert-base-v1, don't remove.
 		mkSpec(base_34ws_depr+leftTokens(unicodeExt_94, 30),
-			"64v1compat", "64j1uw"),
+			"64v1compat", "64depr", "64j1uw"),
 
 		//
 		// [end of the base-64 domain]
@@ -380,15 +380,16 @@ func predefinedBases() []*Base {
 		mkSpec(leftTokens(base_288, 128),
 			"128jc", "128p"),
 
-		// Deprecated word-safe base-128 "128j1"
-		// Exists for backwards-compatability with convert-base-v1.
-		// Extends base "64j1uw" with more unicode characters.
+		// Deprecated word-safe base-128 "128v1compat"
+		// Exists for backwards-compatability with convert-base-v1, including preserving a consistency mistake in the alphabet.
+		// Extends base "64v1compat" with more unicode characters.
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "128j1" is backwards-compatable with convert-base-v1, don't remove.
 		// Spaces are required for symbol sets with Unicode characters.
-		mkSpec(base_34ws_depr+leftTokens(unicodeExt_94, 94),
-			"128v1compat", "128j1"),
+		// NOTE: This alphabet has a one-character inconsistency with others almost identical to it. It is only maintained for backwards-compatibility.
+		mkSpec("0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Ĵ Ŝ Ŵ Ŷ â ĉ ê ĝ ĥ ĵ ŝ ŵ ŷ Ã Ẽ Ñ Ỹ ã ẽ ñ ỹ Ä Ë Ẅ Ẍ Ÿ ä ë ẅ ẍ ÿ Á Ć É",
+			"128v1compat", "128depr", "128j1"),
 
 		// Base-256: Extends base-128 with more unicode characters.
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.

@@ -14,9 +14,9 @@ import (
 	"strings"
 )
 
-const version = "1.0.0-rc1"
+const version = "v1.0.0-rc4"
 const (
-	copyrightYear = "2022-2026"
+	copyrightYear = "2023-2026"
 	author        = "Jim Collier (ID: 1cv◂‡Vᛦ)"
 )
 
