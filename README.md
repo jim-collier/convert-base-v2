@@ -35,11 +35,35 @@
 <!-- TOC ignore:true -->
 # convert-base-v2
 
-Converts arbitrarily large numbers between most common predefined standard, and large custom bases - up to base-288.
+A cross-platform CLI program written in Go, that:
 
-Why convert a number to a large base? Mostly, to represent it in a more compact form. For example, converting a large number from base-10 to base-128, can be represented in about half the number of characters.
+- Converts a number to and from any arbitrary base.
 
-For example, POSIX time (the number of seconds since 1970) can be used as a "unique" serial value, in a shorter form. For example, "2026-01-01 @ 12:15 PM" could be represented as "1fLcL4" in standard base-64url, or "£±Яᛯ" in base-256.
+- The number can be arbitrarily large.
+
+- Supports negative and floating-point numbers in any base.
+
+	- And the ability to define alternate symbols for "negative" and "decimal", if the regular ones clash with symbols in the base.
+
+- There are dozens of predefined named bases to specify as input or output.
+
+- You can define your own arbitrary base and alphabet, just by providing the alphabet.
+
+	- E.g.: "`a 0 c X 🫪 だ`" is a perfectly valid, functional base-6 for some reason.
+
+- Supports streaming encoding to and from binary input/output.
+
+	- In other words, it can do what `basenc` can do, and also in O(N) linear time. (Which is unlike its regular base conversion operation, which necessarily works in O(N^2) quadradic time.)
+
+	- But since this is first and foremost a _base converter_ and not an _encoder/decoder_, it's not as fast as `basenc`. The only benefit over `basenc` is that it can encode/decode to/from any arbitrary base that's a power of 2. `basenc` can "only" handle three bases (plus three variations).
+
+- Accepts data from the command line, and/or from `stdin` (e.g. piped data).
+
+- Why convert a number to a large base? There are myriad useful technical reasons, that would otherwise require chaining together a series of standard tools. Or, that would require using a web-based tool in a way that can't be scripted.
+
+	- As a trivial example, let's say you want to manually generate "serial numbers" now and then for physical, real-world use. You need, say, at most minute-level precision to insure uniqueness. But you need short, human-readable, unambiguous characters rather than a long date or number.
+
+		You could use POSIX time (the number of seconds since 1970), divided by 60 for shorter minute-level precision, then convert that integer to Bitcoin's original base-58 "readable" scheme. For example, "2026-01-01 @ 12:15 PM" could be represented as "1fLcL4" in standard base-64url, or "£±Яᛯ" in base-256.
 
 At larger non-standard bases that we invented, careful effort was made to:
 
@@ -61,8 +85,7 @@ _Note: The command `convert-base-v2` has a version number on the end, to disting
 - [Status](#status)
 - [Limitations](#limitations)
 	- [Streaming binary conversion](#streaming-binary-conversion)
-- [Input bases](#input-bases)
-- [Output bases](#output-bases)
+- [Bases](#bases)
 - [Example output](#example-output)
 - [Document history](#document-history)
 - [Copyright and license](#copyright-and-license)
@@ -99,45 +122,78 @@ Furthermore, base-64 - which `basenc` supports - is statistically the most compa
 
 The only good reason for using this program for streaming binary conversion, is for bases that no other program supports. (Such as aforementioned bases 2048, 65536 - as well as specialty byte-aligned bases such as the myriad variations of base 32 this supports. Or your own custom 2^N base alphabet.) But until a future fix is put in place, it will gracefully error, if the input is not byte-aligned.
 
-## Input bases
+## Bases
 
+Any number of any size can be converted to and from any of these bases. Most support negative numbers and decimals, if the intention makes sense.
 
-## Output bases
-
-This is a partial list carried over from `convert-base-v1`. This new version has at least double by default, and also accepts arbitrary base input and output alphabets, separately.
-
-| Base        | Description                                                 | Characters                        | Reference
-|:---         |:---                                                         |:---                               |:---
-| 2           | aka Binary                                                  | 0,1
-| 8           | aka Octal                                                   | 0-7
-| 10          | aka Decimal [default]                                       | 0-9
-| 16          | aka Hexadecimal                                             | 0-9, A-F
-| 26          | One-case alphabetic                                         | A-Z
-| 32[r]       | RFC 4648                                                    | A-Z, 2-7                          | https://en.wikipedia.org/wiki/Base32
-| 32h         | RFC 4648 §7, 'Base32Hex'                                    | 0-9, A-V                          | https://datatracker.ietf.org/doc/html/rfc4648#section-7
-| 32w         | Wordsafe Base32                                             | 2-9, CFGHJMPQRVWX, cfghjmpqrvwx   | https://en.wikipedia.org/wiki/Base32#Word-safe_alphabet
-| 32c         | Crockford's Base32                                          | 0-9, A-Z no I, L, O, U            | https://en.wikipedia.org/wiki/Base32#Crockford's_Base32
-| 36          | Just alphanum                                               | 0-9, A-Z                          | https://en.wikipedia.org/wiki/Base36
-| 38username  | Valid *nix username characters
-| 38hostname  | Valid *nix host and domain name characters
-| 48j1        | 0-9, cfghjmpqrvwx, and lots of Unicode symbols
-| 52          | Both-case alphabetic                                        | A-Z, a-z
-| 62          | All alphanum                                                | 0-9, A-Z, a-z                     | https://en.wikipedia.org/wiki/Base62
-| 64[r]       | RFC 4648                                                    | 0-9, A-Z, a-z, +, /               | https://en.wikipedia.org/wiki/Base64
-| 64u         | RFC 4648 §5; URL-safe                                       | 0-9, A-Z, a-z, -, _               | https://en.wikipedia.org/wiki/Base64#Variants_summary_table
-| 64j1u       | Alternate to 64u but also programmer-friendly               | 0-9, A-Z, a-z, ʞ, λ
-| 64j1uw      | Like 48j1 but with upper-case alpha too
-| 128[j1]     | Like 64j1u but with way more Unicode symbols
-| 256[j1]     | Base 62 (all alphanum), and lots of Unicode chars
-| 288[j1]     | 256j1 with 32 more Unicode chars
-<!--
-| 94[ascii]   | All lower ASCII chars + space (all typeable US keyboard)
--->
+| Base  | Name [arg]           | Aliases
+| --:   | :--                  | :--
+| 2     | 2                    | binary, bike
+| 3     | 3                    | ternary, trike
+| 4     | 4                    | quarternary, quad
+| 5     | 5                    | quinary, stuiver
+| 6     | 6                    | senary, seximal, bestagon
+| 7     | 7                    | septenary
+| 8     | 8                    | octal, oct, octopus
+| 9     | 9                    | nonary, non
+| 10    | 10                   | decimal, dec, arabic, dime
+| 10    | kanji                | 10kanji, japan, nippon, 日本
+| 10    | hanzi                | 10hanzi, china, zhōngguó, 中国
+| 10    | hindi                | 10hindi, india, hārat, भारत
+| 10    | arabicindic          | 10arabicindic, 10easternarabic, easternarabic
+| 10    | rods                 | 10rods
+| 12    | 12                   | 12hex, 12h, dozenal, duodecimal
+| 16    | 16                   | 16hex, 16h, hex, hexadecimal, nerdnumber, onepounder
+| 20    | 20                   | 20hex, 20h, vigesimal, venti
+| 20    | 20wordsafe           | 20ws, 20w, 20google, 20g, 20nofks
+| 20    | mayan                | 20maya
+| 24    | 24                   | 24hex, 24h
+| 26    | 26                   | alphabet
+| 30    | 30rock               | 30hex, 30h, 30
+| 32    | 32                   | 32hex, 32h, triacontakaidecimal, theonetrue32
+| 32    | 32rfc                | 32r
+| 32    | crockford            | 32crockford, 32crock, 32c
+| 32    | 32wordsafe           | 32ws, 32w, 32google, 32g, 32nofks
+| 32    | zbase32              | 32zbase, 32z
+| 32    | 32bip                | 32bitcoin, 32btc, 32segwit, bech32, bech32m
+| 36    | 36                   | 36hex, 36h
+| 38    | hostname             | 38hostname, 38jc
+| 39    | username             | 39username, 39jc
+| 42    | 42                   | 42hex, 42h
+| 45    | email                | 45email, 45jc
+| 48    | 48                   | 48hex, 48h
+| 48    | 48wordsafe           | 48w, 48ws, 48jcws, 48nofks
+| 48    | 48v1compat           | 48j1
+| 52    | 52                   | upperlower
+| 58    | 58bitcoin            | 58btc
+| 60    | 60jc                 | sexagesimal, hexagesimal
+| 60    | 60tc                 | newbase60
+| 62    | 62                   | 62hex, 62h
+| 64    | 64hex                | 64hexurl, 64hexu, 64hu
+| 64    | 64jc                 | 64p, 64j1u
+| 64    | 64rfc                | 64r
+| 64    | 64rfcurl             | 64rfcu, 64ru
+| 64    | 64wordsafe           | 64ws, 64w, 64jcws, 64nofks
+| 64    | 64v1compat           | 64j1uw
+| 69    | 69pshihn             |  85    | z85                  | 85z, 85zeromq
+| 85    | postscript           | 85adobe, 85postscript, 85ps
+| 85    | 85ipv6               | 85rfc1924, 85aprilfools, 85fools, 85elz
+| 91    | 91hk                 | 91bas
+| 128   | 128jc                | 128p
+| 128   | 128v1compat          | 128j1
+| 256   | 256jc                | 256p, 256j1
+| 256   | binary               | bin, bytes, raw
+| 288   | 288jc                | 288p, 288j1
+| 2048  | 2048twitter          | 2048x, 2048qntm
+| 2048  | 2048rust             | 2048llfourn
+| 32768 | 32768qntm            | 32768utf16
+| 65536 | 65536                | 65536qntm, 65536utf32
 
 ## Example output
 
 The chart below shows a big random base 10 number '2023090613425900000000000000001' in various bases.
 
+<!--
 Note that some of the larger bases appear to have longer output - but that's only due to being rendered with proportional fonts, combined with some of the wider Unicode characters. Look at the "Chars" column to see the actual # of characters in the output.
 
 This is a partial list carried over from `convert-base-v1`. This new version has at least double just that are hard-coded.
@@ -165,6 +221,7 @@ This is a partial list carried over from `convert-base-v1`. This new version has
 | 128[j1]    |    15 | 6🜥Mᛦ⍩ÑQŵʬμʞᚼä01
 | 256[j1]    |    13 | Pĵㅍ‡sĨǍᚧYrぇ01
 | 288[j1]    |    13 | 6zф⅖ẄÃЋゲㅎぇúkᛎ
+-->
 
 ## Document history
 
