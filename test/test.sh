@@ -186,3 +186,4 @@ fMain
 
 ##	Script history:
 ##		- 20260420 JC: Copied for convert-base-v2.
+##		- 20260421 JC: Added polish.
