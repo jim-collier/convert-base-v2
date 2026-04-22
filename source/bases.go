@@ -293,19 +293,20 @@ func predefinedBases() []*Base {
 		// Base 64p: Programmer-friendly base-64.
 		// Same as standard base 64 and 64url, except the additional two non-alphanumeric characters at the end are unicode, rather than potentially illegal characters in some contexts.
 		// The two additional characters were selected for their non-"exotic" look, ability to fit in fixed-width display, and disambiguity with existing characters.
+		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "64j1u" is backwards-compatabile with convert-base-v1, don't remove it.
 		mkSpec(leftTokens(base_288, 64),
 			"64jc", "64p", "64j1u"),
 
 		// Base 64, RFC 4648 §4
-		// FYI: Base-64 has the highest average binary-to-UTF8 density of any encoding scheme.
+		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-4
 		mkSpec(rfc4648start_c62+" + /",
 			"64rfc", "64r"),
 
 		// Base64 URL-safe, RFC 4648 §5
-		// FYI: Base 64 has the highest binary-to-UTF8 density of any encoding scheme.
+		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-5
 		mkSpec(rfc4648start_c62+" - _ neg=~",
 			"64rfcurl", "64rfcu", "64ru"),
@@ -387,7 +388,7 @@ func predefinedBases() []*Base {
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "128j1" is backwards-compatable with convert-base-v1, don't remove.
 		// Spaces are required for symbol sets with Unicode characters.
-		// NOTE: This alphabet has a one-character inconsistency with others almost identical to it. It is only maintained for backwards-compatibility.
+		// NOTE: This alphabet has a one-character inconsistency with others almost identical to it.
 		mkSpec("0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Ĵ Ŝ Ŵ Ŷ â ĉ ê ĝ ĥ ĵ ŝ ŵ ŷ Ã Ẽ Ñ Ỹ ã ẽ ñ ỹ Ä Ë Ẅ Ẍ Ÿ ä ë ẅ ẍ ÿ Á Ć É",
 			"128v1compat", "128depr", "128j1"),
 

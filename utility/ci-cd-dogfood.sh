@@ -18,10 +18,14 @@
 ## shellcheck disable=2143  ## 'Use grep -q instead of echo | grep'
 
 ##	Purpose: See fAbout() below.
-##	License: See towards bottom for the SPDX-License-Identifier and preamble for GPL-2.0-or-later.
-##	History: At bottom of script.
-##	TODO:
-##		- `return VAL`, not `exit VAL`.
+
+##	Copyright
+##		Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##		Licensed under the GNU General Public License v2.0 or later. Full text at:
+##			https://spdx.org/licenses/GPL-2.0-or-later.html
+##		SPDX-License-Identifier: GPL-2.0-or-later
+##	History .................: At bottom of this file.
+
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Constants
@@ -200,7 +204,6 @@ fMain(){
 #	## Run fMain_Chained(), as sudo if necessary, with important variables [and/or fArgs_*] serialized.
 #	fChainToFunc  'fMain_Chained'  "$(declare -p  doQuietly  ogUSER  ogHOME)"
 }
-
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
