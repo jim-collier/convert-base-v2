@@ -47,13 +47,13 @@ A cross-platform CLI program written in Go, that:
 
 - There are dozens of predefined named bases to specify as input or output.
 
-- You can define your own arbitrary base and alphabet, just by providing the alphabet.
+- You can define your own arbitrary base and alphabet (a set of positional notation symbols), just by providing the alphabet.
 
 	- E.g.: "`a 0 c X 🫪 だ`" is a perfectly valid, functional base-6 for some reason.
 
 - Supports streaming encoding to and from binary input/output.
 
-	- In other words, it can do what `basenc` can do, and also in O(N) linear time. (Which is unlike its regular base conversion operation, which necessarily works in O(N^2) quadradic time.)
+	- In other words, it can do what `basenc` can do, and also in O(N) linear time. (Which is unlike its regular base conversion operation, which necessarily works in O(N^2) quadratic time.)
 
 	- But since this is first and foremost a _base converter_ and not an _encoder/decoder_, it's not as fast as `basenc`. The only benefit over `basenc` is that it can encode/decode to/from any arbitrary base that's a power of 2. `basenc` can "only" handle three bases (plus three variations).
 
@@ -86,7 +86,8 @@ _Note: The command `convert-base-v2` has a version number on the end, to disting
 - [Limitations](#limitations)
 	- [Streaming binary conversion](#streaming-binary-conversion)
 - [Example output](#example-output)
-- [List of bases and their alphabet tokens](#list-of-bases-and-their-alphabet-tokens)
+- [List of supported bases and their positional notation symbols](#list-of-supported-bases-and-their-positional-notation-symbols)
+- [Supporting work](#supporting-work)
 - [Document history](#document-history)
 - [Copyright and license](#copyright-and-license)
 
@@ -116,7 +117,7 @@ But for day-to-day streaming binary conversion, `basenc` is at least 4x faster t
 
 Furthermore, base-64 - which `basenc` supports - is statistically the most compact way to store binary data as UTF-8 text. It might seem strange, but not even qntm's base-65536 (which this program has a named setting for) can beat the space density specifically for UTF-8 encoding. All modern OSes use UTF-8 by default. (For Twitter/𝕏, qntm's base-2048 allegedly optimally encodes binary data. Which this program also has a named setting for.)
 
-The only good reason for using this program for streaming binary conversion, is for bases that no other program supports. (Such as aforementioned bases 2048, 65536 - as well as specialty byte-aligned bases such as the myriad variations of base 32 this supports. Or your own custom 2^N base alphabet.) But until a future fix is put in place, it will gracefully error, if the input is not byte-aligned.
+The only good reason for using this program for streaming binary conversion, is for bases that no other program supports. (Such as aforementioned bases 2048, 65536 - as well as specialty byte-aligned bases such as the myriad variations of base 32 this supports. Or your own custom 2^N base positional notation symbol alphabet.) But until a future fix is put in place, it will gracefully error, if the input is not byte-aligned.
 
 ## Example output
 
@@ -152,17 +153,17 @@ This is a partial list carried over from `convert-base-v1`. This new version has
 | 288[j1]    |    13 | 6zф⅖ẄÃЋゲㅎぇúkᛎ
 -->
 
-## List of bases and their alphabet tokens
+## List of supported bases and their positional notation symbols
 
 Any number of any size can be converted to and from any of these bases. Most support negative numbers and decimals, if the intention makes sense.
 
-(_About missing base alphabets: they exist in the program, just not in this doc yet._)
+(_About missing the base symbol alphabets: they exist in the program, just not in this doc yet._)
 
-| Base  | Name [arg]           | Aliases                                               | Description                      | Specification | Alphabet [or at least first and last 64 tokens]
+| Base  | Name [arg]           | Aliases                                               | Description                      | Specification | Symbol alphabet [or at least first and last 64 tokens]
 | --:   | :--                  | :--                                                   | :--                             | :--           | :---
 | 2     | 2                    | binary, bike                                          | Text ones and zeros              |               | 01
 | 3     | 3                    | ternary, trike                                        | Rarely used in computers         |               | 012
-| 4     | 4                    | quarternary, quad                                     |                                  |               | 0123
+| 4     | 4                    | quaternary, quad                                     |                                  |               | 0123
 | 5     | 5                    | quinary, stuiver                                      |                                  |               | 01234
 | 6     | 6                    | senary, seximal, bestagon                             |                                  |               | 012345
 | 7     | 7                    | septenary                                             |                                  |               | 0123456
@@ -201,9 +202,9 @@ Any number of any size can be converted to and from any of these bases. Most sup
 | 60    | 60jc                 | sexagesimal, hexagesimal                              |                                  |               |
 | 60    | 60tc                 | newbase60                                             |                                  |               |
 | 62    | 62                   | 62hex, 62h                                            |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz
-| 64    | 64hex                | 64hexurl, 64hexu, 64hu                                | Tightest binary-to-text encoding for UTF-8 (Lunix, macOS, Windows). |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_
-| 64    | 64jc                 | 64p, 64j1u                                            |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ
-| 64    | 64rfc                | 64r                                                   |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/
+| 64    | 64hex                | 64hexurl, 64hexu, 64hu                                | Tightest binary-to-text encoding for UTF-8 (Linux, macOS, Windows). | | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz-_
+| 64    | 64jc                 | 64p, 64j1u                                            | Almost tightest binary-to-text encoding for UTF-8.                  | | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ
+| 64    | 64rfc                | 64r                                                   | Tightest binary-to-text encoding for UTF-8.                         | | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/
 | 64    | 64rfcurl             | 64rfcu, 64ru                                          |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
 | 64    | 64wordsafe           | 64ws, 64w, 64jcws, 64nofks                            |                                  |               | 23456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱ
 | 64    | 64v1compat           | 64j1uw                                                |                                  |               |
@@ -222,9 +223,20 @@ Any number of any size can be converted to and from any of these bases. Most sup
 | 32768 | 32768qntm            | 32768utf16                                            | Tightest binary-to-text encoding for UTF-16.  |               | ҠҡҢңҤҥҦҧҨҩҪҫҬҭҮүҰұҲҳҴҵҶҷҸҹҺһҼҽҾҿԀԁԂԃԄԅԆԇԈԉԊԋԌԍԎԏԐԑԒԓԔԕԖԗԘԙԚԛԜԝԞԟ ...to... ꞀꞁꞂꞃꞄꞅꞆꞇꞈ꞉꞊ꞋꞌꞍꞎꞏꞐꞑꞒꞓꞔꞕꞖꞗꞘꞙꞚꞛꞜꞝꞞꞟꡀꡁꡂꡃꡄꡅꡆꡇꡈꡉꡊꡋꡌꡍꡎꡏꡐꡑꡒꡓꡔꡕꡖꡗꡘꡙꡚꡛꡜꡝꡞꡟ
 | 65536 | 65536                | 65536qntm, 65536utf32                                 | Tightest binary-to-text encoding for UTF-32.  |               | 㐀㐁㐂㐃㐄㐅㐆㐇㐈㐉㐊㐋㐌㐍㐎㐏㐐㐑㐒㐓㐔㐕㐖㐗㐘㐙㐚㐛㐜㐝㐞㐟㐠㐡㐢㐣㐤㐥㐦㐧㐨㐩㐪㐫㐬㐭㐮㐯㐰㐱㐲㐳㐴㐵㐶㐷㐸㐹㐺㐻㐼㐽㐾㐿 ...to... 𨗀𨗁𨗂𨗃𨗄𨗅𨗆𨗇𨗈𨗉𨗊𨗋𨗌𨗍𨗎𨗏𨗐𨗑𨗒𨗓𨗔𨗕𨗖𨗗𨗘𨗙𨗚𨗛𨗜𨗝𨗞𨗟𨗠𨗡𨗢𨗣𨗤𨗥𨗦𨗧𨗨𨗩𨗪𨗫𨗬𨗭𨗮𨗯𨗰𨗱𨗲𨗳𨗴𨗵𨗶𨗷𨗸𨗹𨗺𨗻𨗼𨗽𨗾𨗿
 
+## Supporting work
+
+- Unicode listings
+
+	- All printable Unicode characters, ordered by block.
+
+	- Nicely AI-ordered lists of printable Unicode characters <= U+1FBF9 (i.e. directly printable in most modern fonts).
+
+		Characters are, in many cases at higher code points, re-ordered to look nice and "expected" in a positional notation numbering system. (I.e. numbered balls grouped by type and go in order, arrows grouped by style and rotate from "north" to "northwest".
+
 ## Document history
 
 - 2026-04-17: First version.
+- 2026-04-22: Added list of unicode characters used.
 
 ## Copyright and license
 
