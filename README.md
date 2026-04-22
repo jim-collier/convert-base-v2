@@ -41,9 +41,9 @@ A cross-platform CLI program written in Go, that:
 
 - The number can be arbitrarily large.
 
-- Supports negative and floating-point numbers in any base.
+- Supports negative and floating-point numbers in most bases, notably ones intended to be used as positional notation. (Even if the base can - or was designed - to serve dual-purpose as a binary-to-text endoding/decoding alphabet.)
 
-	- And the ability to define alternate symbols for "negative" and "decimal", if the regular ones clash with symbols in the base.
+	- And the ability to define alternate symbols for "negative" and "decimal", if the regular ones clash with symbols already in the base.
 
 - There are dozens of predefined named bases to specify as input or output.
 
