@@ -23,7 +23,7 @@
 
 
 ## Settings
-declare -r exePath="$(dirname "${0}")/../src/convert-base-v2"
+declare -r exePath="$(dirname "${0}")/../source/convert-base-v2"
 
 
 fUnitTest(){

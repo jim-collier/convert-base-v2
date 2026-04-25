@@ -46,19 +46,19 @@ func predefinedBases() []*Base {
 
 		// Base-2
 		mkSpec("01",
-			"2", "binary", "bike"),
+			"2", "binary"),
 
 		// Base-3
 		mkSpec("012",
-			"3", "ternary", "trike"),
+			"3", "ternary", "tern"),
 
 		// Base-4
 		mkSpec("0123",
-			"4", "quarternary", "quad"),
+			"4", "quarternary", "quart"),
 
 		// Base-5 aka Quinary. A historical counting system that used different glyphs.
 		mkSpec("01234",
-			"5", "quinary", "stuiver"),
+			"5", "quinary", "quin"),
 
 		// Base-6 aka Senary/Seximal. Used by the Fore (not Six) people of New Guinea.
 		mkSpec("012345",
@@ -70,11 +70,11 @@ func predefinedBases() []*Base {
 
 		// Base-8 aka Octal
 		mkSpec("01234567",
-			"8", "octal", "oct", "octopus"),
+			"8", "octal", "oct"),
 
 		// Base-9 aka Nonary
 		mkSpec("012345678",
-			"9", "nonary", "non"),
+			"9", "nonary"),
 
 		//
 		// Base-10, including multiple languages
@@ -82,7 +82,7 @@ func predefinedBases() []*Base {
 
 		// Base-10, aka Decimal, aka Western Arabic
 		mkSpec(base_10,
-			"10", "decimal", "dec", "arabic", "dime"),
+			"10", "decimal", "dec", "arabic"),
 
 		// Base-10 in Japanese Kanji
 		// Same unicode points as Chinese Hazi, except for different 0.
@@ -121,32 +121,33 @@ func predefinedBases() []*Base {
 
 		// Base-12, aka Duodecimal, aka Dozenal (a historical and useful counting system - more evenly divisible by more integers than base-10)
 		mkSpec(leftTokens(base_62hex, 12),
-			"12", "12hex", "12h", "dozenal", "duodecimal"),
+			"12", "12h", "12hex", "dozenal", "duodecimal"),
 
 		// Base-16, aka Hexadecimal
 		mkSpec(leftTokens(base_62hex, 16),
-			"16", "16hex", "16h", "hex", "hexadecimal", "nerdnumber", "onepounder"),
+			"16", "16h", "16hex", "hex", "hexadecimal", "nerdnumber", "onepounder"),
 
 		// Base-20, aka Vigesimal
 		mkSpec(leftTokens(base_62hex, 20),
-			"20", "20hex", "20h", "vigesimal", "venti"),
+			"20", "20h", "20hex", "vigesimal", "venti"),
 
 		// Word-safe base-20; not a standard, but published.
 		// https://github.com/google/open-location-code
 		mkSpec(leftTokens(base_32ws, 20),
-			"20wordsafe", "20ws", "20w", "20google", "20g", "20nofks"),
+			"20w", "20wordsafe", "20ws", "20google", "20g", "20nofks"),
 
 		// Ancient Mayan base-20
 		// This was written top-to-bottom though, not left-to-right.
 		// Also their calendar counting system was wonky and not purely positional notation.
 		// https://en.wikipedia.org/wiki/Maya_numerals
-		mkSpec("𝋠 𝋡 𝋢 𝋣 𝋤 𝋥 𝋦 𝋧 𝋨 𝋩 𝋪 𝋫 𝋬 𝋭 𝋮 𝋯 𝋰 𝋱 𝋲 𝋳", "mayan", "20maya"),
+		mkSpec("𝋠 𝋡 𝋢 𝋣 𝋤 𝋥 𝋦 𝋧 𝋨 𝋩 𝋪 𝋫 𝋬 𝋭 𝋮 𝋯 𝋰 𝋱 𝋲 𝋳",
+			"mayan", "20mayan", "20maya"),
 
 		// Base-24 - like the hours in a day, an obvious pseudostandard
 		// The "h" in "24h" is to notate that it's using the "hexadecimal" convention of appending the alphabet after 0-9, e.g. hexadecimal.
 		//   As all such schemes notate. Not for "24 hour", which is an OK assumption.
 		mkSpec(leftTokens(base_62hex, 24),
-			"24", "24hex", "24h"),
+			"24", "24h", "24hex"),
 
 		// Base-26 - the alphabet, an obvious pseudostandard
 		mkSpec(upperAZ_c26,
@@ -158,7 +159,7 @@ func predefinedBases() []*Base {
 		// And unlike starting with, say, Crockford or word-safe as the base, the letters "ROCK" are in this base.
 		// Not an official standard. Created by Jim Collier 2026-04-19, published with this code.
 		mkSpec(leftTokens(base_62hex, 30),
-			"30rock", "30hex", "30h", "30"),
+			"30rock", "30h", "30hex"),
 
 		//
 		// The base-32 empire. There are myriad base-32 variations.
@@ -167,14 +168,6 @@ func predefinedBases() []*Base {
 		//  So base-32hex will get the honor of being just "32". Everything else requires qualifiers to be unique.
 		//
 
-		// Base-32hex (numbers first), RFC 4648 §7.
-		// Although listed second in the RFC base-32 standard, it is more consistent (hexadecimal-like) with other bases.
-		// Alias "32h" is backwards-compatable with convert-base-v1, don't remove.
-		// Breaking change from convert-base-v1: "32" alone now means this one, rather than "32rfc".
-		// https://www.rfc-editor.org/rfc/rfc4648.html#section-7
-		mkSpec(leftTokens(base_62hex, 32),
-			"32", "32hex", "32h", "triacontakaidecimal", "theonetrue32"),
-
 		// RFC base-32 - letters first, RFC 4648 §6.
 		// While listed first in the standard, it's kind of backwards compared to every base so far and most to come.
 		//   (But at least consistent with the backward RFC 4648 §4 64-bit scheme.)
@@ -182,32 +175,40 @@ func predefinedBases() []*Base {
 		// Alias "32r" is backwards-compatable with convert-base-v1, don't remove.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-6
 		mkSpec(upperAZ_c26+" 2 3 4 5 6 7 ",
-			"32rfc", "32r"),
+			"32", "32r", "32rfc", "32rfc4648s6", "rfc4648s6"),
+
+		// Base-32hex (numbers first), RFC 4648 §7.
+		// Although listed second in the RFC base-32 standard, it is more consistent (hexadecimal-like) with other bases.
+		// Alias "32h" is backwards-compatable with convert-base-v1, don't remove.
+		// Breaking change from convert-base-v1: "32" alone now means this one, rather than "32rfc".
+		// https://www.rfc-editor.org/rfc/rfc4648.html#section-7
+		mkSpec(leftTokens(base_62hex, 32),
+			"32h", "32hex", "triacontakaidecimal", "theonetrue32"),
 
 		// Crockford's base-32; designed for less human-read ambiguity, no I, L, O, U
 		// Not a standard, but published by the legendary programmer, and widely-used.
 		// Alias "32c" is backwards-compatable with convert-base-v1, don't remove.
 		// https://www.crockford.com/base32.html
 		mkSpec(base_10+" A B C D E F G H J K M N P Q R S T V W X Y Z ",
-			"crockford", "32crockford", "32crock", "32c"),
+			"32c", "32crock", "32crockford", "crockford"),
 
 		// Word-safe base-32. Not a standard, but published.
 		// Alias "32w" is backwards-compatable with convert-base-v1, don't remove.
 		// https://github.com/google/open-location-code
 		mkSpec(base_32ws,
-			"32wordsafe", "32ws", "32w", "32google", "32g", "32nofks"),
+			"32w", "32wordsafe", "32ws", "32google", "32g", "32nofks"),
 
 		// z-base-32 by Zooko Wilcox-O'Hearn
 		// https://en.wikipedia.org/wiki/Base32#z-base-32
 		mkSpec("ybndrfg8ejkmcpqxot1uwisza345h769",
-			"zbase32", "32zbase", "32z"),
+			"32z", "32zbase", "zbase32"),
 
 		// Bech32/Bech32m, BIP-173/350. Used for Bitcoin SegWit v0, v1 addresses. Human-readable, excludes 1, b, i, o.
 		// The random-looking order is so that common typos map to small numerical differences, which maximizes the error-detection strength of the BCH checksum.
 		// This converter cannot generate actual bitcoin addresses!
 		// https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
 		mkSpec("qpzry9x8gf2tvdw0s3jn54khce6mua7l",
-			"32bip", "32bitcoin", "32btc", "32segwit", "bech32", "bech32m"),
+			"32bip", "32btc", "32bitcoin", "32segwit", "bech32", "bech32m"),
 
 		//
 		// [end of base-32 empire]
@@ -215,12 +216,12 @@ func predefinedBases() []*Base {
 
 		// Base-36, all numbers+letters, an obvious pseudo-standard, hex-style
 		mkSpec(leftTokens(base_62hex, 36),
-			"36", "36hex", "36h"),
+			"36", "36h", "36hex"),
 
 		// Base-42
 		// https://grokipedia.com/page/Base_42
 		mkSpec(leftTokens(base_62hex, 42),
-			"42", "42hex", "42h"),
+			"42", "42h", "42hex"),
 
 		// Base-45, RFC 9285 (not using since a space is a valid character and that would cause us problems)
 		// https://www.rfc-editor.org/rfc/rfc9285.html
@@ -232,13 +233,13 @@ func predefinedBases() []*Base {
 		// Not an official standard but reasonably obvious.
 		// "Created" by Jim Collier 2026-04-19, published with this code.
 		mkSpec(leftTokens(base_62hex, 48),
-			"48", "48hex", "48h"),
+			"48", "48h", "48hex"),
 
 		// Word-safe base-48:
 		// Extends word-safe base-32, with unicode characters.
 		// Not an official standard. Created by Jim Collier 2026-04-19, published with this code.
 		mkSpec(base_32ws+leftTokens(unicodeExt_94, 16),
-			"48wordsafe", "48w", "48ws", "48jcws", "48nofks"),
+			"48w", "48wordsafe", "48ws", "48jcws", "48nofks"),
 
 		// Deprecated word-safe base-48 "48v1compat"
 		// Subset of base "64v1compat" and "128v1compat".
@@ -258,7 +259,7 @@ func predefinedBases() []*Base {
 		// This converter cannot generate actual bitcoin addresses!
 		// https://learnmeabitcoin.com/technical/keys/base58/
 		mkSpec("123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz",
-			"58bitcoin", "58btc"),
+			"58btc", "58bitcoin"),
 
 		// Base-60 - Sexagesimal, Hexagesimal - used by Sumerians and Babylonians. Highly divisible by even integers.
 		// There is no "standard" notation, when used in a regular positional notation system.
@@ -276,11 +277,23 @@ func predefinedBases() []*Base {
 		// An obvious pseudo-standard.
 		// https://en.wikipedia.org/wiki/Base62
 		mkSpec(base_62hex,
-			"62", "62hex", "62h"),
+			"62", "62h", "62hex"),
 
 		//
 		// The Base-64 domain
 		//
+
+		// Base 64, RFC 4648 §4
+		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
+		// https://www.rfc-editor.org/rfc/rfc4648.html#section-4
+		mkSpec(rfc4648start_c62+" + /",
+			"64", "64r", "64rfc", "64rfc4648s4", "rfc4648s4"),
+
+		// Base64 URL-safe, RFC 4648 §5
+		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
+		// https://www.rfc-editor.org/rfc/rfc4648.html#section-5
+		mkSpec(rfc4648start_c62+" - _ neg=~",
+			"64u", "64url", "64ru", "64rfc4648s5", "rfc4648s5"),
 
 		// Base 64, hex-style (with RFC URL-style extensions)
 		// FYI: Base-64 has the highest average binary-to-UTF8 density of any encoding scheme.
@@ -288,7 +301,7 @@ func predefinedBases() []*Base {
 		//  the official base 62 is in this style.
 		// (Arguably) "created" by Jim Collier, 2026-04-19.
 		mkSpec(base_62hex+" - _ neg=~",
-			"64hex", "64hexurl", "64hexu", "64hu"),
+			"64h", "64hex", "64hexurl", "64hu"),
 
 		// Base 64p: Programmer-friendly base-64.
 		// Same as standard base 64 and 64url, except the additional two non-alphanumeric characters at the end are unicode, rather than potentially illegal characters in some contexts.
@@ -299,25 +312,13 @@ func predefinedBases() []*Base {
 		mkSpec(leftTokens(base_288, 64),
 			"64jc", "64p", "64j1u"),
 
-		// Base 64, RFC 4648 §4
-		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
-		// https://www.rfc-editor.org/rfc/rfc4648.html#section-4
-		mkSpec(rfc4648start_c62+" + /",
-			"64rfc", "64r"),
-
-		// Base64 URL-safe, RFC 4648 §5
-		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
-		// https://www.rfc-editor.org/rfc/rfc4648.html#section-5
-		mkSpec(rfc4648start_c62+" - _ neg=~",
-			"64rfcurl", "64rfcu", "64ru"),
-
 		// Word-safe base-64
 		// Extends base-48ws (which is base-32ws with all the numbers plus some unicode characters),
 		//   but also with lower-case letters and more unicode characters.
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
 		// Not an official standard. Created by Jim Collier 20260419, originally published with this code.
 		mkSpec(base_32ws+leftTokens(unicodeExt_94, 32),
-			"64wordsafe", "64ws", "64w", "64jcws", "64nofks"),
+			"64w", "64wordsafe", "64ws", "64jcws", "64nofks"),
 
 		// Deprecated word-safe base-64 "64v1compat"
 		// Exists for backwards-compatability with convert-base-v1.
@@ -337,21 +338,21 @@ func predefinedBases() []*Base {
 		// Not an official standard, but published. It's based on the heinous RFC 4648 §4, which is unfortunate.
 		// https://github.com/pshihn/base69
 		mkSpec(rfc4648start_c62+" + / - * < > | neg=~",
-			"69pshihn"),
+			"69preet", "69pshihn"),
 
 		// Base-85, "Z85 - ZeroMQ RFC 32"
 		// "Safer" or at least easier to deal with than Ascii85/PostScript, besause of no quote or backslash.
 		// Negative and decimal disabled, as both are used, and neither make sense for intended binary encoding.
 		// https://rfc.zeromq.org/spec/32/
 		mkSpec(base_10+lowerAZ_c26+upperAZ_c26+" . - : + = ^ ! / * ? & < > ( ) [ ] { } @ % $ # neg= dec=",
-			"z85", "85z", "85zeromq"),
+			"85z", "z85", "85zeromq"),
 
 		// Base 85, Ascii85 Adobe variant, used in PostScript Level 2 and PDF
 		// Negative and decimal disabled, as both are used, and neither make sense for intended binary encoding.
 		// Requires spaces due to comma in set, also easier to read the two escaped characters.
 		// https://en.wikipedia.org/wiki/Ascii85
 		mkSpec("! \" # $ % & ' ( ) * + , - . / neg= dec="+base_10+" : ; < = > ? @ "+upperAZ_c26+" [ \\ ] ^ _ ` "+leftTokens(lowerAZ_c26, 21)+" neg= dec=",
-			"postscript", "85adobe", "85postscript", "85ps"),
+			"85ps", "85postscript", "85adobe", "postscript"),
 
 		// Base 85, RFC 1924 — "A Compact Representation of IPv6 Addresses," published April 1, 1996 by Robert Elz.
 		// An April Fools' Day RFC that has actually caught on, but was never seriously adopted for IPv6 representation.
@@ -386,11 +387,10 @@ func predefinedBases() []*Base {
 		// Extends base "64v1compat" with more unicode characters.
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
-		// Alias "128j1" is backwards-compatable with convert-base-v1, don't remove.
 		// Spaces are required for symbol sets with Unicode characters.
 		// NOTE: This alphabet has a one-character inconsistency with others almost identical to it.
 		mkSpec("0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Ĵ Ŝ Ŵ Ŷ â ĉ ê ĝ ĥ ĵ ŝ ŵ ŷ Ã Ẽ Ñ Ỹ ã ẽ ñ ỹ Ä Ë Ẅ Ẍ Ÿ ä ë ẅ ẍ ÿ Á Ć É",
-			"128v1compat", "128depr", "128j1"),
+			"128v1compat", "128depr"),
 
 		// Base-256: Extends base-128 with more unicode characters.
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
