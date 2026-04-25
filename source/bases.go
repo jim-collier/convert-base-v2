@@ -247,7 +247,7 @@ func predefinedBases() []*Base {
 		// Word-safe base with the same letter selection as "Word-safe base-32", but more numbers, and unicode to finish out the rest.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "48j1" is backwards-compatable with convert-base-v1, don't remove.
-		mkSpec(base_34ws_depr+leftTokens(unicodeExt_94, 14),
+		mkSpec("0 1 2 3 4 5 6 7 8 9 c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑",
 			"48v1compat", "48depr", "48j1"),
 
 		// Base-52, all upper and lower-case english letters
@@ -325,7 +325,7 @@ func predefinedBases() []*Base {
 		// Extends base "48v1compat", subset of base "128v1compat"
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "64j1uw" is backwards-compatable with convert-base-v1, don't remove.
-		mkSpec(base_34ws_depr+leftTokens(unicodeExt_94, 30),
+		mkSpec("0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠",
 			"64v1compat", "64depr", "64j1uw"),
 
 		//
