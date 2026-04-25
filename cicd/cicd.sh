@@ -17,26 +17,26 @@
 ## shellcheck disable=2053  ## 'Quote the right-hand sid of = in [[ ]] to prevent glob matching.' Disable for Yoda Notation.
 ## shellcheck disable=2143  ## 'Use grep -q instead of echo | grep'
 
-##	Purpose: See fAbout() below.
+##	Purpose: Wrapper for build, test, copy to local for dogfood, push to github. Calls test.sh, no need to call that separately.
+##	History: At bottom of this file. (Note: History for this is maintained outside of [or in addition to] git project.)
 
-##	Copyright
-##		Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
-##		Licensed under the GNU General Public License v2.0 or later. Full text at:
-##			https://spdx.org/licenses/GPL-2.0-or-later.html
-##		SPDX-License-Identifier: GPL-2.0-or-later
-##	History .................: At bottom of this file.
+##	Copyright © 2022-2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Licensed under the GNU General Public License v2.0 or later. Full text at:
+##		https://spdx.org/licenses/GPL-2.0-or-later.html
+##	SPDX-License-Identifier: GPL-2.0-or-later
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Constants
 if [[ -z "${doQuietly+x}" ]]; then
 
-	## Settings
-	declare    dirPath_Source="../src"
-	declare    filePath_ExecToTestAndInstall="${dirPath_Source}/convert-base-v2"
-	declare    filePath_TestExec="../test/test.sh"
-	declare    gitAutomationScript="n8git_backup-and-publish"
+	## Settings (relative paths defined here will be verified and resolved later)
+	declare    dirPath_Source="../source"
+	declare    filePath_ExecToTestAndInstall="../source/convert-base-v2"
+	declare    filePath_TestExec="../cicd/test.sh"
+	declare    gitAutomationScript="../utility/n8git_backup-and-publish"
 	declare -a preferredInstallPaths=("${HOME}/synced/0-0/common/exec/util/linux/bin"  "/usr/local/sbin/")  ## First one that exists, wins
+	declare -i isCompileProject=1  ## 1: E.g. C++, Rust, Go, etc.  0: E.g. Python, Bash, etc.
 
 	## Generic constants
 	declare  -i doQuietly=0
@@ -64,11 +64,13 @@ fAbout(){ { ((doQuietly)) || ((wasShown_About)); } && return; wasShown_About=1;
 	fEcho_Clean ""
 	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "CI/CD and dogfood:"
-	fEcho_Clean "  • Builds the program. If successful:"
-	fEcho_Clean "    • Cross-compile more versions. If those succeed:"
-	fEcho_Clean "      • Run automated tests. If tests pass:"
-	fEcho_Clean "        • Update locally-installed version to what was just compiled."
-	fEcho_Clean "        • Run git automation script (e.g. commit and push)."
+	if ((isCompileProject)); then
+		fEcho_Clean "  • Builds the program. If successful:"
+		fEcho_Clean "  • Cross-compile more versions. If those succeed:"
+	fi
+	fEcho_Clean "  • Run automated tests. If tests pass:"
+	fEcho_Clean "  • Update locally-installed version to what was just compiled for dogfood."
+	fEcho_Clean "  • Run git automation script (e.g. commit and push)."
 	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "" ;:;}
 fSyntax(){  { ((doQuietly)) || ((wasShown_Syntax)); } && return; wasShown_Syntax=1;
@@ -113,34 +115,30 @@ fMain(){
 	fParseArgs  "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" "${12:-}" "${13:-}" "${14:-}" "${15:-}" "${16:-}" "${17:-}" "${18:-}" "${19:-}" "${20:-}" "${21:-}" "${22:-}" "${23:-}" "${24:-}" "${25:-}" "${26:-}" "${27:-}" "${28:-}" "${29:-}" "${30:-}" "${31:-}" "${32:-}"
 	readonly allArgsArr
 
-	## Constants
-	local -r dirPath_me="$(dirname "${mePath}")"
-	dirPath_Source="$(realpath         -e "${dirPath_me}/${dirPath_Source}")"         ; readonly dirPath_Source
-	filePath_ExecToTestAndInstall="$(realpath -e "${dirPath_me}/${filePath_ExecToTestAndInstall}")" ; readonly filePath_ExecToTestAndInstall
-	filePath_TestExec="$(realpath      -e "${dirPath_me}/${filePath_TestExec}")"      ; readonly filePath_TestExec
-	local gitAutomationScript_verified="${gitAutomationScript}"
-	if [[ -x "${gitAutomationScript_verified}" ]]; then
-		gitAutomationScript_verified="$(realpath -e "${gitAutomationScript_verified}")"
-	else
-		gitAutomationScript_verified="$(which "${gitAutomationScript_verified}" 2>/dev/null || true)"
-	fi
-	readonly gitAutomationScript_verified
+	## Resolve paths
+	fResolvePath  dirPath_Source                 "${dirPath_Source}"                 ; readonly dirPath_Source
+	fResolvePath  filePath_ExecToTestAndInstall  "${filePath_ExecToTestAndInstall}"  ; readonly filePath_ExecToTestAndInstall
+	fResolvePath  filePath_TestExec              "${filePath_TestExec}"              ; readonly filePath_TestExec
+	fResolvePath  gitAutomationScript            "${gitAutomationScript}"            ; readonly gitAutomationScript
+	readonly gitAutomationScript
 
 	## Validate
-	[[ -d "${dirPath_me}"                   ]]  ||  fThrowError "Path not found: '${dirPath_me}'"
-	[[ -d "${dirPath_Source}"               ]]  ||  fThrowError "Path not found: '${dirPath_Source}'"
-	[[ -f "${filePath_TestExec}"            ]]  ||  fThrowError "File not found: '${filePath_TestExec}'"
-	[[ -f "${filePath_TestExec}"            ]]  ||  fThrowError "File not found: '${filePath_TestExec}'"
-	[[ -n "${gitAutomationScript_verified}" ]]  ||  fThrowError "Git automation script not found where specified or in path: '${gitAutomationScript}'."
+	[[ -d "${meDir}"                ]]  ||  fThrowError "Path not found: '${meDir}'"
+	[[ -d "${dirPath_Source}"       ]]  ||  fThrowError "Path not found: '${dirPath_Source}'"
+	[[ -f "${filePath_TestExec}"    ]]  ||  fThrowError "File not found: '${filePath_TestExec}'"
+	[[ -f "${filePath_TestExec}"    ]]  ||  fThrowError "File not found: '${filePath_TestExec}'"
+	[[ -n "${gitAutomationScript}"  ]]  ||  fThrowError "Git automation script not found where specified or in path: '${gitAutomationScript}'."
 
 	## Prompt to continue
 	if ((! doQuietly)); then
 		fCopyright
 		fAbout
 		fEcho_Clean "Source directory .............: ${dirPath_Source}"
+		if ((isCompileProject)); then
 		fEcho_Clean "Executable to build etc. .....: ${filePath_ExecToTestAndInstall}"
+		fi
 		fEcho_Clean "Test script ..................: ${filePath_TestExec}"
-		fEcho_Clean "Git commit and push script ...: ${gitAutomationScript_verified}"
+		fEcho_Clean "Git commit and push script ...: ${gitAutomationScript}"
 		fIntroPromptToContinue  ""
 		fEcho_Clean
 	fi
@@ -149,28 +147,32 @@ fMain(){
 	#### MAKEITSO
 	####
 
-	cd "${dirPath_me}/.."
+	cd "${meDir}/.."
 	pushd "${dirPath_Source}" 1>/dev/null
 
-	## make
-	fEcho "$(date "+%Y%m%d-%H%M%S") make: Starting ..."
-	make
-	fEcho "$(date "+%Y%m%d-%H%M%S") Minimal execution test ..."
-	"${filePath_ExecToTestAndInstall}"  --version
-	sleep 1  ## Long enough to see version
+	if ((isCompileProject)); then
 
-	## Hide single exe
-	[[ -f "${filePath_ExecToTestAndInstall}_staged" ]]  &&  trash "${filePath_ExecToTestAndInstall}_staged"
-	mv "${filePath_ExecToTestAndInstall}"  "${filePath_ExecToTestAndInstall}_staged"
+		## make
+		fEcho "$(date "+%Y%m%d-%H%M%S") make: Starting ..."
+		make
+		fEcho "$(date "+%Y%m%d-%H%M%S") Minimal execution test ..."
+		"${filePath_ExecToTestAndInstall}"  --version
+		sleep 1  ## Long enough to see version
 
-	## Make release (part of testing - if they don't cross-compile then there' a problem)
-	fEcho
-	fEcho "$(date "+%Y%m%d-%H%M%S") make release: Starting ..."
-	make release
-	fEcho_ResetBlankCounter
+		## Hide single exe
+		[[ -f "${filePath_ExecToTestAndInstall}_staged" ]]  &&  trash "${filePath_ExecToTestAndInstall}_staged"
+		mv "${filePath_ExecToTestAndInstall}"  "${filePath_ExecToTestAndInstall}_staged"
 
-	##Unhide single executable for testing and local installation
-	mv "${filePath_ExecToTestAndInstall}_staged"  "${filePath_ExecToTestAndInstall}"
+		## Make release (part of testing - if they don't cross-compile then there' a problem)
+		fEcho
+		fEcho "$(date "+%Y%m%d-%H%M%S") make release: Starting ..."
+		make release
+		fEcho_ResetBlankCounter
+
+		##Unhide single executable for testing and local installation
+		mv "${filePath_ExecToTestAndInstall}_staged"  "${filePath_ExecToTestAndInstall}"
+
+	fi
 
 	## Test
 	fEcho "$(date "+%Y%m%d-%H%M%S") Test: Starting ..."
@@ -196,13 +198,13 @@ fMain(){
 	done
 
 	## Git automation script (e.g. commit, push)
-	"${gitAutomationScript_verified}"
+	"${gitAutomationScript}"
+
+#	## Run fMain_Chained(), as sudo if necessary, with important variables [and/or fArgs_*] serialized.
+#	((doAsSudo))  &&  fChainToFunc  'fMain_Chained'  "$(declare -p  doQuietly  ogUSER  ogHOME)"
 
 	## Done; either fChainToFunc() -> fMain_Chained() returned, or this script run in a sudo subshell [running only fMain_Chained()] returned.
 	((! doQuietly)) && { fEcho "${meName}: Done."; fEcho; }
-
-#	## Run fMain_Chained(), as sudo if necessary, with important variables [and/or fArgs_*] serialized.
-#	fChainToFunc  'fMain_Chained'  "$(declare -p  doQuietly  ogUSER  ogHOME)"
 }
 
 
@@ -336,6 +338,27 @@ fCleanup(){
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Generic functions
+## Generic functions
+fResolvePath(){
+	## First looks at specified raw path. Next, same path but relative to this script. Next, in $PATH for an executable. Next, in this script's path, + /lib, /include, then /includes.
+	local -n parentVarName_ResolvedPath_t4rej=${1:-}  ; shift || true  ## Parent variable to store fully resolved path in.
+	local    nameOrPath="${1:-}"                      ; shift || true  ## File or folder path (relative or absolute). If an executable file, can be just a name to search in $PATH, to fully resolve.
+	[[   -z "${nameOrPath}" ]]  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): No path specified to resolve.\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
+	local -r mePath_t4rfg="$(dirname "${BASH_SOURCE[0]}")"
+	local -i isNopathObject=0 ; [[ "${nameOrPath}" == "$(basename "${nameOrPath}")" ]] && isNopathObject=1 ; readonly isNopathObject
+	local    testPath="${nameOrPath}"
+	  [[ ! -e "${testPath}"   ]]                           &&  testPath="${mePath_t4rfg}/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject)); }  &&  testPath="$(which "${nameOrPath}" 2>/dev/null || true)"
+	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject)); }  &&  testPath="${mePath_t4rfg}/lib/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject)); }  &&  testPath="${mePath_t4rfg}/include/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject)); }  &&  testPath="${mePath_t4rfg}/includes/${nameOrPath}"
+	  [[ ! -e "${testPath}"   ]]                           &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔc].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
+	testPath="$(realpath -e "${testPath}" 2>/dev/null || true)"
+	## Last check to fail on
+	{ [[ -n "${testPath}" ]] && [[ -e "${testPath}" ]]; } || { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔs].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
+	## Success
+	parentVarName_ResolvedPath_t4rej="${testPath}"
+}
 fGetOgUserName(){
 	local -n varName_s74rg=$1  ## Arg <REQUIRED>: Variable reference for result.
 	local    retVal=""
@@ -439,7 +462,9 @@ fPressAnyKeyToContinue(){
 declare -i _wasLastEchoBlank=0
 declare -i _isEchoInRawInlineMode=0
 fEcho_ResetBlankCounter()     { _wasLastEchoBlank=0;      }
-fEcho_IsInRawInlineMode_Set() { [[ "${1}" == "1" ]]  &&  _isEchoInRawInlineMode=1; }  ## Script it telling fEcho* that something is going to be echoing to the screen in non-linefeed mode without its knowledge. (E.g. "echo -n 'something: '".)
+fEcho_WasLastEchoBlank_Set()  { { [[ "${1}" == "1" ]]  &&  _wasLastEchoBlank=1; }  ||  _wasLastEchoBlank=0;  }
+fEcho_WasLastEchoBlank_Get()  { { ((_wasLastEchoBlank > 0))  &&  return 0; }  ||  return 1; }
+fEcho_IsInRawInlineMode_Set() { { [[ "${1}" == "1" ]]  &&  _isEchoInRawInlineMode=1; }  ||  _isEchoInRawInlineMode=1; }  ## Script it telling fEcho* that something is going to be echoing to the screen in non-linefeed mode without its knowledge. (E.g. "echo -n 'something: '".)
 fEcho_IsInRawInlineMode_Get() { { ((_isEchoInRawInlineMode))  &&  return 0; }  ||  return 1; }
 fEcho_Clean(){
 	((_isEchoInRawInlineMode))  &&  { echo; _wasLastEchoBlank=0; _isEchoInRawInlineMode=0; }
@@ -533,6 +558,7 @@ if [[ -z "${serialDT+x}"     ]]; then
 	declare -r serialDT="$(date "+%Y%m%d-%H%M%S")"
 	declare -r mePath="$(realpath -e "${BASH_SOURCE[0]}")"
 	declare -r meName="$(basename "${mePath}")"
+	declare -r meDir="$(dirname "${mePath}")"
 	declare -r relaunch_Key_sudo="${meName}_relaunch_sudo_4KQDYluNbzLQHwMwsWxgdk"  ## This isn't for 'security' or uniqueness. It just needs to be an exceptionally unlikely user argument.
 fi
 
