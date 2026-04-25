@@ -14,7 +14,7 @@ import (
 	"strings"
 )
 
-const version = "v1.1.0-beta1"
+const version = "v1.1.0-beta2"
 const (
 	copyrightYear = "2023-2026"
 	author        = "Jim Collier (ID: 1cv◂‡Vᛦ)"

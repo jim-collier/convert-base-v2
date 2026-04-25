@@ -239,7 +239,7 @@ func predefinedBases() []*Base {
 		// Extends word-safe base-32, with unicode characters.
 		// Not an official standard. Created by Jim Collier 2026-04-19, published with this code.
 		mkSpec(base_32ws+leftTokens(unicodeExt_94, 16),
-			"48w", "48wordsafe", "48ws", "48jcws", "48nofks"),
+			"48w", "48wordsafe", "48ws", "48jc1ws", "48nofks"),
 
 		// Deprecated word-safe base-48 "48v1compat"
 		// Subset of base "64v1compat" and "128v1compat".
@@ -266,7 +266,7 @@ func predefinedBases() []*Base {
 		// This one just takes base 62 and drops both letter "Z"s (which conveniently are good canditades to disambiguate with "2").
 		// (Arguably) "created" by Jim Collier, 2026-04-19.
 		mkSpec("0123456789ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy",
-			"60jc", "sexagesimal", "hexagesimal"),
+			"60jc", "60jc1", "sexagesimal", "hexagesimal"),
 
 		// Base-60 - Tantek Çelik's NewBase60
 		// http://tantek.pbworks.com/w/page/19402946/NewBase60
@@ -310,7 +310,7 @@ func predefinedBases() []*Base {
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "64j1u" is backwards-compatabile with convert-base-v1, don't remove it.
 		mkSpec(leftTokens(base_288, 64),
-			"64jc", "64p", "64j1u"),
+			"64jc1", "64j1u"),
 
 		// Word-safe base-64
 		// Extends base-48ws (which is base-32ws with all the numbers plus some unicode characters),
@@ -318,7 +318,7 @@ func predefinedBases() []*Base {
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
 		// Not an official standard. Created by Jim Collier 20260419, originally published with this code.
 		mkSpec(base_32ws+leftTokens(unicodeExt_94, 32),
-			"64w", "64wordsafe", "64ws", "64jcws", "64nofks"),
+			"64w", "64ws", "64wordsafe", "64jc1ws", "64nofks"),
 
 		// Deprecated word-safe base-64 "64v1compat"
 		// Exists for backwards-compatability with convert-base-v1.
@@ -338,7 +338,7 @@ func predefinedBases() []*Base {
 		// Not an official standard, but published. It's based on the heinous RFC 4648 §4, which is unfortunate.
 		// https://github.com/pshihn/base69
 		mkSpec(rfc4648start_c62+" + / - * < > | neg=~",
-			"69preet", "69pshihn"),
+			"69prsh", "69pshihn"),
 
 		// Base-85, "Z85 - ZeroMQ RFC 32"
 		// "Safer" or at least easier to deal with than Ascii85/PostScript, besause of no quote or backslash.
@@ -380,7 +380,7 @@ func predefinedBases() []*Base {
 		// Not an official standard. Created by Jim Collier 2026-04-17, published with this code.
 		// Spaces are required for symbol sets with Unicode characters.
 		mkSpec(leftTokens(base_288, 128),
-			"128jc", "128p"),
+			"128jc1"),
 
 		// Deprecated word-safe base-128 "128v1compat"
 		// Exists for backwards-compatability with convert-base-v1, including preserving a consistency mistake in the alphabet.
@@ -398,7 +398,7 @@ func predefinedBases() []*Base {
 		// Alias "256j1" is backwards-compatable with convert-base-v1, don't remove.
 		// Spaces are required for symbol sets with Unicode characters.
 		mkSpec(leftTokens(base_288, 256),
-			"256jc", "256p", "256j1"),
+			"256jc1", "256j1"),
 
 		// Base-288: Extends base-256 with more unicode characters
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
@@ -407,7 +407,7 @@ func predefinedBases() []*Base {
 		// Alias "288j1" is backwards-compatable with convert-base-v1, don't remove.
 		// Spaces are required for symbol sets with Unicode characters.
 		mkSpec(leftTokens(base_288, 288),
-			"288jc", "288p", "288j1"),
+			"288jc1", "288j1"),
 
 		// Base 2048, original qntm's JS version. (Have to run the JS to get this alphabet.)
 		// Denser display for values, but worse encoding density than base64 on UTF-8.
@@ -459,7 +459,7 @@ func predefinedBases() []*Base {
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Negative or decimal values don't make sense.
 		mkSpec(base_10+lowerAZ_c26+" - _ % + . : @ [ ] neg= dec=",
-			"email", "45email", "45jc"),
+			"email", "45email", "45jc1"),
 
 		// Usernames: "-" and "_" are valid base_10. Default "-" collides, so we
 		// explicitly disable negative. "." isn't a digit so decimal works (not
@@ -467,12 +467,12 @@ func predefinedBases() []*Base {
 		// Not an official standard. Created by Jim Collier 2023-09-01, updated 20260419.
 		// Base 64r would also work, but having a smaller base translates to smaller values.
 		mkSpec(base_10+lowerAZ_c26+" - _ . neg= dec=",
-			"username", "39username", "39jc"),
+			"username", "39username", "39jc1"),
 
 		// Hostnames: "." and "-" are both base_10, so both sign and fractionare explicitly disabled.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		mkSpec(base_10+lowerAZ_c26+" - . neg= dec=",
-			"hostname", "38hostname", "38jc"),
+			"hostname", "38hostname", "38jc1"),
 
 		// Raw binary bytes (bit-perfect roundtrip mode)
 		// Each digit is one of the 256 byte values. See Base.Binary and
