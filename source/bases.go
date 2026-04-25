@@ -16,9 +16,8 @@ const (
 	lowerAZ_c26      = " a b c d e f g h i j k l m n o p q r s t u v w x y z "
 	base_62hex       = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z "
 	base_32ws        = " 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x "
-	base_34ws_depr   = " 0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x "
 	rfc4648start_c62 = " A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 "
-	unicodeExt_94    = " ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ "
+	unicodeExt_96    = " ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä"
 	base_288         = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ ゲ サ じ す ス せ ち づ で ネ ビ べ ぺ ま モ ゟ ヲ ½ ⅓ ⅔ ¼ ¾ ⅕ ⅖ ⅗ ⅘ ⅙ ⅚ ⅛ ⅜ ⅝ ⅞ "
 )
 
@@ -238,7 +237,7 @@ func predefinedBases() []*Base {
 		// Word-safe base-48:
 		// Extends word-safe base-32, with unicode characters.
 		// Not an official standard. Created by Jim Collier 2026-04-19, published with this code.
-		mkSpec(base_32ws+leftTokens(unicodeExt_94, 16),
+		mkSpec(base_32ws+leftTokens(unicodeExt_96, 16),
 			"48w", "48wordsafe", "48ws", "48jc1ws", "48nofks"),
 
 		// Deprecated word-safe base-48 "48v1compat"
@@ -317,7 +316,7 @@ func predefinedBases() []*Base {
 		//   but also with lower-case letters and more unicode characters.
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
 		// Not an official standard. Created by Jim Collier 20260419, originally published with this code.
-		mkSpec(base_32ws+leftTokens(unicodeExt_94, 32),
+		mkSpec(base_32ws+leftTokens(unicodeExt_96, 32),
 			"64w", "64ws", "64wordsafe", "64jc1ws", "64nofks"),
 
 		// Deprecated word-safe base-64 "64v1compat"
@@ -381,6 +380,13 @@ func predefinedBases() []*Base {
 		// Spaces are required for symbol sets with Unicode characters.
 		mkSpec(leftTokens(base_288, 128),
 			"128jc1"),
+
+		// Word-safe base-128
+		// Extends base-64ws, plus some unicode characters.
+		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
+		// Not an official standard. Created by Jim Collier 20260419, originally published with this code.
+		mkSpec(base_32ws+leftTokens(unicodeExt_96, 96),
+			"128w", "128ws", "128wordsafe", "128jc1ws", "128nofks"),
 
 		// Deprecated word-safe base-128 "128v1compat"
 		// Exists for backwards-compatability with convert-base-v1, including preserving a consistency mistake in the alphabet.
