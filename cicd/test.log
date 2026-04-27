@@ -1,504 +1,504 @@
-[20260426-200510.5905]  
-[20260426-200510.6180]  [ Base definitions loaded. ]
-[20260426-200510.6189]  
-[20260426-200510.6190]  Exe source ...: /mnt/zfs/zf10/0-0/users/collierjr/data/prs/dev/github.com/jim-collier/convert-base-v2/github/source/convert-base-v2
-[20260426-200510.6218]  Version ......: v1.1.0-beta4
-[20260426-200510.6224]  
-[20260426-200511.6209]  v1b source ...: /mnt/zfs/zf10/0-0/users/collierjr/data/prs/dev/github.com/jim-collier/convert-base-v2/github/utility/convert-base-v1b
-[20260426-200511.6337]  Version ......: convert-base-v1b v1.0.2 build 1mywgex
-[20260426-200511.6349]  
-[20260426-200512.6346]  [ >>> TESTSECTION: Flags ]
-[20260426-200512.6354]  
-[20260426-200512.6355]  [ Test --help ]
-[20260426-200512.6442]  
-[20260426-200512.6452]  convert-base-v1b v1.0.2 build 1mywgex
-[20260426-200512.6460]  Copyright © 2023-2026 Jim Collier (ID: 1cv◂‡Vᛦ).
-[20260426-200512.6471]  Project: https://github.com/jim-collier/convert-base-v1b
-[20260426-200512.6483]  Licensed under the GNU General Public License v2.0 or later. Full text at:
-[20260426-200512.6499]    https://spdx.org/licenses/GPL-2.0-or-later.html
-[20260426-200512.6509]  No warranty.
-[20260426-200512.6512]  
-[20260426-200512.6513]  Converts from four possible input bases (including 10), to 29 possible output
-[20260426-200512.6529]  bases. Strictly positional notation conversion, not for binary-to-text
-[20260426-200512.6544]  encoding/decoding. (Though you can use the same common 2^N encoding bases such
-[20260426-200512.6560]  as base32 or base64, as positional notation.)
-[20260426-200512.6570]  
-[20260426-200512.6570]  Syntax: convert-base-v1b  [optional args]  <NUMBER>  <OBASE>
-[20260426-200512.6583]    Required arguments (in any order):
-[20260426-200512.6591]      <NUMBER> .........: The input value to convert
-[20260426-200512.6601]      <OBASE> ..........: The base to convert to (default 10 if not specified)
-[20260426-200512.6617]    Optional arguments:
-[20260426-200512.6622]      --ibase <base> ...: The input base (default 10 if not specified)
-[20260426-200512.6637]      --from  <base> ...: Alias for '--ibase'
-[20260426-200512.6646]      --obase <base> ...: Optional explicit flag for output base.
-[20260426-200512.6660]      --to  <base> .....: Alias for '--obase'
-[20260426-200512.6670]      --lcase ..........: Lower case (for bases with alpha and only one case)
-[20260426-200512.6686]      --clipin .........: Use clipboard for input
-[20260426-200512.6697]      --clipout ........: Use clipboard for output
-[20260426-200512.6707]      --silent .........: No CLI output. Also sets --clipout.
-[20260426-200512.6721]      --help, --about, --version [or -h, -a, -v]
-[20260426-200512.6731]    Valid values for output <base>
-[20260426-200512.6738]      Note: ST=Standard, PS=Pseudostandard, PUB=Published, C=Custom:
-[20260426-200512.6752]          2      ST  aka Binary ................. 0,1
-[20260426-200512.6764]          8      ST  aka Octal .................. 0-7
-[20260426-200512.6775]         10      ST  aka Decimal [default] ...... 0-9
-[20260426-200512.6786]         16      ST  aka Hexedecimal ............ 0-9, A-F
-[20260426-200512.6798]         26      PS  One-case alphabetic ........ A-Z
-[20260426-200512.6810]         32[r]   ST  RFC 4648 §6 ................ A-Z, 2-7
-[20260426-200512.6822]         32h     ST  RFC 4648 §7, 'Base32Hex' ... 0-9, A-V
-[20260426-200512.6834]         32c     PUB Crockford's Base32 ......... 0-9, A-Z no I, L, O, U
-[20260426-200512.6850]         32ws    PUB Word-safe Base32 ........... 2-9, CFGHJMPQRVWX, cfghjmpqrvwx
-[20260426-200512.6867]         36      PS  Just alphanum .............. 0-9, A-Z
-[20260426-200512.6879]         38host  C   Valid *nix host and domain name characters
-[20260426-200512.6892]         39user  C   Valid *nix username characters
-[20260426-200512.6904]         45email C   Valid HTML5 <email> address characters
-[20260426-200512.6916]         48jc1ws C   Base 32ws + unicode symbols
-[20260426-200512.6927]         52      PS  Both-case alphabetic ....... A-Z, a-z
-[20260426-200512.6939]         62      PS  All alphanum ............... 0-9, A-Z, a-z
-[20260426-200512.6953]         64[r]   ST  RFC 4648 §4 ................ A-Z, a-z, 0-9, +, /
-[20260426-200512.6968]         64u     ST  RFC 4648 §5, URL-safe ...... A-Z, a-z, 0-9, -, _
-[20260426-200512.6983]         64h     PS  Hex like, URL-safe ......... 0-9, A-Z, a-z, -, _
-[20260426-200512.6998]         64jc1   C   Base 62, +2 unicode symbols  0-9, A-Z, a-z, ʞ, λ
-[20260426-200512.7013]         64jc1ws C   Base 48jcw + more unicode symbols
-[20260426-200512.7024]        128jc1ws C   Base 64jcw + more unicode symbols
-[20260426-200512.7036]        128jc1   C   Base 64jc  + more unicode symbols
-[20260426-200512.7048]        256jc1   C   Base 128jc + more unicode symbols
-[20260426-200512.7060]        288jc1   C   Base 256jc + more unicode symbols
-[20260426-200512.7072]      v1 backwards-compatiable 'incongruous' word-safe bases:
-[20260426-200512.7085]         48v1compat, 64v1compat, 128v1compat
-[20260426-200512.7095]    Valid values for --ibase:
-[20260426-200512.7101]      2, 8, 10, 16, 36
-[20260426-200512.7107]  
-[20260426-200512.7108]  [ Test --about ]
-[20260426-200512.7112]  
-[20260426-200512.7113]  convert-base-v1b v1.0.2 build 1mywgex
-[20260426-200512.7121]  Copyright © 2023-2026 Jim Collier (ID: 1cv◂‡Vᛦ).
-[20260426-200512.7132]  Project: https://github.com/jim-collier/convert-base-v1b
-[20260426-200512.7145]  Licensed under the GNU General Public License v2.0 or later. Full text at:
-[20260426-200512.7161]    https://spdx.org/licenses/GPL-2.0-or-later.html
-[20260426-200512.7172]  No warranty.
-[20260426-200512.7175]  
-[20260426-200512.7176]  Converts from four possible input bases (including 10), to 29 possible output
-[20260426-200512.7193]  bases. Strictly positional notation conversion, not for binary-to-text
-[20260426-200512.7209]  encoding/decoding. (Though you can use the same common 2^N encoding bases such
-[20260426-200512.7226]  as base32 or base64, as positional notation.)
-[20260426-200512.7236]  
-[20260426-200512.7237]  [ Test --version (again) ]
-[20260426-200512.7243]  convert-base-v1b v1.0.2 build 1mywgex
-[20260426-200512.7252]  
-[20260426-200512.7253]  [ >>> TESTSECTION: Base name aliases ]
-[20260426-200512.7261]  
-[20260426-200512.7262]  ✅ Passed: Test# 1 [Test mode: 'no_error']
-[20260426-200512.7272]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  2
-[20260426-200512.7291]  Expected value .: '[anything or nothing]'
-[20260426-200512.7300]  Actual value ...: '101111100011011100011110000110110111101101111000011101111110000011011000101110110010001100111110011111111010110100010101'
-[20260426-200512.7330]  
-[20260426-200512.7331]  ✅ Passed: Test# 2 [Test mode: 'no_error']
-[20260426-200512.7340]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  8
-[20260426-200512.7360]  Expected value .: '[anything or nothing]'
-[20260426-200512.7369]  Actual value ...: '5743343606675570357603305662147637726425'
-[20260426-200512.7383]  
-[20260426-200512.7528]  ✅ Passed: Test# 3 [Test mode: 'no_error']
-[20260426-200512.7553]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  oct
-[20260426-200512.7575]  Expected value .: '[anything or nothing]'
-[20260426-200512.7584]  Actual value ...: '5743343606675570357603305662147637726425'
-[20260426-200512.7597]  
-[20260426-200512.7826]  ✅ Passed: Test# 4 [Test mode: 'no_error']
-[20260426-200512.7854]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  octal
-[20260426-200512.7878]  Expected value .: '[anything or nothing]'
-[20260426-200512.7887]  Actual value ...: '5743343606675570357603305662147637726425'
-[20260426-200512.7901]  
-[20260426-200512.8122]  ✅ Passed: Test# 5 [Test mode: 'no_error']
-[20260426-200512.8147]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  10
-[20260426-200512.8167]  Expected value .: '[anything or nothing]'
-[20260426-200512.8177]  Actual value ...: '987654321000055555555550000123456789'
-[20260426-200512.8190]  
-[20260426-200512.8409]  ✅ Passed: Test# 6 [Test mode: 'no_error']
-[20260426-200512.8434]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  dec
-[20260426-200512.8453]  Expected value .: '[anything or nothing]'
-[20260426-200512.8462]  Actual value ...: '987654321000055555555550000123456789'
-[20260426-200512.8474]  
-[20260426-200512.8716]  ✅ Passed: Test# 7 [Test mode: 'no_error']
-[20260426-200512.8741]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  decimal
-[20260426-200512.8762]  Expected value .: '[anything or nothing]'
-[20260426-200512.8771]  Actual value ...: '987654321000055555555550000123456789'
-[20260426-200512.8783]  
-[20260426-200512.8981]  ✅ Passed: Test# 8 [Test mode: 'no_error']
-[20260426-200512.9006]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  16
-[20260426-200512.9026]  Expected value .: '[anything or nothing]'
-[20260426-200512.9035]  Actual value ...: 'BE371E1B7B7877E0D8BB233E7FAD15'
-[20260426-200512.9046]  
-[20260426-200512.9265]  ✅ Passed: Test# 9 [Test mode: 'no_error']
-[20260426-200512.9291]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  hex
-[20260426-200512.9310]  Expected value .: '[anything or nothing]'
-[20260426-200512.9319]  Actual value ...: 'BE371E1B7B7877E0D8BB233E7FAD15'
-[20260426-200512.9330]  
-[20260426-200512.9562]  ✅ Passed: Test# 10 [Test mode: 'no_error']
-[20260426-200512.9589]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  hexadecimal
-[20260426-200512.9612]  Expected value .: '[anything or nothing]'
-[20260426-200512.9622]  Actual value ...: 'BE371E1B7B7877E0D8BB233E7FAD15'
-[20260426-200512.9633]  
-[20260426-200512.9854]  ✅ Passed: Test# 11 [Test mode: 'no_error']
-[20260426-200512.9880]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  26
-[20260426-200512.9900]  Expected value .: '[anything or nothing]'
-[20260426-200512.9909]  Actual value ...: 'EELUTHVVEDOHUKYXZVZLZBWNXL'
-[20260426-200512.9920]  
-[20260426-200513.0149]  ✅ Passed: Test# 12 [Test mode: 'no_error']
-[20260426-200513.0175]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32
-[20260426-200513.0196]  Expected value .: '[anything or nothing]'
-[20260426-200513.0205]  Actual value ...: 'XY3R4G33PB36BWF3EM7H7LIV'
-[20260426-200513.0215]  
-[20260426-200513.0414]  ✅ Passed: Test# 13 [Test mode: 'no_error']
-[20260426-200513.0440]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32r
-[20260426-200513.0460]  Expected value .: '[anything or nothing]'
-[20260426-200513.0469]  Actual value ...: 'XY3R4G33PB36BWF3EM7H7LIV'
-[20260426-200513.0479]  
-[20260426-200513.0706]  ✅ Passed: Test# 14 [Test mode: 'no_error']
-[20260426-200513.0733]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32rfc
-[20260426-200513.0754]  Expected value .: '[anything or nothing]'
-[20260426-200513.0764]  Actual value ...: 'XY3R4G33PB36BWF3EM7H7LIV'
-[20260426-200513.0773]  
-[20260426-200513.0971]  ✅ Passed: Test# 15 [Test mode: 'no_error']
-[20260426-200513.0996]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32rfc4648s6
-[20260426-200513.1018]  Expected value .: '[anything or nothing]'
-[20260426-200513.1028]  Actual value ...: 'XY3R4G33PB36BWF3EM7H7LIV'
-[20260426-200513.1039]  
-[20260426-200513.1246]  ✅ Passed: Test# 16 [Test mode: 'no_error']
-[20260426-200513.1272]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  rfc4648s6
-[20260426-200513.1294]  Expected value .: '[anything or nothing]'
-[20260426-200513.1303]  Actual value ...: 'XY3R4G33PB36BWF3EM7H7LIV'
-[20260426-200513.1313]  
-[20260426-200513.1535]  ✅ Passed: Test# 17 [Test mode: 'no_error']
-[20260426-200513.1561]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32h
-[20260426-200513.1580]  Expected value .: '[anything or nothing]'
-[20260426-200513.1589]  Actual value ...: 'NORHS6RRF1RU1M5R4CV7VB8L'
-[20260426-200513.1599]  
-[20260426-200513.1798]  ✅ Passed: Test# 18 [Test mode: 'no_error']
-[20260426-200513.1825]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32hex
-[20260426-200513.1845]  Expected value .: '[anything or nothing]'
-[20260426-200513.1854]  Actual value ...: 'NORHS6RRF1RU1M5R4CV7VB8L'
-[20260426-200513.1864]  
-[20260426-200513.2079]  ✅ Passed: Test# 19 [Test mode: 'no_error']
-[20260426-200513.2106]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32rfc4648s7
-[20260426-200513.2127]  Expected value .: '[anything or nothing]'
-[20260426-200513.2136]  Actual value ...: 'NORHS6RRF1RU1M5R4CV7VB8L'
-[20260426-200513.2145]  
-[20260426-200513.2352]  ✅ Passed: Test# 20 [Test mode: 'no_error']
-[20260426-200513.2378]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  rfc4648s7
-[20260426-200513.2399]  Expected value .: '[anything or nothing]'
-[20260426-200513.2412]  Actual value ...: 'NORHS6RRF1RU1M5R4CV7VB8L'
-[20260426-200513.2422]  
-[20260426-200513.2659]  ✅ Passed: Test# 21 [Test mode: 'no_error']
-[20260426-200513.2685]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32c
-[20260426-200513.2704]  Expected value .: '[anything or nothing]'
-[20260426-200513.2714]  Actual value ...: 'QRVHW6VVF1VY1P5V4CZ7ZB8N'
-[20260426-200513.2726]  
-[20260426-200513.2940]  ✅ Passed: Test# 22 [Test mode: 'no_error']
-[20260426-200513.2965]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32crock
-[20260426-200513.2989]  Expected value .: '[anything or nothing]'
-[20260426-200513.2998]  Actual value ...: 'QRVHW6VVF1VY1P5V4CZ7ZB8N'
-[20260426-200513.3008]  
-[20260426-200513.3216]  ✅ Passed: Test# 23 [Test mode: 'no_error']
-[20260426-200513.3240]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32crockford
-[20260426-200513.3262]  Expected value .: '[anything or nothing]'
-[20260426-200513.3270]  Actual value ...: 'QRVHW6VVF1VY1P5V4CZ7ZB8N'
-[20260426-200513.3279]  
-[20260426-200513.3495]  ✅ Passed: Test# 24 [Test mode: 'no_error']
-[20260426-200513.3521]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  crockford
-[20260426-200513.3541]  Expected value .: '[anything or nothing]'
-[20260426-200513.3551]  Actual value ...: 'QRVHW6VVF1VY1P5V4CZ7ZB8N'
-[20260426-200513.3561]  
-[20260426-200513.3769]  ✅ Passed: Test# 25 [Test mode: 'no_error']
-[20260426-200513.3797]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32ws
-[20260426-200513.3817]  Expected value .: '[anything or nothing]'
-[20260426-200513.3826]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
-[20260426-200513.3835]  
-[20260426-200513.4042]  ✅ Passed: Test# 26 [Test mode: 'no_error']
-[20260426-200513.4067]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32w
-[20260426-200513.4087]  Expected value .: '[anything or nothing]'
-[20260426-200513.4096]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
-[20260426-200513.4106]  
-[20260426-200513.4318]  ✅ Passed: Test# 27 [Test mode: 'no_error']
-[20260426-200513.4344]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32wordsafe
-[20260426-200513.4365]  Expected value .: '[anything or nothing]'
-[20260426-200513.4375]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
-[20260426-200513.4384]  
-[20260426-200513.4599]  ✅ Passed: Test# 28 [Test mode: 'no_error']
-[20260426-200513.4625]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32g
-[20260426-200513.4645]  Expected value .: '[anything or nothing]'
-[20260426-200513.4654]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
-[20260426-200513.4664]  
-[20260426-200513.4875]  ✅ Passed: Test# 29 [Test mode: 'no_error']
-[20260426-200513.4901]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32google
-[20260426-200513.4922]  Expected value .: '[anything or nothing]'
-[20260426-200513.4931]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
-[20260426-200513.4941]  
-[20260426-200513.5131]  ✅ Passed: Test# 30 [Test mode: 'no_error']
-[20260426-200513.5156]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32nofks
-[20260426-200513.5177]  Expected value .: '[anything or nothing]'
-[20260426-200513.5186]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
-[20260426-200513.5196]  
-[20260426-200513.5421]  ✅ Passed: Test# 31 [Test mode: 'no_error']
-[20260426-200513.5448]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  36
-[20260426-200513.5467]  Expected value .: '[anything or nothing]'
-[20260426-200513.5476]  Actual value ...: '1L0CRVVUFHZO5Z4EHIOCISK5'
-[20260426-200513.5486]  
-[20260426-200513.5698]  ✅ Passed: Test# 32 [Test mode: 'no_error']
-[20260426-200513.5724]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  38hostname
-[20260426-200513.5746]  Expected value .: '[anything or nothing]'
-[20260426-200513.5755]  Actual value ...: 'hdf8q5vjdfxd3t-gwe75u9v'
-[20260426-200513.5765]  
-[20260426-200513.5976]  ✅ Passed: Test# 33 [Test mode: 'no_error']
-[20260426-200513.6002]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  38jc1
-[20260426-200513.6026]  Expected value .: '[anything or nothing]'
-[20260426-200513.6035]  Actual value ...: 'hdf8q5vjdfxd3t-gwe75u9v'
-[20260426-200513.6048]  
-[20260426-200513.6243]  ✅ Passed: Test# 34 [Test mode: 'no_error']
-[20260426-200513.6269]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  39username
-[20260426-200513.6291]  Expected value .: '[anything or nothing]'
-[20260426-200513.6304]  Actual value ...: '9v6de929rpvilgdb1gm7o_b'
-[20260426-200513.6313]  
-[20260426-200513.6527]  ✅ Passed: Test# 35 [Test mode: 'no_error']
-[20260426-200513.6553]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  39jc1
-[20260426-200513.6574]  Expected value .: '[anything or nothing]'
-[20260426-200513.6583]  Actual value ...: '9v6de929rpvilgdb1gm7o_b'
-[20260426-200513.6592]  
-[20260426-200513.6795]  ✅ Passed: Test# 36 [Test mode: 'no_error']
-[20260426-200513.6820]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  45email
-[20260426-200513.6840]  Expected value .: '[anything or nothing]'
-[20260426-200513.6850]  Actual value ...: 'i:_mxqm7shopf.y02f:75e'
-[20260426-200513.6859]  
-[20260426-200513.7079]  ✅ Passed: Test# 37 [Test mode: 'no_error']
-[20260426-200513.7103]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  45jc1
-[20260426-200513.7124]  Expected value .: '[anything or nothing]'
-[20260426-200513.7133]  Actual value ...: 'i:_mxqm7shopf.y02f:75e'
-[20260426-200513.7142]  
-[20260426-200513.7374]  ✅ Passed: Test# 38 [Test mode: 'no_error']
-[20260426-200513.7400]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48jc1ws
-[20260426-200513.7420]  Expected value .: '[anything or nothing]'
-[20260426-200513.7429]  Actual value ...: '6ᚠPv4ᛨHG2ᛘᛯᛘHᚧ9phgμCq7'
-[20260426-200513.7439]  
-[20260426-200513.7649]  ✅ Passed: Test# 39 [Test mode: 'no_error']
-[20260426-200513.7674]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48w
-[20260426-200513.7699]  Expected value .: '[anything or nothing]'
-[20260426-200513.7708]  Actual value ...: '6ᚠPv4ᛨHG2ᛘᛯᛘHᚧ9phgμCq7'
-[20260426-200513.7718]  
-[20260426-200513.7915]  ✅ Passed: Test# 40 [Test mode: 'no_error']
-[20260426-200513.7940]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48ws
-[20260426-200513.7963]  Expected value .: '[anything or nothing]'
-[20260426-200513.7973]  Actual value ...: '6ᚠPv4ᛨHG2ᛘᛯᛘHᚧ9phgμCq7'
-[20260426-200513.7986]  
-[20260426-200513.8217]  ✅ Passed: Test# 41 [Test mode: 'no_error']
-[20260426-200513.8242]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48wordsafe
-[20260426-200513.8263]  Expected value .: '[anything or nothing]'
-[20260426-200513.8276]  Actual value ...: '6ᚠPv4ᛨHG2ᛘᛯᛘHᚧ9phgμCq7'
-[20260426-200513.8285]  
-[20260426-200513.8498]  ✅ Passed: Test# 42 [Test mode: 'no_error']
-[20260426-200513.8523]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48nofks
-[20260426-200513.8543]  Expected value .: '[anything or nothing]'
-[20260426-200513.8553]  Actual value ...: '6ᚠPv4ᛨHG2ᛘᛯᛘHᚧ9phgμCq7'
-[20260426-200513.8562]  
-[20260426-200513.8772]  ✅ Passed: Test# 43 [Test mode: 'no_error']
-[20260426-200513.8798]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48v1compat
-[20260426-200513.8819]  Expected value .: '[anything or nothing]'
-[20260426-200513.8828]  Actual value ...: '4▿jᛝ2▸fc0🜥🜿🜥f◂7ᛏλʞᚬ8ᛘ5'
-[20260426-200513.8838]  
-[20260426-200513.9069]  ✅ Passed: Test# 44 [Test mode: 'no_error']
-[20260426-200513.9096]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48depr
-[20260426-200513.9117]  Expected value .: '[anything or nothing]'
-[20260426-200513.9126]  Actual value ...: '4▿jᛝ2▸fc0🜥🜿🜥f◂7ᛏλʞᚬ8ᛘ5'
-[20260426-200513.9136]  
-[20260426-200513.9339]  ✅ Passed: Test# 45 [Test mode: 'no_error']
-[20260426-200513.9364]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48j1
-[20260426-200513.9383]  Expected value .: '[anything or nothing]'
-[20260426-200513.9392]  Actual value ...: '4▿jᛝ2▸fc0🜥🜿🜥f◂7ᛏλʞᚬ8ᛘ5'
-[20260426-200513.9402]  
-[20260426-200513.9619]  ✅ Passed: Test# 46 [Test mode: 'no_error']
-[20260426-200513.9645]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  52
-[20260426-200513.9669]  Expected value .: '[anything or nothing]'
-[20260426-200513.9679]  Actual value ...: 'vNoFHYtcznezzzJbezdYl'
-[20260426-200513.9691]  
-[20260426-200513.9906]  ✅ Passed: Test# 47 [Test mode: 'no_error']
-[20260426-200513.9928]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  62
-[20260426-200513.9948]  Expected value .: '[anything or nothing]'
-[20260426-200513.9957]  Actual value ...: '1OvZg4xLjgW5p6V6TBcCT'
-[20260426-200513.9966]  
-[20260426-200514.0178]  ✅ Passed: Test# 48 [Test mode: 'no_error']
-[20260426-200514.0203]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64
-[20260426-200514.0223]  Expected value .: '[anything or nothing]'
-[20260426-200514.0232]  Actual value ...: 'vjceG3t4d+DYuyM+f60V'
-[20260426-200514.0240]  
-[20260426-200514.0446]  ✅ Passed: Test# 49 [Test mode: 'no_error']
-[20260426-200514.0471]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64r
-[20260426-200514.0490]  Expected value .: '[anything or nothing]'
-[20260426-200514.0499]  Actual value ...: 'vjceG3t4d+DYuyM+f60V'
-[20260426-200514.0508]  
-[20260426-200514.0725]  ✅ Passed: Test# 50 [Test mode: 'no_error']
-[20260426-200514.0754]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64rfc
-[20260426-200514.0775]  Expected value .: '[anything or nothing]'
-[20260426-200514.0784]  Actual value ...: 'vjceG3t4d+DYuyM+f60V'
-[20260426-200514.0793]  
-[20260426-200514.0983]  ✅ Passed: Test# 51 [Test mode: 'no_error']
-[20260426-200514.1007]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64rfc4648s4
-[20260426-200514.1028]  Expected value .: '[anything or nothing]'
-[20260426-200514.1037]  Actual value ...: 'vjceG3t4d+DYuyM+f60V'
-[20260426-200514.1049]  
-[20260426-200514.1255]  ✅ Passed: Test# 52 [Test mode: 'no_error']
-[20260426-200514.1280]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  rfc4648s4
-[20260426-200514.1300]  Expected value .: '[anything or nothing]'
-[20260426-200514.1309]  Actual value ...: 'vjceG3t4d+DYuyM+f60V'
-[20260426-200514.1317]  
-[20260426-200514.1533]  ✅ Passed: Test# 53 [Test mode: 'no_error']
-[20260426-200514.1555]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64u
-[20260426-200514.1574]  Expected value .: '[anything or nothing]'
-[20260426-200514.1583]  Actual value ...: 'vjceG3t4d-DYuyM-f60V'
-[20260426-200514.1592]  
-[20260426-200514.1813]  ✅ Passed: Test# 54 [Test mode: 'no_error']
-[20260426-200514.1840]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64url
-[20260426-200514.1861]  Expected value .: '[anything or nothing]'
-[20260426-200514.1870]  Actual value ...: 'vjceG3t4d-DYuyM-f60V'
-[20260426-200514.1878]  
-[20260426-200514.2089]  ✅ Passed: Test# 55 [Test mode: 'no_error']
-[20260426-200514.2112]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64rfc4648s5
-[20260426-200514.2134]  Expected value .: '[anything or nothing]'
-[20260426-200514.2143]  Actual value ...: 'vjceG3t4d-DYuyM-f60V'
-[20260426-200514.2152]  
-[20260426-200514.2376]  ✅ Passed: Test# 56 [Test mode: 'no_error']
-[20260426-200514.2404]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  rfc4648s5
-[20260426-200514.2425]  Expected value .: '[anything or nothing]'
-[20260426-200514.2434]  Actual value ...: 'vjceG3t4d-DYuyM-f60V'
-[20260426-200514.2444]  
-[20260426-200514.2686]  ✅ Passed: Test# 57 [Test mode: 'no_error']
-[20260426-200514.2712]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64h
-[20260426-200514.2732]  Expected value .: '[anything or nothing]'
-[20260426-200514.2741]  Actual value ...: 'lZSU6tjuT-3OkoC-VwqL'
-[20260426-200514.2750]  
-[20260426-200514.2965]  ✅ Passed: Test# 58 [Test mode: 'no_error']
-[20260426-200514.2991]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64hex
-[20260426-200514.3012]  Expected value .: '[anything or nothing]'
-[20260426-200514.3021]  Actual value ...: 'lZSU6tjuT-3OkoC-VwqL'
-[20260426-200514.3030]  
-[20260426-200514.3251]  ✅ Passed: Test# 59 [Test mode: 'no_error']
-[20260426-200514.3277]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64jc1
-[20260426-200514.3297]  Expected value .: '[anything or nothing]'
-[20260426-200514.3306]  Actual value ...: 'lZSU6tjuTʞ3OkoCʞVwqL'
-[20260426-200514.3315]  
-[20260426-200514.3528]  ✅ Passed: Test# 60 [Test mode: 'no_error']
-[20260426-200514.3554]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64j1u
-[20260426-200514.3574]  Expected value .: '[anything or nothing]'
-[20260426-200514.3583]  Actual value ...: 'lZSU6tjuTʞ3OkoCʞVwqL'
-[20260426-200514.3591]  
-[20260426-200514.3817]  ✅ Passed: Test# 61 [Test mode: 'no_error']
-[20260426-200514.3844]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64jc1ws
-[20260426-200514.3864]  Expected value .: '[anything or nothing]'
-[20260426-200514.3873]  Actual value ...: '🜥ᛎrw8‡ᚼ±vΩ5j🜣▵JΩx÷▿f'
-[20260426-200514.3882]  
-[20260426-200514.4107]  ✅ Passed: Test# 62 [Test mode: 'no_error']
-[20260426-200514.4134]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64w
-[20260426-200514.4153]  Expected value .: '[anything or nothing]'
-[20260426-200514.4162]  Actual value ...: '🜥ᛎrw8‡ᚼ±vΩ5j🜣▵JΩx÷▿f'
-[20260426-200514.4171]  
-[20260426-200514.4378]  ✅ Passed: Test# 63 [Test mode: 'no_error']
-[20260426-200514.4404]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64ws
-[20260426-200514.4423]  Expected value .: '[anything or nothing]'
-[20260426-200514.4432]  Actual value ...: '🜥ᛎrw8‡ᚼ±vΩ5j🜣▵JΩx÷▿f'
-[20260426-200514.4441]  
-[20260426-200514.4650]  ✅ Passed: Test# 64 [Test mode: 'no_error']
-[20260426-200514.4674]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64wordsafe
-[20260426-200514.4695]  Expected value .: '[anything or nothing]'
-[20260426-200514.4704]  Actual value ...: '🜥ᛎrw8‡ᚼ±vΩ5j🜣▵JΩx÷▿f'
-[20260426-200514.4713]  
-[20260426-200514.4931]  ✅ Passed: Test# 65 [Test mode: 'no_error']
-[20260426-200514.4955]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64nofks
-[20260426-200514.4977]  Expected value .: '[anything or nothing]'
-[20260426-200514.4986]  Actual value ...: '🜥ᛎrw8‡ᚼ±vΩ5j🜣▵JΩx÷▿f'
-[20260426-200514.4996]  
-[20260426-200514.5185]  ✅ Passed: Test# 66 [Test mode: 'no_error']
-[20260426-200514.5211]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64v1compat
-[20260426-200514.5234]  Expected value .: '[anything or nothing]'
-[20260426-200514.5243]  Actual value ...: 'ᚼλpr6◂ᚧ҂q≈3gᚬ🜿G≈v±▵X'
-[20260426-200514.5253]  
-[20260426-200514.5458]  ✅ Passed: Test# 67 [Test mode: 'no_error']
-[20260426-200514.5484]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64depr
-[20260426-200514.5504]  Expected value .: '[anything or nothing]'
-[20260426-200514.5513]  Actual value ...: 'ᚼλpr6◂ᚧ҂q≈3gᚬ🜿G≈v±▵X'
-[20260426-200514.5523]  
-[20260426-200514.5725]  ✅ Passed: Test# 68 [Test mode: 'no_error']
-[20260426-200514.5753]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64j1uw
-[20260426-200514.5774]  Expected value .: '[anything or nothing]'
-[20260426-200514.5783]  Actual value ...: 'ᚼλpr6◂ᚧ҂q≈3gᚬ🜿G≈v±▵X'
-[20260426-200514.5792]  
-[20260426-200514.6000]  ✅ Passed: Test# 69 [Test mode: 'no_error']
-[20260426-200514.6024]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128jc1
-[20260426-200514.6044]  Expected value .: '[anything or nothing]'
-[20260426-200514.6053]  Actual value ...: '1ʞRᛨᛘt≠δ⍤Ϡ¿kЖp⍒Û≈L'
-[20260426-200514.6062]  
-[20260426-200514.6274]  ✅ Passed: Test# 70 [Test mode: 'no_error']
-[20260426-200514.6301]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128jc1ws
-[20260426-200514.6333]  Expected value .: '[anything or nothing]'
-[20260426-200514.6347]  Actual value ...: '3ΩqЯδ‡ĤŴŷÛŝ🜣â▸ĨỹĜf'
-[20260426-200514.6361]  
-[20260426-200514.6565]  ✅ Passed: Test# 71 [Test mode: 'no_error']
-[20260426-200514.6592]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128w
-[20260426-200514.6613]  Expected value .: '[anything or nothing]'
-[20260426-200514.6623]  Actual value ...: '3ΩqЯδ‡ĤŴŷÛŝ🜣â▸ĨỹĜf'
-[20260426-200514.6632]  
-[20260426-200514.6845]  ✅ Passed: Test# 72 [Test mode: 'no_error']
-[20260426-200514.6873]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128ws
-[20260426-200514.6894]  Expected value .: '[anything or nothing]'
-[20260426-200514.6904]  Actual value ...: '3ΩqЯδ‡ĤŴŷÛŝ🜣â▸ĨỹĜf'
-[20260426-200514.6913]  
-[20260426-200514.7137]  ✅ Passed: Test# 73 [Test mode: 'no_error']
-[20260426-200514.7164]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128wordsafe
-[20260426-200514.7185]  Expected value .: '[anything or nothing]'
-[20260426-200514.7194]  Actual value ...: '3ΩqЯδ‡ĤŴŷÛŝ🜣â▸ĨỹĜf'
-[20260426-200514.7203]  
-[20260426-200514.7443]  ✅ Passed: Test# 74 [Test mode: 'no_error']
-[20260426-200514.7465]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128nofks
-[20260426-200514.7486]  Expected value .: '[anything or nothing]'
-[20260426-200514.7495]  Actual value ...: '3ΩqЯδ‡ĤŴŷÛŝ🜣â▸ĨỹĜf'
-[20260426-200514.7504]  
-[20260426-200514.7706]  ✅ Passed: Test# 75 [Test mode: 'no_error']
-[20260426-200514.7733]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128v1compat
-[20260426-200514.7755]  Expected value .: '[anything or nothing]'
-[20260426-200514.7764]  Actual value ...: '1≈mЋψ◂ÊŶãŴẼᚬê🝅ÄĆĈX'
-[20260426-200514.7773]  
-[20260426-200514.7977]  ✅ Passed: Test# 76 [Test mode: 'no_error']
-[20260426-200514.8003]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128depr
-[20260426-200514.8024]  Expected value .: '[anything or nothing]'
-[20260426-200514.8033]  Actual value ...: '1≈mЋψ◂ÊŶãŴẼᚬê🝅ÄĆĈX'
-[20260426-200514.8042]  
-[20260426-200514.8241]  ✅ Passed: Test# 77 [Test mode: 'no_error']
-[20260426-200514.8266]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  256jc1
-[20260426-200514.8287]  Expected value .: '[anything or nothing]'
-[20260426-200514.8299]  Actual value ...: 'ítURĴĜÊčȞćZʞŴÁL'
-[20260426-200514.8307]  
-[20260426-200514.8505]  ✅ Passed: Test# 78 [Test mode: 'no_error']
-[20260426-200514.8529]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  256j1
-[20260426-200514.8549]  Expected value .: '[anything or nothing]'
-[20260426-200514.8562]  Actual value ...: 'ítURĴĜÊčȞćZʞŴÁL'
-[20260426-200514.8570]  
-[20260426-200514.8774]  ✅ Passed: Test# 79 [Test mode: 'no_error']
-[20260426-200514.8800]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  288jc1
-[20260426-200514.8821]  Expected value .: '[anything or nothing]'
-[20260426-200514.8830]  Actual value ...: 'aẌňẌỹńÓまĩćaÎɤŸỸ'
-[20260426-200514.8838]  
-[20260426-200514.9043]  ✅ Passed: Test# 80 [Test mode: 'no_error']
-[20260426-200514.9071]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  288j1
-[20260426-200514.9094]  Expected value .: '[anything or nothing]'
-[20260426-200514.9104]  Actual value ...: 'aẌňẌỹńÓまĩćaÎɤŸỸ'
-[20260426-200514.9112]  
-[20260426-200514.9113]  [ Test #81 Expecting error, BEGIN ... ]
-[20260426-200514.9313]  error: output base: unknown base "bogusBaseName"
-[20260426-200514.9324]  [ Test #81 Expecting error, END. ]
-[20260426-200514.9332]  
-[20260426-200514.9333]  ✅ Passed: Test# 81 [Test mode: 'error']
-[20260426-200514.9351]  Test command ...: 'convert-base-v2'  '987654321000055555555550000123456789'  bogusBaseName
-[20260426-200514.9371]  Expected value .: ''
-[20260426-200514.9376]  Actual value ...: ''
-[20260426-200514.9380]  
-[20260426-200514.9381]  [ >>> TESTSECTION: Fuzz-testing against self ]
-[20260426-200514.9391]  
-[20260426-200514.9391]  
-[20260426-200514.9392]  [ 20260426-200514.938204997 ]  Error in n8test.fScrambleString(): Input symbol list is empty.
-[20260426-200514.9411]  
+[20260427-074901.9545]  
+[20260427-074901.9809]  [ Base definitions loaded. ]
+[20260427-074901.9815]  
+[20260427-074901.9816]  Exe source ...: /mnt/zfs/zf10/0-0/users/collierjr/data/prs/dev/github.com/jim-collier/convert-base-v2/github/source/bin/convert-base-v2
+[20260427-074901.9844]  Version ......: v1.1.0-beta4
+[20260427-074901.9850]  
+[20260427-074902.9835]  v1b source ...: /mnt/zfs/zf10/0-0/users/collierjr/data/prs/dev/github.com/jim-collier/convert-base-v2/github/utility/convert-base-v1b
+[20260427-074902.9948]  Version ......: convert-base-v1b v1.0.2 build 1mywgex
+[20260427-074902.9961]  
+[20260427-074903.9958]  [ >>> TESTSECTION: Flags ]
+[20260427-074903.9964]  
+[20260427-074903.9965]  [ Test --help ]
+[20260427-074904.0058]  
+[20260427-074904.0067]  convert-base-v1b v1.0.2 build 1mywgex
+[20260427-074904.0076]  Copyright © 2023-2026 Jim Collier (ID: 1cv◂‡Vᛦ).
+[20260427-074904.0086]  Project: https://github.com/jim-collier/convert-base-v1b
+[20260427-074904.0098]  Licensed under the GNU General Public License v2.0 or later. Full text at:
+[20260427-074904.0114]    https://spdx.org/licenses/GPL-2.0-or-later.html
+[20260427-074904.0125]  No warranty.
+[20260427-074904.0128]  
+[20260427-074904.0129]  Converts from four possible input bases (including 10), to 29 possible output
+[20260427-074904.0146]  bases. Strictly positional notation conversion, not for binary-to-text
+[20260427-074904.0161]  encoding/decoding. (Though you can use the same common 2^N encoding bases such
+[20260427-074904.0178]  as base32 or base64, as positional notation.)
+[20260427-074904.0188]  
+[20260427-074904.0189]  Syntax: convert-base-v1b  [optional args]  <NUMBER>  <OBASE>
+[20260427-074904.0203]    Required arguments (in any order):
+[20260427-074904.0211]      <NUMBER> .........: The input value to convert
+[20260427-074904.0223]      <OBASE> ..........: The base to convert to (default 10 if not specified)
+[20260427-074904.0239]    Optional arguments:
+[20260427-074904.0245]      --ibase <base> ...: The input base (default 10 if not specified)
+[20260427-074904.0260]      --from  <base> ...: Alias for '--ibase'
+[20260427-074904.0269]      --obase <base> ...: Optional explicit flag for output base.
+[20260427-074904.0283]      --to  <base> .....: Alias for '--obase'
+[20260427-074904.0293]      --lcase ..........: Lower case (for bases with alpha and only one case)
+[20260427-074904.0309]      --clipin .........: Use clipboard for input
+[20260427-074904.0320]      --clipout ........: Use clipboard for output
+[20260427-074904.0331]      --silent .........: No CLI output. Also sets --clipout.
+[20260427-074904.0343]      --help, --about, --version [or -h, -a, -v]
+[20260427-074904.0354]    Valid values for output <base>
+[20260427-074904.0361]      Note: ST=Standard, PS=Pseudostandard, PUB=Published, C=Custom:
+[20260427-074904.0376]          2      ST  aka Binary ................. 0,1
+[20260427-074904.0387]          8      ST  aka Octal .................. 0-7
+[20260427-074904.0398]         10      ST  aka Decimal [default] ...... 0-9
+[20260427-074904.0409]         16      ST  aka Hexedecimal ............ 0-9, A-F
+[20260427-074904.0422]         26      PS  One-case alphabetic ........ A-Z
+[20260427-074904.0433]         32[r]   ST  RFC 4648 §6 ................ A-Z, 2-7
+[20260427-074904.0446]         32h     ST  RFC 4648 §7, 'Base32Hex' ... 0-9, A-V
+[20260427-074904.0459]         32c     PUB Crockford's Base32 ......... 0-9, A-Z no I, L, O, U
+[20260427-074904.0477]         32ws    PUB Word-safe Base32 ........... 2-9, CFGHJMPQRVWX, cfghjmpqrvwx
+[20260427-074904.0494]         36      PS  Just alphanum .............. 0-9, A-Z
+[20260427-074904.0506]         38host  C   Valid *nix host and domain name characters
+[20260427-074904.0520]         39user  C   Valid *nix username characters
+[20260427-074904.0531]         45email C   Valid HTML5 <email> address characters
+[20260427-074904.0544]         48jc1ws C   Base 32ws + unicode symbols
+[20260427-074904.0554]         52      PS  Both-case alphabetic ....... A-Z, a-z
+[20260427-074904.0567]         62      PS  All alphanum ............... 0-9, A-Z, a-z
+[20260427-074904.0580]         64[r]   ST  RFC 4648 §4 ................ A-Z, a-z, 0-9, +, /
+[20260427-074904.0595]         64u     ST  RFC 4648 §5, URL-safe ...... A-Z, a-z, 0-9, -, _
+[20260427-074904.0610]         64h     PS  Hex like, URL-safe ......... 0-9, A-Z, a-z, -, _
+[20260427-074904.0624]         64jc1   C   Base 62, +2 unicode symbols  0-9, A-Z, a-z, ʞ, λ
+[20260427-074904.0641]         64jc1ws C   Base 48jcw + more unicode symbols
+[20260427-074904.0654]        128jc1ws C   Base 64jcw + more unicode symbols
+[20260427-074904.0665]        128jc1   C   Base 64jc  + more unicode symbols
+[20260427-074904.0676]        256jc1   C   Base 128jc + more unicode symbols
+[20260427-074904.0688]        288jc1   C   Base 256jc + more unicode symbols
+[20260427-074904.0699]      v1 backwards-compatiable 'incongruous' word-safe bases:
+[20260427-074904.0712]         48v1compat, 64v1compat, 128v1compat
+[20260427-074904.0721]    Valid values for --ibase:
+[20260427-074904.0727]      2, 8, 10, 16, 36
+[20260427-074904.0732]  
+[20260427-074904.0733]  [ Test --about ]
+[20260427-074904.0737]  
+[20260427-074904.0738]  convert-base-v1b v1.0.2 build 1mywgex
+[20260427-074904.0746]  Copyright © 2023-2026 Jim Collier (ID: 1cv◂‡Vᛦ).
+[20260427-074904.0757]  Project: https://github.com/jim-collier/convert-base-v1b
+[20260427-074904.0769]  Licensed under the GNU General Public License v2.0 or later. Full text at:
+[20260427-074904.0784]    https://spdx.org/licenses/GPL-2.0-or-later.html
+[20260427-074904.0795]  No warranty.
+[20260427-074904.0798]  
+[20260427-074904.0800]  Converts from four possible input bases (including 10), to 29 possible output
+[20260427-074904.0820]  bases. Strictly positional notation conversion, not for binary-to-text
+[20260427-074904.0835]  encoding/decoding. (Though you can use the same common 2^N encoding bases such
+[20260427-074904.0852]  as base32 or base64, as positional notation.)
+[20260427-074904.0861]  
+[20260427-074904.0862]  [ Test --version (again) ]
+[20260427-074904.0868]  convert-base-v1b v1.0.2 build 1mywgex
+[20260427-074904.0876]  
+[20260427-074904.0877]  [ >>> TESTSECTION: Base name aliases ]
+[20260427-074904.0885]  
+[20260427-074904.0886]  ✅ Passed: Test# 1 [Test mode: 'no_error']
+[20260427-074904.0895]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  2
+[20260427-074904.0914]  Expected value .: '[anything or nothing]'
+[20260427-074904.0924]  Actual value ...: '101111100011011100011110000110110111101101111000011101111110000011011000101110110010001100111110011111111010110100010101'
+[20260427-074904.0953]  
+[20260427-074904.0965]  ✅ Passed: Test# 2 [Test mode: 'no_error']
+[20260427-074904.0991]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  8
+[20260427-074904.1010]  Expected value .: '[anything or nothing]'
+[20260427-074904.1019]  Actual value ...: '5743343606675570357603305662147637726425'
+[20260427-074904.1032]  
+[20260427-074904.1239]  ✅ Passed: Test# 3 [Test mode: 'no_error']
+[20260427-074904.1266]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  oct
+[20260427-074904.1286]  Expected value .: '[anything or nothing]'
+[20260427-074904.1296]  Actual value ...: '5743343606675570357603305662147637726425'
+[20260427-074904.1311]  
+[20260427-074904.1547]  ✅ Passed: Test# 4 [Test mode: 'no_error']
+[20260427-074904.1571]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  octal
+[20260427-074904.1592]  Expected value .: '[anything or nothing]'
+[20260427-074904.1602]  Actual value ...: '5743343606675570357603305662147637726425'
+[20260427-074904.1615]  
+[20260427-074904.1829]  ✅ Passed: Test# 5 [Test mode: 'no_error']
+[20260427-074904.1853]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  10
+[20260427-074904.1878]  Expected value .: '[anything or nothing]'
+[20260427-074904.1891]  Actual value ...: '987654321000055555555550000123456789'
+[20260427-074904.1906]  
+[20260427-074904.2098]  ✅ Passed: Test# 6 [Test mode: 'no_error']
+[20260427-074904.2124]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  dec
+[20260427-074904.2144]  Expected value .: '[anything or nothing]'
+[20260427-074904.2154]  Actual value ...: '987654321000055555555550000123456789'
+[20260427-074904.2165]  
+[20260427-074904.2373]  ✅ Passed: Test# 7 [Test mode: 'no_error']
+[20260427-074904.2400]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  decimal
+[20260427-074904.2421]  Expected value .: '[anything or nothing]'
+[20260427-074904.2430]  Actual value ...: '987654321000055555555550000123456789'
+[20260427-074904.2442]  
+[20260427-074904.2668]  ✅ Passed: Test# 8 [Test mode: 'no_error']
+[20260427-074904.2694]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  16
+[20260427-074904.2714]  Expected value .: '[anything or nothing]'
+[20260427-074904.2723]  Actual value ...: 'BE371E1B7B7877E0D8BB233E7FAD15'
+[20260427-074904.2734]  
+[20260427-074904.2940]  ✅ Passed: Test# 9 [Test mode: 'no_error']
+[20260427-074904.2967]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  hex
+[20260427-074904.2987]  Expected value .: '[anything or nothing]'
+[20260427-074904.2996]  Actual value ...: 'BE371E1B7B7877E0D8BB233E7FAD15'
+[20260427-074904.3007]  
+[20260427-074904.3221]  ✅ Passed: Test# 10 [Test mode: 'no_error']
+[20260427-074904.3246]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  hexadecimal
+[20260427-074904.3268]  Expected value .: '[anything or nothing]'
+[20260427-074904.3277]  Actual value ...: 'BE371E1B7B7877E0D8BB233E7FAD15'
+[20260427-074904.3288]  
+[20260427-074904.3510]  ✅ Passed: Test# 11 [Test mode: 'no_error']
+[20260427-074904.3538]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  26
+[20260427-074904.3558]  Expected value .: '[anything or nothing]'
+[20260427-074904.3568]  Actual value ...: 'EELUTHVVEDOHUKYXZVZLZBWNXL'
+[20260427-074904.3579]  
+[20260427-074904.3800]  ✅ Passed: Test# 12 [Test mode: 'no_error']
+[20260427-074904.3825]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32
+[20260427-074904.3845]  Expected value .: '[anything or nothing]'
+[20260427-074904.3854]  Actual value ...: 'XY3R4G33PB36BWF3EM7H7LIV'
+[20260427-074904.3863]  
+[20260427-074904.4097]  ✅ Passed: Test# 13 [Test mode: 'no_error']
+[20260427-074904.4123]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32r
+[20260427-074904.4144]  Expected value .: '[anything or nothing]'
+[20260427-074904.4153]  Actual value ...: 'XY3R4G33PB36BWF3EM7H7LIV'
+[20260427-074904.4162]  
+[20260427-074904.4369]  ✅ Passed: Test# 14 [Test mode: 'no_error']
+[20260427-074904.4396]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32rfc
+[20260427-074904.4416]  Expected value .: '[anything or nothing]'
+[20260427-074904.4426]  Actual value ...: 'XY3R4G33PB36BWF3EM7H7LIV'
+[20260427-074904.4435]  
+[20260427-074904.4655]  ✅ Passed: Test# 15 [Test mode: 'no_error']
+[20260427-074904.4682]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32rfc4648s6
+[20260427-074904.4705]  Expected value .: '[anything or nothing]'
+[20260427-074904.4714]  Actual value ...: 'XY3R4G33PB36BWF3EM7H7LIV'
+[20260427-074904.4723]  
+[20260427-074904.4946]  ✅ Passed: Test# 16 [Test mode: 'no_error']
+[20260427-074904.4972]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  rfc4648s6
+[20260427-074904.4993]  Expected value .: '[anything or nothing]'
+[20260427-074904.5002]  Actual value ...: 'XY3R4G33PB36BWF3EM7H7LIV'
+[20260427-074904.5011]  
+[20260427-074904.5226]  ✅ Passed: Test# 17 [Test mode: 'no_error']
+[20260427-074904.5253]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32h
+[20260427-074904.5274]  Expected value .: '[anything or nothing]'
+[20260427-074904.5283]  Actual value ...: 'NORHS6RRF1RU1M5R4CV7VB8L'
+[20260427-074904.5293]  
+[20260427-074904.5515]  ✅ Passed: Test# 18 [Test mode: 'no_error']
+[20260427-074904.5542]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32hex
+[20260427-074904.5569]  Expected value .: '[anything or nothing]'
+[20260427-074904.5582]  Actual value ...: 'NORHS6RRF1RU1M5R4CV7VB8L'
+[20260427-074904.5595]  
+[20260427-074904.5787]  ✅ Passed: Test# 19 [Test mode: 'no_error']
+[20260427-074904.5813]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32rfc4648s7
+[20260427-074904.5838]  Expected value .: '[anything or nothing]'
+[20260427-074904.5851]  Actual value ...: 'NORHS6RRF1RU1M5R4CV7VB8L'
+[20260427-074904.5864]  
+[20260427-074904.6049]  ✅ Passed: Test# 20 [Test mode: 'no_error']
+[20260427-074904.6075]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  rfc4648s7
+[20260427-074904.6100]  Expected value .: '[anything or nothing]'
+[20260427-074904.6113]  Actual value ...: 'NORHS6RRF1RU1M5R4CV7VB8L'
+[20260427-074904.6123]  
+[20260427-074904.6330]  ✅ Passed: Test# 21 [Test mode: 'no_error']
+[20260427-074904.6357]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32c
+[20260427-074904.6380]  Expected value .: '[anything or nothing]'
+[20260427-074904.6393]  Actual value ...: 'QRVHW6VVF1VY1P5V4CZ7ZB8N'
+[20260427-074904.6406]  
+[20260427-074904.6661]  ✅ Passed: Test# 22 [Test mode: 'no_error']
+[20260427-074904.6685]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32crock
+[20260427-074904.6710]  Expected value .: '[anything or nothing]'
+[20260427-074904.6722]  Actual value ...: 'QRVHW6VVF1VY1P5V4CZ7ZB8N'
+[20260427-074904.6736]  
+[20260427-074904.6943]  ✅ Passed: Test# 23 [Test mode: 'no_error']
+[20260427-074904.6970]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32crockford
+[20260427-074904.6995]  Expected value .: '[anything or nothing]'
+[20260427-074904.7008]  Actual value ...: 'QRVHW6VVF1VY1P5V4CZ7ZB8N'
+[20260427-074904.7018]  
+[20260427-074904.7248]  ✅ Passed: Test# 24 [Test mode: 'no_error']
+[20260427-074904.7274]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  crockford
+[20260427-074904.7295]  Expected value .: '[anything or nothing]'
+[20260427-074904.7304]  Actual value ...: 'QRVHW6VVF1VY1P5V4CZ7ZB8N'
+[20260427-074904.7316]  
+[20260427-074904.7569]  ✅ Passed: Test# 25 [Test mode: 'no_error']
+[20260427-074904.7596]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32ws
+[20260427-074904.7616]  Expected value .: '[anything or nothing]'
+[20260427-074904.7625]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
+[20260427-074904.7635]  
+[20260427-074904.7870]  ✅ Passed: Test# 26 [Test mode: 'no_error']
+[20260427-074904.7896]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32w
+[20260427-074904.7916]  Expected value .: '[anything or nothing]'
+[20260427-074904.7926]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
+[20260427-074904.7935]  
+[20260427-074904.8164]  ✅ Passed: Test# 27 [Test mode: 'no_error']
+[20260427-074904.8190]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32wordsafe
+[20260427-074904.8215]  Expected value .: '[anything or nothing]'
+[20260427-074904.8228]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
+[20260427-074904.8241]  
+[20260427-074904.8452]  ✅ Passed: Test# 28 [Test mode: 'no_error']
+[20260427-074904.8477]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32g
+[20260427-074904.8501]  Expected value .: '[anything or nothing]'
+[20260427-074904.8513]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
+[20260427-074904.8527]  
+[20260427-074904.8718]  ✅ Passed: Test# 29 [Test mode: 'no_error']
+[20260427-074904.8745]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32google
+[20260427-074904.8778]  Expected value .: '[anything or nothing]'
+[20260427-074904.8792]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
+[20260427-074904.8807]  
+[20260427-074904.8982]  ✅ Passed: Test# 30 [Test mode: 'no_error']
+[20260427-074904.9008]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  32nofks
+[20260427-074904.9029]  Expected value .: '[anything or nothing]'
+[20260427-074904.9038]  Actual value ...: 'hjqVr8qqQ3qw3g7q6Jx9xHCf'
+[20260427-074904.9048]  
+[20260427-074904.9269]  ✅ Passed: Test# 31 [Test mode: 'no_error']
+[20260427-074904.9295]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  36
+[20260427-074904.9315]  Expected value .: '[anything or nothing]'
+[20260427-074904.9324]  Actual value ...: '1L0CRVVUFHZO5Z4EHIOCISK5'
+[20260427-074904.9333]  
+[20260427-074904.9561]  ✅ Passed: Test# 32 [Test mode: 'no_error']
+[20260427-074904.9586]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  38hostname
+[20260427-074904.9608]  Expected value .: '[anything or nothing]'
+[20260427-074904.9617]  Actual value ...: 'hdf8q5vjdfxd3t-gwe75u9v'
+[20260427-074904.9626]  
+[20260427-074904.9840]  ✅ Passed: Test# 33 [Test mode: 'no_error']
+[20260427-074904.9867]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  38jc1
+[20260427-074904.9887]  Expected value .: '[anything or nothing]'
+[20260427-074904.9896]  Actual value ...: 'hdf8q5vjdfxd3t-gwe75u9v'
+[20260427-074904.9906]  
+[20260427-074905.0141]  ✅ Passed: Test# 34 [Test mode: 'no_error']
+[20260427-074905.0169]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  39username
+[20260427-074905.0189]  Expected value .: '[anything or nothing]'
+[20260427-074905.0198]  Actual value ...: '9v6de929rpvilgdb1gm7o_b'
+[20260427-074905.0208]  
+[20260427-074905.0416]  ✅ Passed: Test# 35 [Test mode: 'no_error']
+[20260427-074905.0441]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  39jc1
+[20260427-074905.0462]  Expected value .: '[anything or nothing]'
+[20260427-074905.0472]  Actual value ...: '9v6de929rpvilgdb1gm7o_b'
+[20260427-074905.0484]  
+[20260427-074905.0696]  ✅ Passed: Test# 36 [Test mode: 'no_error']
+[20260427-074905.0721]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  45email
+[20260427-074905.0745]  Expected value .: '[anything or nothing]'
+[20260427-074905.0758]  Actual value ...: 'i:_mxqm7shopf.y02f:75e'
+[20260427-074905.0770]  
+[20260427-074905.0976]  ✅ Passed: Test# 37 [Test mode: 'no_error']
+[20260427-074905.1008]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  45jc1
+[20260427-074905.1033]  Expected value .: '[anything or nothing]'
+[20260427-074905.1045]  Actual value ...: 'i:_mxqm7shopf.y02f:75e'
+[20260427-074905.1055]  
+[20260427-074905.1295]  ✅ Passed: Test# 38 [Test mode: 'no_error']
+[20260427-074905.1321]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48jc1ws
+[20260427-074905.1342]  Expected value .: '[anything or nothing]'
+[20260427-074905.1351]  Actual value ...: '6ᚠPv4ᛨHG2ᛘᛯᛘHᚧ9phgμCq7'
+[20260427-074905.1364]  
+[20260427-074905.1589]  ✅ Passed: Test# 39 [Test mode: 'no_error']
+[20260427-074905.1615]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48w
+[20260427-074905.1634]  Expected value .: '[anything or nothing]'
+[20260427-074905.1644]  Actual value ...: '6ᚠPv4ᛨHG2ᛘᛯᛘHᚧ9phgμCq7'
+[20260427-074905.1655]  
+[20260427-074905.1860]  ✅ Passed: Test# 40 [Test mode: 'no_error']
+[20260427-074905.1885]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48ws
+[20260427-074905.1905]  Expected value .: '[anything or nothing]'
+[20260427-074905.1914]  Actual value ...: '6ᚠPv4ᛨHG2ᛘᛯᛘHᚧ9phgμCq7'
+[20260427-074905.1924]  
+[20260427-074905.2155]  ✅ Passed: Test# 41 [Test mode: 'no_error']
+[20260427-074905.2182]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48wordsafe
+[20260427-074905.2203]  Expected value .: '[anything or nothing]'
+[20260427-074905.2212]  Actual value ...: '6ᚠPv4ᛨHG2ᛘᛯᛘHᚧ9phgμCq7'
+[20260427-074905.2223]  
+[20260427-074905.2436]  ✅ Passed: Test# 42 [Test mode: 'no_error']
+[20260427-074905.2462]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48nofks
+[20260427-074905.2485]  Expected value .: '[anything or nothing]'
+[20260427-074905.2494]  Actual value ...: '6ᚠPv4ᛨHG2ᛘᛯᛘHᚧ9phgμCq7'
+[20260427-074905.2504]  
+[20260427-074905.2726]  ✅ Passed: Test# 43 [Test mode: 'no_error']
+[20260427-074905.2752]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48v1compat
+[20260427-074905.2774]  Expected value .: '[anything or nothing]'
+[20260427-074905.2784]  Actual value ...: '4▿jᛝ2▸fc0🜥🜿🜥f◂7ᛏλʞᚬ8ᛘ5'
+[20260427-074905.2796]  
+[20260427-074905.3014]  ✅ Passed: Test# 44 [Test mode: 'no_error']
+[20260427-074905.3040]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48depr
+[20260427-074905.3061]  Expected value .: '[anything or nothing]'
+[20260427-074905.3070]  Actual value ...: '4▿jᛝ2▸fc0🜥🜿🜥f◂7ᛏλʞᚬ8ᛘ5'
+[20260427-074905.3080]  
+[20260427-074905.3268]  ✅ Passed: Test# 45 [Test mode: 'no_error']
+[20260427-074905.3294]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  48j1
+[20260427-074905.3315]  Expected value .: '[anything or nothing]'
+[20260427-074905.3325]  Actual value ...: '4▿jᛝ2▸fc0🜥🜿🜥f◂7ᛏλʞᚬ8ᛘ5'
+[20260427-074905.3335]  
+[20260427-074905.3539]  ✅ Passed: Test# 46 [Test mode: 'no_error']
+[20260427-074905.3565]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  52
+[20260427-074905.3589]  Expected value .: '[anything or nothing]'
+[20260427-074905.3602]  Actual value ...: 'vNoFHYtcznezzzJbezdYl'
+[20260427-074905.3615]  
+[20260427-074905.3811]  ✅ Passed: Test# 47 [Test mode: 'no_error']
+[20260427-074905.3836]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  62
+[20260427-074905.3859]  Expected value .: '[anything or nothing]'
+[20260427-074905.3872]  Actual value ...: '1OvZg4xLjgW5p6V6TBcCT'
+[20260427-074905.3885]  
+[20260427-074905.4104]  ✅ Passed: Test# 48 [Test mode: 'no_error']
+[20260427-074905.4131]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64
+[20260427-074905.4154]  Expected value .: '[anything or nothing]'
+[20260427-074905.4167]  Actual value ...: 'vjceG3t4d+DYuyM+f60V'
+[20260427-074905.4179]  
+[20260427-074905.4388]  ✅ Passed: Test# 49 [Test mode: 'no_error']
+[20260427-074905.4415]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64r
+[20260427-074905.4439]  Expected value .: '[anything or nothing]'
+[20260427-074905.4451]  Actual value ...: 'vjceG3t4d+DYuyM+f60V'
+[20260427-074905.4464]  
+[20260427-074905.4669]  ✅ Passed: Test# 50 [Test mode: 'no_error']
+[20260427-074905.4696]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64rfc
+[20260427-074905.4718]  Expected value .: '[anything or nothing]'
+[20260427-074905.4727]  Actual value ...: 'vjceG3t4d+DYuyM+f60V'
+[20260427-074905.4736]  
+[20260427-074905.4960]  ✅ Passed: Test# 51 [Test mode: 'no_error']
+[20260427-074905.4986]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64rfc4648s4
+[20260427-074905.5009]  Expected value .: '[anything or nothing]'
+[20260427-074905.5018]  Actual value ...: 'vjceG3t4d+DYuyM+f60V'
+[20260427-074905.5027]  
+[20260427-074905.5264]  ✅ Passed: Test# 52 [Test mode: 'no_error']
+[20260427-074905.5290]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  rfc4648s4
+[20260427-074905.5312]  Expected value .: '[anything or nothing]'
+[20260427-074905.5322]  Actual value ...: 'vjceG3t4d+DYuyM+f60V'
+[20260427-074905.5331]  
+[20260427-074905.5569]  ✅ Passed: Test# 53 [Test mode: 'no_error']
+[20260427-074905.5595]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64u
+[20260427-074905.5614]  Expected value .: '[anything or nothing]'
+[20260427-074905.5627]  Actual value ...: 'vjceG3t4d-DYuyM-f60V'
+[20260427-074905.5640]  
+[20260427-074905.5832]  ✅ Passed: Test# 54 [Test mode: 'no_error']
+[20260427-074905.5857]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64url
+[20260427-074905.5878]  Expected value .: '[anything or nothing]'
+[20260427-074905.5887]  Actual value ...: 'vjceG3t4d-DYuyM-f60V'
+[20260427-074905.5896]  
+[20260427-074905.6077]  ✅ Passed: Test# 55 [Test mode: 'no_error']
+[20260427-074905.6102]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64rfc4648s5
+[20260427-074905.6124]  Expected value .: '[anything or nothing]'
+[20260427-074905.6134]  Actual value ...: 'vjceG3t4d-DYuyM-f60V'
+[20260427-074905.6143]  
+[20260427-074905.6372]  ✅ Passed: Test# 56 [Test mode: 'no_error']
+[20260427-074905.6397]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  rfc4648s5
+[20260427-074905.6418]  Expected value .: '[anything or nothing]'
+[20260427-074905.6427]  Actual value ...: 'vjceG3t4d-DYuyM-f60V'
+[20260427-074905.6436]  
+[20260427-074905.6652]  ✅ Passed: Test# 57 [Test mode: 'no_error']
+[20260427-074905.6678]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64h
+[20260427-074905.6699]  Expected value .: '[anything or nothing]'
+[20260427-074905.6708]  Actual value ...: 'lZSU6tjuT-3OkoC-VwqL'
+[20260427-074905.6716]  
+[20260427-074905.6941]  ✅ Passed: Test# 58 [Test mode: 'no_error']
+[20260427-074905.6968]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64hex
+[20260427-074905.6988]  Expected value .: '[anything or nothing]'
+[20260427-074905.6997]  Actual value ...: 'lZSU6tjuT-3OkoC-VwqL'
+[20260427-074905.7006]  
+[20260427-074905.7218]  ✅ Passed: Test# 59 [Test mode: 'no_error']
+[20260427-074905.7244]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64jc1
+[20260427-074905.7265]  Expected value .: '[anything or nothing]'
+[20260427-074905.7274]  Actual value ...: 'lZSU6tjuTʞ3OkoCʞVwqL'
+[20260427-074905.7283]  
+[20260427-074905.7497]  ✅ Passed: Test# 60 [Test mode: 'no_error']
+[20260427-074905.7522]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64j1u
+[20260427-074905.7542]  Expected value .: '[anything or nothing]'
+[20260427-074905.7551]  Actual value ...: 'lZSU6tjuTʞ3OkoCʞVwqL'
+[20260427-074905.7560]  
+[20260427-074905.7781]  ✅ Passed: Test# 61 [Test mode: 'no_error']
+[20260427-074905.7808]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64jc1ws
+[20260427-074905.7829]  Expected value .: '[anything or nothing]'
+[20260427-074905.7838]  Actual value ...: '🜥ᛎrw8‡ᚼ±vΩ5j🜣▵JΩx÷▿f'
+[20260427-074905.7847]  
+[20260427-074905.8053]  ✅ Passed: Test# 62 [Test mode: 'no_error']
+[20260427-074905.8079]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64w
+[20260427-074905.8100]  Expected value .: '[anything or nothing]'
+[20260427-074905.8109]  Actual value ...: '🜥ᛎrw8‡ᚼ±vΩ5j🜣▵JΩx÷▿f'
+[20260427-074905.8119]  
+[20260427-074905.8322]  ✅ Passed: Test# 63 [Test mode: 'no_error']
+[20260427-074905.8348]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64ws
+[20260427-074905.8369]  Expected value .: '[anything or nothing]'
+[20260427-074905.8378]  Actual value ...: '🜥ᛎrw8‡ᚼ±vΩ5j🜣▵JΩx÷▿f'
+[20260427-074905.8387]  
+[20260427-074905.8612]  ✅ Passed: Test# 64 [Test mode: 'no_error']
+[20260427-074905.8639]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64wordsafe
+[20260427-074905.8663]  Expected value .: '[anything or nothing]'
+[20260427-074905.8673]  Actual value ...: '🜥ᛎrw8‡ᚼ±vΩ5j🜣▵JΩx÷▿f'
+[20260427-074905.8682]  
+[20260427-074905.8934]  ✅ Passed: Test# 65 [Test mode: 'no_error']
+[20260427-074905.8960]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64nofks
+[20260427-074905.8982]  Expected value .: '[anything or nothing]'
+[20260427-074905.8991]  Actual value ...: '🜥ᛎrw8‡ᚼ±vΩ5j🜣▵JΩx÷▿f'
+[20260427-074905.9001]  
+[20260427-074905.9218]  ✅ Passed: Test# 66 [Test mode: 'no_error']
+[20260427-074905.9243]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64v1compat
+[20260427-074905.9265]  Expected value .: '[anything or nothing]'
+[20260427-074905.9274]  Actual value ...: 'ᚼλpr6◂ᚧ҂q≈3gᚬ🜿G≈v±▵X'
+[20260427-074905.9284]  
+[20260427-074905.9489]  ✅ Passed: Test# 67 [Test mode: 'no_error']
+[20260427-074905.9515]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64depr
+[20260427-074905.9536]  Expected value .: '[anything or nothing]'
+[20260427-074905.9546]  Actual value ...: 'ᚼλpr6◂ᚧ҂q≈3gᚬ🜿G≈v±▵X'
+[20260427-074905.9555]  
+[20260427-074905.9789]  ✅ Passed: Test# 68 [Test mode: 'no_error']
+[20260427-074905.9815]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  64j1uw
+[20260427-074905.9837]  Expected value .: '[anything or nothing]'
+[20260427-074905.9847]  Actual value ...: 'ᚼλpr6◂ᚧ҂q≈3gᚬ🜿G≈v±▵X'
+[20260427-074905.9856]  
+[20260427-074906.0060]  ✅ Passed: Test# 69 [Test mode: 'no_error']
+[20260427-074906.0086]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128jc1
+[20260427-074906.0117]  Expected value .: '[anything or nothing]'
+[20260427-074906.0131]  Actual value ...: '1ʞRᛨᛘt≠δ⍤Ϡ¿kЖp⍒Û≈L'
+[20260427-074906.0144]  
+[20260427-074906.0355]  ✅ Passed: Test# 70 [Test mode: 'no_error']
+[20260427-074906.0382]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128jc1ws
+[20260427-074906.0403]  Expected value .: '[anything or nothing]'
+[20260427-074906.0412]  Actual value ...: '3ΩqЯδ‡ĤŴŷÛŝ🜣â▸ĨỹĜf'
+[20260427-074906.0421]  
+[20260427-074906.0661]  ✅ Passed: Test# 71 [Test mode: 'no_error']
+[20260427-074906.0686]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128w
+[20260427-074906.0707]  Expected value .: '[anything or nothing]'
+[20260427-074906.0716]  Actual value ...: '3ΩqЯδ‡ĤŴŷÛŝ🜣â▸ĨỹĜf'
+[20260427-074906.0725]  
+[20260427-074906.0935]  ✅ Passed: Test# 72 [Test mode: 'no_error']
+[20260427-074906.0960]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128ws
+[20260427-074906.0981]  Expected value .: '[anything or nothing]'
+[20260427-074906.0990]  Actual value ...: '3ΩqЯδ‡ĤŴŷÛŝ🜣â▸ĨỹĜf'
+[20260427-074906.0999]  
+[20260427-074906.1193]  ✅ Passed: Test# 73 [Test mode: 'no_error']
+[20260427-074906.1220]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128wordsafe
+[20260427-074906.1243]  Expected value .: '[anything or nothing]'
+[20260427-074906.1252]  Actual value ...: '3ΩqЯδ‡ĤŴŷÛŝ🜣â▸ĨỹĜf'
+[20260427-074906.1261]  
+[20260427-074906.1464]  ✅ Passed: Test# 74 [Test mode: 'no_error']
+[20260427-074906.1489]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128nofks
+[20260427-074906.1514]  Expected value .: '[anything or nothing]'
+[20260427-074906.1527]  Actual value ...: '3ΩqЯδ‡ĤŴŷÛŝ🜣â▸ĨỹĜf'
+[20260427-074906.1540]  
+[20260427-074906.1733]  ✅ Passed: Test# 75 [Test mode: 'no_error']
+[20260427-074906.1758]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128v1compat
+[20260427-074906.1783]  Expected value .: '[anything or nothing]'
+[20260427-074906.1796]  Actual value ...: '1≈mЋψ◂ÊŶãŴẼᚬê🝅ÄĆĈX'
+[20260427-074906.1805]  
+[20260427-074906.2032]  ✅ Passed: Test# 76 [Test mode: 'no_error']
+[20260427-074906.2059]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  128depr
+[20260427-074906.2080]  Expected value .: '[anything or nothing]'
+[20260427-074906.2089]  Actual value ...: '1≈mЋψ◂ÊŶãŴẼᚬê🝅ÄĆĈX'
+[20260427-074906.2098]  
+[20260427-074906.2308]  ✅ Passed: Test# 77 [Test mode: 'no_error']
+[20260427-074906.2334]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  256jc1
+[20260427-074906.2355]  Expected value .: '[anything or nothing]'
+[20260427-074906.2364]  Actual value ...: 'ítURĴĜÊčȞćZʞŴÁL'
+[20260427-074906.2372]  
+[20260427-074906.2607]  ✅ Passed: Test# 78 [Test mode: 'no_error']
+[20260427-074906.2635]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  256j1
+[20260427-074906.2655]  Expected value .: '[anything or nothing]'
+[20260427-074906.2665]  Actual value ...: 'ítURĴĜÊčȞćZʞŴÁL'
+[20260427-074906.2673]  
+[20260427-074906.2886]  ✅ Passed: Test# 79 [Test mode: 'no_error']
+[20260427-074906.2912]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  288jc1
+[20260427-074906.2933]  Expected value .: '[anything or nothing]'
+[20260427-074906.2942]  Actual value ...: 'aẌňẌỹńÓまĩćaÎɤŸỸ'
+[20260427-074906.2951]  
+[20260427-074906.3157]  ✅ Passed: Test# 80 [Test mode: 'no_error']
+[20260427-074906.3182]  Test command ...: 'convert-base-v2'  --from base10  987654321000055555555550000123456789  288j1
+[20260427-074906.3203]  Expected value .: '[anything or nothing]'
+[20260427-074906.3212]  Actual value ...: 'aẌňẌỹńÓまĩćaÎɤŸỸ'
+[20260427-074906.3220]  
+[20260427-074906.3221]  [ Test #81 Expecting error, BEGIN ... ]
+[20260427-074906.3423]  error: output base: unknown base "bogusBaseName"
+[20260427-074906.3431]  [ Test #81 Expecting error, END. ]
+[20260427-074906.3439]  
+[20260427-074906.3440]  ✅ Passed: Test# 81 [Test mode: 'error']
+[20260427-074906.3460]  Test command ...: 'convert-base-v2'  '987654321000055555555550000123456789'  bogusBaseName
+[20260427-074906.3483]  Expected value .: ''
+[20260427-074906.3490]  Actual value ...: ''
+[20260427-074906.3496]  
+[20260427-074906.3497]  [ >>> TESTSECTION: Fuzz-testing against self ]
+[20260427-074906.3510]  
+[20260427-074906.3511]  
+[20260427-074906.3512]  [ 20260427-074906.349294500 ]  Error in n8lib_test.fScrambleString(): Input symbol list is empty.
+[20260427-074906.3535]  

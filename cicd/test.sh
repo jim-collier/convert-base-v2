@@ -39,7 +39,7 @@ fMain(){
 
 	## Settings
 	local -ri doBackwardsCompatTests=1
-	local     exeV2="../source/convert-base-v2"
+	local     exeV2="../source/bin/convert-base-v2"
 	local     exeV1b="../utility/convert-base-v1b"
 	local     baseDefs="base-definitions.sh"
 #	local     aliasDefs="alias-definitions.sh"
@@ -366,19 +366,27 @@ fEcho_Clean_Force()       { local -i arg1="${1:-0}"; }
 ## Generic function(s) that can't be 'sourced'.
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 fResolvePath(){
-	## First looks at specified raw path. Next, same path but relative to this script. Next, in $PATH for an executable. Next, in this script's path, + /lib, /include, then /includes.
+	##	Purpose:
+	##		- Resolves an argument to a canonical full path, while being careful to not be too broad as to resolve to something else with the same name.
+	##		- Resolution priority:
+	##			- Exactly as specified.
+	##			- "[this script's path]/lib/[specified name if given without a path]"
+	##			- "[this script's path]/include/[specified name if given without a path]"
+	##			- "[this script's path]/includes/[specified name if given without a path]"
+	##			- If specified a name without a path: Find in $PATH
+	##			- If doesn't have to exist, and still haven't found it, then just canonicalize original argument
 	local -n parentVarName_ResolvedPath_t4rej=${1:-}  ; shift || true  ## Parent variable to store fully resolved path in.
 	local    nameOrPath="${1:-}"                      ; shift || true  ## File or folder path (relative or absolute). If an executable file, can be just a name to search in $PATH, to fully resolve.
-	local -i mustExist=${1:-1}                        ; shift || true  ## 1 [default]: path must exist or error occurs. 0: Just rationalize paths.
-	[[   -z "${nameOrPath}" ]]  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): No path specified to resolve.\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
+	local -i mustExist=${1:-0}                        ; shift || true  ## 1 [default]: path must exist or error occurs. 0: Just rationalize paths, doesn't have to exist.
+	[[   -z "${nameOrPath}" ]]  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): No file or directory specified to resolve.\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
 	local -r mePath_t4rmy="$(dirname "${BASH_SOURCE[0]}")"
-	local -i isNopathObject=0 ; [[ "${nameOrPath}" == "$(basename "${nameOrPath}")" ]] && isNopathObject=1 ; readonly isNopathObject
+	local -i isExeWithNoPath=0 ; [[ "${nameOrPath}" == "$(basename "${nameOrPath}")" ]] && isExeWithNoPath=1 ; readonly isExeWithNoPath
 	local    testPath="${nameOrPath}"
 	{ [[ ! -e "${testPath}"   ]]                          ; }  &&  testPath="${mePath_t4rmy}/${nameOrPath}"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject))    ; }  &&  testPath="$(which "${nameOrPath}" 2>/dev/null || true)"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject))    ; }  &&  testPath="${mePath_t4rmy}/lib/${nameOrPath}"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject))    ; }  &&  testPath="${mePath_t4rmy}/include/${nameOrPath}"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject))    ; }  &&  testPath="${mePath_t4rmy}/includes/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="${mePath_t4rmy}/lib/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="${mePath_t4rmy}/include/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="${mePath_t4rmy}/includes/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="$(which "${nameOrPath}" 2>/dev/null || true)"
 	{ [[ ! -e "${testPath}"   ]] && ((mustExist))         ; }  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔc].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
 	{ [[ ! -e "${testPath}"   ]] || [[ -z "${testPath}" ]]; }  &&  testPath="${nameOrPath}"  ## Revert to original definition
 	if ((mustExist)); then testPath="$(realpath -e "${testPath}" 2>/dev/null || true)"
@@ -386,6 +394,8 @@ fResolvePath(){
 	## Last check to fail on
 	{ [[ -z "${testPath}" ]] || { [[ ! -e "${testPath}" ]] && ((mustExist)); }; }  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔs].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
 	## Success
+	#echo "testPath: '${testPath}'"
+	#fPressAnyKeyToContinue
 	parentVarName_ResolvedPath_t4rej="${testPath}"
 }
 
@@ -401,11 +411,14 @@ if [[ -z "${meName_t4rgd+x}" ]]; then
 	declare -r serialDT_t4rgd="$(date "+%Y%m%d-%H%M%S")"
 fi
 
+## Make sure relative paths work
+cd "${meDir_t4rgd}"
 
 ## Source the generic script 'utility/n8test'. It will call fMain() above.
-declare n8test_resolved="../utility/n8test"
+declare n8test_resolved="../utility/include/n8lib_test"
 fResolvePath  n8test_resolved  "${n8test_resolved}" ; readonly n8test_resolved
 [[ -z "${n8test_resolved}" ]] || source "${n8test_resolved}"
+#echo "n8test_resolved: '${n8test_resolved}'"; exit
 
 ## Initialize logging (fPipe_LogAndShowPartialOutput_InitLogfile() is defined in 'n8test')
 declare logFile="${mePath_t4rgd%.*}.log"
@@ -422,3 +435,4 @@ fEntryPoint | fPipe_LogAndShowPartialOutput
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ##		- 20260420 JC: Copied test.sh to test_against_v2.sh.
 ##		- 20260425 JC: Finished.
+##		- 20260427 JC: UPdated fResolvePath().
