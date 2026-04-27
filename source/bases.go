@@ -45,7 +45,7 @@ func predefinedBases() []*Base {
 
 		// Base-2
 		mkSpec("01",
-			"2", "binary"),
+			"2", "deux"),
 
 		// Base-3
 		mkSpec("012",
@@ -182,7 +182,7 @@ func predefinedBases() []*Base {
 		// Breaking change from convert-base-v1: "32" alone now means this one, rather than "32rfc".
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-7
 		mkSpec(leftTokens(base_62hex, 32),
-			"32h", "32hex", "triacontakaidecimal", "theonetrue32"),
+			"32h", "32hex", "32rfc4648s7", "rfc4648s7", "theonetrue32"),
 
 		// Crockford's base-32; designed for less human-read ambiguity, no I, L, O, U
 		// Not a standard, but published by the legendary programmer, and widely-used.
