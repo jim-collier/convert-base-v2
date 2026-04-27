@@ -72,12 +72,12 @@ fMain(){
 	fEcho_Clean "Exe source ...: ${exeV2}"
 	fEcho_Clean "Version ......: $("${exeV2}" --version)"
 	fEcho_Clean_Force
-	sleep 2
+	sleep 1
 	if ((doComareWith_v1)); then
-		fEcho_Clean "v2 source ....: ${exeV1b}"
+		fEcho_Clean "v1b source ...: ${exeV1b}"
 		fEcho_Clean "Version ......: $("${exeV1b}" --version)"
 		fEcho_Clean_Force
-		sleep 2
+		sleep 1
 	fi
 
 	####
@@ -109,16 +109,14 @@ fMain(){
 	####
 	#### Looped random fuzz-testing
 	set +e
+	loopCount=100
+	((doLongTest))  &&  loopCount=5000
 
 	## Test **AGAINST SELF**
-	loopCount=500
-	((doLongTest))  &&  loopCount=10000
 	fEcho; fEcho ">>> TESTSECTION: Fuzz-testing against self"; fEcho
 	fFuzzTest_Self
 
 	#### Test **AGAINST v1b** (all the bases)
-	loopCount=100
-	((doLongTest))  &&  loopCount=5000
 	fEcho; fEcho ">>> TESTSECTION: Fuzz-testing against v1b (all bases)"; fEcho
 	((doComareWith_v1))  &&  fFuzzTest_Base10_To_BaseX_AndBack_via_v1b
 
@@ -139,7 +137,7 @@ fMain(){
 	fRunTest  '=='  "${expectVal}"  "'${exeV2}'  ${inputVal}  128v1compat"
 
 	## 128j1
-	#expectVal="$(convert-base-v2  "${inputVal}"  128jc1)"  # ; echo "${expectVal}" | ct
+	#expectVal="$(convert-base-v2  "${inputVal}"  128jc1)"  # ; echo "${expectVal}"
 	expectVal="BUΩᛨ¢ΞI2🝅x◂p‡aU1ᛦ⍋¿‡F🝅⍋ZnᛘpdЖl75ΩfRɤnΩZ¢qᛯΩIZᛏ⍤b8P≠eЯфμEΩsƱXϠф🜥AcÎ8∞ᛘVŴŴᛝGЯ¥"
 	fRunTest  '=='  "${expectVal}"  "'${exeV2}'  ${inputVal}  128jc1"
 
@@ -162,7 +160,7 @@ fMain(){
 
 	## Removed base 16 as input, should error.
 	expectVal=""
-	fRunTest  'error'  "[anything or nothing]"  "'${exeV2}'  --ibase 26  'ABCXYZ'  10"
+	fRunTest  'error'  "[anything or nothing]"  "'${exeV2}'  --from 201  'ABCXYZ'  10"
 
 
 	####
@@ -171,7 +169,7 @@ fMain(){
 	set +e
 
 	expectVal="1234567899999999999999990123456789999999999999999123456789999999990000000000000000000000000000000000000000000000099999999999999999999999999999999999999876543210"
-	fRunChained_TestLast  '=='  "${expectVal}"  "'${exeV2}'  --ibase 10  ${inputVal}  base16 ; '${exeV2}'  --ibase 16  %CMD1_OUTPUT%  base10"
+	fRunChained_TestLast  '=='  "${expectVal}"  "'${exeV2}'  --from 10  --to 16  ${inputVal}; '${exeV2}'  --from 16  --to 10  %CMD1_OUTPUT%"
 
 :; set -e; }
 
