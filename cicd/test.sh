@@ -42,13 +42,13 @@ fMain(){
 	local     exeV2="../source/convert-base-v2"
 	local     exeV1b="../utility/convert-base-v1b"
 	local     baseDefs="base-definitions.sh"
-	local     aliasDefs="alias-definitions.sh"
+#	local     aliasDefs="alias-definitions.sh"
 
 	## Resolve paths
 	fResolvePath  exeV2      "${exeV2}"         ; readonly exeV2
 	fResolvePath  exeV1b     "${exeV1b}"     0  ; readonly exeV1b  ## Doesn't need to exist, can run tests without. This is to verify backwards-compatibility.
 	fResolvePath  baseDefs   "${baseDefs}"      ; readonly baseDefs
-	fResolvePath  aliasDefs  "${aliasDefs}"     ; readonly aliasDefs
+#	fResolvePath  aliasDefs  "${aliasDefs}"     ; readonly aliasDefs
 
 	## Compare to exeV2?
 	local -i doComareWith_v1=0
@@ -58,7 +58,7 @@ fMain(){
 	## Load base definitions arrays
 	fEcho_Clean
 	source "${baseDefs}"
-	source "${aliasDefs}"
+#	source "${aliasDefs}"
 	fEcho_Clean_Force
 
 	## Variables
@@ -178,30 +178,32 @@ fFuzzTest_Self(){
 
 	## Settings
 	local -r  LANG="C.UTF-8"
-	local -ri count_MaxInputLen=1024
+	local -ri maxTestInputChars=1024
 	local -ri count_TotalDefinedBases_Input=${#bases_Input_IdxToKey[@]}
-	local -ri count_TotalDefinedBases_Output=$count_TotalDefinedBases_Input  ## Output base will be used as an intermediat input base, so has to be the subset of valid v1b input bases.
+	local -ri count_TotalDefinedBases_Output=${#bases_Output_IdxToKey[@]}  ## Will hopefully be the same as input, but not necessarily forever and always in the future.
 
 	## Loop variables
-	local -i  randomBaseIdx=-1
+	local -i  tmpRandomBaseIdx=-1
 	local -i  random_InputLen=0
 	local     inputStr=""
 	local     inputBaseName=""
 	local     inputBaseSymbols=""
 	local     intermediateBaseName=""
 	local     intermediateVal=""
-	local     exeV1bname=""
-	local     exeV1bargs=""
+	local     exeV2name=""
+	local     exeV2args=""
 
 	for ((i=1; i<=loopCount; i++)); do
 
 		## Get a random input base and its list of symbols
-		randomBaseIdx=$((1 + $(od -An -N1 -i /dev/urandom) % (count_TotalDefinedBases_Input - 1) ))
-		inputBaseName="${bases_Input_IdxToKey[randomBaseIdx]}"
+		tmpRandomBaseIdx=$((0 + $(od -An -N1 -tu2 /dev/urandom) % (count_TotalDefinedBases_Input - 1) ))
+		inputBaseName="${bases_Input_IdxToKey[tmpRandomBaseIdx]}"
 		inputBaseSymbols="${bases_Input_KeyToVal["${inputBaseName}"]}"
 
-		## Get a random input of random in-base symbols, or random length
-		random_InputLen=$((1 + $(od -An -N2 -i /dev/urandom) % count_MaxInputLen))
+		## Get a random input of random in-base symbols, of random length
+		random_InputLen=$((1 + $(od -An -N2 -tu2 /dev/urandom) % maxTestInputChars))
+		[[ -z "${inputBaseSymbols}" ]] && { echo -e "\nError in ${meName_t4rgd}.${FUNCNAME[0]}(): \$inputBaseSymbols == '', aborting.\n" ; exit 1; }
+		((random_InputLen <=0))        && { echo -e "\nError in ${meName_t4rgd}.${FUNCNAME[0]}(): \$random_InputLen == 0, aborting.\n"   ; exit 1; }
 		fScrambleString  inputStr  "${inputBaseSymbols}"   $random_InputLen
 
 		## To avoid falsely triggering an error:
@@ -211,29 +213,33 @@ fFuzzTest_Self(){
 		[[ -z "${expectVal}" ]]  &&  continue  ## If it's empty now, just skip to next test.
 
 		## Pick a random intermediate output base
-		randomBaseIdx=$((1 + $(od -An -N1 -i /dev/urandom) % (count_TotalDefinedBases_Output - 1) ))
-		intermediateBaseName="${bases_Input_IdxToKey[randomBaseIdx]}"
+		tmpRandomBaseIdx=$((0 + $(od -An -N1 -tu2 /dev/urandom) % (count_TotalDefinedBases_Output - 1) ))
+		intermediateBaseName="${bases_Output_IdxToKey[tmpRandomBaseIdx]}"
 
 		## Format and prepare the first command for display, to be shown in output (via variable "hook"); and run it
-		exeV1bname=""  exeV1bargs=""
-		fGetIsolatedExeName  exeV1bname  exeV1bargs  "'${exeV1b}'  --ibase '${inputBaseName}'  '${expectVal}'  '${intermediateBaseName}'"
-		__fRunTest_EchoHook1="Cmd 1 ..........: '${exeV1bname}'${exeV1bargs}"
-		intermediateVal="$("${exeV1b}"  --ibase "${inputBaseName}"  "${expectVal}"  "${intermediateBaseName}")"
+		exeV2name=""  exeV2args=""
+		fGetIsolatedExeName  exeV2name  exeV2args  "'${exeV2}'  --from '${inputBaseName}'  --to '${intermediateBaseName}'  --  '${expectVal}'"
+		__fRunTest_EchoHook1="Cmd 1 ..........: '${exeV2name}'${exeV2args}"
+		intermediateVal="$("${exeV2}"  --from "${inputBaseName}"  --to "${intermediateBaseName}"  --  "${expectVal}")"
 
-		##DEBUG
-		#sleep 2
-		#echo
-		#echo "inputBaseName ...............: ${inputBaseName}"
-		#echo "random_InputLen .............: ${random_InputLen}"
-		#echo "inputStr ....................: ${inputStr}"
-		#echo "expectVal ...................: ${expectVal}"
-		#echo "intermediateBaseName ........: ${intermediateBaseName}"
-		#echo "intermediateVal .............: ${intermediateVal}"
-		#echo
+		#DEBUG
+		sleep 2
+		echo
+		echo "inputBaseName ...............: ${inputBaseName}"
+		echo "inputBaseSymbols ............: ${inputBaseSymbols}"
+		echo "random_InputLen .............: ${random_InputLen}"
+		echo "inputStr ....................: ${inputStr}"
+		echo "expectVal ...................: ${expectVal}"
+		echo "intermediateBaseName ........: ${intermediateBaseName}"
+		echo "intermediateVal .............: ${intermediateVal}"
+		echo
 
 		## Run the second command with the previous command's output as this command's input.
 		## This command's output should be the same as the previous command's input.
-		fRunTest  '=='  "${expectVal}"  "'${exeV1b}'  --ibase '${intermediateBaseName}'  '${intermediateVal}'  '${inputBaseName}'"
+		fRunTest  '=='  "${expectVal}"  "'${exeV2}'  --from '${intermediateBaseName}'  --to '${inputBaseName}'  --  '${intermediateVal}'"
+
+		#DEBUG
+		[[ -z "${inputBaseSymbols}" ]] && { echo -e "\ninputBaseSymbols = '', aborting.\n"; return 1; }
 
 	done
 
@@ -243,13 +249,13 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 
 	## Settings
 	local -r  LANG="C.UTF-8"
-	local -ri count_MaxInputLen=256
+	local -ri maxTestInputChars=256
 	local -ri count_TotalDefinedBases_Output=${#bases_Output_IdxToKey[@]}
 
 	## Loop variables
 	local -i  random_InputLen=0
 	local     inputStr=""
-	local -i  randomBaseIdx=-1
+	local -i  tmpRandomBaseIdx=-1
 	local     intermediateBaseName=""
 	local     intermediateVal=""
 	local     exeV1bname=""
@@ -258,7 +264,7 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 	for ((i=1; i<=loopCount; i++)); do
 
 		## Generate a random base 10 number for first input
-		random_InputLen=$((1 + $(od -An -N2 -i /dev/urandom) % count_MaxInputLen))
+		random_InputLen=$((1 + $(od -An -N2 -tu2 /dev/urandom) % maxTestInputChars))
 		fScrambleString  inputStr  "0123456789"   $random_InputLen
 
 		## To avoid falsely triggering an error:
@@ -268,8 +274,8 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 		[[ -z "${expectVal}" ]]  &&  continue
 
 		## Pick a random intermediate v1b output -> v2 input base
-		randomBaseIdx=$((1 + $(od -An -N1 -i /dev/urandom) % (count_TotalDefinedBases_Output - 1) ))
-		intermediateBaseName="${bases_Output_IdxToKey[randomBaseIdx]:-}"
+		tmpRandomBaseIdx=$((0 + $(od -An -N1 -tu2 /dev/urandom) % (count_TotalDefinedBases_Output - 1) ))
+		intermediateBaseName="${bases_Output_IdxToKey[tmpRandomBaseIdx]:-}"
 
 		## Format and prepare the first command for display, to be shown in output (via variable "hook"); and run it
 		exeV1bname=""  exeV1bargs=""
@@ -282,7 +288,7 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 		#echo "random_InputLen .............: ${random_InputLen}"
 		#echo "inputStr ....................: ${inputStr}"
 		#echo "expectVal ...................: ${expectVal}"
-		#echo "randomBaseIdx ...: ${randomBaseIdx}"
+		#echo "tmpRandomBaseIdx ...: ${tmpRandomBaseIdx}"
 		#echo "intermediateBaseName ........: ${intermediateBaseName}"
 		#echo "intermediateVal .............: ${intermediateVal}"
 		#sleep 5

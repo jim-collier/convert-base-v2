@@ -1,10 +1,40 @@
 {
 	"files": [
 		{
+			"path": "../../convert-base-v1b/github/cicd/test.sh",
+			"bookmarks": [
+				{
+					"line": 183,
+					"column": 0,
+					"label": ""
+				}
+			]
+		},
+		{
+			"path": "cicd/base-definitions.sh",
+			"bookmarks": [
+				{
+					"line": 198,
+					"column": 0,
+					"label": ""
+				}
+			]
+		},
+		{
 			"path": "cicd/alias-definitions.sh",
 			"bookmarks": [
 				{
-					"line": 128,
+					"line": 133,
+					"column": 0,
+					"label": ""
+				}
+			]
+		},
+		{
+			"path": "../../../../../../../../../../../../../home/collierjr/.synced/Dropbox/0-0/common/exec/util/linux/bash/n8test",
+			"bookmarks": [
+				{
+					"line": 273,
 					"column": 0,
 					"label": ""
 				}

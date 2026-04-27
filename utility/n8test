@@ -270,6 +270,9 @@ fScrambleString(){
 	local	tmp result=''
 	local -a chars=() shuffled=()
 
+	## Validate
+	{ [[ -z "" ]] || ((inputLen <= 0)); }  &&  { echo -e "\n[ $(date "+%Y%m%d-%H%M%S.%N") ]  Error in ${meName_t4rge}.${FUNCNAME[0]}(): Input symbol list is empty.\n"; exit 1; }
+
 	## Split UTF-8 input into individual characters (bash string indexing is char-based in a UTF-8 locale).
 	for (( i=0; i<inputLen; i++ )); do
 		chars+=( "${inputSymbolList:i:1}" )
