@@ -1,10 +1,35 @@
 {
 	"files": [
 		{
+			"path": "cicd/cicd.sh",
+			"bookmarks": [
+				{
+					"line": 34,
+					"column": 0,
+					"label": ""
+				},
+				{
+					"line": 119,
+					"column": 1,
+					"label": ""
+				}
+			]
+		},
+		{
 			"path": "../../convert-base-v1b/github/cicd/test.sh",
 			"bookmarks": [
 				{
 					"line": 183,
+					"column": 0,
+					"label": ""
+				}
+			]
+		},
+		{
+			"path": "cicd/test.sh",
+			"bookmarks": [
+				{
+					"line": 385,
 					"column": 0,
 					"label": ""
 				}
