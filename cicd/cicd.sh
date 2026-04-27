@@ -53,13 +53,14 @@ fi
 ## Copyright, about, & syntax (minified)
 fCopyright(){ { ((doQuietly)) || ((wasShown_Copyright)); } && return; wasShown_Copyright=1;
 	fEcho_Clean ""
-	#           X-------------------------------------------------------------------------------X
-	fEcho_Clean "${meName} v${thisVersion} build ${thisBuild},"
+#	fEcho_Clean "${meName} v${thisVersion} build ${thisBuild},"  ## Don't show version info. Can confuse with the version of the product being built.
+	fEcho_Clean "${meName}, Copyright © ${thisCopyrightYear} ${thisAuthor}."
 	fEcho_Clean "Copyright © ${thisCopyrightYear} ${thisAuthor}."
 	fEcho_Clean "Licensed under the GNU General Public License v2.0 or later. Full text at:"
 	fEcho_Clean "  https://spdx.org/licenses/GPL-2.0-or-later.html"
 	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "" ;:;}
+
 fAbout(){ { ((doQuietly)) || ((wasShown_About)); } && return; wasShown_About=1;
 	fEcho_Clean ""
 	#           X-------------------------------------------------------------------------------X
@@ -73,16 +74,14 @@ fAbout(){ { ((doQuietly)) || ((wasShown_About)); } && return; wasShown_About=1;
 	fEcho_Clean "  • Run git automation script (e.g. commit and push)."
 	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "" ;:;}
+
 fSyntax(){  { ((doQuietly)) || ((wasShown_Syntax)); } && return; wasShown_Syntax=1;
 	fEcho_Clean ""
 	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "Arguments:"
 	fEcho_Clean "  --quiet"
 	fEcho_Clean "      [optional]: Be less verbose, and don't prompt user to continue."
-	fEcho_Clean "  --help"
-	fEcho_Clean "      [optional]: Shows copyright, about, and this syntax."
-	fEcho_Clean "  --version"
-	fEcho_Clean "      [optional]: Shows copyright and version."
+	fEcho_Clean "  --help, --version [or -h, -v]"
 	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "" ;:;}
 
