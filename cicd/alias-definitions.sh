@@ -61,9 +61,12 @@ fPopulateArrays(){
 	baseAliasesArr+=("crockford")
 
 	## 32ws
-	__fAddPermutations  "32w"  ;  _commonBaseNames_v1b_v2+=("32w")
-	__fAddPermutations  "32ws"
+	__fAddPermutations  "32ws"  ;  _commonBaseNames_v1b_v2+=("32ws")
+	__fAddPermutations  "32w"
 	__fAddPermutations  "32wordsafe"
+	__fAddPermutations  "32g"
+	__fAddPermutations  "32google"
+	__fAddPermutations  "32nofks"
 
 	## 36
 	__fAddPermutations  36  ;  _commonBaseNames_v1b_v2+=("36")
@@ -82,13 +85,15 @@ fPopulateArrays(){
 
 	## 48jc1ws
 	__fAddPermutations  "48jc1ws"  ;  _commonBaseNames_v1b_v2+=("48jc1ws")
-	__fAddPermutations  "48jcw"
-	__fAddPermutations  "48j1w"
-	__fAddPermutations  "48jcws"
-	__fAddPermutations  "48jcwordsafe"
+	__fAddPermutations  "48w"
+	__fAddPermutations  "48ws"
+	__fAddPermutations  "48wordsafe"
+	__fAddPermutations  "48nofks"
 
 	## 48v1compat
 	__fAddPermutations  "48v1compat"  ;  _commonBaseNames_v1b_v2+=("48v1compat")
+	__fAddPermutations  "48depr"
+	__fAddPermutations  "48j1"
 
 	## 52
 	__fAddPermutations  52  ;  _commonBaseNames_v1b_v2+=("52")
@@ -106,7 +111,6 @@ fPopulateArrays(){
 	## 64u
 	__fAddPermutations  "64u"  ;  _commonBaseNames_v1b_v2+=("64u")
 	__fAddPermutations  "64url"
-	__fAddPermutations  "64urlsafe"
 	__fAddPermutations  "64rfc4648s5"
 	baseAliasesArr+=("rfc4648s5")
 
@@ -116,43 +120,42 @@ fPopulateArrays(){
 
 	## 64jc1
 	__fAddPermutations  "64jc1"  ;  _commonBaseNames_v1b_v2+=("64jc1")
-	__fAddPermutations  "64jc"
-	__fAddPermutations  "64j1"
+	__fAddPermutations  "64j1u"
 
 	## 64jc1ws
 	__fAddPermutations  "64jc1ws"  ;  _commonBaseNames_v1b_v2+=("64jc1ws")
-	__fAddPermutations  "64jcw"
-	__fAddPermutations  "64j1w"
-	__fAddPermutations  "64jcws"
-	__fAddPermutations  "64jcwordsafe"
+	__fAddPermutations  "64w"
+	__fAddPermutations  "64ws"
+	__fAddPermutations  "64wordsafe"
+	__fAddPermutations  "64nofks"
 
 	## 64v1compat
 	__fAddPermutations  "64v1compat"  ;  _commonBaseNames_v1b_v2+=("64v1compat")
+	__fAddPermutations  "64depr"
+	__fAddPermutations  "64j1uw"
 
 	## 128jc1
 	__fAddPermutations  "128jc1"  ;  _commonBaseNames_v1b_v2+=("128jc1")
-	__fAddPermutations  "128jc"
-	__fAddPermutations  "128j1"
 
 	## 128jc1ws
 	__fAddPermutations  "128jc1ws"  ;  _commonBaseNames_v1b_v2+=("128jc1ws")
-	__fAddPermutations  "128jcw"
-	__fAddPermutations  "128j1w"
-	__fAddPermutations  "128jcws"
-	__fAddPermutations  "128jcwordsafe"
+	__fAddPermutations  "128w"
+	__fAddPermutations  "128ws"
+	__fAddPermutations  "128wordsafe"
+	__fAddPermutations  "128nofks"
 
 	## 128v1compat
 	__fAddPermutations  "128v1compat"  ;  _commonBaseNames_v1b_v2+=("128v1compat")
+	__fAddPermutations  "128depr"
 
 	## 256jc1
 	__fAddPermutations  "256jc1"  ;  _commonBaseNames_v1b_v2+=("256jc1")
-	__fAddPermutations  "256jc"
 	__fAddPermutations  "256j1"
 
 	## 288jc1
 	__fAddPermutations  "288jc1"  ;  _commonBaseNames_v1b_v2+=("288jc1")
-	__fAddPermutations  "288jc"
 	__fAddPermutations  "288j1"
+
 
 
 	echo "[ Base aliases loaded. ]"
