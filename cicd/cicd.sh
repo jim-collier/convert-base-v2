@@ -32,8 +32,9 @@ if [[ -z "${doQuietly+x}" ]]; then
 
 	## Settings (relative paths defined here will be verified and resolved later)
 	declare    dirPath_Source="../source"
-	declare    filePath_ExecToTestAndInstall="../source/convert-base-v2"
-	declare    filePath_TestExec="../cicd/test.sh"
+	declare    filePath_ExecToTestAndInstall_BuildLocation="${dirPath_Source}/convert-base-v2"
+	declare    filePath_ExecToTestAndInstall_FinalHome="${dirPath_Source}/bin/convert-base-v2"
+	declare    filePath_CICD_TestExec="../cicd/test.sh"
 	declare    gitAutomationScript="../utility/n8git_backup-and-publish"
 	declare -a preferredInstallPaths=("${HOME}/synced/0-0/common/exec/util/linux/bin"  "/usr/local/sbin/")  ## First one that exists, wins
 	declare -i isCompileProject=1  ## 1: E.g. C++, Rust, Go, etc.  0: E.g. Python, Bash, etc.
@@ -58,7 +59,7 @@ fCopyright(){ { ((doQuietly)) || ((wasShown_Copyright)); } && return; wasShown_C
 	fEcho_Clean "Copyright © ${thisCopyrightYear} ${thisAuthor}."
 	fEcho_Clean "Licensed under the GNU General Public License v2.0 or later. Full text at:"
 	fEcho_Clean "  https://spdx.org/licenses/GPL-2.0-or-later.html"
-	#           X-------------------------------------------------------------------------------X
+	fEcho_Clean "No warranty."
 	fEcho_Clean "" ;:;}
 
 fAbout(){ { ((doQuietly)) || ((wasShown_About)); } && return; wasShown_About=1;
@@ -77,12 +78,10 @@ fAbout(){ { ((doQuietly)) || ((wasShown_About)); } && return; wasShown_About=1;
 
 fSyntax(){  { ((doQuietly)) || ((wasShown_Syntax)); } && return; wasShown_Syntax=1;
 	fEcho_Clean ""
-	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "Arguments:"
 	fEcho_Clean "  --quiet"
 	fEcho_Clean "      [optional]: Be less verbose, and don't prompt user to continue."
 	fEcho_Clean "  --help, --version [or -h, -v]"
-	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "" ;:;}
 
 
@@ -115,18 +114,17 @@ fMain(){
 	readonly allArgsArr
 
 	## Resolve paths
-	fResolvePath  dirPath_Source                 "${dirPath_Source}"                 ; readonly dirPath_Source
-	fResolvePath  filePath_ExecToTestAndInstall  "${filePath_ExecToTestAndInstall}"  ; readonly filePath_ExecToTestAndInstall
-	fResolvePath  filePath_TestExec              "${filePath_TestExec}"              ; readonly filePath_TestExec
-	fResolvePath  gitAutomationScript            "${gitAutomationScript}"            ; readonly gitAutomationScript
-	readonly gitAutomationScript
+	fResolvePath  dirPath_Source                               "${dirPath_Source}"                                 ; readonly dirPath_Source
+	fResolvePath  filePath_CICD_TestExec                       "${filePath_CICD_TestExec}"                         ; readonly filePath_CICD_TestExec
+	fResolvePath  gitAutomationScript                          "${gitAutomationScript}"                            ; readonly gitAutomationScript
+	fResolvePath  filePath_ExecToTestAndInstall_BuildLocation  "${filePath_ExecToTestAndInstall_BuildLocation}"  0 ; readonly filePath_ExecToTestAndInstall_BuildLocation
+	fResolvePath  filePath_ExecToTestAndInstall_FinalHome      "${filePath_ExecToTestAndInstall_FinalHome}"      0 ; readonly filePath_ExecToTestAndInstall_FinalHome
 
 	## Validate
-	[[ -d "${meDir}"                ]]  ||  fThrowError "Path not found: '${meDir}'"
-	[[ -d "${dirPath_Source}"       ]]  ||  fThrowError "Path not found: '${dirPath_Source}'"
-	[[ -f "${filePath_TestExec}"    ]]  ||  fThrowError "File not found: '${filePath_TestExec}'"
-	[[ -f "${filePath_TestExec}"    ]]  ||  fThrowError "File not found: '${filePath_TestExec}'"
-	[[ -n "${gitAutomationScript}"  ]]  ||  fThrowError "Git automation script not found where specified or in path: '${gitAutomationScript}'."
+	[[ -d "${meDir}"                   ]]  ||  fThrowError "Path not found: '${meDir}'"
+	[[ -d "${dirPath_Source}"          ]]  ||  fThrowError "Path not found: '${dirPath_Source}'"
+	[[ -f "${filePath_CICD_TestExec}"  ]]  ||  fThrowError "File not found: '${filePath_CICD_TestExec}'"
+	[[ -n "${gitAutomationScript}"     ]]  ||  fThrowError "Git automation script not found where specified or in path: '${gitAutomationScript}'."
 
 	## Prompt to continue
 	if ((! doQuietly)); then
@@ -134,9 +132,10 @@ fMain(){
 		fAbout
 		fEcho_Clean "Source directory .............: ${dirPath_Source}"
 		if ((isCompileProject)); then
-		fEcho_Clean "Executable to build etc. .....: ${filePath_ExecToTestAndInstall}"
+		fEcho_Clean "Executable to build ..........: ${filePath_ExecToTestAndInstall_BuildLocation}"
+		fEcho_Clean "Executable final location ....: ${filePath_ExecToTestAndInstall_FinalHome}"
 		fi
-		fEcho_Clean "Test script ..................: ${filePath_TestExec}"
+		fEcho_Clean "Test script ..................: ${filePath_CICD_TestExec}"
 		fEcho_Clean "Git commit and push script ...: ${gitAutomationScript}"
 		fIntroPromptToContinue  ""
 		fEcho_Clean
@@ -155,12 +154,13 @@ fMain(){
 		fEcho "$(date "+%Y%m%d-%H%M%S") make: Starting ..."
 		make
 		fEcho "$(date "+%Y%m%d-%H%M%S") Minimal execution test ..."
-		"${filePath_ExecToTestAndInstall}"  --version
+		"${filePath_ExecToTestAndInstall_BuildLocation}"  --version
 		sleep 1  ## Long enough to see version
 
 		## Hide single exe
-		[[ -f "${filePath_ExecToTestAndInstall}_staged" ]]  &&  trash "${filePath_ExecToTestAndInstall}_staged"
-		mv "${filePath_ExecToTestAndInstall}"  "${filePath_ExecToTestAndInstall}_staged"
+		[[ -f "${filePath_ExecToTestAndInstall_BuildLocation}_staged" ]]  &&  trash "${filePath_ExecToTestAndInstall_BuildLocation}_staged"
+		[[ -f "${filePath_ExecToTestAndInstall_FinalHome}"            ]]  &&  trash "${filePath_ExecToTestAndInstall_FinalHome}"
+		mv "${filePath_ExecToTestAndInstall_BuildLocation}"  "${filePath_ExecToTestAndInstall_BuildLocation}_staged"
 
 		## Make release (part of testing - if they don't cross-compile then there' a problem)
 		fEcho
@@ -168,14 +168,15 @@ fMain(){
 		make release
 		fEcho_ResetBlankCounter
 
-		##Unhide single executable for testing and local installation
-		mv "${filePath_ExecToTestAndInstall}_staged"  "${filePath_ExecToTestAndInstall}"
+		##Unhide single executable for testing and local installation, and move it to 'bin'
+		[[ ! -d "$(dirname "${filePath_ExecToTestAndInstall_FinalHome}")" ]]  &&  mkdir -p "$(dirname "${filePath_ExecToTestAndInstall_FinalHome}")"
+		mv "${filePath_ExecToTestAndInstall_BuildLocation}_staged"  "${filePath_ExecToTestAndInstall_FinalHome}"
 
 	fi
 
 	## Test
 	fEcho "$(date "+%Y%m%d-%H%M%S") Test: Starting ..."
-	"${filePath_TestExec}"
+	"${filePath_CICD_TestExec}"
 	fEcho_ResetBlankCounter
 
 	popd 1>/dev/null
@@ -183,14 +184,14 @@ fMain(){
 	## Install locally (dogfood it)
 	for nextPath in "${preferredInstallPaths[@]}"; do
 		if [[ -d "${nextPath}" ]]; then
-			fEcho; fEcho "$(date "+%Y%m%d-%H%M%S") Installing locally to '${nextPath}' ..."
+			fEcho; fEcho "$(date "+%Y%m%d-%H%M%S") e to '${nextPath}' ..."
 			if [[ "${nextPath}" == "${ogHOME}/"* ]]; then
-				cp -a "${filePath_ExecToTestAndInstall}"  "${nextPath%%/}/"
+				cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"
 			else
-				cp -a "${filePath_ExecToTestAndInstall}"  "${nextPath%%/}/" 2>/dev/null ||  sudo cp -a "${filePath_ExecToTestAndInstall}"  "${nextPath%%/}/"
+				cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/" 2>/dev/null ||  sudo cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"
 			fi
-			fEcho; fEcho "ls \$(which '$(basename "${filePath_ExecToTestAndInstall}")'):"
-			ls  -lA  --color=always  --human-readable  --time-style=+"%Y-%m-%d %H:%M:%S"  "$(which "$(basename "${filePath_ExecToTestAndInstall}")")"
+			fEcho; fEcho "ls \$(which '$(basename "${filePath_ExecToTestAndInstall_FinalHome}")'):"
+			ls  -lA  --color=always  --human-readable  --time-style=+"%Y-%m-%d %H:%M:%S"  "$(which "$(basename "${filePath_ExecToTestAndInstall_FinalHome}")")"
 			fEcho_Force
 			break
 		fi
@@ -337,25 +338,37 @@ fCleanup(){
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Generic functions
-## Generic functions
 fResolvePath(){
-	## First looks at specified raw path. Next, same path but relative to this script. Next, in $PATH for an executable. Next, in this script's path, + /lib, /include, then /includes.
+	##	Purpose:
+	##		- Resolves an argument to a canonical full path, while being careful to not be too broad as to resolve to something else with the same name.
+	##		- Resolution priority:
+	##			- Exactly as specified.
+	##			- "[this script's path]/lib/[specified name if given without a path]"
+	##			- "[this script's path]/include/[specified name if given without a path]"
+	##			- "[this script's path]/includes/[specified name if given without a path]"
+	##			- If specified a name without a path: Find in $PATH
+	##			- If doesn't have to exist, and still haven't found it, then just canonicalize original argument
 	local -n parentVarName_ResolvedPath_t4rej=${1:-}  ; shift || true  ## Parent variable to store fully resolved path in.
 	local    nameOrPath="${1:-}"                      ; shift || true  ## File or folder path (relative or absolute). If an executable file, can be just a name to search in $PATH, to fully resolve.
-	[[   -z "${nameOrPath}" ]]  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): No path specified to resolve.\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
-	local -r mePath_t4rfg="$(dirname "${BASH_SOURCE[0]}")"
-	local -i isNopathObject=0 ; [[ "${nameOrPath}" == "$(basename "${nameOrPath}")" ]] && isNopathObject=1 ; readonly isNopathObject
+	local -i mustExist=${1:-0}                        ; shift || true  ## 1 [default]: path must exist or error occurs. 0: Just rationalize paths, doesn't have to exist.
+	[[   -z "${nameOrPath}" ]]  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): No file or directory specified to resolve.\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
+	local -r mePath_t4rmy="$(dirname "${BASH_SOURCE[0]}")"
+	local -i isExeWithNoPath=0 ; [[ "${nameOrPath}" == "$(basename "${nameOrPath}")" ]] && isExeWithNoPath=1 ; readonly isExeWithNoPath
 	local    testPath="${nameOrPath}"
-	  [[ ! -e "${testPath}"   ]]                           &&  testPath="${mePath_t4rfg}/${nameOrPath}"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject)); }  &&  testPath="$(which "${nameOrPath}" 2>/dev/null || true)"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject)); }  &&  testPath="${mePath_t4rfg}/lib/${nameOrPath}"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject)); }  &&  testPath="${mePath_t4rfg}/include/${nameOrPath}"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject)); }  &&  testPath="${mePath_t4rfg}/includes/${nameOrPath}"
-	  [[ ! -e "${testPath}"   ]]                           &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔc].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
-	testPath="$(realpath -e "${testPath}" 2>/dev/null || true)"
+	{ [[ ! -e "${testPath}"   ]]                          ; }  &&  testPath="${mePath_t4rmy}/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="${mePath_t4rmy}/lib/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="${mePath_t4rmy}/include/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="${mePath_t4rmy}/includes/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="$(which "${nameOrPath}" 2>/dev/null || true)"
+	{ [[ ! -e "${testPath}"   ]] && ((mustExist))         ; }  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔc].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
+	{ [[ ! -e "${testPath}"   ]] || [[ -z "${testPath}" ]]; }  &&  testPath="${nameOrPath}"  ## Revert to original definition
+	if ((mustExist)); then testPath="$(realpath -e "${testPath}" 2>/dev/null || true)"
+	else                   testPath="$(realpath -m "${testPath}" 2>/dev/null || true)"; fi
 	## Last check to fail on
-	{ [[ -n "${testPath}" ]] && [[ -e "${testPath}" ]]; } || { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔs].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
+	{ [[ -z "${testPath}" ]] || { [[ ! -e "${testPath}" ]] && ((mustExist)); }; }  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔs].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
 	## Success
+	#echo "testPath: '${testPath}'"
+	#fPressAnyKeyToContinue
 	parentVarName_ResolvedPath_t4rej="${testPath}"
 }
 fGetOgUserName(){
@@ -516,8 +529,10 @@ _fTrap_Error(){
 _fTrap_Error_Ignore(){ _ErrVal=1; true;  return 0; }
 _fTrap_Error_Soft(){   _ErrVal=1; false; return 1; }
 fThrowError(){
-	local errMsg="${1:-}"         ; [[ -z "${errMsg}"      ]] && errMsg="An error occurred."
-	local meNameLocal="${meName}" ; [[ -n "${meNameLocal}" ]] && errMsg="${meNameLocal}: ${errMsg}"
+	local errMsg="${1:-}"           ; [[ -z "${errMsg}"      ]] && errMsg="An error occurred."
+	local meNameLocal="${meName:-}"
+	[[ -z "${meNameLocal}" ]] && meNameLocal="$(basename "${BASH_SOURCE[0]}")"
+	[[ -n "${meNameLocal}" ]] && errMsg="${meNameLocal}: ${errMsg}"
 	local callStack=""
 	for (( i = 1; i < ${#FUNCNAME[@]}; i++ )); do
 		[[ "${FUNCNAME[i]}" =~ main|source ]] && continue
@@ -554,12 +569,15 @@ declare -i isSourced; { (return 0 2>/dev/null) && isSourced=1; } || isSourced=0
 
 ## Common constants but detect if already set
 if [[ -z "${serialDT+x}"     ]]; then
-	declare -r serialDT="$(date "+%Y%m%d-%H%M%S")"
 	declare -r mePath="$(realpath -e "${BASH_SOURCE[0]}")"
 	declare -r meName="$(basename "${mePath}")"
 	declare -r meDir="$(dirname "${mePath}")"
+	declare -r serialDT="$(date "+%Y%m%d-%H%M%S")"
 	declare -r relaunch_Key_sudo="${meName}_relaunch_sudo_4KQDYluNbzLQHwMwsWxgdk"  ## This isn't for 'security' or uniqueness. It just needs to be an exceptionally unlikely user argument.
 fi
+
+## Make sure relative paths work
+cd "${meDir}"
 
 ## Pass control to either fMain, or chained function.
 if [[ "${1:-}" == "${relaunch_Key_sudo}" ]]; then

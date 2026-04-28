@@ -32,23 +32,27 @@
 ##			https://spdx.org/licenses/GPL-2.0-or-later.html
 ##		SPDX-License-Identifier: GPL-2.0-or-later
 
+
+## Global settings
+set -e
 declare doLongTest=0 ; [[ "${CICDTEST_DO_LONGTEST}" == "1" ]] && doLongTest=1
+declare doBackwardsCompatTests=1
+
 
 fMain(){
-	set -e
 
 	## Settings
-	local -ri doBackwardsCompatTests=1
-	local     exeV2="../source/convert-base-v2"
+	local     exeV2="../source/bin/convert-base-v2"
 	local     exeV1b="../utility/convert-base-v1b"
 	local     baseDefs="base-definitions.sh"
-	local     aliasDefs="alias-definitions.sh"
+
+	## Environment overrides
+	local     LANG="C.UTF-8"  ## Splitting won't work correctly without this
 
 	## Resolve paths
 	fResolvePath  exeV2      "${exeV2}"         ; readonly exeV2
 	fResolvePath  exeV1b     "${exeV1b}"     0  ; readonly exeV1b  ## Doesn't need to exist, can run tests without. This is to verify backwards-compatibility.
 	fResolvePath  baseDefs   "${baseDefs}"      ; readonly baseDefs
-	fResolvePath  aliasDefs  "${aliasDefs}"     ; readonly aliasDefs
 
 	## Compare to exeV2?
 	local -i doComareWith_v1=0
@@ -58,7 +62,6 @@ fMain(){
 	## Load base definitions arrays
 	fEcho_Clean
 	source "${baseDefs}"
-	source "${aliasDefs}"
 	fEcho_Clean_Force
 
 	## Variables
@@ -72,17 +75,17 @@ fMain(){
 	fEcho_Clean "Exe source ...: ${exeV2}"
 	fEcho_Clean "Version ......: $("${exeV2}" --version)"
 	fEcho_Clean_Force
-	sleep 1
+	sleep 2
 	if ((doComareWith_v1)); then
 		fEcho_Clean "v1b source ...: ${exeV1b}"
 		fEcho_Clean "Version ......: $("${exeV1b}" --version)"
 		fEcho_Clean_Force
-		sleep 1
+		sleep 2
 	fi
 
 	####
 	#### Test flags (make sure -e is enabled)
-	set -e
+#	set -e
 	fEcho; fEcho ">>> TESTSECTION: Flags"; fEcho
 
 	fEcho; fEcho "Test --help"
@@ -97,26 +100,31 @@ fMain(){
 
 
 	####
-	#### Test base name aliases
-	set +e
-	fEcho; fEcho ">>> TESTSECTION: Base name aliases"; fEcho
+	#### Specific testing loops
 
+	## Aliases
+	fEcho; fEcho ">>> TESTSECTION: Base name aliases"; fEcho
 	inputVal="987654321000055555555550000123456789" #....................................: The value is less important than just the aliases. But also, a large value shouldn't fail either.
 	fTestAllAliases  "base10"  "${inputVal}" #...........................................: All should pass
 	fRunTest  'error'  "${expectVal}"  "'${exeV2}'  '${inputVal}'  bogusBaseName" #......: This one should fail
 
+	## Self-test every base against every other base (with fixed-lenght but randomized input).
+	fEcho; fEcho ">>> TESTSECTION: Test all bases against each other"; fEcho
+	fTest_AllBasesAgainstEachOther
+
 
 	####
 	#### Looped random fuzz-testing
-	set +e
 	loopCount=100
 	((doLongTest))  &&  loopCount=5000
+
+	##
 
 	## Test **AGAINST SELF**
 	fEcho; fEcho ">>> TESTSECTION: Fuzz-testing against self"; fEcho
 	fFuzzTest_Self
 
-	#### Test **AGAINST v1b** (all the bases)
+	#### Test **AGAINST v1b** (all the bases, v2 is input, v1b is output)
 	fEcho; fEcho ">>> TESTSECTION: Fuzz-testing against v1b (all bases)"; fEcho
 	((doComareWith_v1))  &&  fFuzzTest_Base10_To_BaseX_AndBack_via_v1b
 
@@ -129,7 +137,7 @@ fMain(){
 	####
 	#### By-hand one-way tests, expect equal
 	fEcho; fEcho ">>> TESTSECTION: By-hand one-way tests, expect equal"; fEcho
-	set +e
+#	set +e
 
 	## 128v1compat
 	#expectVal="$(convert-base-v1  "${inputVal}"  128j1)"  #; echo "${expectVal}"
@@ -145,7 +153,7 @@ fMain(){
 	####
 	#### By-hand one-way tests, expect NOT equal
 	fEcho; fEcho ">>> TESTSECTION: By-hand one-way tests, expect NOT equal"; fEcho
-	set +e
+#	set +e
 
 	## 128j1 != 128v1compat
 	#expectVal="$(convert-base-v1  "${inputVal}"  128j1)"  #; echo "${expectVal}"
@@ -156,7 +164,7 @@ fMain(){
 	####
 	#### By-hand one-way tests, expect ERROR
 	fEcho; fEcho ">>> TESTSECTION: By-hand one-way tests, expect ERROR"; fEcho
-	set +e
+#	set +e
 
 	## Removed base 16 as input, should error.
 	expectVal=""
@@ -166,42 +174,120 @@ fMain(){
 	####
 	#### By-hand round-trips self-tests, expect equal.
 	fEcho; fEcho ">>> TESTSECTION: By-hand round-trip tests, expect equal"; fEcho
-	set +e
+#	set +e
 
 	expectVal="1234567899999999999999990123456789999999999999999123456789999999990000000000000000000000000000000000000000000000099999999999999999999999999999999999999876543210"
 	fRunChained_TestLast  '=='  "${expectVal}"  "'${exeV2}'  --from 10  --to 16  ${inputVal}; '${exeV2}'  --from 16  --to 10  %CMD1_OUTPUT%"
 
-:; set -e; }
+:;}
+
+
+fTestAllAliases(){
+	local -r inputBase="${1:-}"  ; shift || true
+	local -r inputVal="${1:-}"   ; shift || true
+	for nextBase in "${baseAliasesArr[@]}"; do
+		fRunTest  'no_error'  "[anything or nothing]"  "'${exeV2}'  --from ${inputBase}  ${inputVal}  ${nextBase}"
+	done
+}
+
+
+fTest_AllBasesAgainstEachOther(){
+
+	## Settings
+	local -ri fixed_InputLen=64
+	local -ri count_TotalDefinedBases_Input=${#bases_Input_IdxToKey[@]}
+	local -ri count_TotalDefinedBases_Output=${#bases_Output_IdxToKey[@]}  ## Will hopefully be the same as input, but not necessarily forever and always in the future.
+
+	## Loop variables
+	local  -i tmpRandomBaseIdx=-1
+	local     inputStr=""
+	local     inputBaseName=""
+	local     inputBaseSymbols=""
+	local     intermediateBaseName=""
+	local     intermediateVal=""
+	local     exeV2name=""
+	local     exeV2args=""
+
+	for ((i=0; i<count_TotalDefinedBases_Input; i++)); do
+		## Since in this case input and output bases are the same, we don't have to loop
+		##   over the entire output base array each time for each input, because that
+		##   would result in a lot of redundancy.
+		## But since this TECHNICALLY isn't a self-compare, and the bases COULD someday be
+		##   different, let's go ahead and compare every i to every j.
+		for ((j=0; j<count_TotalDefinedBases_Output; j++)); do
+
+			## Get input base [i] and its list of symbols
+			inputBaseName="${bases_Input_IdxToKey[i]}"
+			inputBaseSymbols="${bases_Input_KeyToVal["${inputBaseName}"]}"
+
+			## Get a random input of random in-base symbols, of fixed length
+			fScrambleString  inputStr  "${inputBaseSymbols}"   $fixed_InputLen
+
+			## To avoid falsely triggering an error:
+			## Strip off leading symbols representing '0' from input, which will be gone from the output during conversion.
+			expectVal="${inputStr}"
+			until [[ "${expectVal:0:1}" !=  "${inputBaseSymbols:0:1}" ]]; do expectVal="${expectVal:1}"; done
+			[[ -z "${expectVal}" ]]  &&  continue  ## If it's empty now, just skip to next test.
+
+			## Get intermediate base [j] and its list of symbols
+			intermediateBaseName="${bases_Output_IdxToKey[j]}"
+
+			## Format and prepare the first command for display, to be shown in output (via variable "hook"); and run it
+			exeV2name=""  exeV2args=""
+			fGetIsolatedExeName  exeV2name  exeV2args  "'${exeV2}'  --from '${inputBaseName}'  --to '${intermediateBaseName}'  --  '${expectVal}'"
+			__fRunTest_EchoHook1="Cmd 1 ..........: '${exeV2name}'${exeV2args}"
+			intermediateVal="$("${exeV2}"  --from "${inputBaseName}"  --to "${intermediateBaseName}"  --  "${expectVal}")"
+
+			#DEBUG
+			#sleep 2
+			#echo
+			#echo "inputBaseName ...............: ${inputBaseName}"
+			#echo "inputBaseSymbols ............: ${inputBaseSymbols}"
+			#echo "inputStr ....................: ${inputStr}"
+			#echo "expectVal ...................: ${expectVal}"
+			#echo "intermediateBaseName ........: ${intermediateBaseName}"
+			#echo "intermediateVal .............: ${intermediateVal}"
+			#echo
+
+			## Run the second command with the previous command's output as this command's input.
+			## This command's output should be the same as the previous command's input.
+			fRunTest  '=='  "${expectVal}"  "'${exeV2}'  --from '${intermediateBaseName}'  --to '${inputBaseName}'  --  '${intermediateVal}'"
+
+		:; done; :
+	:; done; :
+
+:;}
 
 
 fFuzzTest_Self(){
 
 	## Settings
-	local -r  LANG="C.UTF-8"
-	local -ri count_MaxInputLen=1024
+	local -ri maxTestInputChars=1024
 	local -ri count_TotalDefinedBases_Input=${#bases_Input_IdxToKey[@]}
-	local -ri count_TotalDefinedBases_Output=$count_TotalDefinedBases_Input  ## Output base will be used as an intermediat input base, so has to be the subset of valid v1b input bases.
+	local -ri count_TotalDefinedBases_Output=${#bases_Output_IdxToKey[@]}  ## Will hopefully be the same as input, but not necessarily forever and always in the future.
 
 	## Loop variables
-	local -i  randomBaseIdx=-1
+	local -i  tmpRandomBaseIdx=-1
 	local -i  random_InputLen=0
 	local     inputStr=""
 	local     inputBaseName=""
 	local     inputBaseSymbols=""
 	local     intermediateBaseName=""
 	local     intermediateVal=""
-	local     exeV1bname=""
-	local     exeV1bargs=""
+	local     exeV2name=""
+	local     exeV2args=""
 
 	for ((i=1; i<=loopCount; i++)); do
 
 		## Get a random input base and its list of symbols
-		randomBaseIdx=$((1 + $(od -An -N1 -i /dev/urandom) % (count_TotalDefinedBases_Input - 1) ))
-		inputBaseName="${bases_Input_IdxToKey[randomBaseIdx]}"
+		tmpRandomBaseIdx=$((0 + $(od -An -N1 -tu2 /dev/urandom) % (count_TotalDefinedBases_Input - 1) ))
+		inputBaseName="${bases_Input_IdxToKey[tmpRandomBaseIdx]}"
 		inputBaseSymbols="${bases_Input_KeyToVal["${inputBaseName}"]}"
 
-		## Get a random input of random in-base symbols, or random length
-		random_InputLen=$((1 + $(od -An -N2 -i /dev/urandom) % count_MaxInputLen))
+		## Get a random input of random in-base symbols, of random length
+		random_InputLen=$((1 + $(od -An -N2 -tu2 /dev/urandom) % maxTestInputChars))
+		[[ -z "${inputBaseSymbols}" ]] && { echo -e "\nError in ${meName_t4rgd}.${FUNCNAME[0]}(): \$inputBaseSymbols == '', aborting.\n" ; exit 1; }
+		((random_InputLen <=0))        && { echo -e "\nError in ${meName_t4rgd}.${FUNCNAME[0]}(): \$random_InputLen == 0, aborting.\n"   ; exit 1; }
 		fScrambleString  inputStr  "${inputBaseSymbols}"   $random_InputLen
 
 		## To avoid falsely triggering an error:
@@ -211,19 +297,20 @@ fFuzzTest_Self(){
 		[[ -z "${expectVal}" ]]  &&  continue  ## If it's empty now, just skip to next test.
 
 		## Pick a random intermediate output base
-		randomBaseIdx=$((1 + $(od -An -N1 -i /dev/urandom) % (count_TotalDefinedBases_Output - 1) ))
-		intermediateBaseName="${bases_Input_IdxToKey[randomBaseIdx]}"
+		tmpRandomBaseIdx=$((0 + $(od -An -N1 -tu2 /dev/urandom) % (count_TotalDefinedBases_Output - 1) ))
+		intermediateBaseName="${bases_Output_IdxToKey[tmpRandomBaseIdx]}"
 
 		## Format and prepare the first command for display, to be shown in output (via variable "hook"); and run it
-		exeV1bname=""  exeV1bargs=""
-		fGetIsolatedExeName  exeV1bname  exeV1bargs  "'${exeV1b}'  --ibase '${inputBaseName}'  '${expectVal}'  '${intermediateBaseName}'"
-		__fRunTest_EchoHook1="Cmd 1 ..........: '${exeV1bname}'${exeV1bargs}"
-		intermediateVal="$("${exeV1b}"  --ibase "${inputBaseName}"  "${expectVal}"  "${intermediateBaseName}")"
+		exeV2name=""  exeV2args=""
+		fGetIsolatedExeName  exeV2name  exeV2args  "'${exeV2}'  --from '${inputBaseName}'  --to '${intermediateBaseName}'  --  '${expectVal}'"
+		__fRunTest_EchoHook1="Cmd 1 ..........: '${exeV2name}'${exeV2args}"
+		intermediateVal="$("${exeV2}"  --from "${inputBaseName}"  --to "${intermediateBaseName}"  --  "${expectVal}")"
 
 		##DEBUG
 		#sleep 2
 		#echo
 		#echo "inputBaseName ...............: ${inputBaseName}"
+		#echo "inputBaseSymbols ............: ${inputBaseSymbols}"
 		#echo "random_InputLen .............: ${random_InputLen}"
 		#echo "inputStr ....................: ${inputStr}"
 		#echo "expectVal ...................: ${expectVal}"
@@ -233,23 +320,22 @@ fFuzzTest_Self(){
 
 		## Run the second command with the previous command's output as this command's input.
 		## This command's output should be the same as the previous command's input.
-		fRunTest  '=='  "${expectVal}"  "'${exeV1b}'  --ibase '${intermediateBaseName}'  '${intermediateVal}'  '${inputBaseName}'"
+		fRunTest  '=='  "${expectVal}"  "'${exeV2}'  --from '${intermediateBaseName}'  --to '${inputBaseName}'  --  '${intermediateVal}'"
 
-	done
+	done; true
 
 }
 
 fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 
 	## Settings
-	local -r  LANG="C.UTF-8"
-	local -ri count_MaxInputLen=256
+	local -ri maxTestInputChars=256
 	local -ri count_TotalDefinedBases_Output=${#bases_Output_IdxToKey[@]}
 
 	## Loop variables
 	local -i  random_InputLen=0
 	local     inputStr=""
-	local -i  randomBaseIdx=-1
+	local -i  tmpRandomBaseIdx=-1
 	local     intermediateBaseName=""
 	local     intermediateVal=""
 	local     exeV1bname=""
@@ -258,7 +344,7 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 	for ((i=1; i<=loopCount; i++)); do
 
 		## Generate a random base 10 number for first input
-		random_InputLen=$((1 + $(od -An -N2 -i /dev/urandom) % count_MaxInputLen))
+		random_InputLen=$((1 + $(od -An -N2 -tu2 /dev/urandom) % maxTestInputChars))
 		fScrambleString  inputStr  "0123456789"   $random_InputLen
 
 		## To avoid falsely triggering an error:
@@ -268,8 +354,8 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 		[[ -z "${expectVal}" ]]  &&  continue
 
 		## Pick a random intermediate v1b output -> v2 input base
-		randomBaseIdx=$((1 + $(od -An -N1 -i /dev/urandom) % (count_TotalDefinedBases_Output - 1) ))
-		intermediateBaseName="${bases_Output_IdxToKey[randomBaseIdx]:-}"
+		tmpRandomBaseIdx=$((0 + $(od -An -N1 -tu2 /dev/urandom) % (count_TotalDefinedBases_Output - 1) ))
+		intermediateBaseName="${bases_Output_IdxToKey[tmpRandomBaseIdx]:-}"
 
 		## Format and prepare the first command for display, to be shown in output (via variable "hook"); and run it
 		exeV1bname=""  exeV1bargs=""
@@ -282,7 +368,7 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 		#echo "random_InputLen .............: ${random_InputLen}"
 		#echo "inputStr ....................: ${inputStr}"
 		#echo "expectVal ...................: ${expectVal}"
-		#echo "randomBaseIdx ...: ${randomBaseIdx}"
+		#echo "tmpRandomBaseIdx ...: ${tmpRandomBaseIdx}"
 		#echo "intermediateBaseName ........: ${intermediateBaseName}"
 		#echo "intermediateVal .............: ${intermediateVal}"
 		#sleep 5
@@ -291,17 +377,8 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 		## This command's output should be the same as the previous command's input.
 		fRunTest  '=='  "${expectVal}"  "'${exeV2}'  --from '${intermediateBaseName}'  --to 10  --  '${intermediateVal}'"
 
-	done
+	done; true
 
-}
-
-
-fTestAllAliases(){
-	local -r inputBase="${1:-}"  ; shift || true
-	local -r inputVal="${1:-}"   ; shift || true
-	for nextBase in "${baseAliasesArr[@]}"; do
-		fRunTest  'no_error'  "[anything or nothing]"  "'${exeV2}'  --from ${inputBase}  ${inputVal}  ${nextBase}"
-	done
 }
 
 
@@ -360,19 +437,27 @@ fEcho_Clean_Force()       { local -i arg1="${1:-0}"; }
 ## Generic function(s) that can't be 'sourced'.
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 fResolvePath(){
-	## First looks at specified raw path. Next, same path but relative to this script. Next, in $PATH for an executable. Next, in this script's path, + /lib, /include, then /includes.
+	##	Purpose:
+	##		- Resolves an argument to a canonical full path, while being careful to not be too broad as to resolve to something else with the same name.
+	##		- Resolution priority:
+	##			- Exactly as specified.
+	##			- "[this script's path]/lib/[specified name if given without a path]"
+	##			- "[this script's path]/include/[specified name if given without a path]"
+	##			- "[this script's path]/includes/[specified name if given without a path]"
+	##			- If specified a name without a path: Find in $PATH
+	##			- If doesn't have to exist, and still haven't found it, then just canonicalize original argument
 	local -n parentVarName_ResolvedPath_t4rej=${1:-}  ; shift || true  ## Parent variable to store fully resolved path in.
 	local    nameOrPath="${1:-}"                      ; shift || true  ## File or folder path (relative or absolute). If an executable file, can be just a name to search in $PATH, to fully resolve.
-	local -i mustExist=${1:-1}                        ; shift || true  ## 1 [default]: path must exist or error occurs. 0: Just rationalize paths.
-	[[   -z "${nameOrPath}" ]]  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): No path specified to resolve.\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
+	local -i mustExist=${1:-0}                        ; shift || true  ## 1 [default]: path must exist or error occurs. 0: Just rationalize paths, doesn't have to exist.
+	[[   -z "${nameOrPath}" ]]  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): No file or directory specified to resolve.\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
 	local -r mePath_t4rmy="$(dirname "${BASH_SOURCE[0]}")"
-	local -i isNopathObject=0 ; [[ "${nameOrPath}" == "$(basename "${nameOrPath}")" ]] && isNopathObject=1 ; readonly isNopathObject
+	local -i isExeWithNoPath=0 ; [[ "${nameOrPath}" == "$(basename "${nameOrPath}")" ]] && isExeWithNoPath=1 ; readonly isExeWithNoPath
 	local    testPath="${nameOrPath}"
 	{ [[ ! -e "${testPath}"   ]]                          ; }  &&  testPath="${mePath_t4rmy}/${nameOrPath}"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject))    ; }  &&  testPath="$(which "${nameOrPath}" 2>/dev/null || true)"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject))    ; }  &&  testPath="${mePath_t4rmy}/lib/${nameOrPath}"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject))    ; }  &&  testPath="${mePath_t4rmy}/include/${nameOrPath}"
-	{ [[ ! -e "${testPath}"   ]] && ((isNopathObject))    ; }  &&  testPath="${mePath_t4rmy}/includes/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="${mePath_t4rmy}/lib/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="${mePath_t4rmy}/include/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="${mePath_t4rmy}/includes/${nameOrPath}"
+	{ [[ ! -e "${testPath}"   ]] && ((isExeWithNoPath))   ; }  &&  testPath="$(which "${nameOrPath}" 2>/dev/null || true)"
 	{ [[ ! -e "${testPath}"   ]] && ((mustExist))         ; }  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔc].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
 	{ [[ ! -e "${testPath}"   ]] || [[ -z "${testPath}" ]]; }  &&  testPath="${nameOrPath}"  ## Revert to original definition
 	if ((mustExist)); then testPath="$(realpath -e "${testPath}" 2>/dev/null || true)"
@@ -380,6 +465,8 @@ fResolvePath(){
 	## Last check to fail on
 	{ [[ -z "${testPath}" ]] || { [[ ! -e "${testPath}" ]] && ((mustExist)); }; }  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔs].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
 	## Success
+	#echo "testPath: '${testPath}'"
+	#fPressAnyKeyToContinue
 	parentVarName_ResolvedPath_t4rej="${testPath}"
 }
 
@@ -389,26 +476,28 @@ fResolvePath(){
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 
 if [[ -z "${meName_t4rgd+x}" ]]; then
-	declare -r mePath_t4rgd="${BASH_SOURCE[0]}"
+	declare -r mePath_t4rgd="$(realpath -e "${BASH_SOURCE[0]}")"
 	declare -r meName_t4rgd="$(basename "${mePath_t4rgd}")"
 	declare -r meDir_t4rgd="$(dirname "${mePath_t4rgd}")"
 	declare -r serialDT_t4rgd="$(date "+%Y%m%d-%H%M%S")"
 fi
 
+## Make sure relative paths work
+cd "${meDir_t4rgd}"
 
-## Source the generic script 'utility/n8test'. It will call fMain() above.
-declare n8test_resolved="../utility/n8test"
+## Source the generic script 'utility/n8lib_test'. It will call fMain() above.
+declare n8test_resolved="../utility/include/n8lib_test"
 fResolvePath  n8test_resolved  "${n8test_resolved}" ; readonly n8test_resolved
-[[ -z "${n8test_resolved}" ]] || source "${n8test_resolved}"
+#echo "n8test_resolved: '${n8test_resolved}'"; exit
+source "${n8test_resolved}"
 
-## Initialize logging (fPipe_LogAndShowPartialOutput_InitLogfile() is defined in 'n8test')
+## Initialize logging (fPipe_LogAndShowPartialOutput_InitLogfile() is defined in 'n8lib_test')
 declare logFile="${mePath_t4rgd%.*}.log"
 fResolvePath  logFile    "${logFile}"  0
 fPipe_LogAndShowPartialOutput_InitLogfile "${logFile}"
 
-## Kick off testing (functions are defined in 'n8test')
+## Kick off testing (functions are defined in 'n8lib_test')
 fEntryPoint | fPipe_LogAndShowPartialOutput
-
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -416,3 +505,4 @@ fEntryPoint | fPipe_LogAndShowPartialOutput
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ##		- 20260420 JC: Copied test.sh to test_against_v2.sh.
 ##		- 20260425 JC: Finished.
+##		- 20260427 JC: UPdated fResolvePath().
