@@ -204,7 +204,7 @@ fMain(){
 				if { ! unzip -u -o  "${filePath_Exec_Zip_Win_x86_64}"  -d  "${nextPath%%/}"; }  &&  [[ "${nextPath}" != "${ogHOME}/"* ]]; then
 					sudo unzip -u -o  "${filePath_Exec_Zip_Win_x86_64}"  -d  "${nextPath%%/}"
 				fi
-				fEcho; fEcho "ls \$(which '$(basename "${filePath_ExecToTestAndInstall_FinalHome}")'):"
+				fEcho; fEcho "ls '${nextPath%%/}/${exeName}/'*:"
 				ls  -lA  --color=always  --human-readable  --time-style=+"%Y-%m-%d %H:%M:%S"  "${nextPath%%/}/${exeName}"*
 				fEcho_Force
 				break

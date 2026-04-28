@@ -37,7 +37,7 @@
 set -e
 if [[ -z "${doLongTest+x}" ]]; then
 	declare     doLongTest=0 ; [[ "${CICDTEST_DO_LONGTEST}" == "1" ]] && doLongTest=1
-	declare -ri doTestAllBaseCombos=0
+	declare -ri doTestAllBaseCombos=$(( $(od -An -N1 -tu1 /dev/urandom) % 10 == 0 ? 1 : 0 ))  ## 10% odds of running all base combo tests (long)
 	declare -ri doBackwardsCompatTests=1
 fi
 
@@ -119,11 +119,18 @@ fMain(){
 
 
 	####
-	#### Looped random fuzz-testing
+	#### Generate loop counter for next sections. Random # between 10 and 150. (So most of the time it's on the fast side.)
+	if ((doLongTest)); then
+		loopCount=5000
+	else
+		tmpRandomBaseIdx=$((10 + $(od -An -N2 -tu2 /dev/urandom) % (150 +1) ))
+	fi
 	loopCount=80
-	((doLongTest))  &&  loopCount=5000
+	((doLongTest))  &&
 
-	##
+
+	####
+	#### Looped random fuzz-testing
 
 	## Test **AGAINST SELF**
 	fEcho; fEcho ">>> TESTSECTION: Fuzz-testing against self"; fEcho
