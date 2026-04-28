@@ -307,3 +307,7 @@ declare  -A bases_Input_KeyToVal=()  ; declare -A bases_Input_KeyToIdx=()   ; de
 #exit
 
 echo "[ Base definitions loaded. ]"
+
+
+##	History:
+##		- 20260427 JC: Combined base-definitions.sh and alias-definitions.sh into this refactored, simpler one.

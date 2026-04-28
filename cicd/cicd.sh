@@ -31,19 +31,22 @@
 if [[ -z "${doQuietly+x}" ]]; then
 
 	## Settings (relative paths defined here will be verified and resolved later)
-	declare    dirPath_Source="../source"
-	declare    filePath_ExecToTestAndInstall_BuildLocation="${dirPath_Source}/convert-base-v2"
-	declare    filePath_ExecToTestAndInstall_FinalHome="${dirPath_Source}/bin/convert-base-v2"
-	declare    filePath_CICD_TestExec="../cicd/test.sh"
-	declare    gitAutomationScript="../utility/n8git_backup-and-publish"
-	declare -a preferredInstallPaths=("${HOME}/synced/0-0/common/exec/util/linux/bin"  "/usr/local/sbin/")  ## First one that exists, wins
-	declare -i isCompileProject=1  ## 1: E.g. C++, Rust, Go, etc.  0: E.g. Python, Bash, etc.
+	declare -ri isCompileProject=1  ## 1: E.g. C++, Rust, Go, etc.  0: E.g. Python, Bash, etc.
+	declare -r  exeName="convert-base-v2"
+	declare     dirPath_Source="../source"
+	declare     filePath_ExecToTestAndInstall_BuildLocation="${dirPath_Source}/${exeName}"
+	declare     filePath_ExecToTestAndInstall_FinalHome="${dirPath_Source}/bin/${exeName}"
+	declare     filePath_Exec_Zip_Win_x86_64="../source/dist/${exeName}-windows-x86_64.zip"
+	declare     filePath_CICD_TestExec="../cicd/test.sh"
+	declare     gitAutomationScript="../utility/n8git_backup-and-publish"
+	declare -ra preferredInstallPaths_Linux_x86_64=("${HOME}/synced/0-0/common/exec/util/linux/bin"  "/usr/local/sbin/")  ## First one that exists, wins
+	declare -ra preferredInstallPaths_Winx86_x86_64=("${HOME}/synced/0-0/common/exec/util/mswin/cli/by-self/win64"  "${HOME}/synced/0-0/common/exec/util/win/win64jc")  ## First one that exists, wins
 
 	## Generic constants
 	declare  -i doQuietly=0
 	declare  -i doPromptToContinue=1
-	declare -r  thisVersion="1.0.0-beta.1"         ## Put you script's semantic version here.
-	declare -r  thisBuild="20260420-074241"
+	declare -r  thisVersion="1.0.0-beta2"         ## Put you script's semantic version here.
+	declare -r  thisBuild="1mz1g15"
 	declare -r  thisCopyrightYear="2026"           ## Put your copyright date here.
 	declare -r  thisAuthor="Jim Collier"           ## Put your copyright name here.
 	declare -ri atLeastOneArgRequired=0
@@ -51,12 +54,14 @@ if [[ -z "${doQuietly+x}" ]]; then
 fi
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## Copyright, about, & syntax (minified)
-fCopyright(){ { ((doQuietly)) || ((wasShown_Copyright)); } && return; wasShown_Copyright=1;
+## Version, Copyright, About, & Syntax (minified but not obfuscated)
+fVersion(){ { ((doQuietly)) || ((wasShown_Version)); } && return; wasShown_Version=1;
+	fEcho_Clean "${meName} v${thisVersion} build ${thisBuild}" ;:;}
+
+fCopyright(){ { ((doQuietly)) || ((wasShown_Copyright)); } && return; wasShown_Copyright=1; wasShown_Version=1
 	fEcho_Clean ""
-#	fEcho_Clean "${meName} v${thisVersion} build ${thisBuild},"  ## Don't show version info. Can confuse with the version of the product being built.
+	## Don't show version info, because it can confuse user with the version of the product being built.
 	fEcho_Clean "${meName}, Copyright © ${thisCopyrightYear} ${thisAuthor}."
-	fEcho_Clean "Copyright © ${thisCopyrightYear} ${thisAuthor}."
 	fEcho_Clean "Licensed under the GNU General Public License v2.0 or later. Full text at:"
 	fEcho_Clean "  https://spdx.org/licenses/GPL-2.0-or-later.html"
 	fEcho_Clean "No warranty."
@@ -88,20 +93,10 @@ fSyntax(){  { ((doQuietly)) || ((wasShown_Syntax)); } && return; wasShown_Syntax
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 fMain(){
 
-	## Generic constants
+	## Generic constants and variables
 	local ogUSER="" ; fGetOgUserName ogUSER             ; readonly ogUSER
 	local ogHOME="" ; fGetOgUserHome ogHOME "${ogUSER}" ; readonly ogHOME
-
-	## Generic variables
-	local -i wasShown_Copyright=0; local -i wasShown_About=0; wasShown_Syntax=0
-
-	## Check for need to show help
-	{ ((atLeastOneArgRequired)) && [[ -z "${1:-}${2:-}${3:-}${4:-}" ]]; } && { fCopyright; fAbout; fSyntax; return 1; }
-	case " ${*,,} " in
-		*" -h "*|*" --help "*)                 fCopyright; fAbout; fSyntax; return 0; ;;
-		*" -v "*|*" --ver "*|*" --version "*)  fCopyright;                  return 0; ;;
-		*" -q "*|*" --quiet "*)                doQuiet=1;                             ;;
-	esac
+	local -i wasShown_Version=0  wasShown_Copyright=0  wasShown_About=0  wasShown_Syntax=0
 
 	## Validate dependencies
 	fMustBeInPath realpath
@@ -119,6 +114,7 @@ fMain(){
 	fResolvePath  gitAutomationScript                          "${gitAutomationScript}"                            ; readonly gitAutomationScript
 	fResolvePath  filePath_ExecToTestAndInstall_BuildLocation  "${filePath_ExecToTestAndInstall_BuildLocation}"  0 ; readonly filePath_ExecToTestAndInstall_BuildLocation
 	fResolvePath  filePath_ExecToTestAndInstall_FinalHome      "${filePath_ExecToTestAndInstall_FinalHome}"      0 ; readonly filePath_ExecToTestAndInstall_FinalHome
+	fResolvePath  filePath_Exec_Zip_Win_x86_64                 "${filePath_Exec_Zip_Win_x86_64}"                 0 ; readonly filePath_Exec_Zip_Win_x86_64
 
 	## Validate
 	[[ -d "${meDir}"                   ]]  ||  fThrowError "Path not found: '${meDir}'"
@@ -134,6 +130,7 @@ fMain(){
 		if ((isCompileProject)); then
 		fEcho_Clean "Executable to build ..........: ${filePath_ExecToTestAndInstall_BuildLocation}"
 		fEcho_Clean "Executable final location ....: ${filePath_ExecToTestAndInstall_FinalHome}"
+		fEcho_Clean "Win x86_64 zip location ......: ${filePath_Exec_Zip_Win_x86_64}"
 		fi
 		fEcho_Clean "Test script ..................: ${filePath_CICD_TestExec}"
 		fEcho_Clean "Git commit and push script ...: ${gitAutomationScript}"
@@ -182,20 +179,38 @@ fMain(){
 	popd 1>/dev/null
 
 	## Install locally (dogfood it)
-	for nextPath in "${preferredInstallPaths[@]}"; do
+
+	## Linux x86_64
+	for nextPath in "${preferredInstallPaths_Linux_x86_64[@]}"; do
 		if [[ -d "${nextPath}" ]]; then
-			fEcho; fEcho "$(date "+%Y%m%d-%H%M%S") e to '${nextPath}' ..."
-			if [[ "${nextPath}" == "${ogHOME}/"* ]]; then
-				cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"
-			else
-				cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/" 2>/dev/null ||  sudo cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"
+			fEcho; fEcho "$(date "+%Y%m%d-%H%M%S") Copying '${filePath_ExecToTestAndInstall_FinalHome}' to '${nextPath}' ..."
+			if { ! cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"; }  &&  [[ "${nextPath}" != "${ogHOME}/"* ]]; then
+				sudo cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"
 			fi
 			fEcho; fEcho "ls \$(which '$(basename "${filePath_ExecToTestAndInstall_FinalHome}")'):"
 			ls  -lA  --color=always  --human-readable  --time-style=+"%Y-%m-%d %H:%M:%S"  "$(which "$(basename "${filePath_ExecToTestAndInstall_FinalHome}")")"
 			fEcho_Force
 			break
 		fi
-	done
+	done; :
+
+	## Windows x86_64
+	if [[ ! -f "${filePath_Exec_Zip_Win_x86_64}" ]]; then
+		fEcho; fEcho "WARNING - Not found: '${filePath_Exec_Zip_Win_x86_64}'."; fEcho
+	else
+		for nextPath in "${preferredInstallPaths_Winx86_x86_64[@]}"; do
+			if [[ -d "${nextPath}" ]]; then
+			fEcho; fEcho "$(date "+%Y%m%d-%H%M%S") Extracting '${filePath_Exec_Zip_Win_x86_64}' to '${nextPath}' ..."
+				if { ! unzip -u -o  "${filePath_Exec_Zip_Win_x86_64}"  -d  "${nextPath%%/}"; }  &&  [[ "${nextPath}" != "${ogHOME}/"* ]]; then
+					sudo unzip -u -o  "${filePath_Exec_Zip_Win_x86_64}"  -d  "${nextPath%%/}"
+				fi
+				fEcho; fEcho "ls \$(which '$(basename "${filePath_ExecToTestAndInstall_FinalHome}")'):"
+				ls  -lA  --color=always  --human-readable  --time-style=+"%Y-%m-%d %H:%M:%S"  "${nextPath%%/}/${exeName}"*
+				fEcho_Force
+				break
+			fi
+		done; :
+	fi
 
 	## Git automation script (e.g. commit, push)
 	"${gitAutomationScript}"
@@ -226,6 +241,14 @@ fMain_Chained(){
 fParseArgs(){
 
 	## Look for stars "✶✶✶✶✶✶✶✶" for places to custom-modify unique instances of this function.
+
+	## Check for need to show help etc.
+	{ ((atLeastOneArgRequired)) && [[ -z "${1:-}${2:-}${3:-}${4:-}" ]]; } && { fCopyright; fAbout; fSyntax; return 1; }
+	case " ${*,,} " in
+		*" -h "*|*" --help "*|*" -help "*)                               fCopyright ; fAbout ; fSyntax ; exit 0 ;;
+		*" -a "*|*" --about "*|*" -about "*)                             fCopyright ; fAbout           ; exit 0 ;;
+		*" -v "*|*" --version "*|*" -version "*|*" --ver "|*" -ver "**)  fVersion ; doQuietly=1        ; exit 0 ;;
+	esac
 
 	## GENERIC (don't modify): Populate args array and string.
 	## Note: Args are 1-based index, but the resulting array of args at the end is a normal 0-based index.
@@ -275,8 +298,8 @@ fParseArgs(){
 
 			case "${tmpStr}" in
 
-			#	## ✶✶✶✶✶✶✶✶ PUT CUSTOM UNARY SWITCH TESTS AND PARENT BOOLEAN VARIABLE ASSIGNMENTS HERE
-			#	"unary-switch")  booleanVariable=1  ;;
+				## ✶✶✶✶✶✶✶✶ PUT CUSTOM UNARY SWITCH TESTS AND PARENT BOOLEAN VARIABLE ASSIGNMENTS HERE
+				"quiet")  doQuiet=1  ;;
 
 			#	## ✶✶✶✶✶✶✶✶ PUT TESTS FOR CUSTOM LONG-OPTION LOGIC THAT EXPECTS AN ARGUMENT TO FOLLOW, HERE
 			#	"long-option-with-arg-to-follow") expectingSwitchParamForNextArg=1 ;;
@@ -610,5 +633,6 @@ fi
 
 
 ##	Script history:
-##		- 202260420 JC: Created.
-##		- 202260421 JC: Finished.
+##		- 20260420 JC: Created.
+##		- 20260421 JC: Finished.
+##		- 20260428 JC: Added extracting Windows exe from zip, to list of dir candidates.
