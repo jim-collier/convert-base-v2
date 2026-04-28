@@ -1,4 +1,4 @@
 # Build artifacts
-/convert-base-v2
+**/convert-base-v2
+**/.vscode/
 /dist/
-/.vscode/

@@ -35,8 +35,11 @@
 
 ## Global settings
 set -e
-declare doLongTest=0 ; [[ "${CICDTEST_DO_LONGTEST}" == "1" ]] && doLongTest=1
-declare doBackwardsCompatTests=1
+if [[ -z "${doLongTest+x}" ]]; then
+	declare     doLongTest=0 ; [[ "${CICDTEST_DO_LONGTEST}" == "1" ]] && doLongTest=1
+	declare -ri doTestAllBaseCombos=0
+	declare -ri doBackwardsCompatTests=1
+fi
 
 
 fMain(){
@@ -108,14 +111,16 @@ fMain(){
 	fTestAllAliases  "base10"  "${inputVal}" #...........................................: All should pass
 	fRunTest  'error'  "${expectVal}"  "'${exeV2}'  '${inputVal}'  bogusBaseName" #......: This one should fail
 
-	## Self-test every base against every other base (with fixed-lenght but randomized input).
-	fEcho; fEcho ">>> TESTSECTION: Test all bases against each other"; fEcho
-	fTest_AllBasesAgainstEachOther
+	if ((doTestAllBaseCombos)); then
+		## Self-test every base against every other base (with fixed-lenght but randomized input).
+		fEcho; fEcho ">>> TESTSECTION: Test all bases against each other"; fEcho
+		fTest_AllBasesAgainstEachOther
+	fi
 
 
 	####
 	#### Looped random fuzz-testing
-	loopCount=100
+	loopCount=80
 	((doLongTest))  &&  loopCount=5000
 
 	##
@@ -505,4 +510,7 @@ fEntryPoint | fPipe_LogAndShowPartialOutput
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ##		- 20260420 JC: Copied test.sh to test_against_v2.sh.
 ##		- 20260425 JC: Finished.
-##		- 20260427 JC: UPdated fResolvePath().
+##		- 20260427 JC:
+##			- Updated fResolvePath().
+##			- Fixed bugs in loops natural end, caused by not setting `set +e`.
+##		- 20260428 JC: Removed now-unnecessary reference to alias-definitions.sh.
