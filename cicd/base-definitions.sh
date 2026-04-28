@@ -5,57 +5,11 @@
 # shellcheck disable=SC2317  ## Unreachble code. Makes debugging visually harder.
 # shellcheck disable=SC2329  ## The function is never invoked.
 
-LANG="C.UTF-8"
+declare LANG="C.UTF-8"
 
 ## Only allow running 'sourced'.
 declare -i isSourced_t4rfy; { (return 0 2>/dev/null) && isSourced_t4rfy=1; } || isSourced_t4rfy=0
 ((! isSourced_t4rfy)) && { echo -e "\nThis script is meant to be 'sourced' from within another script.\n"; exit 1; }
-
-####
-#### Base definitions copied directly from convert-base-v1b (which we'll then need to package better for testing purposes):
-
-## Bases
-declare -ra base2=($(echo {0..1}))
-declare -ra base8=($(echo {0..7}))
-declare -ra base10=($(echo {0..9}))
-declare -ra base16=($(echo {0..9} {A..F}))
-declare -ra base32h=($(echo {0..9} {A..V})) #.............................................. RFC 4648 hex
-declare -ra base32r=($(echo {A..Z} {2..9})) #.............................................. RFC 4648
-declare -ra base32w=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x) #.... Wordsafe
-declare -ra base64r=($(echo {A..Z} {a..z} {0..9} "+ /")) #................................. RFC 4648
-declare -ra base64u=($(echo {A..Z} {a..z} {0..9} "- _")) #................................. RFC 4648 url-safe variant
-
-## De-facto standards
-declare -ra base26=($(echo {A..Z}))
-declare -ra base32c=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H J K M N P Q R S T V W X Y Z) #.... Crockford; no I, L, O, U; one famous programmer's proposal that has become a more-or-less de-facto accepted standard variant.
-declare -ra base36=($(echo {0..9} {A..Z})) #............................................... Base36
-declare -ra base52=($(echo {A..Z} {a..z}))
-declare -ra base62=($(echo {0..9} {A..Z} {a..z})) #........................................ Base62
-
-## Very slight custom modifications
-declare -ra base64h=($(echo {0..9} {A..Z} {a..z} "- _")) #................................. Hex-style base 64
-declare -ra base64jc1=($(echo {0..9} {A..Z} {a..z} "ʞ λ")) #................................ Like 64h but more programmer (and visually) friendly +2 chars at the end. 1% more bytes that 64r|u on average for UTF-8 encoding, if evenly-distributed.
-
-## Custom 'word-safe', URL-safe, filesystem-safe, and programmer-friendly variants that strive to be CLI-width-friendly (but may not always render properly in every terminal or program with every font).
-## Note: Redefining these constitutes a breaking change with v1. But backward-compatible aliases are included below.
-declare -ra base48jc1ws=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥)
-declare -ra base64jc1ws=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ)
-declare -ra base128jc1ws=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä)
-
-## "Incorrect" backwards-compatiable with v1: Custom 'word-safe', URL-safe, filesystem-safe, and programmer-friendly variants that strive to be CLI-width-friendly (but may not always render properly in every terminal or program with every font).
-declare -ra base48v1compat=(0 1 2 3 4 5 6 7 8 9 c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑)
-declare -ra base64v1compat=(0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠)
-declare -ra base128v1compat=(0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Ĵ Ŝ Ŵ Ŷ â ĉ ê ĝ ĥ ĵ ŝ ŵ ŷ Ã Ẽ Ñ Ỹ ã ẽ ñ ỹ Ä Ë Ẅ Ẍ Ÿ ä ë ẅ ẍ ÿ Á Ć É)
-
-## Custom (not 'word-safe'), URL-safe, filesystem-safe, and programmer-friendly variants that strive to be CLI-width-friendly (but may not always render properly in every terminal or program with every font).
-declare -ra base128jc1=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ)
-declare -ra base256jc1=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ)
-declare -ra base288jc1=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ ゲ サ じ す ス せ ち づ で ネ ビ べ ぺ ま モ ゟ ヲ ½ ⅓ ⅔ ¼ ¾ ⅕ ⅖ ⅗ ⅘ ⅙ ⅚ ⅛ ⅜ ⅝ ⅞)
-
-## Custom; Special: ^[a-z_]([a-z0-9_-]){0,31}$; linux hostname (including domain - not case-sensitive, usually lower-case, and this is just the legal chars): [0-9a-z\-\.]
-declare -ra base38hostname=($(echo {0..9} {a..z} "- ."))
-declare -ra base39username=($(echo {0..9} {a..z} "- _ ."))
-declare -ra base45email=($(echo {0..9} {a..z} "- _ % + . : @ [ ]"))
 
 
 ####
@@ -131,49 +85,212 @@ fKeyVal_Get_ByIdx(){
 
 fAddBase_To_Arrs(){
 	## Args
-	local -ri alsoAddToInputBaseArrs=${1:-0}   ; shift || true  ## 0 [default]: Add only to output arrays. 1: Add to input arrays to.
-	local -r  baseName=${1:-0}                 ; shift || true  ## Name of the base to use as a key.
-	local -n  parentVarRef_baseArray=${1:-0}   ; shift || true  ## The array to collapse into a value and store as key/value.
+	local -ri alsoAddToInputBaseArrs=${1:-0}        ; shift || true  ## 0 [default]: Add only to output arrays. 1: Add to input arrays to.
+	local -ri alsoAddToCommon_V1b_V2_array=${1:-0}  ; shift || true  ## 0 [default]: Add only to v2 arrays. 1: Also add to common array.
+	local -r  baseName=${1:-0}                      ; shift || true  ## Name of the base to use as a key.
+	local -n  parentVarRef_baseArray=${1:-0}        ; shift || true  ## The array to collapse into a value and store as key/value.
 	## Get string from base array
 	local tmpStr=""
-	fArrayToStr  tmpStr  parentVarRef_baseArray
+	## Add name and permutations to alias array
+	fAddAsAliasWithPermutations "${baseName}"
 	## Add to output base arrays
+	fArrayToStr  tmpStr  parentVarRef_baseArray
 	fKeyVal_Add  bases_Output_KeyToVal  bases_Output_KeyToIdx  bases_Output_IdxToKey  "${baseName}"  "${tmpStr}"
-	((alsoAddToInputBaseArrs))  &&  fKeyVal_Add  bases_Input_KeyToVal  bases_Input_KeyToIdx  bases_Input_IdxToKey  "${baseName}"  "${tmpStr}"
+	((alsoAddToInputBaseArrs))       &&  fKeyVal_Add  bases_Input_KeyToVal  bases_Input_KeyToIdx  bases_Input_IdxToKey  "${baseName}"  "${tmpStr}"
+	((alsoAddToCommon_V1b_V2_array)) && _commonBaseNames_v1b_v2+=("${baseName}")
 :;}
 
-declare -A bases_Output_KeyToVal=() ; declare -A bases_Output_KeyToIdx=()  ; declare -a bases_Output_IdxToKey ;
-declare -A bases_Input_KeyToVal=()  ; declare -A bases_Input_KeyToIdx=()   ; declare -a bases_Input_IdxToKey ;
+fAddAsAliasWithPermutations(){
+	baseNumname=${1:-0}
+	[[ ${baseNumname} =~ ^[0-9].* ]]  ||  return 1
+	## Add the base name itself as an alias
+	baseAliasesArr+=("${baseNumname}")
+	## Not yet
+#	baseAliasesArr+=("base${baseNumname}")
+#	baseAliasesArr+=("base-${baseNumname}")
+}
 
-## All bases
-fAddBase_To_Arrs  1    "2"            base2
-fAddBase_To_Arrs  1    "8"            base8
-fAddBase_To_Arrs  1   "10"           base10
-fAddBase_To_Arrs  1   "16"           base16
-fAddBase_To_Arrs  0   "26"           base26
-fAddBase_To_Arrs  0   "32r"          base32r
-fAddBase_To_Arrs  0   "32h"          base32h
-fAddBase_To_Arrs  0   "32c"          base32c
-fAddBase_To_Arrs  0   "32w"          base32w
-fAddBase_To_Arrs  1   "36"           base36
-fAddBase_To_Arrs  0   "38hostname"   base38hostname
-fAddBase_To_Arrs  0   "39username"   base39username
-fAddBase_To_Arrs  0   "45email"      base45email
-fAddBase_To_Arrs  0   "48jc1ws"      base48jcw
-fAddBase_To_Arrs  0   "48v1compat"   base48v1compat
-fAddBase_To_Arrs  0   "52"           base52
-fAddBase_To_Arrs  0   "62"           base62
-fAddBase_To_Arrs  0   "64r"          base64r
-fAddBase_To_Arrs  0   "64u"          base64u
-fAddBase_To_Arrs  0   "64h"          base64h
-fAddBase_To_Arrs  0   "64jc1"        base64jc
-fAddBase_To_Arrs  0   "64jc1ws"      base64jcw
-fAddBase_To_Arrs  0   "64v1compat"   base64v1compat
-fAddBase_To_Arrs  0  "128jc1"       base128jc
-fAddBase_To_Arrs  0  "128jc1ws"     base128jcw  ##
-fAddBase_To_Arrs  0  "128v1compat"  base128v1compat
-fAddBase_To_Arrs  0  "256jc1"       base256jc
-fAddBase_To_Arrs  0  "288jc1"       base288jc
+
+####
+####
+#### Define bases as they exist in go program to test
+
+## Constants
+declare -ri alsoAddToOutputArr=1
+declare -ri noV1b=0
+declare -ri alsoV1b=1
+
+## Arrays
+declare  -a baseAliasesArr=()
+declare  -a baseAliasesArr_commonBaseNames_v1b_v2=()
+declare  -A bases_Output_KeyToVal=() ; declare -A bases_Output_KeyToIdx=()  ; declare -a bases_Output_IdxToKey ;
+declare  -A bases_Input_KeyToVal=()  ; declare -A bases_Input_KeyToIdx=()   ; declare -a bases_Input_IdxToKey ;
+
+## 2
+	declare -ra base2=($(echo {0..1}))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "2"  base2
+#	baseAliasesArr+=("deux")
+
+## 8
+	declare -ra base8=($(echo {0..7}))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "8"  base8
+	baseAliasesArr+=("oct")
+	baseAliasesArr+=("octal")
+
+## 10
+	declare -ra base10=($(echo {0..9}))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "10"  base10
+	baseAliasesArr+=("dec")
+	baseAliasesArr+=("decimal")
+
+## 16
+	declare -ra base16=($(echo {0..9} {A..F}))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "16"  base16
+	baseAliasesArr+=("hex")
+	baseAliasesArr+=("hexadecimal")
+
+## 26
+	declare -ra base26=($(echo {A..Z}))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "26"  base26
+
+## 32r
+	declare -ra base32r=($(echo {A..Z} {2..7}))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "32r"  base32r
+	fAddAsAliasWithPermutations  32
+	fAddAsAliasWithPermutations  "32rfc"
+	fAddAsAliasWithPermutations  "32rfc4648s6"
+	baseAliasesArr+=("rfc4648s6")
+
+## 32h
+	declare -ra base32h=($(echo {0..9} {A..V}))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "32h"  base32h
+	fAddAsAliasWithPermutations  "32hex"
+	fAddAsAliasWithPermutations  "32rfc4648s7"
+	baseAliasesArr+=("rfc4648s7")
+
+## 32c
+	declare -ra base32c=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H J K M N P Q R S T V W X Y Z)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "32c"  base32c
+	fAddAsAliasWithPermutations  "32crock"
+	fAddAsAliasWithPermutations  "32crockford"
+	baseAliasesArr+=("crockford")
+
+## 32w
+	declare -ra base32w=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "32w"  base32w
+	fAddAsAliasWithPermutations  "32ws"
+	fAddAsAliasWithPermutations  "32wordsafe"
+	fAddAsAliasWithPermutations  "32g"
+	fAddAsAliasWithPermutations  "32google"
+	fAddAsAliasWithPermutations  "32nofks"
+
+## 36
+	declare -ra base36=($(echo {0..9} {A..Z}))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "36"  base36
+
+## 38hostname
+	declare -ra base38hostname=($(echo {0..9} {a..z} "- ."))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "38hostname"  base38hostname
+	fAddAsAliasWithPermutations  "38jc1"
+
+## 39username
+	declare -ra base39username=($(echo {0..9} {a..z} "- _ ."))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "39username"  base39username
+	fAddAsAliasWithPermutations  "39jc1"
+
+## 45email
+	declare -ra base45email=($(echo {0..9} {a..z} "- _ % + . : @ [ ]"))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "45email"  base45email
+	fAddAsAliasWithPermutations  "45jc1"
+
+## 48jc1ws
+	declare -ra base48jc1ws=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "48jc1ws"  base48jc1ws
+	fAddAsAliasWithPermutations  "48w"
+	fAddAsAliasWithPermutations  "48ws"
+	fAddAsAliasWithPermutations  "48wordsafe"
+	fAddAsAliasWithPermutations  "48nofks"
+
+## 48v1compat
+	declare -ra base48v1compat=(0 1 2 3 4 5 6 7 8 9 c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "48v1compat"  base48v1compat
+	fAddAsAliasWithPermutations  "48depr"
+	fAddAsAliasWithPermutations  "48j1"
+
+## 52
+	declare -ra base52=($(echo {A..Z} {a..z}))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "52"  base52
+
+## 62
+	declare -ra base62=($(echo {0..9} {A..Z} {a..z}))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "62"  base62
+
+## 64r
+	declare -ra base64r=($(echo {A..Z} {a..z} {0..9} "+ /"))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64r"  base64r
+	fAddAsAliasWithPermutations  64
+	fAddAsAliasWithPermutations  "64rfc"
+	fAddAsAliasWithPermutations  "64rfc4648s4"
+	baseAliasesArr+=("rfc4648s4")
+
+## 64u
+	declare -ra base64u=($(echo {A..Z} {a..z} {0..9} "- _"))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64u"  base64u
+	fAddAsAliasWithPermutations  "64url"
+	fAddAsAliasWithPermutations  "64rfc4648s5"
+	baseAliasesArr+=("rfc4648s5")
+
+## 64h
+	declare -ra base64h=($(echo {0..9} {A..Z} {a..z} "- _"))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64h"  base64h
+	fAddAsAliasWithPermutations  "64hex"
+
+## 64jc1
+	declare -ra base64jc1=($(echo {0..9} {A..Z} {a..z} "ʞ λ"))
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64jc1"  base64jc1
+	fAddAsAliasWithPermutations  "64j1u"
+
+## 64jc1ws
+	declare -ra base64jc1ws=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64jc1ws"  base64jc1ws
+	fAddAsAliasWithPermutations  "64w"
+	fAddAsAliasWithPermutations  "64ws"
+	fAddAsAliasWithPermutations  "64wordsafe"
+	fAddAsAliasWithPermutations  "64nofks"
+
+## 64v1compat
+	declare -ra base64v1compat=(0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64v1compat"  base64v1compat
+	fAddAsAliasWithPermutations  "64depr"
+	fAddAsAliasWithPermutations  "64j1uw"
+
+## 128jc1
+	declare -ra base128jc1=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "128jc1"  base128jc1
+
+## 128jc1ws
+	declare -ra base128jc1ws=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "128jc1ws"  base128jc1ws
+	fAddAsAliasWithPermutations  "128w"
+	fAddAsAliasWithPermutations  "128ws"
+	fAddAsAliasWithPermutations  "128wordsafe"
+	fAddAsAliasWithPermutations  "128nofks"
+
+## 128v1compat
+	declare -ra base128v1compat=(0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Ĵ Ŝ Ŵ Ŷ â ĉ ê ĝ ĥ ĵ ŝ ŵ ŷ Ã Ẽ Ñ Ỹ ã ẽ ñ ỹ Ä Ë Ẅ Ẍ Ÿ ä ë ẅ ẍ ÿ Á Ć É)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "128v1compat"  base128v1compat
+	fAddAsAliasWithPermutations  "128depr"
+
+## 256jc1
+	declare -ra base256jc1=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "256jc1"  base256jc1
+	fAddAsAliasWithPermutations  "256j1"
+
+## 288jc1
+	declare -ra base288jc1=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ ゲ サ じ す ス せ ち づ で ネ ビ べ ぺ ま モ ゟ ヲ ½ ⅓ ⅔ ¼ ¾ ⅕ ⅖ ⅗ ⅘ ⅙ ⅚ ⅛ ⅜ ⅝ ⅞)
+	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "288jc1"       base288jc1
+	fAddAsAliasWithPermutations  "288j1"
+
 
 ##DEBUG; list output arrays
 #declare    strVal=""
