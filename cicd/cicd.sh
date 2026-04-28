@@ -184,14 +184,14 @@ fMain(){
 	## Install locally (dogfood it)
 	for nextPath in "${preferredInstallPaths[@]}"; do
 		if [[ -d "${nextPath}" ]]; then
-			fEcho; fEcho "$(date "+%Y%m%d-%H%M%S") Installing locally to '${nextPath}' ..."
+			fEcho; fEcho "$(date "+%Y%m%d-%H%M%S") e to '${nextPath}' ..."
 			if [[ "${nextPath}" == "${ogHOME}/"* ]]; then
-				cp -a "${filePath_ExecToTestAndInstall_BuildLocation}"  "${nextPath%%/}/"
+				cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"
 			else
-				cp -a "${filePath_ExecToTestAndInstall_BuildLocation}"  "${nextPath%%/}/" 2>/dev/null ||  sudo cp -a "${filePath_ExecToTestAndInstall_BuildLocation}"  "${nextPath%%/}/"
+				cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/" 2>/dev/null ||  sudo cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"
 			fi
-			fEcho; fEcho "ls \$(which '$(basename "${filePath_ExecToTestAndInstall_BuildLocation}")'):"
-			ls  -lA  --color=always  --human-readable  --time-style=+"%Y-%m-%d %H:%M:%S"  "$(which "$(basename "${filePath_ExecToTestAndInstall_BuildLocation}")")"
+			fEcho; fEcho "ls \$(which '$(basename "${filePath_ExecToTestAndInstall_FinalHome}")'):"
+			ls  -lA  --color=always  --human-readable  --time-style=+"%Y-%m-%d %H:%M:%S"  "$(which "$(basename "${filePath_ExecToTestAndInstall_FinalHome}")")"
 			fEcho_Force
 			break
 		fi
@@ -569,10 +569,10 @@ declare -i isSourced; { (return 0 2>/dev/null) && isSourced=1; } || isSourced=0
 
 ## Common constants but detect if already set
 if [[ -z "${serialDT+x}"     ]]; then
-	declare -r serialDT="$(date "+%Y%m%d-%H%M%S")"
 	declare -r mePath="$(realpath -e "${BASH_SOURCE[0]}")"
 	declare -r meName="$(basename "${mePath}")"
 	declare -r meDir="$(dirname "${mePath}")"
+	declare -r serialDT="$(date "+%Y%m%d-%H%M%S")"
 	declare -r relaunch_Key_sudo="${meName}_relaunch_sudo_4KQDYluNbzLQHwMwsWxgdk"  ## This isn't for 'security' or uniqueness. It just needs to be an exceptionally unlikely user argument.
 fi
 

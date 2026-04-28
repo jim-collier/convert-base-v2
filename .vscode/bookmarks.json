@@ -26,20 +26,10 @@
 			]
 		},
 		{
-			"path": "cicd/test.sh",
-			"bookmarks": [
-				{
-					"line": 385,
-					"column": 0,
-					"label": ""
-				}
-			]
-		},
-		{
 			"path": "cicd/base-definitions.sh",
 			"bookmarks": [
 				{
-					"line": 198,
+					"line": 189,
 					"column": 0,
 					"label": ""
 				}
