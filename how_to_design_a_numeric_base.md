@@ -66,9 +66,9 @@ When creating a new base from scratch, you should answer a few questions, starti
 
 - Should your symbols go in ASCII/ANSI/Unicode order?
 
-	- This isn't strictly necessary - many bases listed above seem random.
+	- This isn't strictly necessary - many bases seem random.
 
-		- But when they don't go in order, there's usually a strongly-argued reason behind it. (E.g. reduced typing mistakes, stronger checksum, etc.)
+		- But when they don't go in order, there's usually a strongly-argued reason behind it. (E.g. "reduced typing mistakes", "stronger checksum", etc.)
 
 		- But in general, yes - they should go in code point order, especially at lower code point values where they tend to be naturally sorted better.
 
@@ -78,15 +78,17 @@ When creating a new base from scratch, you should answer a few questions, starti
 
 			- To sort a space-delimited string by Unicode code point, run - for example: `echo "z a 中 あ A 9" | tr ' ' '\n' | LC_ALL=C sort | tr '\n' ' '`
 
-	- You may want "exotic" symbols that look similar, to be purposefully rearranged out of code point order, so that they appear more natural as values increase one at a time in your natural base. E.g. all triangles of each type, grouped together, appearing in a consistent order; then all circled number balls in order, etc. (These don't appear in a pleasing order you'd expect when sorted by code point.)
+	- You may want "exotic" symbols that are logically similar but don't appear consecutively in code point order, to be purposefully rearranged so that they appear more natural as values increase one at a time in your base. E.g. all triangles of each type, grouped together, appearing in a consistent order; then all circled number balls in order, etc. (Those examples don't actually appear in an the order you'd naturally expect, when sorted by code point.)
 
 - Any other conventions to be aware of?
 
-	- Unless you have a good reason not to, you should start with 0-9, then A-Z, than a-z. Then try to stick to Unicode code point order from there. (Skipping characters as necessary.) This insures that smaller numbers up to 61, encode to what people typically "expect" of a "hexadecimal"-style base alphabet definition. "Hexadecimal"-style base alphabets dominate bases less than 64, and so is a strong convention and expectation to follow. Base 64 in particular though have some odd ducks...
+	- Unless you have a good reason not to, you should start with `0-9`, then `A-Z`, than `a-z`. Then try to stick to Unicode code point order from there. (Skipping characters as necessary.) This insures that smaller numbers up to 61, encode to what people typically "expect" of a "hexadecimal"-style base alphabet definition.
 
-	- RFC 4648 §4 and 5 (for base 64 binary-to-text de/encoding), for example, inexplicably start with A-Z, then a-z, then 0-9. This isn't even in ASCII/ANSI code page / Unicode code point order. There is apparently no argued reason for this, other than "it's for de/encoding streaming binary so it doesn't matter, as long as it's agreed upon".
+		"Hexadecimal"-style base alphabets dominate bases less than 64, and so is a strong convention and expectation to follow. (Base-64 base alphabets in particular though have some odd ducks.)
 
-		Which - if true - to be fair is a pretty reasonable argument.
+		- RFC 4648 §4 and 5 (for base 64 binary-to-text de/encoding), for example, inexplicably start with A-Z, then a-z, then 0-9. This isn't even in ASCII/ANSI code page / Unicode code point order. There is apparently no historically argued reason for this, other than "it's for de/encoding streaming binary so it doesn't matter, as long as it's agreed upon".
+
+		Which - if true - to be fair is kind of a reasonable argument.
 
 ### Symbol selection for a binary-to-text encoding/decoding scheme
 
@@ -96,23 +98,23 @@ Since the output of binary encoding usually looks essentially random, there's no
 
 The volume of data in a binary-to-text scheme is usually too high for manual transcription, so symbol disambiguation is also usually not as important either.
 
-Bases for binary/text conversion should ideally be a power of 2 (e.g. base 8, 16, 32, 64, 128, etc.), otherwise there's extra work and more confusion, for little or no gain.
+Bases for binary/text conversion should ideally be a power of 2 (e.g. base 8, 16, 32, 64, 128, etc.), otherwise there's extra work, less efficiency, and more opportunity for confusion - for little or no gain.
 
-Base 32 and 64 are mostly solved problems. There's room at higher bases for innovation.
+Bases 32 and 64 are mostly solved problems. There's room at higher bases for innovation.
 
 #### UTF-8 and base-64
 
-UTF-8 is a variable-width encoding scheme, so higher code points take more bytes - meaning less efficient bit-packing. In that case, staying as low in the character set as reasonable should be a key design consideration.
+UTF-8 is a variable-width encoding scheme, so higher code points consume more bytes - meaning less efficient bit-packing. In that case, staying as low in the character set as reasonable should be a key design consideration.
 
 - __A base 64 encoding scheme, using as many traditional 1-byte Unicode characters as possible (i.e. "ASCII"), is the most efficient binary to UTF8 text encoding scheme possible__.
 
 	- The traditional challenge has been, there's only 94 visible, printable 1-byte Unicode characters.
 
-	- Out of those 94, most of the symbols that appear on a keyboard, should be avoided as "unsafe" for reserved characters for filesystem names, URLs, etc.
+	- Out of those 94, most of the symbols that appear on a keyboard, should be avoided as "unsafe" for reserved characters for filesystems, URLs, etc.
 
 	- That leaves essentially the 62 characters `0-9A-Za-z`.
 
-		Almost all base 64 alphabets simply disagree on what order those three groups should go in, and what two extra symbols should go at the end to make the full set add up to 64.
+		Almost all base 64 alphabets simply disagree on what order those three groups of alphanumeric symbols should go in, and what two extra "keyboard" symbols should go at the end to make the full set add up to 64.
 
 #### UTF-16 and base-32768
 
@@ -120,13 +122,13 @@ Base 32768 provides optimal effciency for UTF-16 binary-to-text encoding/decodin
 
 - Many programming languages, and the Windows API, use UTF-16.
 
-- There's plenty of room for innovation here. but that's so many characters, that factors like "existing adoption" and "code point efficiency" are arguably far more important than "visual elegance".
+- There's plenty of room for innovation here. but 32,768 characters is so many, that factors like "existing adoption" and "code point efficiency" are arguably far more important than "visual elegance".
 
 #### UTF-32 and base-65536
 
 Base 65536 is optimal for UTF-32 binary-to-text encoding/decoding schemes.
 
-UTF-32 is rarely used for storage or interchange. It's used sometimes by code libraries, indexing efficiency gains of fixed-width data structures are more important than space efficiency.
+UTF-32 is rarely used for storage or interchange. It's used sometimes by code libraries, when the indexing efficiency gains of fixed-width data structures are more important than space efficiency.
 
 ## General notes on symbols that work, and that don't
 
