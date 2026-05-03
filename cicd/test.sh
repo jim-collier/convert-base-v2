@@ -149,7 +149,6 @@ fMain(){
 	####
 	#### By-hand one-way tests, expect equal
 	fEcho; fEcho ">>> TESTSECTION: By-hand one-way tests, expect equal"; fEcho
-#	set +e
 
 	## 128v1compat
 	#expectVal="$(convert-base-v1  "${inputVal}"  128j1)"  #; echo "${expectVal}"
@@ -165,7 +164,6 @@ fMain(){
 	####
 	#### By-hand one-way tests, expect NOT equal
 	fEcho; fEcho ">>> TESTSECTION: By-hand one-way tests, expect NOT equal"; fEcho
-#	set +e
 
 	## 128j1 != 128v1compat
 	#expectVal="$(convert-base-v1  "${inputVal}"  128j1)"  #; echo "${expectVal}"
@@ -176,7 +174,6 @@ fMain(){
 	####
 	#### By-hand one-way tests, expect ERROR
 	fEcho; fEcho ">>> TESTSECTION: By-hand one-way tests, expect ERROR"; fEcho
-#	set +e
 
 	## Removed base 16 as input, should error.
 	expectVal=""
@@ -186,7 +183,6 @@ fMain(){
 	####
 	#### By-hand round-trips self-tests, expect equal.
 	fEcho; fEcho ">>> TESTSECTION: By-hand round-trip tests, expect equal"; fEcho
-#	set +e
 
 	expectVal="1234567899999999999999990123456789999999999999999123456789999999990000000000000000000000000000000000000000000000099999999999999999999999999999999999999876543210"
 	fRunChained_TestLast  '=='  "${expectVal}"  "'${exeV2}'  --from 10  --to 16  ${inputVal}; '${exeV2}'  --from 16  --to 10  %CMD1_OUTPUT%"

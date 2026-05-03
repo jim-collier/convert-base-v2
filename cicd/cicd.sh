@@ -33,28 +33,32 @@ if [[ -z "${doQuietly+x}" ]]; then
 	## Settings (relative paths defined here will be verified and resolved later)
 	declare -ri isCompileProject=1  ## 1: E.g. C++, Rust, Go, etc.  0: E.g. Python, Bash, etc.
 	declare -r  exeName="convert-base-v2"
-	declare     dirPath_Source="../source"
+	declare     dirPath_Base=".."
+	declare     dirPath_Source="${dirPath_Base}/source"
 	declare     filePath_ExecToTestAndInstall_BuildLocation="${dirPath_Source}/${exeName}"
 	declare     filePath_ExecToTestAndInstall_FinalHome="${dirPath_Source}/bin/${exeName}"
-	declare     filePath_Exec_Zip_Win_x86_64="../source/dist/${exeName}-windows-x86_64.zip"
-	declare     filePath_CICD_TestExec="../cicd/test.sh"
-	declare     gitAutomationScript="../utility/n8git_backup-and-publish"
+	declare     filePath_Exec_Zip_Win_x86_64="${dirPath_Source}/dist/${exeName}-windows-x86_64.zip"
+	declare     filePath_CICD_TestExec="${dirPath_Base}/cicd/test.sh"
+	declare     gitAutomationScript="${dirPath_Base}/utility/n8git_backup-and-publish"
 	declare -ra preferredInstallPaths_Linux_x86_64=("${HOME}/synced/0-0/common/exec/util/linux/bin"  "/usr/local/sbin/")  ## First one that exists, wins
 	declare -ra preferredInstallPaths_Winx86_x86_64=("${HOME}/synced/0-0/common/exec/util/mswin/cli/by-self/win64"  "${HOME}/synced/0-0/common/exec/util/win/win64jc")  ## First one that exists, wins
 
 	## Generic constants
 	declare  -i doQuietly=0
 	declare  -i doPromptToContinue=1
-	declare -r  thisVersion="1.0.0-beta2"         ## Put you script's semantic version here.
-	declare -r  thisBuild="1mz1g15"
+	declare -r  thisVersion="1.0.0-beta3"         ## Put you script's semantic version here.
+	declare -r  thisBuild="1mzfd9c"
 	declare -r  thisCopyrightYear="2026"           ## Put your copyright date here.
 	declare -r  thisAuthor="Jim Collier"           ## Put your copyright name here.
 	declare -ri atLeastOneArgRequired=0
 	declare -ri doAsSudo=0
 fi
 
-#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## Version, Copyright, About, & Syntax (minified but not obfuscated)
+## Version, copyright, about, syntax (minified but not obfuscated)
+## Note: Echoing rather than HEREDOC is preferrable because - while slower - that's not
+##       an issue in this context, and more importantly, HEREDOC is too hard to manage
+##       indentation, esp. for the fSyntax() section.
+
 fVersion(){ { ((doQuietly)) || ((wasShown_Version)); } && return; wasShown_Version=1;
 	fEcho_Clean "${meName} v${thisVersion} build ${thisBuild}" ;:;}
 
@@ -87,6 +91,7 @@ fSyntax(){  { ((doQuietly)) || ((wasShown_Syntax)); } && return; wasShown_Syntax
 	fEcho_Clean "  --quiet"
 	fEcho_Clean "      [optional]: Be less verbose, and don't prompt user to continue."
 	fEcho_Clean "  --help, --version [or -h, -v]"
+	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "" ;:;}
 
 
@@ -109,6 +114,7 @@ fMain(){
 	readonly allArgsArr
 
 	## Resolve paths
+	fResolvePath  dirPath_Base                                 "${dirPath_Base}"                                   ; readonly dirPath_Base
 	fResolvePath  dirPath_Source                               "${dirPath_Source}"                                 ; readonly dirPath_Source
 	fResolvePath  filePath_CICD_TestExec                       "${filePath_CICD_TestExec}"                         ; readonly filePath_CICD_TestExec
 	fResolvePath  gitAutomationScript                          "${gitAutomationScript}"                            ; readonly gitAutomationScript
@@ -117,7 +123,7 @@ fMain(){
 	fResolvePath  filePath_Exec_Zip_Win_x86_64                 "${filePath_Exec_Zip_Win_x86_64}"                 0 ; readonly filePath_Exec_Zip_Win_x86_64
 
 	## Validate
-	[[ -d "${meDir}"                   ]]  ||  fThrowError "Path not found: '${meDir}'"
+	[[ -d "${dirPath_Base}"            ]]  ||  fThrowError "Path not found: '${dirPath_Base}'"
 	[[ -d "${dirPath_Source}"          ]]  ||  fThrowError "Path not found: '${dirPath_Source}'"
 	[[ -f "${filePath_CICD_TestExec}"  ]]  ||  fThrowError "File not found: '${filePath_CICD_TestExec}'"
 	[[ -n "${gitAutomationScript}"     ]]  ||  fThrowError "Git automation script not found where specified or in path: '${gitAutomationScript}'."
@@ -142,7 +148,7 @@ fMain(){
 	#### MAKEITSO
 	####
 
-	cd "${meDir}/.."
+	cd "${dirPath_Base}"
 	pushd "${dirPath_Source}" 1>/dev/null
 
 	if ((isCompileProject)); then
@@ -636,3 +642,4 @@ fi
 ##		- 20260420 JC: Created.
 ##		- 20260421 JC: Finished.
 ##		- 20260428 JC: Added extracting Windows exe from zip, to list of dir candidates.
+##		- 20260503 JC: Added explicit $dirPath_Base variable, and 'cd'ing to it.

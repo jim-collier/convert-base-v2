@@ -116,7 +116,7 @@ fAddAsAliasWithPermutations(){
 #### Define bases as they exist in go program to test
 
 ## Constants
-declare -ri alsoAddToOutputArr=1
+declare -ri alsoAddToInputArr=1
 declare -ri noV1b=0
 declare -ri alsoV1b=1
 
@@ -128,34 +128,34 @@ declare  -A bases_Input_KeyToVal=()  ; declare -A bases_Input_KeyToIdx=()   ; de
 
 ## 2
 	declare -ra base2=($(echo {0..1}))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "2"  base2
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "2"  base2
 #	baseAliasesArr+=("deux")
 
 ## 8
 	declare -ra base8=($(echo {0..7}))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "8"  base8
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "8"  base8
 	baseAliasesArr+=("oct")
 	baseAliasesArr+=("octal")
 
 ## 10
 	declare -ra base10=($(echo {0..9}))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "10"  base10
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "10"  base10
 	baseAliasesArr+=("dec")
 	baseAliasesArr+=("decimal")
 
 ## 16
 	declare -ra base16=($(echo {0..9} {A..F}))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "16"  base16
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "16"  base16
 	baseAliasesArr+=("hex")
 	baseAliasesArr+=("hexadecimal")
 
 ## 26
 	declare -ra base26=($(echo {A..Z}))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "26"  base26
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "26"  base26
 
 ## 32r
 	declare -ra base32r=($(echo {A..Z} {2..7}))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "32r"  base32r
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "32r"  base32r
 	fAddAsAliasWithPermutations  32
 	fAddAsAliasWithPermutations  "32rfc"
 	fAddAsAliasWithPermutations  "32rfc4648s6"
@@ -163,21 +163,21 @@ declare  -A bases_Input_KeyToVal=()  ; declare -A bases_Input_KeyToIdx=()   ; de
 
 ## 32h
 	declare -ra base32h=($(echo {0..9} {A..V}))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "32h"  base32h
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "32h"  base32h
 	fAddAsAliasWithPermutations  "32hex"
 	fAddAsAliasWithPermutations  "32rfc4648s7"
 	baseAliasesArr+=("rfc4648s7")
 
 ## 32c
 	declare -ra base32c=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H J K M N P Q R S T V W X Y Z)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "32c"  base32c
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "32c"  base32c
 	fAddAsAliasWithPermutations  "32crock"
 	fAddAsAliasWithPermutations  "32crockford"
 	baseAliasesArr+=("crockford")
 
 ## 32w
 	declare -ra base32w=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "32w"  base32w
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "32w"  base32w
 	fAddAsAliasWithPermutations  "32ws"
 	fAddAsAliasWithPermutations  "32wordsafe"
 	fAddAsAliasWithPermutations  "32g"
@@ -186,26 +186,26 @@ declare  -A bases_Input_KeyToVal=()  ; declare -A bases_Input_KeyToIdx=()   ; de
 
 ## 36
 	declare -ra base36=($(echo {0..9} {A..Z}))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "36"  base36
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "36"  base36
 
 ## 38hostname
 	declare -ra base38hostname=($(echo {0..9} {a..z} "- ."))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "38hostname"  base38hostname
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "38hostname"  base38hostname
 	fAddAsAliasWithPermutations  "38jc1"
 
 ## 39username
 	declare -ra base39username=($(echo {0..9} {a..z} "- _ ."))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "39username"  base39username
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "39username"  base39username
 	fAddAsAliasWithPermutations  "39jc1"
 
 ## 45email
 	declare -ra base45email=($(echo {0..9} {a..z} "- _ % + . : @ [ ]"))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "45email"  base45email
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "45email"  base45email
 	fAddAsAliasWithPermutations  "45jc1"
 
 ## 48jc1ws
 	declare -ra base48jc1ws=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "48jc1ws"  base48jc1ws
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "48jc1ws"  base48jc1ws
 	fAddAsAliasWithPermutations  "48w"
 	fAddAsAliasWithPermutations  "48ws"
 	fAddAsAliasWithPermutations  "48wordsafe"
@@ -213,21 +213,21 @@ declare  -A bases_Input_KeyToVal=()  ; declare -A bases_Input_KeyToIdx=()   ; de
 
 ## 48v1compat
 	declare -ra base48v1compat=(0 1 2 3 4 5 6 7 8 9 c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "48v1compat"  base48v1compat
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "48v1compat"  base48v1compat
 	fAddAsAliasWithPermutations  "48depr"
 	fAddAsAliasWithPermutations  "48j1"
 
 ## 52
 	declare -ra base52=($(echo {A..Z} {a..z}))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "52"  base52
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "52"  base52
 
 ## 62
 	declare -ra base62=($(echo {0..9} {A..Z} {a..z}))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "62"  base62
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "62"  base62
 
 ## 64r
 	declare -ra base64r=($(echo {A..Z} {a..z} {0..9} "+ /"))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64r"  base64r
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "64r"  base64r
 	fAddAsAliasWithPermutations  64
 	fAddAsAliasWithPermutations  "64rfc"
 	fAddAsAliasWithPermutations  "64rfc4648s4"
@@ -235,24 +235,24 @@ declare  -A bases_Input_KeyToVal=()  ; declare -A bases_Input_KeyToIdx=()   ; de
 
 ## 64u
 	declare -ra base64u=($(echo {A..Z} {a..z} {0..9} "- _"))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64u"  base64u
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "64u"  base64u
 	fAddAsAliasWithPermutations  "64url"
 	fAddAsAliasWithPermutations  "64rfc4648s5"
 	baseAliasesArr+=("rfc4648s5")
 
 ## 64h
 	declare -ra base64h=($(echo {0..9} {A..Z} {a..z} "- _"))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64h"  base64h
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "64h"  base64h
 	fAddAsAliasWithPermutations  "64hex"
 
 ## 64jc1
 	declare -ra base64jc1=($(echo {0..9} {A..Z} {a..z} "ʞ λ"))
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64jc1"  base64jc1
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "64jc1"  base64jc1
 	fAddAsAliasWithPermutations  "64j1u"
 
 ## 64jc1ws
 	declare -ra base64jc1ws=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64jc1ws"  base64jc1ws
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "64jc1ws"  base64jc1ws
 	fAddAsAliasWithPermutations  "64w"
 	fAddAsAliasWithPermutations  "64ws"
 	fAddAsAliasWithPermutations  "64wordsafe"
@@ -260,17 +260,17 @@ declare  -A bases_Input_KeyToVal=()  ; declare -A bases_Input_KeyToIdx=()   ; de
 
 ## 64v1compat
 	declare -ra base64v1compat=(0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "64v1compat"  base64v1compat
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "64v1compat"  base64v1compat
 	fAddAsAliasWithPermutations  "64depr"
 	fAddAsAliasWithPermutations  "64j1uw"
 
 ## 128jc1
 	declare -ra base128jc1=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "128jc1"  base128jc1
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "128jc1"  base128jc1
 
 ## 128jc1ws
 	declare -ra base128jc1ws=(2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "128jc1ws"  base128jc1ws
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "128jc1ws"  base128jc1ws
 	fAddAsAliasWithPermutations  "128w"
 	fAddAsAliasWithPermutations  "128ws"
 	fAddAsAliasWithPermutations  "128wordsafe"
@@ -278,17 +278,17 @@ declare  -A bases_Input_KeyToVal=()  ; declare -A bases_Input_KeyToIdx=()   ; de
 
 ## 128v1compat
 	declare -ra base128v1compat=(0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Ĵ Ŝ Ŵ Ŷ â ĉ ê ĝ ĥ ĵ ŝ ŵ ŷ Ã Ẽ Ñ Ỹ ã ẽ ñ ỹ Ä Ë Ẅ Ẍ Ÿ ä ë ẅ ẍ ÿ Á Ć É)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "128v1compat"  base128v1compat
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "128v1compat"  base128v1compat
 	fAddAsAliasWithPermutations  "128depr"
 
 ## 256jc1
 	declare -ra base256jc1=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "256jc1"  base256jc1
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "256jc1"  base256jc1
 	fAddAsAliasWithPermutations  "256j1"
 
 ## 288jc1
 	declare -ra base288jc1=(0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ ゲ サ じ す ス せ ち づ で ネ ビ べ ぺ ま モ ゟ ヲ ½ ⅓ ⅔ ¼ ¾ ⅕ ⅖ ⅗ ⅘ ⅙ ⅚ ⅛ ⅜ ⅝ ⅞)
-	fAddBase_To_Arrs  $alsoAddToOutputArr  $alsoV1b  "288jc1"       base288jc1
+	fAddBase_To_Arrs  $alsoAddToInputArr  $alsoV1b  "288jc1"       base288jc1
 	fAddAsAliasWithPermutations  "288j1"
 
 
