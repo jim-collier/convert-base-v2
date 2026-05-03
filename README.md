@@ -7,9 +7,9 @@
 
 ![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)
 ![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)
-![Lifecycle: RC](https://img.shields.io/badge/Lifecycle-RC-blue)
+![Lifecycle: Beta](https://img.shields.io/badge/Lifecycle-Beta-yellow)
 ![Support](https://img.shields.io/badge/Support-Maintained-brightgreen)
-![Status: Failing](https://img.shields.io/badge/Status-Failing-red)
+![Status: Passing](https://img.shields.io/badge/Status-Passing-brightgreen)
 
 </div>
 <!--
@@ -95,15 +95,13 @@ _Note: The command `convert-base-v2` has a version number on the end, to disting
 
 ## Status
 
-- [v1.0.0-rc3](https://github.com/jim-collier/convert-base-v2/releases/tag/v1.0.0-rc3) works great for almost everything, except for:
+- [v1.0.0-rc4](https://github.com/jim-collier/convert-base-v2/releases/tag/v1.0.0-rc4) works great for almost everything, except for:
 
-	- Streaming binary conversions: This is a rare edge use-case for a number-converter application, that you have to go out of your way to do and have a good reason. If the data is not aligned to the base, the program will intentionally error to avoid dropping significant digits. A future fix will pad with placeholders if not byte-aligned.
-
-		The v1 of this tool didn't even support this and isn't an inherent mode of most "base converters". When data is not aligned on byte boundaries, silent data loss will result.
+	- Streaming binary conversions: This is a rare edge use-case for a number-converter application, that you have to go out of your way to do and have a good reason. If the data is not aligned to the base, the program will intentionally error, to avoid dropping significant digits. (Previously it would just quietly drop significant digits.) A future update will pad with placeholders if not byte-aligned, so that any binary data, byte-aligned or not, can be converted.
 
 	- Floating-point: Another rare edge use-case. For decimal places less than 50, the result will get stretched out to 50 places. Sometimes with inherent floating-point imprecision. There is no loss of data to the original value, there's just "hallucinated" precision that wasn't there before. Future versions will limit precision to what was given. Most uses of base converters are for integers.
 
-		The data isn't "wrong", just usually too precise.
+		The data isn't "wrong", it just shows meaningless if not misleading "precision".
 
 ## Limitations
 
@@ -243,8 +241,11 @@ Unicode listings:
 
 ## Document history
 
-- 2026-04-17: First version.
+- 2026-05-03:
+	- Fixed incorrect lifecycle and status badges.
+	- Minor corrections.
 - 2026-04-22: Added list of unicode characters used.
+- 2026-04-17: First version.
 
 ## Copyright and license
 
