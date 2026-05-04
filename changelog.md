@@ -8,15 +8,15 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v1.1.0-beta4 (unreleased) - WIP
+## v1.1.0-beta4 - 2026-05-03
 
 ### Changed
 
-- Fixed a bug that only affects backwards-compatibility, which are already discouraged to be used in help and README. [20250428]
+- Fixed a bug that only affects backwards-compatibility, which are already discouraged to be used in help and README. [20260428]
 
 ### Other work
 
-- Added CI/CD scripts. [20250428]
+- Added CI/CD scripts. [20260428]
 
 - Minor tweaks to `cicd.sh` to make paths more explicit and hopefully less prone to future errors. [20250503]
 
