@@ -8,25 +8,21 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## v1.0.0-rc5 (unreleased) - 2025-05-03
-
-### Other work
-
-- Minor tweaks to `cicd.sh` to make paths more explicit and hopefully less prone to future errors.
-
-- Minor updates to this file be more "changelog idiomatic".
-
-- Minor corrections to README.md, including lifecycle and status badges.
-
-## v1.0.0-rc4 (unreleased) - 2025-04-28
+## v1.1.0-beta4 (unreleased) - WIP
 
 ### Changed
 
-- Fixed a bug that only affects backwards-compatibility, which are already discouraged to be used in help and README.
+- Fixed a bug that only affects backwards-compatibility, which are already discouraged to be used in help and README. [20250428]
 
 ### Other work
 
-- Added CI/CD scripts.
+- Added CI/CD scripts. [20250428]
+
+- Minor tweaks to `cicd.sh` to make paths more explicit and hopefully less prone to future errors. [20250503]
+
+- Minor updates to this file be more "changelog idiomatic". [20250503]
+
+- Minor corrections to README.md, including lifecycle and status badges. [20250503]
 
 ## v1.0.0-rc3 - 2025-04-19
 
