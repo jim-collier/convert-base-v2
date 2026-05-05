@@ -79,7 +79,6 @@ _Note: The command `convert-base-v2` has a version number on the end, to disting
 
 <!-- TOC ignore:true -->
 ## Table of contents
-
 <!-- TOC -->
 
 - [Status](#status)
