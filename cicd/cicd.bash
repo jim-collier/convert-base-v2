@@ -39,7 +39,7 @@ if [[ -z "${doQuietly+x}" ]]; then
 	declare     filePath_ExecToTestAndInstall_FinalHome="${dirPath_Source}/bin/${exeName}"
 	declare     filePath_Exec_Zip_Win_x86_64="${dirPath_Source}/dist/${exeName}-windows-x86_64.zip"
 	declare     filePath_CICD_TestExec="${dirPath_Base}/cicd/test.sh"
-	declare     gitAutomationScript="${dirPath_Base}/utility/n8git_backup-and-publish"
+	declare     gitAutomationScript="utility/n8git_backup-and-publish"
 	declare -ra preferredInstallPaths_Linux_x86_64=("${HOME}/synced/0-0/common/exec/util/linux/bin"  "/usr/local/sbin/")  ## First one that exists, wins
 	declare -ra preferredInstallPaths_Winx86_x86_64=("${HOME}/synced/0-0/common/exec/util/mswin/cli/by-self/win64"  "${HOME}/synced/0-0/common/exec/util/win/win64jc")  ## First one that exists, wins
 
