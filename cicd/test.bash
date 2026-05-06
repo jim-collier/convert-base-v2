@@ -44,10 +44,10 @@ fi
 
 fMain(){
 
-	## Settings
+	## Settings (paths are canonicalized and validated relative to this script)
 	local     exeV2="../source/bin/convert-base-v2"
-	local     exeV1b="../utility/convert-base-v1b"
-	local     baseDefs="base-definitions.sh"
+	local     exeV1b="utility/convert-base-v1b"
+	local     baseDefs="include/base-definitions.sh"
 
 	## Environment overrides
 	local     LANG="C.UTF-8"  ## Splitting won't work correctly without this
@@ -494,7 +494,7 @@ fi
 cd "${meDir_t4rgd}"
 
 ## Source the generic script 'utility/n8lib_test'. It will call fMain() above.
-declare n8test_resolved="../utility/include/n8lib_test"
+declare n8test_resolved="utility/include/n8lib_test"
 fResolvePath  n8test_resolved  "${n8test_resolved}" ; readonly n8test_resolved
 #echo "n8test_resolved: '${n8test_resolved}'"; exit
 source "${n8test_resolved}"
