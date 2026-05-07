@@ -6,10 +6,7 @@ Purpose:
 	Each block becomes one or more rows with ~128-256 chars each (preferring 256).
 	Usage: ./generate_unicode_csv.py [output.csv]
 
-Written by Anthropic Claude Opus 4.7 Adaptive 2026-04-26, but
-Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ) according to
-	https://www.anthropic.com/legal/consumer-terms
-
+Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
 Licensed under the GNU General Public License v2.0 or later. Full text at:
 	https://spdx.org/licenses/GPL-2.0-or-later.html
 SPDX-License-Identifier: GPL-2.0-or-later
