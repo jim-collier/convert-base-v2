@@ -3,7 +3,7 @@
 fMain(){
 
 	## Settings
-	local pyScript="include/filter_visual.py"
+	local pyScript="include/filter_3_visual.py"
 	pyScript="$(dirname "${BASH_SOURCE[0]}")/${pyScript}"
 	pyScript="$(realpath -e "${pyScript}")"
 	readonly pyScript
