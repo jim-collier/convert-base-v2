@@ -3,7 +3,7 @@
 fMain(){
 
 	## Settings
-	local pyScript="include/filter_out_unicode_junk.py"
+	local pyScript="include/filter_junk.py"
 	pyScript="$(dirname "${BASH_SOURCE[0]}")/${pyScript}"
 	pyScript="$(realpath -e "${pyScript}")"
 	readonly pyScript
