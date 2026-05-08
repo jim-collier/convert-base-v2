@@ -86,6 +86,11 @@ HARDCODED_EXCLUSIONS = {
 	0x1E94B, # 𞥋 ADLAM NASALIZATION MARK
 }
 
+# ASCII symbols that are always excluded
+ASCII_EXCLUDED_SYMBOLS = {
+	ord(c) for c in '$*/?\'"<>|#%&\\^`~'  ## $*<>|&^#`~ are problematic in various shells. *^\ illegal in Windows FS. : illegal in macOS FS. \ illegal in Linux FS. <>| illegal in all FSs.
+}
+
 # Name-based exclusion keywords (Lm/Sk/Lo only, confirmed no false positives)
 NAME_EXCLUSION_KEYWORDS = [
 	'TONE MARK',
@@ -113,6 +118,7 @@ NAME_EXCLUSION_EXCEPTIONS = {
 
 def is_mark(c): return unicodedata.category(c).startswith('M')
 def is_format(c): return unicodedata.category(c) == 'Cf'
+def is_rtl(c): return unicodedata.bidirectional(c) in ('R', 'AL', 'AN')
 
 def is_name_excluded(c):
 	cp = ord(c)
@@ -130,24 +136,15 @@ def extract(text):
 		cp = ord(char)
 		if is_mark(char): continue
 		if is_format(char): continue
+		if is_rtl(char): continue
 		if cp in HARDCODED_EXCLUSIONS: continue
+		if cp in ASCII_EXCLUDED_SYMBOLS: continue
 		if is_name_excluded(char): continue
 		nfd = unicodedata.normalize('NFD', char)
-		if len(nfd) > 1:
-			if all(is_mark(c) for c in nfd[1:]):
-				if cp not in seen:
-					seen.add(cp); result.append(char)
-			else:
-				for c in nfd:
-					if is_mark(c) or is_format(c): continue
-					cp2 = ord(c)
-					if cp2 in HARDCODED_EXCLUSIONS: continue
-					if is_name_excluded(c): continue
-					if cp2 not in seen:
-						seen.add(cp2); result.append(c)
-		else:
-			if cp not in seen:
-				seen.add(cp); result.append(char)
+		if len(nfd) > 1 and not all(is_mark(c) for c in nfd[1:]):
+			continue
+		if cp not in seen:
+			seen.add(cp); result.append(char)
 	return ' '.join(result)
 
 if __name__ == '__main__':

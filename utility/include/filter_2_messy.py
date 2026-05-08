@@ -13,142 +13,287 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 import unicodedata
 import sys
+import re
 
-HARDCODED_EXCLUSIONS = {
-	# Spacing Modifier Letters — diacritic clones / phonological
-	0x02B0,0x02B1,0x02B2,0x02B3,0x02B4,0x02B5,0x02B6,0x02B7,0x02B8,
-	0x02B9,0x02BA,0x02BB,0x02BC,0x02BD,0x02BE,0x02BF,
-	0x02C0,0x02C1,0x02C6,0x02C7,
-	0x02C8,0x02C9,0x02CA,0x02CB,0x02CC,0x02CD,0x02CE,0x02CF,
-	0x02D0,0x02D1,0x02D8,0x02D9,0x02DA,0x02DB,0x02DC,0x02DD,0x02DE,
-	0x02E0,0x02E1,0x02E2,0x02E3,0x02E4,0x02EA,0x02EB,0x02EC,0x02ED,
-	0x02EE,0x02EF,0x02F0,0x02F1,0x02F2,0x02F3,0x02F4,0x02F5,0x02F6,
-	0x02F7,0x02F8,0x02F9,0x02FA,0x02FB,0x02FC,0x02FD,0x02FE,0x02FF,
-	# Greek
-	0x0374,  # ʹ GREEK NUMERAL SIGN — small tick
-	0x0375,  # ͵ GREEK LOWER NUMERAL SIGN
-	0x037A,  # ͺ GREEK YPOGEGRAMMENI
-	0x0384,  # ΄ GREEK TONOS
-	0x0385,  # ΅ GREEK DIALYTIKA TONOS
-	# Latin-1 spacing diacritic clones
-	0x00A8,  # ¨ DIAERESIS
-	0x00AF,  # ¯ MACRON
-	0x00B4,  # ´ ACUTE ACCENT
-	0x00B8,  # ¸ CEDILLA
-	# Armenian
-	0x0559,  # ՙ ARMENIAN MODIFIER LETTER LEFT HALF RING
-	# Arabic dependent/elongation
-	0x0640,  # ـ ARABIC TATWEEL
-	0x06E5,  # ۥ ARABIC SMALL WAW
-	0x06E6,  # ۦ ARABIC SMALL YEH
-	0x08C9,  # ‎ ARABIC SMALL FARSI YEH
-	# Samaritan dependent vowels
-	0x081A,  # SAMARITAN MODIFIER LETTER EPENTHETIC YUT
-	0x0824,  # SAMARITAN MODIFIER LETTER SHORT A
-	0x0828,  # SAMARITAN MODIFIER LETTER I
-	# Devanagari
-	0x0971,  # ॱ DEVANAGARI SIGN HIGH SPACING DOT
-	# NKo
-	0x07F4,  # ߴ NKO HIGH TONE APOSTROPHE
-	0x07F5,  # ߵ NKO LOW TONE APOSTROPHE
-	0x07FA,  # ߺ NKO LAJANYALAN
-	# Mongolian
-	0x1843,  # ᡃ MONGOLIAN LETTER TODO LONG VOWEL SIGN
-	# Vai
-	0xA60C,  # ꘌ VAI SYLLABLE LENGTHENER
-	# Javanese
-	0xA9CF,  # ꧏ JAVANESE PANGRANGKEP
-	# Myanmar
-	0xA9E6,  # ꧦ MYANMAR MODIFIER LETTER SHAN REDUPLICATION
-	0xAA70,  # ꩰ MYANMAR MODIFIER LETTER KHAMTI REDUPLICATION
-	# Tai Viet
-	0xAADD,  # ꫝ TAI VIET SYMBOL SAM
-	# Meetei Mayek
-	0xAAF3,  # ꫳ MEETEI MAYEK SYLLABLE REPETITION MARK
-	0xAAF4,  # ꫴ MEETEI MAYEK WORD REPETITION MARK
-	# Tifinagh
-	0x2D6F,  # ⵯ TIFINAGH MODIFIER LETTER LABIALIZATION MARK
-	# Cyrillic dependent
-	0xA67F,  # ꙿ CYRILLIC PAYEROK
-	0xA69C,  # ꚜ MODIFIER LETTER CYRILLIC HARD SIGN
-	0xA69D,  # ꚝ MODIFIER LETTER CYRILLIC SOFT SIGN
-	# Latin diacritic clones
-	0x2E2F,  # ⸯ VERTICAL TILDE
-	0xA788,  # ꞈ MODIFIER LETTER LOW CIRCUMFLEX ACCENT
-	# Halfwidth elongation
-	0xFF70,  # ｰ HALFWIDTH KATAKANA-HIRAGANA PROLONGED SOUND MARK
-	0xFF9E,  # ﾞ HALFWIDTH KATAKANA VOICED SOUND MARK
-	0xFF9F,  # ﾟ HALFWIDTH KATAKANA SEMI-VOICED SOUND MARK
-	# Nag Mundari
-	0x1E4EB, # 𞓫 NAG MUNDARI SIGN OJOD
-	# Adlam
-	0x1E94B, # 𞥋 ADLAM NASALIZATION MARK
-}
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
-# Name-based exclusion keywords (Lm/Sk/Lo only, confirmed no false positives)
-NAME_EXCLUSION_KEYWORDS = [
-	'TONE MARK',
-	'VIRAMA',
-	'ANUSVARA',
-	'VISARGA',
-	'AVAGRAHA',
-	'SUBJOINED',
-	'VOWEL SIGN',
-	'MEDIAL FORM',
-	'TONE BAR',
-	'REPH',
-	'REPHA',
-	'FILLER',
+def _is_wide(c):
+	return unicodedata.east_asian_width(c) in ('W', 'F')
+
+def _parse_chars(text):
+	chars = []
+	for token in text.split():
+		for c in token:
+			if c in chars:
+				continue
+			cat = unicodedata.category(c)
+			# Skip combining marks (M*) and nonprinting space-like (Zs/Zl/Zp/Cf)
+			if cat.startswith('M') or cat in ('Zs', 'Zl', 'Zp', 'Cf'):
+				continue
+			cp = ord(c)
+			if cp > 127:
+				nfkd = unicodedata.normalize('NFKD', c)
+				# Non-ASCII that decomposes to multiple chars → combined, drop it
+				if len(nfkd) > 1:
+					continue
+				# Non-ASCII that decomposes to ASCII → masquerading, drop it
+				if ord(nfkd) < 128:
+					continue
+			chars.append(c)
+	return chars
+
+# ── Section 1: Universal filters (all characters) ────────────────────────────
+
+_RE_O_LIKE = re.compile(r'\bLETTER O\b|\bLETTER\b.*\bO$|\bOMICRON\b|\bLETTER OH\b')
+
+def _is_o_like(name, cp):
+	if cp < 128: return False
+	return bool(_RE_O_LIKE.search(name))
+
+def _is_number_like(name, cat, cp):
+	if cp < 128: return False
+	if cat in ('Nd', 'No'): return True
+	if re.search(r'\bDIGIT\b|\bNUMBER\b|\bFRACTION\b', name): return True
+	if 'TELEGRAPH SYMBOL FOR' in name: return True
+	return False
+
+# ── Section 2: Non-wide filters ──────────────────────────────────────────────
+
+def _has_diacritic_name(name):
+	idx = name.find(' WITH ')
+	if idx < 0: return False
+	after = name[idx + 6:]
+	if after.startswith('STROKE') or after.startswith('STRIKETHROUGH'):
+		return False
+	return True
+
+def _is_barred(name):
+	for kw in ('WITH STROKE', 'BARRED', 'CROSSED', 'WITH STRIKETHROUGH', 'WITH SLASH'):
+		if kw in name:
+			if kw == 'WITH SLASH' and 'FRACTION SLASH' in name:
+				continue
+			return True
+	return False
+
+_RE_LIGATURE_NAME = re.compile(r'LIGATURE|DIGRAPH|\bAE\b|\bOE\b|\bOI\b|\bOU\b')
+
+def _is_ligature(c, name):
+	if _RE_LIGATURE_NAME.search(name):
+		return True
+	# NFKD decomposition into 2+ base letters = multi-letter combo (LJ, NJ, DZ, etc.)
+	nfkd = unicodedata.normalize('NFKD', c)
+	base_count = sum(1 for x in nfkd if unicodedata.category(x).startswith('L'))
+	if base_count >= 2:
+		return True
+	return False
+
+def _is_vertical_line(name, cp):
+	if cp < 128: return False
+	return 'VERTICAL LINE' in name or 'VERTICAL BAR' in name
+
+def _is_horizontal_line(name, cp):
+	if cp < 128: return False
+	for kw in ('HORIZONTAL BAR', 'HORIZONTAL LINE', 'EM DASH', 'EN DASH',
+			   'FIGURE DASH', 'QUOTATION DASH'):
+		if kw in name:
+			return True
+	return False
+
+def _is_plain_dot(name, cp):
+	if 0x2000 <= cp <= 0x206F: return False  # General Punctuation block exempt
+	for kw in ('MIDDLE DOT', 'BULLET', 'DOT OPERATOR', 'INTERPUNCT'):
+		if kw in name:
+			return True
+	return False
+
+_RE_DOT_GROUP = re.compile(r'ELLIPSIS|TWO DOT|THREE DOT|FOUR DOT|FIVE DOT|SIX DOT')
+
+def _is_dot_group(name, cp):
+	if 0x2000 <= cp <= 0x206F: return False  # General Punctuation block exempt
+	return bool(_RE_DOT_GROUP.search(name))
+
+# Emoji-like blocks (color/graphical emoji, not general symbols)
+_EMOJI_BLOCKS = [
+	(0x1F300, 0x1F5FF),  # Misc Symbols and Pictographs
+	(0x1F600, 0x1F64F),  # Emoticons
+	(0x1F650, 0x1F67F),  # Ornamental Dingbats
+	(0x1F680, 0x1F6FF),  # Transport and Map
+	(0x1F900, 0x1F9FF),  # Supplemental Symbols and Pictographs
+	(0x1FA00, 0x1FA6F),  # Chess Symbols
+	(0x1FA70, 0x1FAFF),  # Symbols and Pictographs Extended-A
 ]
 
-# Exceptions to name-based exclusion — retained as independent characters
-NAME_EXCLUSION_EXCEPTIONS = {
-	0x02E5,  # ˥ MODIFIER LETTER EXTRA-HIGH TONE BAR  }
-	0x02E6,  # ˦ MODIFIER LETTER HIGH TONE BAR		 } Chao
-	0x02E7,  # ˧ MODIFIER LETTER MID TONE BAR		  } tone
-	0x02E8,  # ˨ MODIFIER LETTER LOW TONE BAR		  } letters
-	0x02E9,  # ˩ MODIFIER LETTER EXTRA-LOW TONE BAR	}
-}
+# Name keywords that indicate emoji/graphical colored characters
+_EMOJI_NAME_KEYWORDS = [
+	'EMOJI', 'EMOTICON', 'PICTOGRAPH',
+]
 
-def is_mark(c): return unicodedata.category(c).startswith('M')
-def is_format(c): return unicodedata.category(c) == 'Cf'
+def _is_emoji_like(name, cat, cp):
+	for lo, hi in _EMOJI_BLOCKS:
+		if lo <= cp <= hi:
+			return True
+	if any(kw in name for kw in _EMOJI_NAME_KEYWORDS):
+		return True
+	return False
 
-def is_name_excluded(c):
-	cp = ord(c)
-	if cp in NAME_EXCLUSION_EXCEPTIONS: return False
-	cat = unicodedata.category(c)
-	if cat not in ('Lm', 'Sk', 'Lo'): return False
+def _is_bitmap_symbol(name, cp):
+	if 0x2500 <= cp <= 0x257F: return True  # Box Drawing
+	if 0x2580 <= cp <= 0x259F: return True  # Block Elements
+	if 0x2800 <= cp <= 0x28FF: return True  # Braille
+	for kw in ('BRAILLE', 'SHADE', 'QUADRANT', 'SEXTANT', 'OCTANT'):
+		if kw in name:
+			return True
+	return False
+
+def _is_tofu_like(name):
+	return 'WHITE SQUARE' in name or 'WHITE RECTANGLE' in name
+
+# Math symbol blocks (keep Sm chars in these)
+_MATH_BLOCKS = [
+	(0x0000, 0x007F),   # ASCII
+	(0x2200, 0x22FF),   # Mathematical Operators
+	(0x27C0, 0x27EF),   # Misc Mathematical Symbols-A
+	(0x2980, 0x29FF),   # Misc Mathematical Symbols-B
+	(0x2A00, 0x2AFF),   # Supplemental Mathematical Operators
+	(0x1D400, 0x1D7FF), # Mathematical Alphanumeric Symbols
+]
+
+def _is_stray_math(cat, cp):
+	if cat != 'Sm': return False
+	if cp < 128: return False
+	for lo, hi in _MATH_BLOCKS:
+		if lo <= cp <= hi:
+			return False
+	return True
+
+# ── Post-pass: dedup adjacent near-identical ──────────────────────────────────
+
+_STRIP_QUALIFIERS = re.compile(
+	r'\b(?:BLACK|WHITE|HEAVY|LIGHT|MEDIUM|DOUBLE|TRIPLE|'
+	r'SMALL|LARGE|BIG|TALL|WIDE|NARROW|'
+	r'LEFT|RIGHT|UP|DOWN|UPPER|LOWER|'
+	r'OPEN|CLOSED|FILLED|OUTLINE|'
+	r'NORTH|SOUTH|EAST|WEST)\b'
+)
+
+def _canonical_name(c):
 	name = unicodedata.name(c, '')
-	return any(kw in name for kw in NAME_EXCLUSION_KEYWORDS)
+	return _STRIP_QUALIFIERS.sub('', name).strip()
+
+def _dedup_similar_adjacent(chars):
+	if not chars: return chars
+	result = [chars[0]]
+	prev_canon = _canonical_name(chars[0])
+	for c in chars[1:]:
+		canon = _canonical_name(c)
+		if canon and canon == prev_canon and ord(c) > 127 and not _is_wide(c):
+			continue  # skip near-duplicate
+		result.append(c)
+		prev_canon = canon
+	return result
+
+# ── Core API ──────────────────────────────────────────────────────────────────
 
 def extract(text):
-	seen = set()
+	chars = _parse_chars(text)
+	if not chars:
+		return ''
+
 	result = []
-	for char in unicodedata.normalize('NFC', text):
-		if unicodedata.category(char) in ('Zs', 'Zl', 'Zp'): continue
-		cp = ord(char)
-		if is_mark(char): continue
-		if is_format(char): continue
-		if cp in HARDCODED_EXCLUSIONS: continue
-		if is_name_excluded(char): continue
-		nfd = unicodedata.normalize('NFD', char)
-		if len(nfd) > 1:
-			if all(is_mark(c) for c in nfd[1:]):
-				if cp not in seen:
-					seen.add(cp); result.append(char)
-			else:
-				for c in nfd:
-					if is_mark(c) or is_format(c): continue
-					cp2 = ord(c)
-					if cp2 in HARDCODED_EXCLUSIONS: continue
-					if is_name_excluded(c): continue
-					if cp2 not in seen:
-						seen.add(cp2); result.append(c)
-		else:
-			if cp not in seen:
-				seen.add(cp); result.append(char)
+	for c in chars:
+		cp = ord(c)
+		name = unicodedata.name(c, '')
+		cat = unicodedata.category(c)
+		wide = _is_wide(c)
+
+		# ASCII: only keep alphanumerics
+		if cp < 128:
+			if not c.isalnum():
+				continue
+			result.append(c)
+			continue
+
+		# Section 1: Universal
+		if _is_o_like(name, cp): continue
+		if _is_number_like(name, cat, cp): continue
+		if _is_emoji_like(name, cat, cp): continue
+
+		# Section 2: Non-wide only
+		if not wide:
+			if _has_diacritic_name(name): continue
+			if _is_barred(name): continue
+			if _is_ligature(c, name): continue
+			if _is_vertical_line(name, cp): continue
+			if _is_horizontal_line(name, cp): continue
+			if _is_plain_dot(name, cp): continue
+			if _is_dot_group(name, cp): continue
+			if _is_bitmap_symbol(name, cp): continue
+			if _is_tofu_like(name): continue
+			if _is_stray_math(cat, cp): continue
+
+		result.append(c)
+
+	# Post-pass: drop non-ASCII uppercase when its lowercase is also present
+	lowercase_cps = {ord(c.lower()) for c in result if ord(c) > 127 and c.lower() != c}
+	result = [c for c in result if ord(c) < 128 or c.lower() == c or ord(c.lower()) not in lowercase_cps]
+
+	# Post-pass: drop stray ASCII among non-ASCII neighbors
+	# If both neighbors exist, both must be non-ASCII; at edges, the one neighbor must be non-ASCII
+	filtered = []
+	for i, c in enumerate(result):
+		if ord(c) < 128:
+			has_prev = i > 0
+			has_next = i < len(result) - 1
+			prev_non_ascii = has_prev and ord(result[i - 1]) > 127
+			next_non_ascii = has_next and ord(result[i + 1]) > 127
+			if has_prev and has_next:
+				if prev_non_ascii and next_non_ascii:
+					continue
+			elif has_prev and prev_non_ascii:
+				continue
+			elif has_next and next_non_ascii:
+				continue
+		filtered.append(c)
+	result = filtered
+
+	# Post-pass: dedup adjacent near-identical
+	result = _dedup_similar_adjacent(result)
+
 	return ' '.join(result)
+
+# ── CLI ───────────────────────────────────────────────────────────────────────
 
 if __name__ == '__main__':
 	text = ' '.join(sys.argv[1:]) if len(sys.argv) > 1 else sys.stdin.read().strip()
 	print(extract(text))
+
+
+"""
+Use the same CLI interface, and a simiar Python-importable API as 'filter_1_junk.py' and 'filter_3_visual.py'. Requirements:
+1. For unicode input, which may or may not be delimited with whitespace, filter out characters:
+1.1 Universal:
+	- Anything that looks even a little like a Capital or lowercase letter "O"
+	- Obvious numbers (e.g. numbered balls, fractions, etc.)
+1.2 Except for complex east-asian "wide" characters:
+	- Characters with built-in diacritics
+	- Most middle-barred characters that look "crossed-out"
+	- Things that look like ASCII keyboard symbols
+	- Combined Letters, e.g. "ᴁ"
+	- Glyphs that look like the same horizontally repeated symbol, or different symbols separated horizontally
+	- Straight vertical lines that look like pipe symbol
+	- Straight horizontal lines that look like dash or mdash
+	- Plain middle dots except for symbols code block
+	- Any grouping of just dots
+	- Graphical symbols (e.g. emoji)
+	- Adjacent symbols that look nearly identical (keep the first occurrence)
+	- Nearby symbols in same set that differ only by a tiny extra flourish (keep the simplest)
+	- Bitmap-rendered symbols [this script can't fix]
+	- Real symbols that look like symbols for tofu "can't render"
+	- Math symbols unless in ANSI or a math symbols code block
+	- If an ASCII character is in between two non-ASCII characters, remove it
+	- If a character decomposes to two characters, remove them both
+1.3 Misc
+	- Try not to repeat logic from 'filter_1_junk.py', unless necessary.
+	- Don't repeat the visual system from 'filter_3_visual.py'. Just do the best you can with metadata or online reference.
+	- Don't modify 'filter_1_junk.py' or 'filter_3_visual.py'
+"""

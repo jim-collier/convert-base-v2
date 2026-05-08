@@ -5,9 +5,10 @@ Purpose:
 	Adds or updates existing XML spreadsheet with:
 		- Column with "[py: range]" in the heading: Max 256-character named Unicode range blocks,
 		- Column with "[py: orig]" in the heading: Original printable non-space characters; single-spaced.
-		  in the format "U+[lowest code pointin 'py: orig column']-U+[highest code point in 'py: orig column']"
-		- Column with "[py: filter_junk]" in the heading: Output from 'filter_junk.py', with contents of '[py: orig]' cell as input.
-		- Column with "[py: filter_visual]" in the heading: Output from 'filter_visual.py', with contents of '[py: filter_junk]' cell as input.
+			in the format "U+[lowest code pointin 'py: orig column']-U+[highest code point in 'py: orig column']"
+		- Column with "[py: filter_junk]" in the heading: Output from 'filter_1_junk.py', using contents of '[py: orig]' cell as input.
+		- Column with "[py: filter_messy]" in the heading: Output from 'filter_2_messy.py', using contents of '[py: filter_junk]' cell as input.
+		- Column with "[py: filter_visual]" in the heading: Output from 'filter_3_visual.py', with contents of '[py: filter_messy]' cell as input.
 
 Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
 Licensed under the GNU General Public License v2.0 or later. Full text at:
@@ -19,6 +20,7 @@ import sys
 import os
 import re
 import unicodedata
+from datetime import datetime
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, SCRIPT_DIR)
@@ -29,11 +31,12 @@ from generate_unicode_all_grouped_by_block import (
 	BLOCKS_DATA, parse_blocks, is_printable, split_chunks, fmt_cp, fmt_range, MAX_ROW
 )
 from filter_1_junk import extract as filter_junk_extract
+from filter_2_messy import extract as filter_messy_extract
 from filter_3_visual import extract as filter_visual_extract
 
 XLSX_PATH = os.path.join(SCRIPT_DIR, '..', 'reference', 'unicode_good_base_symbols.xlsx')
 MAX_CODEPOINT = 0x20900
-REQUIRED_TAGS = ['range', 'orig', 'filter_junk', 'filter_visual']
+REQUIRED_TAGS = ['range', 'orig', 'filter_junk', 'filter_messy', 'filter_visual', 'updated']
 
 
 def find_py_columns(ws):
@@ -131,8 +134,10 @@ def main():
 	col_range   = py_cols['range']
 	col_orig    = py_cols['orig']
 	col_junk    = py_cols['filter_junk']
+	col_messy   = py_cols['filter_messy']
 	col_visual  = py_cols['filter_visual']
-	print(f"Columns: range={col_range}, orig={col_orig}, filter_junk={col_junk}, filter_visual={col_visual}", file=sys.stderr)
+	col_updated = py_cols['updated']
+	print(f"Columns: range={col_range}, orig={col_orig}, filter_junk={col_junk}, filter_messy={col_messy}, filter_visual={col_visual}, updated={col_updated}", file=sys.stderr)
 
 	# Build row index
 	row_index = build_row_index(ws, col_range)
@@ -178,11 +183,26 @@ def main():
 			ws.cell(row=row, column=col_junk).value = junk_result
 		else:
 			junk_result = ''
+			ws.cell(row=row, column=col_junk).value = ''
+
+		# [py: filter_messy] — always recompute
+		if junk_result:
+			messy_result = filter_messy_extract(junk_result)
+			ws.cell(row=row, column=col_messy).value = messy_result
+		else:
+			messy_result = ''
+			ws.cell(row=row, column=col_messy).value = ''
 
 		# [py: filter_visual] — always recompute
-		if junk_result:
-			visual_result = filter_visual_extract(junk_result)
+		if messy_result:
+			visual_result = filter_visual_extract(messy_result)
 			ws.cell(row=row, column=col_visual).value = visual_result
+		else:
+			ws.cell(row=row, column=col_visual).value = ''
+
+		# [py: updated] — timestamp this row
+		ws.cell(row=row, column=col_updated).value = datetime.now()
+		ws.cell(row=row, column=col_updated).number_format = 'YYYY-MM-DD HH:MM:SS'
 
 		status = "NEW" if is_new else "updated"
 		print(f"  [{i+1}/{len(chunks)}] Row {row} ({status}): {range_str}", file=sys.stderr)
@@ -196,21 +216,34 @@ if __name__ == '__main__':
 	main()
 
 """
-Claude Opus 4.6 instructions: Complete this python script to:
-	1. Open a specified Excel spreadsheet.
-	2. For each max 256-character named Unicode range block lower than U+20900:
-	2.1 Find its existing row in the spreadsheet. It's range may exist as a subset (e.g. U+0021-U+007E). If so, use the subset.
-	2.1.1: Search in the column that has the substring "[py: range]" in it.
-	2.1.2 If you didn't find a row, add a new one at the bottom. (It will be manually sorted later.)
-	2.2 Update/overwrite the new or existing row as follows:
-	2.2.1 Add the Range for the block, if it doesn't exist, in the cell that has the substring "[py: range]" in the column header.
-	2.2.2 Add the characters for the block, if they don't exist, in the cell that has the substring "[py: orig]" in the column header.
-	2.2.2.1 Filter the characters so to remove:
-	2.2.2.1.1 Non-printable characters.
-	2.2.2.1.2 Space-like characters.
-	2.2.2.2 Delimit the characters in the list with a single ASCII space.
-	2.2.2.2 After filtering, update the range in the "[py: range]" cell, if necessary (or don't even populate anything until those two values are figured out).
-	2.2.3 Populate the cell with "[py: filter_junk]" substring in the heading, with the output from running 'filter_junk.py', using the contents of '[py: orig]' as input.
-	2.2.4 Populate the cell with "[py: filter_visual]" substring in the heading, with the output from running 'filter_visual.py', using the contents of '[py: filter_junk]' as input.
-	3. Don't overwrite any other cells.
+Claude Opus 4.6 instructions:
+	Creation 20260507:
+		Complete this python script to:
+		1. Open a specified Excel spreadsheet.
+		2. For each max 256-character named Unicode range block lower than U+20900:
+		2.1 Find its existing row in the spreadsheet. It's range may exist as a subset (e.g. U+0021-U+007E). If so, use the subset.
+		2.1.1: Search in the column that has the substring "[py: range]" in it.
+		2.1.2 If you didn't find a row, add a new one at the bottom. (It will be manually sorted later.)
+		2.2 Update/overwrite the new or existing row as follows:
+		2.2.1 Add the Range for the block, if it doesn't exist, in the cell that has the substring "[py: range]" in the column header.
+		2.2.2 Add the characters for the block, if they don't exist, in the cell that has the substring "[py: orig]" in the column header.
+		2.2.2.1 Filter the characters so to remove:
+		2.2.2.1.1 Non-printable characters.
+		2.2.2.1.2 Space-like characters.
+		2.2.2.2 Delimit the characters in the list with a single ASCII space.
+		2.2.2.2 After filtering, update the range in the "[py: range]" cell, if necessary (or don't even populate anything until those two values are figured out).
+		2.2.3 Populate the cell with "[py: filter_junk]" substring in the heading, with the output from running 'filter_junk.py', using the contents of '[py: orig]' as input.
+		2.2.4 Populate the cell with "[py: filter_visual]" substring in the heading, with the output from running 'filter_visual.py', using the contents of '[py: filter_junk]' as input.
+		3. Don't overwrite any other cells.
+	Update 20260508-090500
+		Update Script:
+		1. Column with "[py: filter_junk]" in the heading: Output from 'filter_1_junk.py', using contents of '[py: orig]' cell as input.
+		2. Column with "[py: filter_messy]" in the heading: Output from 'filter_2_messy.py', using contents of '[py: filter_junk]' cell as input.
+		3 Column with "[py: filter_visual]" in the heading: Output from 'filter_3_visual.py', with contents of '[py: filter_messy]' cell as input.
+		- You already accomplished the code for Task 1, but it needs its destination column updated.
+		- You already accomplished the code for Task 3, but it needs its source column updated.
+		- And Task 2, running 'filter_2_messy.py', is new.
+	Update 20260508-091300
+		Update Script:
+		- There is a column with "[py: updated]" in the heading. After updating a row, add the current date/time to that field. The column is defined as "date/time" for display formatting, with the format string "YYYY-mm-DD HH:MM:SS", if that matters.
 """

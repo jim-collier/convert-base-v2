@@ -28,6 +28,7 @@ import sys
 import os
 import unicodedata
 import urllib.request
+from copy import copy
 from dataclasses import dataclass
 from PIL import Image, ImageFont, ImageDraw
 
@@ -43,14 +44,16 @@ BORDER_W         = 4               # border thickness around each debug cell
 # Default pixel thresholds (can be overridden per FontConfig)
 FONT_SIZE_UNIFONT    = 32
 FONT_SIZE_SCALABLE   = int(round(FONT_SIZE_UNIFONT * 1.0, 0))
-BLANK_THRESHOLD      = 15     # fewer dark pixels → blank; default: 15
+BLANK_THRESHOLD      = 30     # fewer dark pixels → blank; default: 15
 DARK_PIXEL_MAX       = 180    # luminance below this = "dark"; default: 180
-EDGE_MARGIN_H        = 0.1    # fraction of cell dimension that counts as touching edge, horizontally; smaller is more tolerant; good: 0.1
-EDGE_MARGIN_V        = 0.02   # fraction of cell dimension that counts as touching edge, vertically; smaller is more tolerant; good: 0.01
+EDGE_MARGIN_H        = 0.05   # fraction of cell dimension that counts as touching edge, horizontally; smaller is more tolerant; good: 0.05?
+EDGE_MARGIN_V        = 0.01   # fraction of cell dimension that counts as touching edge, vertically; smaller is more tolerant; good: 0.01
 CENTER_H_TOLERANCE   = 0.3    # fraction of CELL_W; larger is more tolerant of off-center; good val: 0.3
-CENTER_V_TOLERANCE   = 0.5    # fraction of CELL_H; larger is more tolerant of off-center; good val: 0.5?
+CENTER_V_TOLERANCE   = 0.2    # fraction of CELL_H; larger is more tolerant of off-center; good val: 0.5?
 COLOR_SATURATION_MIN = 30     # per-channel diff to count as "colored" pixel; default: 30
 COLOR_PIXEL_THRESHOLD= 5      # more than this many colored pixels → emoji-like; default: 5
+DISCONNECT_H_GAP     = 0.01   # fraction of cell_w; horizontal whitespace gap between components → disconnected
+DISCONNECT_ANY_GAP   = 0.10   # fraction of cell dimension; whitespace gap in any direction → disconnected
 
 CONFUSABLES_URL  = 'https://www.unicode.org/Public/security/latest/confusables.txt'
 CONFUSABLES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'confusables.txt')
@@ -92,6 +95,8 @@ class FontConfig:
 	edge_margin_v:        float = EDGE_MARGIN_V
 	center_h_tolerance:   float = CENTER_H_TOLERANCE
 	center_v_tolerance:   float = CENTER_V_TOLERANCE
+	disconnect_h_gap:     float = DISCONNECT_H_GAP
+	disconnect_any_gap:   float = DISCONNECT_ANY_GAP
 	cell_h:               int   = 0   # auto-computed from font_size if 0
 	cell_w:               int   = 0   # auto-computed from font_size if 0
 	extra_cell_w:         int   = 0   # added to auto-computed cell_w (e.g. for wide glyphs)
@@ -126,11 +131,17 @@ FONTS = [
 		font_size = int(round(FONT_SIZE_SCALABLE * 1.1, 0)),
 	),
 	FontConfig(
-		font_path = '/usr/share/fonts/truetype/jc/envy/Envy Code R.ttf',
-		label     = 'Envy Code R',
+		font_path = '/usr/share/fonts/truetype/jc/noto/NotoSansMono-VariableFont_wdth,wght.ttf',
+		label     = 'Noto Sans Mono',
 		extra_cell_w = int(round(FONT_SIZE_SCALABLE * 0.34)),  # Should technically be 2:1 but needs extra width to avoid false filter hits for some reason
-		font_size = int(round(FONT_SIZE_SCALABLE * 0.95, 0)),
+		font_size = int(round(FONT_SIZE_SCALABLE * 1.05, 0)),
 	),
+#	FontConfig(
+#		font_path = '/usr/share/fonts/truetype/jc/envy/Envy Code R.ttf',
+#		label     = 'Envy Code R',
+#		extra_cell_w = int(round(FONT_SIZE_SCALABLE * 0.34)),  # Should technically be 2:1 but needs extra width to avoid false filter hits for some reason
+#		font_size = int(round(FONT_SIZE_SCALABLE * 0.95, 0)),
+#	),
 ]
 
 # ── Confusables ────────────────────────────────────────────────────────────────
@@ -173,13 +184,6 @@ def is_emoji_by_metadata(cp):
 	# Check known emoji blocks
 	for lo, hi in EMOJI_BLOCKS:
 		if lo <= cp <= hi:
-			return True
-	# Check Unicode emoji property via category heuristics
-	c = chr(cp)
-	if unicodedata.category(c) == 'So':
-		# "Other Symbol" — many emoji live here; not all, but combined with block check sufficient
-		# Only flag if outside BMP or in known symbol ranges
-		if cp > 0x2000:
 			return True
 	return False
 
@@ -246,11 +250,41 @@ def analyze_cell(cell_img, cfg):
 		off_h > cfg.cell_w * cfg.center_h_tolerance or
 		off_v > cfg.cell_h * cfg.center_v_tolerance
 	)
+	# Disconnected-component detection: find fully-white column/row gaps
+	# within the dark-pixel bounding box
+	dark_cols = set(cols_px)
+	dark_rows = set(rows_px)
+	# Horizontal gaps (empty columns within bounding box)
+	max_h_gap = 0
+	gap = 0
+	for col in range(min_c, max_c + 1):
+		if col not in dark_cols:
+			gap += 1
+			max_h_gap = max(max_h_gap, gap)
+		else:
+			gap = 0
+	# Vertical gaps (empty rows within bounding box)
+	max_v_gap = 0
+	gap = 0
+	for row in range(min_r, max_r + 1):
+		if row not in dark_rows:
+			gap += 1
+			max_v_gap = max(max_v_gap, gap)
+		else:
+			gap = 0
+	h_gap_frac = max_h_gap / cfg.cell_w if cfg.cell_w else 0
+	v_gap_frac = max_v_gap / cfg.cell_h if cfg.cell_h else 0
+	disconnected = (
+		h_gap_frac >= cfg.disconnect_h_gap or
+		v_gap_frac >= cfg.disconnect_any_gap or
+		h_gap_frac >= cfg.disconnect_any_gap
+	)
 	return {
 		'blank': False,
 		'dark_count': len(dark),
 		'touches_edge': touches_edge,
 		'poorly_centered': poorly_centered,
+		'disconnected': disconnected,
 		'off_h': off_h,
 		'off_v': off_v,
 	}
@@ -310,9 +344,17 @@ def render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_pix
 		std_cell = render_char(c, fnt, cfg)
 		no_glyph = is_missing_glyph(std_cell, missing_pixels)
 		if not no_glyph and not fails:
-			if has_color_pixels(std_cell):
+			# For wide chars, re-render in double-width cell for analysis
+			if wide:
+				acfg = copy(cfg)
+				acfg.cell_w = cfg.cell_w * 2
+				analysis_cell = render_char(c, fnt, acfg)
+			else:
+				acfg = cfg
+				analysis_cell = std_cell
+			if has_color_pixels(analysis_cell):
 				fails.append('EMOJI_COLOR')
-			metrics = analyze_cell(std_cell, cfg)
+			metrics = analyze_cell(analysis_cell, acfg)
 			if metrics['blank']:
 				fails.append('BLANK')
 			else:
@@ -320,6 +362,8 @@ def render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_pix
 					fails.append('EDGE')
 				if metrics.get('poorly_centered'):
 					fails.append('OFFCENTER')
+				if metrics.get('disconnected'):
+					fails.append('DISCONNECTED')
 
 		# Display: render into wide cell if needed (disp_w = slot minus equal border on each side)
 		disp_w    = w_px - 2 * BORDER_W
@@ -428,6 +472,10 @@ def _filter_chars(chars):
 
 	for c in chars:
 		cp    = ord(c)
+		# ASCII characters always pass — no filter applies
+		if cp < 128:
+			passed.append(c)
+			continue
 		name  = unicodedata.name(c, '')
 		fails = []
 
@@ -442,6 +490,7 @@ def _filter_chars(chars):
 		# ── Filters 3-5: per-font pixel checks ──
 		# Each font that can render the glyph casts a pass/fail vote.
 		# The character fails only if >= 50% of voting fonts reject it.
+		wide = unicodedata.east_asian_width(c) in ('W', 'F')
 		if not fails:
 			votes_total    = 0
 			votes_fail     = 0
@@ -450,11 +499,18 @@ def _filter_chars(chars):
 				cell = render_char(c, fnt, cfg)
 				if is_missing_glyph(cell, missing_px):
 					continue  # this font abstains
+				# Re-render wide chars in a double-width cell for accurate analysis
+				if wide:
+					wcfg = copy(cfg)
+					wcfg.cell_w = cfg.cell_w * 2
+					cell = render_char(c, fnt, wcfg)
+				else:
+					wcfg = cfg
 				votes_total += 1
 				font_fails = []
 				if has_color_pixels(cell):
 					font_fails.append('EMOJI_COLOR')
-				metrics = analyze_cell(cell, cfg)
+				metrics = analyze_cell(cell, wcfg)
 				if metrics['blank']:
 					font_fails.append('BLANK')
 				else:
@@ -462,6 +518,8 @@ def _filter_chars(chars):
 						font_fails.append('EDGE')
 					if metrics.get('poorly_centered'):
 						font_fails.append('OFFCENTER')
+					if metrics.get('disconnected'):
+						font_fails.append('DISCONNECTED')
 				if font_fails:
 					votes_fail += 1
 					all_font_fails.extend(font_fails)
