@@ -34,9 +34,11 @@ from filter_1_junk import extract as filter_junk_extract
 from filter_2_messy import extract as filter_messy_extract
 from filter_3_visual import extract as filter_visual_extract
 
-XLSX_PATH = os.path.join(SCRIPT_DIR, '..', 'reference', 'unicode_good_base_symbols.xlsx')
+
+SPREADSHEET_NAME = 'unicode_good_base_symbols.xlsx'
+SPREADSHEET_PATH = os.path.join(SCRIPT_DIR, '..', 'reference', SPREADSHEET_NAME)
 MAX_CODEPOINT = 0x20900
-REQUIRED_TAGS = ['range', 'orig', 'filter_junk', 'filter_messy', 'filter_visual', 'updated']
+REQUIRED_TAGS = ['range', 'orig', 'filter_junk', 'filter_messy', 'filter_visual', 'filtered_out', 'updated']
 
 
 def find_py_columns(ws):
@@ -119,8 +121,8 @@ def generate_block_chunks():
 
 
 def main():
-	print(f"Opening {XLSX_PATH}", file=sys.stderr)
-	wb = openpyxl.load_workbook(XLSX_PATH)
+	print(f"Opening {SPREADSHEET_PATH}", file=sys.stderr)
+	wb = openpyxl.load_workbook(SPREADSHEET_PATH)
 	ws = wb.active
 
 	# Discover columns
@@ -136,8 +138,9 @@ def main():
 	col_junk    = py_cols['filter_junk']
 	col_messy   = py_cols['filter_messy']
 	col_visual  = py_cols['filter_visual']
+	col_filt_out= py_cols['filtered_out']
 	col_updated = py_cols['updated']
-	print(f"Columns: range={col_range}, orig={col_orig}, filter_junk={col_junk}, filter_messy={col_messy}, filter_visual={col_visual}, updated={col_updated}", file=sys.stderr)
+	print(f"Columns: range={col_range}, orig={col_orig}, filter_junk={col_junk}, filter_messy={col_messy}, filter_visual={col_visual}, filtered_out={col_filt_out}, updated={col_updated}", file=sys.stderr)
 
 	# Build row index
 	row_index = build_row_index(ws, col_range)
@@ -200,6 +203,13 @@ def main():
 		else:
 			ws.cell(row=row, column=col_visual).value = ''
 
+		# [py: filtered_out] — characters in orig but not in filter_visual
+		orig_chars = set(current_orig.split()) if current_orig else set()
+		visual_str = visual_result if messy_result else (ws.cell(row=row, column=col_visual).value or '')
+		visual_chars = set(visual_str.split()) if visual_str else set()
+		removed = [c for c in current_orig.split() if c not in visual_chars] if current_orig else []
+		ws.cell(row=row, column=col_filt_out).value = ' '.join(removed) if removed else ''
+
 		# [py: updated] — timestamp this row
 		ws.cell(row=row, column=col_updated).value = datetime.now()
 		ws.cell(row=row, column=col_updated).number_format = 'YYYY-MM-DD HH:MM:SS'
@@ -208,8 +218,8 @@ def main():
 		print(f"  [{i+1}/{len(chunks)}] Row {row} ({status}): {range_str}", file=sys.stderr)
 
 	# Save
-	wb.save(XLSX_PATH)
-	print(f"\nSaved {XLSX_PATH}", file=sys.stderr)
+	wb.save(SPREADSHEET_PATH)
+	print(f"\nSaved {SPREADSHEET_PATH}", file=sys.stderr)
 
 
 if __name__ == '__main__':

@@ -44,16 +44,17 @@ BORDER_W         = 4               # border thickness around each debug cell
 # Default pixel thresholds (can be overridden per FontConfig)
 FONT_SIZE_UNIFONT    = 32
 FONT_SIZE_SCALABLE   = int(round(FONT_SIZE_UNIFONT * 1.0, 0))
-BLANK_THRESHOLD      = 30     # fewer dark pixels → blank; default: 15
+BLANK_THRESHOLD      = 25     # fewer dark pixels → blank; lower=more agressive; default: 15; good = 25 to 33
 DARK_PIXEL_MAX       = 180    # luminance below this = "dark"; default: 180
-EDGE_MARGIN_H        = 0.05   # fraction of cell dimension that counts as touching edge, horizontally; smaller is more tolerant; good: 0.05?
-EDGE_MARGIN_V        = 0.01   # fraction of cell dimension that counts as touching edge, vertically; smaller is more tolerant; good: 0.01
-CENTER_H_TOLERANCE   = 0.3    # fraction of CELL_W; larger is more tolerant of off-center; good val: 0.3
-CENTER_V_TOLERANCE   = 0.2    # fraction of CELL_H; larger is more tolerant of off-center; good val: 0.5?
+EDGE_MARGIN_H        = 0.15   # fraction of cell dimension that counts as touching edge, horizontally; smaller is more tolerant; good: 0.05 to 0.15
+EDGE_MARGIN_V        = 0.1    # fraction of cell dimension that counts as touching edge, vertically; smaller is more tolerant; good: 0.01 to 0.1
+EDGE_MARGIN_V_WIDE   = 0.04   # same but for Wide east-asian glyphs (W/F); complex glyphs need more tolerance
+CENTER_H_TOLERANCE   = 0.2    # fraction of CELL_W; larger is more tolerant of off-center; good val: 0.2 or 0.3
+CENTER_V_TOLERANCE   = 0.2    # fraction of CELL_H; larger is more tolerant of off-center; good val: 0.2?
 COLOR_SATURATION_MIN = 30     # per-channel diff to count as "colored" pixel; default: 30
 COLOR_PIXEL_THRESHOLD= 5      # more than this many colored pixels → emoji-like; default: 5
 DISCONNECT_H_GAP     = 0.01   # fraction of cell_w; horizontal whitespace gap between components → disconnected
-DISCONNECT_ANY_GAP   = 0.10   # fraction of cell dimension; whitespace gap in any direction → disconnected
+DISCONNECT_ANY_GAP   = 0.20   # fraction of cell dimension; whitespace gap in any direction → disconnected
 
 CONFUSABLES_URL  = 'https://www.unicode.org/Public/security/latest/confusables.txt'
 CONFUSABLES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'confusables.txt')
@@ -93,6 +94,7 @@ class FontConfig:
 	dark_pixel_max:       int   = DARK_PIXEL_MAX
 	edge_margin_h:        float = EDGE_MARGIN_H
 	edge_margin_v:        float = EDGE_MARGIN_V
+	edge_margin_v_wide:   float = EDGE_MARGIN_V_WIDE
 	center_h_tolerance:   float = CENTER_H_TOLERANCE
 	center_v_tolerance:   float = CENTER_V_TOLERANCE
 	disconnect_h_gap:     float = DISCONNECT_H_GAP
@@ -129,6 +131,12 @@ FONTS = [
 		label     = 'Free Mono',
 		extra_cell_w = int(round(FONT_SIZE_SCALABLE * 0.34)),  # Should technically be 2:1 but needs extra width to avoid false filter hits for some reason
 		font_size = int(round(FONT_SIZE_SCALABLE * 1.1, 0)),
+	),
+	FontConfig(
+		font_path = '	/usr/share/fonts/truetype/jc/liberation/LiberationMono-Regular.ttf',
+		label     = 'Liberation Sans Mono',
+		extra_cell_w = int(round(FONT_SIZE_SCALABLE * 0.34)),  # Should technically be 2:1 but needs extra width to avoid false filter hits for some reason
+		font_size = int(round(FONT_SIZE_SCALABLE * 1.05, 0)),
 	),
 	FontConfig(
 		font_path = '/usr/share/fonts/truetype/jc/noto/NotoSansMono-VariableFont_wdth,wght.ttf',
@@ -348,6 +356,7 @@ def render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_pix
 			if wide:
 				acfg = copy(cfg)
 				acfg.cell_w = cfg.cell_w * 2
+				acfg.edge_margin_v = cfg.edge_margin_v_wide
 				analysis_cell = render_char(c, fnt, acfg)
 			else:
 				acfg = cfg
@@ -476,6 +485,10 @@ def _filter_chars(chars):
 		if cp < 128:
 			passed.append(c)
 			continue
+		# Latin-1 Supplement (U+0080–U+00FF) always passes, like ASCII
+		if 0x80 <= cp <= 0xFF:
+			passed.append(c)
+			continue
 		name  = unicodedata.name(c, '')
 		fails = []
 
@@ -503,6 +516,7 @@ def _filter_chars(chars):
 				if wide:
 					wcfg = copy(cfg)
 					wcfg.cell_w = cfg.cell_w * 2
+					wcfg.edge_margin_v = cfg.edge_margin_v_wide
 					cell = render_char(c, fnt, wcfg)
 				else:
 					wcfg = cfg
