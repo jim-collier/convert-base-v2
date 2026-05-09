@@ -88,7 +88,7 @@ HARDCODED_EXCLUSIONS = {
 
 # ASCII symbols that are always excluded
 ASCII_EXCLUDED_SYMBOLS = {
-	ord(c) for c in '$*/?\'"<>|#%&\\^`~'  ## $*<>|&^#`~ are problematic in various shells. *^\ illegal in Windows FS. : illegal in macOS FS. \ illegal in Linux FS. <>| illegal in all FSs.
+	ord(c) for c in '$*/?\'"<>|#%&\\^`~'  ## $*<>|&^#`~ are problematic in various shells. *^\ illegal in Windows FS. : illegal in macOS FS. / illegal in Linux FS. <>| illegal in all FSs.
 }
 
 # Name-based exclusion keywords (Lm/Sk/Lo only, confirmed no false positives)
@@ -128,25 +128,40 @@ def is_name_excluded(c):
 	name = unicodedata.name(c, '')
 	return any(kw in name for kw in NAME_EXCLUSION_KEYWORDS)
 
-def extract(text):
+def extract(text, debug=False):
 	seen = set()
 	result = []
+	fail_log = []
 	for char in unicodedata.normalize('NFC', text):
 		if unicodedata.category(char) in ('Zs', 'Zl', 'Zp'): continue
 		cp = ord(char)
-		if is_mark(char): continue
-		if is_format(char): continue
-		if is_rtl(char): continue
-		if cp in HARDCODED_EXCLUSIONS: continue
-		if cp in ASCII_EXCLUDED_SYMBOLS: continue
-		if is_name_excluded(char): continue
-		nfd = unicodedata.normalize('NFD', char)
-		if len(nfd) > 1 and not all(is_mark(c) for c in nfd[1:]):
+		reason = None
+		if is_mark(char):                reason = 'MARK'
+		elif is_format(char):            reason = 'FORMAT'
+		elif is_rtl(char):               reason = 'RIGHT_TO_LEFT'
+		elif cp in HARDCODED_EXCLUSIONS: reason = 'HARDCODED'
+		elif cp in ASCII_EXCLUDED_SYMBOLS: reason = 'ASCII_EXCLUDED'
+		elif is_name_excluded(char):     reason = 'NAME_EXCLUDED'
+		else:
+			nfd = unicodedata.normalize('NFD', char)
+			if len(nfd) > 1 and not all(is_mark(c) for c in nfd[1:]):
+				reason = 'NFD_MULTI'
+		if reason:
+			if debug:
+				name = unicodedata.name(char, '')
+				fail_log.append((cp, char, 'FAIL:' + reason, name))
 			continue
 		if cp not in seen:
 			seen.add(cp); result.append(char)
+	if debug and fail_log:
+		print(f"\nFiltered out {len(fail_log)} characters:", file=sys.stderr)
+		col_result_w = max(len(r) for _, _, r, _ in fail_log)
+		for cp, c, reason, name in fail_log:
+			print(f"  U+{cp:04X}  {c}  {reason:<{col_result_w}}  '{name.lower()}'", file=sys.stderr)
 	return ' '.join(result)
 
 if __name__ == '__main__':
-	text = ' '.join(sys.argv[1:]) if len(sys.argv) > 1 else sys.stdin.read().strip()
-	print(extract(text))
+	debug = '--debug' in sys.argv
+	args = [a for a in sys.argv[1:] if a != '--debug']
+	text = ' '.join(args) if args else sys.stdin.read().strip()
+	print(extract(text, debug=debug))
