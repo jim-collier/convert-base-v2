@@ -291,10 +291,10 @@ func predefinedBases() []*Base {
 		// "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:"
 		// https://www.rfc-editor.org/rfc/rfc9285.html
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_62hex, 36) + "\\  $ % * + - . / :", // "\ " is an escaped space symbol; extra space after it separates it from "$".
+			BaseSymbols: leftTokens(base_62hex, 36) + "\\  $ % * + - . / :", // "\ " Is an escaped space symbol; required double '\\'. Extra space after it separates it from "$".
 			Aliases:     []string{"45", "45r", "45rfc9285", "RFC9285"},
-			NegSymbol:   "–", // &ndash
-			DecSymbol:   "•", // &bull
+			NegSymbol:   "–", // N-dash [&ndash]
+			DecSymbol:   "•", // Bullet [&bull]
 		}),
 
 		// Base-48
