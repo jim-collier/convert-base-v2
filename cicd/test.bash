@@ -44,10 +44,10 @@ fi
 
 fMain(){
 
-	## Settings
+	## Settings (paths are canonicalized and validated relative to this script)
 	local     exeV2="../source/bin/convert-base-v2"
-	local     exeV1b="../utility/convert-base-v1b"
-	local     baseDefs="base-definitions.sh"
+	local     exeV1b="utility/convert-base-v1b"
+	local     baseDefs="include/base-definitions.bash"
 
 	## Environment overrides
 	local     LANG="C.UTF-8"  ## Splitting won't work correctly without this
@@ -72,7 +72,7 @@ fMain(){
 	local -i loopCount=0
 
 	####
-	#### Will it even load at all
+	#### Will they even load at all
 
 	fEcho_Clean
 	fEcho_Clean "Exe source ...: ${exeV2}"
@@ -86,9 +86,10 @@ fMain(){
 		sleep 2
 	fi
 
+
 	####
 	#### Test flags (make sure -e is enabled)
-#	set -e
+
 	fEcho; fEcho ">>> TESTSECTION: Flags"; fEcho
 
 	fEcho; fEcho "Test --help"
@@ -101,6 +102,15 @@ fMain(){
 	"${exeV1b}" --version
 	fEcho_Clean_Force
 
+
+	####
+	#### Force loading of any bases; don't care about output value
+
+	fEcho; fEcho "Testing internal load of bases ..."
+	"${exeV1b}" --to 16 --from 10 255
+	sleep 1
+	"${exeV1b}" --to '288jc1' --from 10 1024
+	sleep 1
 
 	####
 	#### Specific testing loops
@@ -393,53 +403,56 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Generic function prototypes for reference and linting correctness. Overridden with real function when generic script is sourced at the bottom of this script.
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-fEntryPoint(){
-	local -i count_Tests=0
-	local -i count_Passed=0
-	local -i count_Failed=0
-:;}
-fRunTest(){
-	local -r  testMode="${1:-}"   ; shift || true   ## 'equal', 'notequal', 'error'.
-	local -r  expectVal="${1:-}"  ; shift || true   ## Inherit from parent instead.
-	local -r  cmdStr="${1:-}"     ; shift || true
-:;}
-fRunChained_TestLast(){
-	local -r  testMode="${1:-}"   ; shift || true   ## 'equal', 'notequal', 'error'.
-	local -r  expectVal="${1:-}"  ; shift || true   ## Inherit from parent instead.
-	local -r  cmdStrs="${1:-}"    ; shift || true   ## >=1 commands with ';' as delimiter.
-:;}
-fPipe_LogAndShowPartialOutput_InitLogfile(){
-	local filePath_Log="${1:-}" ; shift || true  ## If you want to override the logfile path. Otherwise it's the path of this script+basename, + '.log'.
-:;}
-fPipe_LogAndShowPartialOutput(){ :; }
-fPipe_LogOnly(){ :; }
-fGetIsolatedExeName(){
-	local -n  retVarName_CmdName_1myq1b5="${1:-}"   ; shift || true   ## The parent variable to populate with the isolated command 'basename' (no path).
-	local -n  retVarName_TheRest_1myq1b5="${1:-}"   ; shift || true   ## The parent variable to populate with the rest of the command-line after the executable.
-	local -r  commandString="${1:-}"                ; shift || true   ## The full command line
-:;}
-fScrambleString(){
-	local -n  outputVarName_1myn9vt=${1:-}   ; shift || true  ## The parent variable to put the results in. The results should have no spaces, unless a space is one of the inputs as a symbol to randomize. But will still work with spaces.
-	local -r  inputSymbolList="${1:-}"       ; shift || true  ## List of symbols to scramble, as a regular UTF-8 bash string. Will have no spaces or delimiters, unless a space is one of the inputs as a symbol to randomize.
-	local -ri outputLen=${1:-1}              ; shift || true  ## Output scrambled string length
-	local -ri canRepeatChars=${1:-1}         ; shift || true  ## 0: Don't repeat any symbols if possible (i.e. if input len > output len). 1: Try to repeat symbols in the random output.
-}
-fTallyResult(){
-	local -ri errNum=${1:-0}      ; shift || true  ## The integer return value from the command.
-	local -r  testMode="${1:-}"   ; shift || true  ## 'equal', 'notequal', 'error'.
-	local -r  expectVal="${1:-}"  ; shift || true  ##
-	local -r  gotVal="${1:-}"     ; shift || true  ##
-:;}
-fEcho_ResetBlankCounter()     { :; }
-fEcho_WasLastEchoBlank_Set()  { local -i arg1=${1:-0}; }
-fEcho_WasLastEchoBlank_Get()  { return 0; }
-fEcho_IsInRawInlineMode_Set() { local -i arg1=${1:-0}; }
-fEcho_IsInRawInlineMode_Get() { return 0; }
-fEcho_Clean()             { local -i arg1="${1:-0}"; }
-fEcho()                   { local -i arg1="${1:-0}"; }
-fEcho_Force()             { local -i arg1="${1:-0}"; }
-fEcho_Clean_Force()       { local -i arg1="${1:-0}"; }
-
+# shellcheck disable=SC2034
+# shellcheck disable=SC2329
+(
+	fEntryPoint(){
+		local -i count_Tests=0
+		local -i count_Passed=0
+		local -i count_Failed=0
+	:;}
+	fRunTest(){
+		local -r  testMode="${1:-}"   ; shift || true   ## 'equal', 'notequal', 'error'.
+		local -r  expectVal="${1:-}"  ; shift || true   ## Inherit from parent instead.
+		local -r  cmdStr="${1:-}"     ; shift || true
+	:;}
+	fRunChained_TestLast(){
+		local -r  testMode="${1:-}"   ; shift || true   ## 'equal', 'notequal', 'error'.
+		local -r  expectVal="${1:-}"  ; shift || true   ## Inherit from parent instead.
+		local -r  cmdStrs="${1:-}"    ; shift || true   ## >=1 commands with ';' as delimiter.
+	:;}
+	fPipe_LogAndShowPartialOutput_InitLogfile(){
+		local filePath_Log="${1:-}" ; shift || true  ## If you want to override the logfile path. Otherwise it's the path of this script+basename, + '.log'.
+	:;}
+	fPipe_LogAndShowPartialOutput(){ :; }
+	fPipe_LogOnly(){ :; }
+	fGetIsolatedExeName(){
+		local -n  retVarName_CmdName_1myq1b5="${1:-}"   ; shift || true   ## The parent variable to populate with the isolated command 'basename' (no path).
+		local -n  retVarName_TheRest_1myq1b5="${1:-}"   ; shift || true   ## The parent variable to populate with the rest of the command-line after the executable.
+		local -r  commandString="${1:-}"                ; shift || true   ## The full command line
+	:;}
+	fScrambleString(){
+		local -n  outputVarName_1myn9vt=${1:-}   ; shift || true  ## The parent variable to put the results in. The results should have no spaces, unless a space is one of the inputs as a symbol to randomize. But will still work with spaces.
+		local -r  inputSymbolList="${1:-}"       ; shift || true  ## List of symbols to scramble, as a regular UTF-8 bash string. Will have no spaces or delimiters, unless a space is one of the inputs as a symbol to randomize.
+		local -ri outputLen=${1:-1}              ; shift || true  ## Output scrambled string length
+		local -ri canRepeatChars=${1:-1}         ; shift || true  ## 0: Don't repeat any symbols if possible (i.e. if input len > output len). 1: Try to repeat symbols in the random output.
+	}
+	fTallyResult(){
+		local -ri errNum=${1:-0}      ; shift || true  ## The integer return value from the command.
+		local -r  testMode="${1:-}"   ; shift || true  ## 'equal', 'notequal', 'error'.
+		local -r  expectVal="${1:-}"  ; shift || true  ##
+		local -r  gotVal="${1:-}"     ; shift || true  ##
+	:;}
+	fEcho_ResetBlankCounter()     { :; }
+	fEcho_WasLastEchoBlank_Set()  { local -i arg1=${1:-0}; }
+	fEcho_WasLastEchoBlank_Get()  { return 0; }
+	fEcho_IsInRawInlineMode_Set() { local -i arg1=${1:-0}; }
+	fEcho_IsInRawInlineMode_Get() { return 0; }
+	fEcho_Clean()             { local -i arg1="${1:-0}"; }
+	fEcho()                   { local -i arg1="${1:-0}"; }
+	fEcho_Force()             { local -i arg1="${1:-0}"; }
+	fEcho_Clean_Force()       { local -i arg1="${1:-0}"; }
+)
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Generic function(s) that can't be 'sourced'.
@@ -457,6 +470,7 @@ fResolvePath(){
 	local -n parentVarName_ResolvedPath_t4rej=${1:-}  ; shift || true  ## Parent variable to store fully resolved path in.
 	local    nameOrPath="${1:-}"                      ; shift || true  ## File or folder path (relative or absolute). If an executable file, can be just a name to search in $PATH, to fully resolve.
 	local -i mustExist=${1:-0}                        ; shift || true  ## 1 [default]: path must exist or error occurs. 0: Just rationalize paths, doesn't have to exist.
+	parentVarName_ResolvedPath_t4rej=""
 	[[   -z "${nameOrPath}" ]]  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): No file or directory specified to resolve.\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
 	local -r mePath_t4rmy="$(dirname "${BASH_SOURCE[0]}")"
 	local -i isExeWithNoPath=0 ; [[ "${nameOrPath}" == "$(basename "${nameOrPath}")" ]] && isExeWithNoPath=1 ; readonly isExeWithNoPath
@@ -472,9 +486,7 @@ fResolvePath(){
 	else                   testPath="$(realpath -m "${testPath}" 2>/dev/null || true)"; fi
 	## Last check to fail on
 	{ [[ -z "${testPath}" ]] || { [[ ! -e "${testPath}" ]] && ((mustExist)); }; }  &&  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}")·${FUNCNAME[0]}(): Could not resolve path '${nameOrPath}' [£ǝŔs].\n"; fEcho_WasLastEchoBlank_Set 1; return 1; }
-	## Success
-	#echo "testPath: '${testPath}'"
-	#fPressAnyKeyToContinue
+	# shellcheck disable=SC2034
 	parentVarName_ResolvedPath_t4rej="${testPath}"
 }
 
@@ -490,11 +502,12 @@ if [[ -z "${meName_t4rgd+x}" ]]; then
 	declare -r serialDT_t4rgd="$(date "+%Y%m%d-%H%M%S")"
 fi
 
+
 ## Make sure relative paths work
 cd "${meDir_t4rgd}"
 
 ## Source the generic script 'utility/n8lib_test'. It will call fMain() above.
-declare n8test_resolved="../utility/include/n8lib_test"
+declare n8test_resolved="utility/include/n8lib_test"
 fResolvePath  n8test_resolved  "${n8test_resolved}" ; readonly n8test_resolved
 #echo "n8test_resolved: '${n8test_resolved}'"; exit
 source "${n8test_resolved}"
@@ -517,3 +530,4 @@ fEntryPoint | fPipe_LogAndShowPartialOutput
 ##			- Updated fResolvePath().
 ##			- Fixed bugs in loops natural end, caused by not setting `set +e`.
 ##		- 20260428 JC: Removed now-unnecessary reference to alias-definitions.sh.
+##		- 20260511 JC: Renamed to *.bash to make it clear it's not a POSIX shell.
