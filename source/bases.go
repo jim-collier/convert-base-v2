@@ -291,8 +291,10 @@ func predefinedBases() []*Base {
 		// "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:"
 		// https://www.rfc-editor.org/rfc/rfc9285.html
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_62hex, 36) + "\\ $%*+-./:", // Escaping a space requires a double \\ first, otherwise it's a compiler error.
+			BaseSymbols: leftTokens(base_62hex, 36) + "\\  $ % * + - . / :", // "\ " is an escaped space symbol; extra space after it separates it from "$".
 			Aliases:     []string{"45", "45r", "45rfc9285", "RFC9285"},
+			NegSymbol:   "–", // &ndash
+			DecSymbol:   "•", // &bull
 		}),
 
 		// Base-48
@@ -382,7 +384,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " - _",
 			Aliases:     []string{"64u", "64url", "64ru", "64rfc4648s5", "rfc4648s5"},
-			NegSymbol:   "~",
+			NegSymbol:   "–", // &ndash
 		}),
 
 		// Base 64, hex-style (with RFC URL-style extensions)
@@ -393,7 +395,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: base_62hex + " - _",
 			Aliases:     []string{"64h", "64hex", "64hexurl", "64hu"},
-			NegSymbol:   "~",
+			NegSymbol:   "–", // &ndash
 		}),
 
 		// Base 64p: Programmer-friendly base-64.
@@ -439,7 +441,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " + / - * < > |",
 			Aliases:     []string{"69prsh", "69pshihn"},
-			NegSymbol:   "~",
+			NegSymbol:   "–", // &ndash
 		}),
 
 		// Base-85, "Z85 - ZeroMQ RFC 32"
@@ -460,6 +462,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: "! \" # $ % & ' ( ) * + , - . /" + base_10 + " : ; < = > ? @ " + upperAZ_c26 + " [ \\ ] ^ _ ` " + leftTokens(lowerAZ_c26, 21),
 			Aliases:     []string{"85ps", "85postscript", "85adobe", "postscript"},
+			// Wasn't designed for positional notation
 			DisallowNeg: true,
 			DisallowDec: true,
 		}),
@@ -471,6 +474,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: base_62hex + "! # $ % & ( ) * + - ; < = > ? @ ^ _ ` { | } ~",
 			Aliases:     []string{"85ipv6", "85rfc1924", "85aprilfools", "85fools", "85elz"},
+			// Wasn't designed for positional notation
 			DisallowNeg: true,
 			DisallowDec: true,
 		}),
@@ -482,6 +486,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " ! # $ % & ( ) * + , . / : ; < = > ? @ [ ] ^ _ ` { | } ~ \"",
 			Aliases:     []string{"91hk", "91bas"},
+			// Wasn't designed for positional notation
 			DisallowNeg: true,
 			DisallowDec: true,
 		}),
@@ -604,6 +609,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: base_10 + lowerAZ_c26 + " - _ % + . : @ [ ]",
 			Aliases:     []string{"email", "45email", "45jc1"},
+			// Negative or decimal makes no sense in this context.
 			DisallowNeg: true,
 			DisallowDec: true,
 		}),
@@ -616,6 +622,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: base_10 + lowerAZ_c26 + " - _ .",
 			Aliases:     []string{"username", "39username", "39jc1"},
+			// Negative or decimal makes no sense in this context.
 			DisallowNeg: true,
 			DisallowDec: true,
 		}),
@@ -625,6 +632,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: base_10 + lowerAZ_c26 + " - .",
 			Aliases:     []string{"hostname", "38hostname", "38jc1"},
+			// Negative or decimal makes no sense in this context.
 			DisallowNeg: true,
 			DisallowDec: true,
 		}),

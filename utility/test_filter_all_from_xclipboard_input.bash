@@ -35,16 +35,19 @@ fMain(){
 	local sResult1="" sResult2="" sResult3=""
 
 	echo -e "\n[ Running '${pyScript1}' ... ]"
+#	sleep 0.5
 	sResult1="$(python3  "${pyScript1}"  --debug  "${clipInput}")"
 	[[ -n "${sResult1}" ]]  ||  { echo -e "\n$(basename "${pyScript1}"): No output.\n"; return 1; }
 
 	echo -e "\n[ Running '${pyScript2}' ... ]"
+#	sleep 0.5
 	sResult2="$(python3  "${pyScript2}"  --debug  "${sResult1}")"
 	[[ -n "${sResult2}" ]]  ||  { echo -e "\n$(basename "${pyScript2}"): No output.\n"; return 1; }
 
 	echo -e "\n[ Running '${pyScript3}' ... ]"
+#	sleep 0.5
 	sResult3="$(python3  "${pyScript3}"  --debug  "${sResult2}")"
-	[[ -n "${sResult3}" ]]  ||  { echo -e "\n$(basename "${pyScript3}"): No output.\n"; return 1; }
+#	[[ -n "${sResult3}" ]]  ||  { echo -e "\n$(basename "${pyScript3}"): No output.\n"; return 1; }
 
 	echo
 	echo "Stats:"

@@ -17,7 +17,16 @@ import os
 import re
 import urllib.request
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
+##
+## Tunables
+##
+
+ENABLE_ASCII_CONFUSABLES = True
+FILTER_SUPERSCRIPT       = True   # reject chars whose Unicode name contains SUPERSCRIPT/SUBSCRIPT/MODIFIER LETTER
+
+##
+## Helpers
+##
 
 def _is_wide(c):
 	return unicodedata.east_asian_width(c) in ('W', 'F')
@@ -67,7 +76,9 @@ _LATIN1_EXEMPT = {
 def _is_super_sub(name):
 	return 'SUPERSCRIPT' in name or 'SUBSCRIPT' in name or 'MODIFIER LETTER' in name
 
-# ── Section 1: Universal filters (all characters) ────────────────────────────
+##
+## Section 1: Universal filters (all characters)
+##
 
 _RE_O_LIKE = re.compile(r'\bLETTER O\b|\bLETTER\b.*\bO$|\bOMICRON\b|\bLETTER OH\b')
 
@@ -91,7 +102,9 @@ def _is_number_like(c, name, cat, cp):
 	if 'TELEGRAPH SYMBOL FOR' in name: return True
 	return False
 
-# ── Section 2: Non-wide filters ──────────────────────────────────────────────
+##
+## Section 2: Non-wide filters
+##
 
 def _has_diacritic_name(name):
 	idx = name.find(' WITH ')
@@ -225,7 +238,9 @@ def _is_stray_math(c, cat, cp):
 		return False
 	return True
 
-# ── ASCII confusables ──────────────────────────────────────────────────────────
+##
+## ASCII confusables
+##
 
 _CONFUSABLES_URL  = 'https://www.unicode.org/Public/security/latest/confusables.txt'
 _CONFUSABLES_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'confusables.txt')
@@ -257,7 +272,9 @@ def _load_confusables():
 					pass
 	return ascii_confusables
 
-# ── Post-pass: dedup adjacent near-identical ──────────────────────────────────
+##
+## Post-pass: dedup adjacent near-identical
+##
 
 _STRIP_QUALIFIERS = re.compile(
 	r'\b(?:BLACK|WHITE|HEAVY|LIGHT|MEDIUM|DOUBLE|TRIPLE|'
@@ -283,7 +300,9 @@ def _dedup_similar_adjacent(chars):
 		prev_canon = canon
 	return result
 
-# ── Core API ──────────────────────────────────────────────────────────────────
+##
+## Core API
+##
 
 def extract(text, debug=False):
 	fail_log = [] if debug else None
@@ -293,7 +312,7 @@ def extract(text, debug=False):
 			_print_fail_log(fail_log)
 		return ''
 
-	ascii_confusables = _load_confusables()
+	ascii_confusables = _load_confusables() if ENABLE_ASCII_CONFUSABLES else set()
 
 	result = []
 	for c in chars:
@@ -316,8 +335,12 @@ def extract(text, debug=False):
 			result.append(c)
 			continue
 
-		# Superscript/subscript/modifier letters — let visual filter decide
+		# Superscript/subscript/modifier letters
 		if _is_super_sub(name):
+			if FILTER_SUPERSCRIPT:
+				if fail_log is not None:
+					fail_log.append((cp, c, 'FAIL:SUPERSCRIPT', name))
+				continue
 			result.append(c)
 			continue
 
@@ -412,7 +435,9 @@ def _print_fail_log(fail_log):
 	for cp, c, reason, name in fail_log:
 		print(f"  U+{cp:04X}  {c}  {reason:<{col_result_w}}  '{name.lower()}'", file=sys.stderr)
 
-# ── CLI ───────────────────────────────────────────────────────────────────────
+##
+## CLI
+##
 
 if __name__ == '__main__':
 	debug = '--debug' in sys.argv

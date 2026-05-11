@@ -8,6 +8,41 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## v1.1.0-beta5 - 2026-05-11
+
+### Notes
+
+### Added
+
+- Uncommented base-45 definition, got it working with " " space as a valid symbol, and fixed a bug related to that.
+
+### Changed
+
+- Addressed Issue #6, "[Need a better way to define neg, dec, pad](https://github.com/jim-collier/convert-base-v2/issues/6)". Neg and dec are now defined independently of the base symbols, using structs. (Per [design document](https://github.com/jim-collier/convert-base-v2/blob/main/design_docs/20260503_rethink_neg_dec_pad.md).)
+
+### Other work
+
+- Renamed ci/cd scripts from `.sh` to `.bash` to make it clear they aren't POSIX scripts.
+
+- Created helper utilities to help with base symbol selection
+	- Python scripts
+		- `filter_1_junk.py`
+		- `filter_2_messy.py`
+		- `filter_3_visual.py`
+		- `populate_unicode_spreadsheets_with_filtered_results.py`
+	- Bash wrappers:
+		- `test_filter_all_from_xclipboard_input.bash`
+		- `unicode_1_junk_alter_xclipboard_contents.bash`
+		- `unicode_2_messy_alter_xclipboard_contents.bash`
+		- `unicode_3_visual_alter_xclipboard_contents.bash`
+
+- Exported `unicode_good_base_symbols.gnumeric` to `unicode_good_base_symbols.ods`, as the new main spreadsheet and single-source of truth.
+	- Data from that trickles down to `unicode_good_base_symbols.gnumeric` and `unicode_good_base_symbols.xlsx`.
+	- Notes:
+		- The `.xlsx` is _way_ too slow and painful to be the main spreadsheet. And is the most likely to be out of sync. It's essentially unusable for actual editing.
+		- The `.gnumeric` sheet used to be the main, because Gnumeric seems to be the fastest by far with this much data, but...
+		- Once you use the `.ods` sheet for a while, it speeds up. Must be some memory caching or optimizing hapening. It starts out as slow as Excel (basically unusable), but slowly speeds up to rival Gnumeric. So given that, and the better features of LibreOffice sheets over Gnumeric, LibreOffice is the new main.
+
 ## v1.1.0-beta4 - 2026-05-03
 
 ### Changed

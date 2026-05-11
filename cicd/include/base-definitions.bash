@@ -311,3 +311,4 @@ echo "[ Base definitions loaded. ]"
 
 ##	History:
 ##		- 20260427 JC: Combined base-definitions.sh and alias-definitions.sh into this refactored, simpler one.
+##		- 20260511 JC: Renamed to *.bash to make it clear it's not a POSIX shell.
