@@ -172,7 +172,8 @@ fRunChained_TestLast(){
 :;}
 
 ##
-## Shows piped input  terminal but truncated to terminal width. Also logs the whole line to a date/time-stamped file. Handles wide unicode.
+## Shows piped input to terminal but truncated to terminal width.
+## Also logs the whole line to a date/time-stamped file. Handles wide unicode.
 ##
 declare    __fPipe_LogAndShowPartialOutput_LogFile=""
 declare -i __fPipe_Log_isInitialized=0
@@ -187,6 +188,7 @@ fPipe_LogAndShowPartialOutput_InitLogfile(){
 	touch "${__fPipe_LogAndShowPartialOutput_LogFile}"
 	__fPipe_Log_isInitialized=1
 }
+
 fPipe_LogAndShowPartialOutput() {
 	## Coded by Claude Opus 4.7 Adaptive, 20260424-070027.
 
@@ -200,11 +202,14 @@ fPipe_LogAndShowPartialOutput() {
 #	cols=$(stty size </dev/tty 2>/dev/null | cut -d' ' -f2) || cols=80
 
 	while IFS= read -r line || [[ -n $line ]]; do
+
+		## Log output
 		now="$EPOCHREALTIME"
 		secs="${now%.*}"; frac="${now#*.}"; ms="${frac:0:4}"
 		printf -v ts '[%(%Y%m%d-%H%M%S)T.%s]' "$secs" "$ms"
 		((__fPipe_Log_isInitialized))  &&  printf '%s  %s\n' "$ts" "$line" >> "$__fPipe_LogAndShowPartialOutput_LogFile"
 
+		## For display, don't wrap
 		w=0; trunc_idx=-1; len=${#line}
 		for ((i=0; i<len; i++)); do
 			ch="${line:i:1}"
@@ -226,6 +231,7 @@ fPipe_LogAndShowPartialOutput() {
 		printf '%s\n' "$line"
 	done
 :;}
+
 fPipe_LogOnly() {
 	((! __fPipe_Log_isInitialized)) && return
 	## Send stderr to this, e.g. somecmd 2> >(fPipe_LogOnly >&2) | fPipe_LogAndShowPartialOutput
@@ -365,7 +371,7 @@ declare -i isExpectingError=0
 declare -i count_Errors_Unexpected=0
 declare -i count_Errors_Expected=0
 #trap 'printf "(line %s) " "$LINENO" "$?" >&2; echo; { ((isExpectingError))  &&  ((++count_Errors_Expected)); }  ||  ((++count_Errors_Unexpected))' ERR
-trap '_errNo=$?; { ((isExpectingError))  &&  ((++count_Errors_Expected)); }  ||  ((++count_Errors_Unexpected)); sleep 0.25; echo "ERR: errno=${_errNo} line=${LINENO} command: ${BASH_COMMAND}" >&2' ERR
+trap '_errNo=$?; { ((isExpectingError))  &&  ((++count_Errors_Expected)); }  ||  ((++count_Errors_Unexpected)); sleep 0.5; echo "Error in ${meName_t4rge}; ERR: errno=${_errNo} line=${LINENO} command: ${BASH_COMMAND}" >&2' ERR
 
 
 ## Error and exit settings
@@ -400,3 +406,5 @@ fi
 ##		- 20260421 JC: Added polish.
 ##		- 20260423 JC: Added fRunChained_TestLast() to be able to test commands that can't be piped.
 ##		- 20260424 JC: Made generic.
+##		- 20260511 JC:
+##			- Added meName_... to error handler.
