@@ -37,14 +37,22 @@ type SymbolSpec struct {
 //	  - If there are multiple digit tokens, each token is one symbol
 //	    (with optional comma-split within a token, e.g. "0,1 2 3").
 //
-// Because symbols are whitespace-delimited in this format, space can never
-// itself be a digit symbol. To use a space symbol, construct the Base in code
-// or via a YAML array-form "symbols" field.
+// Escape sequences allow characters that would otherwise conflict with the
+// whitespace-delimited format to be used as digit symbols:
+//
+//	\<space>  → literal space
+//	\\        → literal backslash
+//	\t        → tab
+//	\n        → newline
+//	\"        → double quote
 func ParseSymbolSpec(s string) (SymbolSpec, error) {
+	s = unescapeSpec(s)
+
 	var out SymbolSpec
 	tokens := strings.Fields(s)
 	var digitTokens []string
 	for _, t := range tokens {
+		t = restoreSpaces(t)
 		switch {
 		case strings.HasPrefix(t, "neg="):
 			v := t[len("neg="):]
@@ -74,6 +82,50 @@ func ParseSymbolSpec(s string) (SymbolSpec, error) {
 		}
 	}
 	return out, nil
+}
+
+// unescapeSpec processes escape sequences in a spec string. Escaped spaces
+// are replaced with a Unicode non-character (U+FFFE) so they survive the
+// subsequent strings.Fields split, then restored to real spaces in the
+// resulting tokens.
+func unescapeSpec(s string) string {
+	if !strings.Contains(s, `\`) {
+		return s
+	}
+	var b strings.Builder
+	b.Grow(len(s))
+	for i := 0; i < len(s); i++ {
+		if s[i] == '\\' && i+1 < len(s) {
+			switch s[i+1] {
+			case ' ':
+				b.WriteRune('\uFFFE') // placeholder for literal space
+				i++
+			case '\\':
+				b.WriteByte('\\')
+				i++
+			case 't':
+				b.WriteByte('\t')
+				i++
+			case 'n':
+				b.WriteByte('\n')
+				i++
+			case '"':
+				b.WriteByte('"')
+				i++
+			default:
+				b.WriteByte(s[i]) // unrecognized escape, keep as-is
+			}
+		} else {
+			b.WriteByte(s[i])
+		}
+	}
+	return b.String()
+}
+
+// restoreSpaces replaces the U+FFFE placeholder (inserted by unescapeSpec for
+// escaped spaces) back to real spaces, after whitespace splitting is done.
+func restoreSpaces(s string) string {
+	return strings.ReplaceAll(s, "\uFFFE", " ")
 }
 
 func splitCommas(s string) []string {

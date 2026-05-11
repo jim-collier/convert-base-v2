@@ -2,3 +2,5 @@
 **/dist
 **/bin
 **/.vscode/bookmarks.json
+**/unicode_visual_debug.png
+**/__pycache__
