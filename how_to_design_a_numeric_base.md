@@ -337,6 +337,10 @@ __Positional notation numbering system__: In very approximate and subjective ord
 
 ### Class 2; things that make a positional notation numbering system hard to read and use
 
+- ASCII symbols besides `0-9`, `A-Z`, and `a-z`.
+
+	- As noted several times previously, by restricting a base to these 62 characters, you only "give up" 33 single-byte UTF-8 symbols. (Which yes is over 50% of the baseline, but usually a fraction of the total symbol count for a given base, larger or smaller.) But the gain in freedom from worry, knowing that a resulting output will conflict with virtually _no_ "reserved" symbol used for any filesystem, URL, HTML, JSON, or programming language, is high. (Yes that means that ideally, the extra two characters for a base-64 alphabet should ideally come from the 2-byte range. Except specifically in the case of 7-bit MIME encoding. Then the extra two symbols are required to come from the 1-byte range of "forbidden" keyboard symbols.)
+
 - Single-width characters that render too wide. These can make numbers impossible to read on a terminal emulator, and other applications that can't vary the display width even for "monospaced" fonts (as most text editors can and do).
 
 	- It is one of the biggest challenges selecting symbols for large bases, that don't violate this. Much testing has to be done with multiple fonts. Programmatic visual analysis can help a great deal here.
