@@ -32,24 +32,25 @@ This is an easier way to brainstorm and prioritize tasks, before creating issues
 
 ## Status: Staged
 
-| Created  | Issue#                                                  |Score|Imp|Urg|Eff|Aff| Started  | by | Completed | Description | Notes
-|:---------|-------:                                                 |----:|--:|--:|--:|--:|:---------|:---|:----------|:------------|:------
-| 20260420 |                                                         | 2.7 | 3 | 3 | 2 |   |  |  |  | Add known issues to Github.
+| Created  |Issue#|Score|Imp|Urg|Eff|Aff| Started  | by | Completed | Description | Notes
+| :------  | :--- | --: |--:|--:|--:|--:| :------  |:---| :-------- | :---------- | :----
+| 20260511 |      |     | 4 | 4 |   | 4 |          |    |           | Update "How to design a base" from detailed notes file
 <!--
-| 2026 |                                                         |  |  |  |  |  |  |  |  |
+| 2026     |      |     |   |   |   |   |          |    |           |
 -->
 
 ## Status: Started
 
-| Created  | Issue# |Score|Imp|Urg|Eff|Aff| Started  | by | Completed | Description | Notes
-|:---------|:-------|----:|--:|--:|--:|--:|:---------|:---|:----------|:------------|:-----
+| Created  |Issue#|Score|Imp|Urg|Eff|Aff| Started  | by | Completed | Description | Notes
+| :------  | :--- | --: |--:|--:|--:|--:| :------  |:---| :-------- | :---------- | :----
 
 ## Status: Canceled, moot
 
-| Created  | Issue# |Score |Imp|Urg|Eff|Aff| Started  | by | Completed | Description | Notes
-|:---------|:-------|-----:|--:|--:|--:|--:|:---------|:---|:----------|:------------|:-----
+| Created  |Issue#|Score|Imp|Urg|Eff|Aff| Started  | by | Completed | Description | Notes
+| :------  | :--- | --: |--:|--:|--:|--:| :------  |:---| :-------- | :---------- | :----
 
 ## Status: Done
 
-| Created  | Issue# |Score|Imp|Urg|Eff|Aff| Started  | by | Completed | Description | Completion notes
-|:---------|:-------|----:|--:|--:|--:|--:|:---------|:---|:----------|:------------|:-----
+| Created  |Issue#|Score|Imp|Urg|Eff|Aff| Started  | by | Completed | Description | Notes
+| :------  | :--- | --: |--:|--:|--:|--:| :------  |:---| :-------- | :---------- | :----
+| 20260420 |      | 2.7 | 3 | 3 | 2 |   |          | JC | 20260422  | Add known issues to Github.

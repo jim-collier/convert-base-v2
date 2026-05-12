@@ -35,19 +35,43 @@
 <!-- TOC ignore:true -->
 # convert-base-v2
 
-A cross-platform CLI program written in Go, that:
+A cross-platform CLI program written in Go, to convert any number of any size, to and from any arbitrary base. Dozens of predefined named bases, or specify your own. And all the standards like base-10, 16, RFC base-64, etc. Supports negatives, floating-point, and piped binary data.
 
-- Converts a number to and from any arbitrary base.
+<!-- TOC ignore:true -->
+## Table of contents
+<!-- TOC -->
+
+- [Introduction](#introduction)
+	- [Features](#features)
+	- [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
+- [Status](#status)
+- [Limitations](#limitations)
+	- [Streaming binary conversion](#streaming-binary-conversion)
+- [Example output](#example-output)
+- [List of supported bases and their positional notation symbols](#list-of-supported-bases-and-their-positional-notation-symbols)
+- [Supporting work](#supporting-work)
+- [Document history](#document-history)
+- [Copyright and license](#copyright-and-license)
+
+<!-- /TOC -->
+
+## Introduction
+
+### Features
+
+A universal cross-platform CLI number conversion program, written in Go, that:
+
+- Converts any number of arbitrary size, to and from any arbitrary base.
 
 - The number can be arbitrarily large.
 
-- Supports negative and floating-point numbers in most bases, notably ones intended to be used as positional notation. (Even if the base can - or was designed - to serve dual-purpose as a binary-to-text endoding/decoding alphabet.)
+- Supports negative and floating-point numbers in most bases. (Except a few that explicitly were not designed for that.) Even for bases designed only for binary-to-text encoding (RFC 4648 §4), can be used for positional notation - and thus negative and fractional numbers.
 
-	- And the ability to define alternate symbols for "negative" and "decimal", if the regular ones clash with symbols already in the base.
+	- The program supports defining alternate symbols for "negative" and "decimal", if the regular ones clash with symbols already in the base.
 
 - There are dozens of predefined named bases to specify as input or output.
 
-- You can define your own arbitrary base and alphabet (a set of positional notation symbols), just by providing the alphabet.
+- You can define your own arbitrary base and alphabet (the set of positional notation symbols), just by providing the alphabet.
 
 	- E.g.: "`a 0 c X 🫪 だ`" is a perfectly valid, functional base-6 for some reason.
 
@@ -59,13 +83,19 @@ A cross-platform CLI program written in Go, that:
 
 - Accepts data from the command line, and/or from `stdin` (e.g. piped data).
 
-- Why convert a number to a large base? There are myriad useful technical reasons, that would otherwise require chaining together a series of standard tools. Or, that would require using a web-based tool in a way that can't be scripted.
+### Why convert a number to a large base
 
-	- As a trivial example, let's say you want to manually generate "serial numbers" now and then for physical, real-world use. You need, say, at most minute-level precision to insure uniqueness. But you need short, human-readable, unambiguous characters rather than a long date or number.
+There are myriad useful technical reasons, that would otherwise require chaining together a series of standard tools. Or, that would require using a web-based tool in a way that can't be scripted.
 
-		You could use POSIX time (the number of seconds since 1970), divided by 60 for shorter minute-level precision, then convert that integer to Bitcoin's original base-58 "readable" scheme. For example, "2026-01-01 @ 12:15 PM" could be represented as "1fLcL4" in standard base-64url, or "£±Яᛯ" in base-256.
+- As a trivial example, let's say you want to manually generate "serial numbers" now and then for physical, real-world use. You need, say, at most minute-level precision to insure uniqueness. But you need short, human-readable, unambiguous characters rather than a long date or number.
 
-At larger non-standard bases that we invented, careful effort was made to:
+	You could use POSIX time (the number of seconds since 1970), divided by 60 for shorter minute-level precision, then convert that integer to Bitcoin's original base-58 "readable" scheme.
+
+	As another example, "2026-01-01 @ 12:15 PM" could be represented as "1fLcL4" in standard base-64 RFC 4648 §5 `64u`, or "£±Яᛯ" in base-256 `256jc1`.
+
+- The more obvious example is encoding binary data to text. Base 64 (`64r`, `64u`, `64jc1`) is the most effecient way to encode binary to UTF-8 text. But even higher bases are available for niche cases - e.g. base-2048 `2048twitter`, specifically designed by qntm for Twitter; or base-65536 `65536qntm` for optimal UTF-32 binary-to-text encoding.
+
+At larger non-standard bases that this project created (e.g. `base-256jc1`), careful effort was made to:
 
 - Avoid ambiguous characters that look like existing 0-9 A-Z ASCII characters and symbols.
 
@@ -76,21 +106,6 @@ At larger non-standard bases that we invented, careful effort was made to:
 - Keep the character selection consistent across bases.
 
 _Note: The command `convert-base-v2` has a version number on the end, to distinguish it from v1, which as predicted in that project, this v2 has a necessary minor break from in output, in one narrow edge case. And like v1, in the future there may be good reasons for the output to change again in a v3. For example, there are no "official standards" for large bases above 94 as of time of writing, but that could change. So to avoid overwriting an old script on a running system that may rely on it and it's predictable output, a new suffix number will be given to future programs if the output changes, and the two will coexist. That the existing version has a number, indicates that expected inevitability now._
-
-<!-- TOC ignore:true -->
-## Table of contents
-<!-- TOC -->
-
-- [Status](#status)
-- [Limitations](#limitations)
-	- [Streaming binary conversion](#streaming-binary-conversion)
-- [Example output](#example-output)
-- [List of supported bases and their positional notation symbols](#list-of-supported-bases-and-their-positional-notation-symbols)
-- [Supporting work](#supporting-work)
-- [Document history](#document-history)
-- [Copyright and license](#copyright-and-license)
-
-<!-- /TOC -->
 
 ## Status
 
@@ -137,17 +152,17 @@ This is a partial list carried over from `convert-base-v1`. This new version has
 |  32c       |    21 | 1K27NAMV93MT948TZW001
 |  32w       |    21 | 3X49fGcqF5cpF6Cpxr223
 |  36        |    20 | 5G53VAIZAJBZ2D5Y2Y9T
-|  48j1      |    19 | 153ᚼᛦ🜥⁑h҂▵ᛦ🜿▿▸▿2q🜥q
+|  48jc1     |    19 | 153ᚼᛦ🜥⁑h҂▵ᛦ🜿▿▸▿2q🜥q
 |  52        |    18 | NftxKBqjrhTdQKHAGJ
 |  62        |    17 | gR7BplOIkweh9aKht
 |  64[r]     |    17 | PYFLLDf7JII8r/W01
 |  64u       |    17 | PYFLLDf7JII8r_W01
-|  64j1u     |    17 | PYFLLDf7JII8rʞW01
-|  64j1uw    |    17 | hλMXXHᛝ7VRR8▸≠w01
+|  64jc1u    |    17 | PYFLLDf7JII8rʞW01
+|  64jc1ws   |    17 | hλMXXHᛝ7VRR8▸≠w01
 |  94[ascii] |    16 | %+(A}'O^UwzN_{sS
-| 128[j1]    |    15 | 6🜥Mᛦ⍩ÑQŵʬμʞᚼä01
-| 256[j1]    |    13 | Pĵㅍ‡sĨǍᚧYrぇ01
-| 288[j1]    |    13 | 6zф⅖ẄÃЋゲㅎぇúkᛎ
+| 128jc1     |    15 | 6🜥Mᛦ⍩ÑQŵʬμʞᚼä01
+| 256jc1     |    13 | Pĵㅍ‡sĨǍᚧYrぇ01
+| 288jc1     |    13 | 6zф⅖ẄÃЋゲㅎぇúkᛎ
 -->
 
 ## List of supported bases and their positional notation symbols
@@ -190,6 +205,7 @@ Any number of any size can be converted to and from any of these bases. Most sup
 | 38    | hostname             | 38hostname, 38jc                                      |                                  |               | 0123456789abcdefghijklmnopqrstuvwxyz-.
 | 39    | username             | 39username, 39jc                                      |                                  |               | 0123456789abcdefghijklmnopqrstuvwxyz-_.
 | 42    | 42                   | 42hex, 42h                                            |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdef
+| 45    | 45rfc9285            | 45r                                                   | RFC 9285, space is a symbol
 | 45    | email                | 45email, 45jc                                         |                                  |               | 0123456789abcdefghijklmnopqrstuvwxyz-_%+.:@[]
 | 48    | 48                   | 48hex, 48h                                            |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijkl
 | 48    | 48wordsafe           | 48w, 48ws, 48jcws, 48nofks                            |                                  |               | 23456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣
