@@ -19,18 +19,16 @@
 ## Inactive shellchecks
 ## shellcheck disable=2034  ## Unused variables.
 
-
 ##	Purpose:
 ##		- CI/CD-friendly test harness that passes or fails.
 ##		- Tests random output and round-trips through v2 to make sure the initial output was correct (at least if v2 is also correct).
 ##		- This is NOT part of cicd script, as it's not a requirement to have v2 installed.
 ##	History: At bottom of this file. (Note: History for this is maintained outside of [or in addition to] git project.)
 
-##	Copyright
-##		Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
-##		Licensed under the GNU General Public License v2.0 or later. Full text at:
-##			https://spdx.org/licenses/GPL-2.0-or-later.html
-##		SPDX-License-Identifier: GPL-2.0-or-later
+##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
 
 
 ## Global settings
@@ -42,7 +40,7 @@ if [[ -z "${doLongTest+x}" ]]; then
 fi
 
 
-fMain(){
+fMain_Test(){
 
 	## Settings (paths are canonicalized and validated relative to this script)
 	local     exeV2="../source/bin/convert-base-v2"
@@ -205,7 +203,7 @@ fTestAllAliases(){
 	local -r inputVal="${1:-}"   ; shift || true
 	for nextBase in "${baseAliasesArr[@]}"; do
 		fRunTest  'no_error'  "[anything or nothing]"  "'${exeV2}'  --from ${inputBase}  ${inputVal}  ${nextBase}"
-	done
+	done;:
 }
 
 
@@ -244,7 +242,7 @@ fTest_AllBasesAgainstEachOther(){
 			## To avoid falsely triggering an error:
 			## Strip off leading symbols representing '0' from input, which will be gone from the output during conversion.
 			expectVal="${inputStr}"
-			until [[ "${expectVal:0:1}" !=  "${inputBaseSymbols:0:1}" ]]; do expectVal="${expectVal:1}"; done
+			until [[ "${expectVal:0:1}" !=  "${inputBaseSymbols:0:1}" ]]; do expectVal="${expectVal:1}"; done;:
 			[[ -z "${expectVal}" ]]  &&  continue  ## If it's empty now, just skip to next test.
 
 			## Get intermediate base [j] and its list of symbols
@@ -271,8 +269,8 @@ fTest_AllBasesAgainstEachOther(){
 			## This command's output should be the same as the previous command's input.
 			fRunTest  '=='  "${expectVal}"  "'${exeV2}'  --from '${intermediateBaseName}'  --to '${inputBaseName}'  --  '${intermediateVal}'"
 
-		:; done; :
-	:; done; :
+		:; done;:
+	:; done;:
 
 :;}
 
@@ -311,7 +309,7 @@ fFuzzTest_Self(){
 		## To avoid falsely triggering an error:
 		## Strip off leading symbols representing '0' from input, which will be gone from the output during conversion.
 		expectVal="${inputStr}"
-		until [[ "${expectVal:0:1}" !=  "${inputBaseSymbols:0:1}" ]]; do expectVal="${expectVal:1}"; done
+		until [[ "${expectVal:0:1}" !=  "${inputBaseSymbols:0:1}" ]]; do expectVal="${expectVal:1}"; done;:
 		[[ -z "${expectVal}" ]]  &&  continue  ## If it's empty now, just skip to next test.
 
 		## Pick a random intermediate output base
@@ -340,7 +338,7 @@ fFuzzTest_Self(){
 		## This command's output should be the same as the previous command's input.
 		fRunTest  '=='  "${expectVal}"  "'${exeV2}'  --from '${intermediateBaseName}'  --to '${inputBaseName}'  --  '${intermediateVal}'"
 
-	done; true
+	done;:
 
 }
 
@@ -395,7 +393,7 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 		## This command's output should be the same as the previous command's input.
 		fRunTest  '=='  "${expectVal}"  "'${exeV2}'  --from '${intermediateBaseName}'  --to 10  --  '${intermediateVal}'"
 
-	done; true
+	done;:
 
 }
 
@@ -448,10 +446,10 @@ fFuzzTest_Base10_To_BaseX_AndBack_via_v1b(){
 	fEcho_WasLastEchoBlank_Get()  { return 0; }
 	fEcho_IsInRawInlineMode_Set() { local -i arg1=${1:-0}; }
 	fEcho_IsInRawInlineMode_Get() { return 0; }
-	fEcho_Clean()             { local -i arg1="${1:-0}"; }
-	fEcho()                   { local -i arg1="${1:-0}"; }
-	fEcho_Force()             { local -i arg1="${1:-0}"; }
-	fEcho_Clean_Force()       { local -i arg1="${1:-0}"; }
+	fEcho_Clean()                 { local arg1="${1:-0}"; }
+	fEcho()                       { local arg1="${1:-0}"; }
+	fEcho_Force()                 { local arg1="${1:-0}"; }
+	fEcho_Clean_Force()           { local arg1="${1:-0}"; }
 )
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -531,3 +529,6 @@ fEntryPoint | fPipe_LogAndShowPartialOutput
 ##			- Fixed bugs in loops natural end, caused by not setting `set +e`.
 ##		- 20260428 JC: Removed now-unnecessary reference to alias-definitions.sh.
 ##		- 20260511 JC: Renamed to *.bash to make it clear it's not a POSIX shell.
+##		- 20260519 JC:
+##			- Updated for updated n8lib_test.
+##			- Changed license from GPL2 to MIT.
