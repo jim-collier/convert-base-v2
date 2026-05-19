@@ -8,6 +8,31 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+<!--
+## NEXT VERSION
+
+### Notes
+
+### Added
+
+### Changed
+
+### Removed
+
+### Other work
+-->
+
+## v1.1.0-beta5 (unreleased) - WIP
+
+### Other work
+
+- Updated to CI/CD scripts [20250519]:
+	- Updated for less boilerplate.
+	- Changed license (of CI/CD scripts) from GPL2 to MIT.
+	- Moved from ./utility to ./cicd/utility to be more logical, and consistent with other projects.
+	- Refreshed local copies of n8git_backup-and-publish and n8lib_test.
+	- Updated to side-step known potential edge-case unexpected behavior in `while...do...done`, by following all `done` with 'true'.
+
 ## v1.1.0-beta5 - 2026-05-12
 
 ### Added
@@ -98,17 +123,3 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Created repo and project structure [20260417]
 - Finished first draft of README.md [20260418]
 - Added testing script. (Tests pass for most common scenarios - e.g. all integers with bases <= 288.)
-
-<!--
-## NEXT VERSION
-
-### Notes
-
-### Added
-
-### Changed
-
-### Removed
-
-### Other work
--->
