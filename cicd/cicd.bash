@@ -52,7 +52,15 @@ if [[ -z "${doQuietly+x}" ]]; then
 	declare -r  thisAuthor="Jim Collier"           ## Put your copyright name here.
 	declare -ri atLeastOneArgRequired=0
 	declare -ri doAsSudo=0
+	declare  -i wasShown_Version=0  wasShown_Copyright=0  wasShown_About=0  wasShown_Syntax=0
 fi
+
+
+##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
+
 
 ## Version, copyright, about, syntax (minified but not obfuscated)
 ## Note: Echoing rather than HEREDOC is preferrable because - while slower - that's not
@@ -66,8 +74,8 @@ fCopyright(){ { ((doQuietly)) || ((wasShown_Copyright)); } && return; wasShown_C
 	fEcho_Clean ""
 	## Don't show version info, because it can confuse user with the version of the product being built.
 	fEcho_Clean "${meName}, Copyright © ${thisCopyrightYear} ${thisAuthor}."
-	fEcho_Clean "Licensed under the GNU General Public License v2.0 or later. Full text at:"
-	fEcho_Clean "  https://spdx.org/licenses/GPL-2.0-or-later.html"
+	fEcho_Clean "Licensed under The MIT License (MIT). Full text at:"
+	fEcho_Clean "  https://mit-license.org/"
 	fEcho_Clean "No warranty."
 	fEcho_Clean "" ;:;}
 
@@ -87,10 +95,6 @@ fAbout(){ { ((doQuietly)) || ((wasShown_About)); } && return; wasShown_About=1;
 
 fSyntax(){  { ((doQuietly)) || ((wasShown_Syntax)); } && return; wasShown_Syntax=1;
 	fEcho_Clean ""
-	fEcho_Clean "Arguments:"
-	fEcho_Clean "  --quiet"
-	fEcho_Clean "      [optional]: Be less verbose, and don't prompt user to continue."
-	fEcho_Clean "  --help, --version [or -h, -v]"
 	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "" ;:;}
 
@@ -98,20 +102,9 @@ fSyntax(){  { ((doQuietly)) || ((wasShown_Syntax)); } && return; wasShown_Syntax
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 fMain(){
 
-	## Generic constants and variables
-	local ogUSER="" ; fGetOgUserName ogUSER             ; readonly ogUSER
-	local ogHOME="" ; fGetOgUserHome ogHOME "${ogUSER}" ; readonly ogHOME
-	local -i wasShown_Version=0  wasShown_Copyright=0  wasShown_About=0  wasShown_Syntax=0
-
-	## Validate dependencies
+	# Validate dependencies
 	fMustBeInPath realpath
 	fMustBeInPath trash
-
-	## Arguments
-	local  -a allArgsArr=()
-	local -ri parseArgs_maxPositionalArgCount=1  ## Variable expected by fParseArgs()
-	fParseArgs  "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" "${12:-}" "${13:-}" "${14:-}" "${15:-}" "${16:-}" "${17:-}" "${18:-}" "${19:-}" "${20:-}" "${21:-}" "${22:-}" "${23:-}" "${24:-}" "${25:-}" "${26:-}" "${27:-}" "${28:-}" "${29:-}" "${30:-}" "${31:-}" "${32:-}"
-	readonly allArgsArr
 
 	## Resolve paths
 	fResolvePath  dirPath_Base                                 "${dirPath_Base}"                                   ; readonly dirPath_Base
@@ -190,15 +183,15 @@ fMain(){
 	for nextPath in "${preferredInstallPaths_Linux_x86_64[@]}"; do
 		if [[ -d "${nextPath}" ]]; then
 			fEcho; fEcho "$(date "+%Y%m%d-%H%M%S") Copying '${filePath_ExecToTestAndInstall_FinalHome}' to '${nextPath}' ..."
-			if { ! cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"; }  &&  [[ "${nextPath}" != "${ogHOME}/"* ]]; then
-				sudo cp -a "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"
+			if { ! cp -av --update=older --reflink=auto "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"; }  &&  [[ "${nextPath}" != "${HOME}/"* ]]; then
+				sudo cp -av --update=older --reflink=auto "${filePath_ExecToTestAndInstall_FinalHome}"  "${nextPath%%/}/"
 			fi
 			fEcho; fEcho "ls \$(which '$(basename "${filePath_ExecToTestAndInstall_FinalHome}")'):"
 			ls  -lA  --color=always  --human-readable  --time-style=+"%Y-%m-%d %H:%M:%S"  "$(which "$(basename "${filePath_ExecToTestAndInstall_FinalHome}")")"
 			fEcho_Force
 			break
 		fi
-	done; :
+	done;:
 
 	## Windows x86_64
 	if [[ ! -f "${filePath_Exec_Zip_Win_x86_64}" ]]; then
@@ -207,7 +200,7 @@ fMain(){
 		for nextPath in "${preferredInstallPaths_Winx86_x86_64[@]}"; do
 			if [[ -d "${nextPath}" ]]; then
 			fEcho; fEcho "$(date "+%Y%m%d-%H%M%S") Extracting '${filePath_Exec_Zip_Win_x86_64}' to '${nextPath}' ..."
-				if { ! unzip -u -o  "${filePath_Exec_Zip_Win_x86_64}"  -d  "${nextPath%%/}"; }  &&  [[ "${nextPath}" != "${ogHOME}/"* ]]; then
+				if { ! unzip -u -o  "${filePath_Exec_Zip_Win_x86_64}"  -d  "${nextPath%%/}"; }  &&  [[ "${nextPath}" != "${HOME}/"* ]]; then
 					sudo unzip -u -o  "${filePath_Exec_Zip_Win_x86_64}"  -d  "${nextPath%%/}"
 				fi
 				fEcho; fEcho "ls '${nextPath%%/}/${exeName}/'*:"
@@ -215,145 +208,20 @@ fMain(){
 				fEcho_Force
 				break
 			fi
-		done; :
+		done;:
 	fi
 
 	## Git automation script (e.g. commit, push)
 	"${gitAutomationScript}"
 
-#	## Run fMain_Chained(), as sudo if necessary, with important variables [and/or fArgs_*] serialized.
-#	((doAsSudo))  &&  fChainToFunc  'fMain_Chained'  "$(declare -p  doQuietly  ogUSER  ogHOME)"
-
-	## Done; either fChainToFunc() -> fMain_Chained() returned, or this script run in a sudo subshell [running only fMain_Chained()] returned.
+	## Done
 	((! doQuietly)) && { fEcho "${meName}: Done."; fEcho; }
 }
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-fMain_Chained(){
-	[[ -n "${1:-}" ]]  &&  eval "${1:-}"  ## Restore caller's serialized variables [or fArgs_*]. New scope is local to this function.
-#	[[ -n "${2:-}" ]]  &&  eval "${2:-}"  ## Restore caller's fArgs_*. New scope is local to this function.
-	((! doQuietly))  &&  fEcho_Clean
-
-	## Revalidate
-	[[   -z "${doQuietly}" ]]                && { fThrowError "Arg not set: doQuietly" ; return 1; }
-	[[   -z "${ogUSER}" ]]                   && { fThrowError "Arg not set: ogUSER" ; return 1; }
-	[[   -z "${ogHOME}" ]]                   && { fThrowError "Arg not set: ogHOME" ; return 1; }
-
-}
-
-
-#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-fParseArgs(){
-
-	## Look for stars "✶✶✶✶✶✶✶✶" for places to custom-modify unique instances of this function.
-
-	## Check for need to show help etc.
-	{ ((atLeastOneArgRequired)) && [[ -z "${1:-}${2:-}${3:-}${4:-}" ]]; } && { fCopyright; fAbout; fSyntax; return 1; }
-	case " ${*,,} " in
-		*" -h "*|*" --help "*|*" -help "*)                               fCopyright ; fAbout ; fSyntax ; exit 0 ;;
-		*" -a "*|*" --about "*|*" -about "*)                             fCopyright ; fAbout           ; exit 0 ;;
-		*" -v "*|*" --version "*|*" -version "*|*" --ver "|*" -ver "**)  fVersion ; doQuietly=1        ; exit 0 ;;
-	esac
-
-	## GENERIC (don't modify): Populate args array and string.
-	## Note: Args are 1-based index, but the resulting array of args at the end is a normal 0-based index.
-	local -r -i maxPracticalArgCount=50  ## In Bash we have 2MB of args, or somewhere around 10k by count. For readabality and performance, keep it MUCH lower, say ~20-99.
-	local    -i totalArgCount=0
-	local    -i switchCounter=0
-	allArgsArr=()
-	## Store the highest non-empty argument number.
-	local -i i; i=0
-	for ((i=1; i<=maxPracticalArgCount; i++)); do [[ -n "${!i:-}" ]] && totalArgCount=$i; done
-	local -ri totalArgCount=$totalArgCount
-	## Build args str and array, including empty args - up to the last non-empty arg.
-	local thisStr=""
-	for ((i=1; i<=totalArgCount; i++)); do
-		thisStr="${!i}"
-		thisStr="${thisStr//\"/″}"; thisStr="${thisStr//\'/′}"
-		allArgsArr+=("${thisStr}")
-	done
-
-	## GENERIC: Variables for loop
-	local    tmpStr=""
-	local    currentArg=""
-	local    lastSwitch=""
-	local -i expectingSwitchParamForNextArg=0
-	local -i positionalArgCounter=0
-
-	## Process arguments
-	for currentArg in "${allArgsArr[@]}"; do
-		#fEcho_Clean "Debug: currentArg ........: '${currentArg}'"
-
-		## Test if an option switch or not
-		if [[ -n "$(echo "${currentArg}" | grep -P "^\-(\-?)[^\ \-]" 2>/dev/null || true)" ]]; then
-			## It's an option (either unary or long-option, we don't know yet)
-			#fEcho_Clean "Debug: option ............: '${currentArg}'"
-
-			## Check if this was supposed to NOT be a unary switch (eg expecting a parameter after previous long-option)
-			((expectingSwitchParamForNextArg)) && fThrowError "Expecting a long-option argument for '${lastSwitch}', instead got another option '${currentArg}'."
-			switchCounter=$((switchCounter + 1))
-
-			## Validate switches, and act on unary switches
-			lastSwitchAsPassed="${currentArg}"
-			tmpStr="${currentArg,,}"
-
-			## Strip switch dashes off
-			while [[ "${tmpStr}" == -* ]]; do tmpStr="${tmpStr#-}"; done
-			lastSwitch="${tmpStr}" ## Remember lastSwitch
-
-			case "${tmpStr}" in
-
-				## ✶✶✶✶✶✶✶✶ PUT CUSTOM UNARY SWITCH TESTS AND PARENT BOOLEAN VARIABLE ASSIGNMENTS HERE
-				"quiet")  doQuiet=1  ;;
-
-			#	## ✶✶✶✶✶✶✶✶ PUT TESTS FOR CUSTOM LONG-OPTION LOGIC THAT EXPECTS AN ARGUMENT TO FOLLOW, HERE
-			#	"long-option-with-arg-to-follow") expectingSwitchParamForNextArg=1 ;;
-
-				## ¯\_(ツ)_/¯
-				*) fThrowError  "Unexpected option in this context: '${currentArg}'."  ;;
-
-			esac
-		else
-			## It's not an option switch; could be a long-option argument, or a positional arg
-
-			if ((expectingSwitchParamForNextArg)); then :
-				## Now we know to expecting an long-option argument
-				#fEcho_Clean "Debug: arg for long-option: '${lastSwitch}': '${currentArg}'"
-
-			#	## ✶✶✶✶✶✶✶✶ PUT CUSTOM LONG-OPTION ARGUMENT TESTS AND PARENT VARIABLE ASSIGNMENTS HERE
-			#	case "${lastSwitch,,}" in
-			#		"long-option-with-arg-to-follow") someParentVariable="${currentArg}" ;;
-			#		*)                                fThrowError "Unkown option: '${lastSwitchAsPassed}', current parameter: '${currentArg}'." ;;  ## A redundant check.
-			#	esac
-			#	expectingSwitchParamForNextArg=0
-
-			else
-				## Well it must be a positional arg then.
-				positionalArgCounter=$((positionalArgCounter + 1))
-				((positionalArgCounter > parseArgs_maxPositionalArgCount))  && fThrowError "Too many positional arguments: ${positionalArgCounter}, for max of ${parseArgs_maxPositionalArgCount}."
-				#fEcho_Clean "Debug: positional arg #${positionalArgCounter}: '${currentArg}'"
-
-				## ✶✶✶✶✶✶✶✶ PUT CUSTOM POSITIONAL ARG LOGIC HERE (only use one of the following methods, delete the other)
-
-				## Assign parent variables; Method 1: argument counter (less flexible but best for simple input)
-				case $positionalArgCounter in
-					1) stringArg="${currentArg}"      ;;
-					2) arg_intArg="${currentArg}" ;;
-					*) fThrowError "Unexpected positional argument # ${positionalArgCounter}: '${currentArg}'." ;;
-				esac
-
-			fi
-		fi
-	done
-	((expectingSwitchParamForNextArg)) && fThrowError "Never received a parameter for switch '--${lastSwitch}'."
-
-:;}  ## 'true' has to be the last thing or this function errors [the joys of the mysterious 'set -e'].
-
-
-#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 fCleanup(){
-	if ((! doQuietly)); then
+	if ((! doQuietly)); then :
 		fEcho_Clean
 	fi
 }
@@ -400,50 +268,6 @@ fResolvePath(){
 	#fPressAnyKeyToContinue
 	parentVarName_ResolvedPath_t4rej="${testPath}"
 }
-fGetOgUserName(){
-	local -n varName_s74rg=$1  ## Arg <REQUIRED>: Variable reference for result.
-	local    retVal=""
-	varName_s74rg=""
-	retVal="${USER}"                         ; { [[ -n "${retVal}" ]] && [[ "${retVal,,}" != "root" ]]; } && { varName_s74rg="${retVal}"; return 0; }
-	retVal="${SUDO_USER}"                    ; { [[ -n "${retVal}" ]] && [[ "${retVal,,}" != "root" ]]; } && { varName_s74rg="${retVal}"; return 0; }
-	retVal="$(whoami  2>/dev/null || true)"  ; { [[ -n "${retVal}" ]] && [[ "${retVal,,}" != "root" ]]; } && { varName_s74rg="${retVal}"; return 0; }
-	retVal="$(logname 2>/dev/null || true)"  ; { [[ -n "${retVal}" ]] && [[ "${retVal,,}" != "root" ]]; } && { varName_s74rg="${retVal}"; return 0; }
-	retVal="${USER}"                         ; { [[ -n "${retVal}" ]] && [[ "${retVal,,}" != "root" ]]; } && { varName_s74rg="${retVal}"; return 0; }
-	retVal="${USER}"                         ;   [[ -n "${retVal}" ]]                                     && { varName_s74rg="${retVal}"; return 0; }
-	retVal="$(whoami  2>/dev/null || true)"  ;   [[ -n "${retVal}" ]]                                     && { varName_s74rg="${retVal}"; return 0; }
-	[[ -z "${retVal}" ]] && fThrowError  "Could not figure out username. This could be a bug [¢Яēᛏ]."  "${FUNCNAME[0]}" ;:;}
-fGetOgUserHome(){
-	local -n varName_s74rm=$1            ## Arg <REQUIRED>: Variable reference for result.
-	local    userName_s74rm="${2:-}"     ## Arg [optional]: Username. If blank will use fGetOguserName().
-	local    retVal=""
-	varName_s74rm=""
-	retVal="${HOME}"                                                                                       ; { [[ -n "${retVal}" ]] && [[ "${retVal,,}" != "/root" ]] && [[ -d "${retVal}" ]]; } && { varName_s74rm="${retVal}"; return 0; }
-	[[ -z "${userName_s74rm}" ]]  &&  fGetOgUserName userName_s74rm
-	retVal="$(eval echo "~${userName_s74rm}")"                                                             ; { [[ -n "${retVal}" ]] && [[ "${retVal,,}" != "/root" ]] && [[ -d "${retVal}" ]]; } && { varName_s74rm="${retVal}"; return 0; }
-	retVal="$(getent passwd "${userName_s74rm:-${SUDO_USER:-${USER}}}" | cut -d: -f6 2>/dev/null || true)" ; { [[ -n "${retVal}" ]] && [[ "${retVal,,}" != "/root" ]] && [[ -d "${retVal}" ]]; } && { varName_s74rm="${retVal}"; return 0; }
-	retVal="/home/${userName_s74rm}"                                                                       ; { [[ -n "${retVal}" ]] && [[ "${retVal,,}" != "/root" ]] && [[ -d "${retVal}" ]]; } && { varName_s74rm="${retVal}"; return 0; }
-	retVal="${HOME}"                                                                                       ; { [[ -n "${retVal}" ]] && [[ -d "${retVal}" ]]; }                                   && { varName_s74rm="${retVal}"; return 0; }
-	[[   -z "${retVal}" ]]  &&  fThrowError  "Could not figure out user's home directory. This could be a bug [¢Яēᛏ]."
-	[[ ! -d "${retVal}" ]]  &&  fThrowError  "Calculated home directory doesn't exist: '${retVal}'. This could be a bug [£⍤ㅍᛦ]." ;:;}
-fChainToFunc(){
-	[[ -z "${UID}" ]]  &&  { fThrowError "Can't determine user ID via \$UID."; return 2; }
-	local -r chainFuncName="${1}"   #....: Function name to chain to, either directly or by relaunching. Recommended to be "fMain_Chained".
-	## "${2}" could be anything (or nothing) that fMain() and fMain_Chained() agree to; for example could just be script arg 1; or serialized constants, variables, arrays, and/or associative arrays from fMain(), that fMain_Chained() will deserialize. E.g.: "$(declare -p ogUSER  ogHOME)".
-	## "${3}" could be nothing, script arg 2, or say serialized args [e.g. "$(declare -p arg1  arg2)"], or from "$(fArgs_Serialize)". Whatever fMain() and fMain_Chained() agree to.
-	## "${4}" ... "${33}" could be ignored, or passed as script args 3 to 32.
-	if [[ "${UID}" == "0" ]] || ((! doAsSudo)); then
-		## Either we're currently running as root, or don't care (e.g. don't necessarily need to).
-		## If currently running as root, it was by one of at least three options:
-		##   1) This was lauched directly by user with sudo, or
-		##   2) User is logged in as root, or
-		##   3) This script launched recursively with sudo by the 'else' block below.
-		## Whatever the case, now's the time to chain directly to ${chainFuncName}.
-		$chainFuncName  "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" "${12:-}" "${13:-}" "${14:-}" "${15:-}" "${16:-}" "${17:-}" "${18:-}" "${19:-}" "${20:-}" "${21:-}" "${22:-}" "${23:-}" "${24:-}" "${25:-}" "${26:-}" "${27:-}" "${28:-}" "${29:-}" "${30:-}" "${31:-}" "${32:-}" "${33:-}"
-	else
-		## This case is [[ "${UID}" != "0" ]] && ((doAsSudo)). Which means we need to relaunch the whole script (in a subshell) as sudo.
-		sudo echo "[ Relaunching as sudo ... ]"
-		sudo "${mePath}"  "${relaunch_Key_sudo}"  "${chainFuncName}"  "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" "${12:-}" "${13:-}" "${14:-}" "${15:-}" "${16:-}" "${17:-}" "${18:-}" "${19:-}" "${20:-}" "${21:-}" "${22:-}" "${23:-}" "${24:-}" "${25:-}" "${26:-}" "${27:-}" "${28:-}" "${29:-}" "${30:-}" "${31:-}" "${32:-}" "${33:-}"
-	fi; }
 fDoesDirHaveContents(){
 	[[   -z "${1}" ]]  &&  fThrowError  "No directory specified as arg 1."  "fDoesDirHaveContents"
 	[[ ! -d "${1}" ]]                                     && return 1
@@ -452,8 +276,8 @@ fDoesDirHaveContents(){
 fBuildQuotedParams(){
 	local -n varName_1mtkp9p=$1 ; shift || true
 	local -i maxIdx=0
-	for i in {1..32}; do [[ -n "${!i}" ]] && maxIdx=$i; done
-	for i in $(seq 1 $maxIdx); do ((i > 1)) && varName_1mtkp9p="${varName_1mtkp9p}  "; varName_1mtkp9p="${varName_1mtkp9p}\"${!i}\""; done; }
+	for i in {1..32}; do [[ -n "${!i}" ]] && maxIdx=$i; done;:
+	for i in $(seq 1 $maxIdx); do ((i > 1)) && varName_1mtkp9p="${varName_1mtkp9p}  "; varName_1mtkp9p="${varName_1mtkp9p}\"${!i}\""; done;:; }
 fRunGUI(){ #( (nohup "$*" &>/dev/null) & disown);
 	local -r toExec="${1}" ; shift || true
 	local quotedParams=""; fBuildQuotedParams  quotedParams   "${1}"  "${2}"  "${3}"  "${4}"  "${5}"  "${6}"  "${7}"  "${8}"  "${9}"  "${10}"  "${11}"  "${12}"  "${13}"  "${14}"  "${15}"  "${16}"  "${17}"  "${18}"  "${19}"  "${20}"  "${21}"  "${22}"  "${23}"  "${24}"  "${25}"  "${26}"  "${27}"  "${28}"  "${29}"  "${30}"  "${31}"  "${32}"
@@ -472,14 +296,6 @@ fMustBeInPath(){
 	elif [[ -z "$(which ${programToCheckForInPath} 2>/dev/null || true)" ]]; then
 		fThrowError "Not found in path: ${programToCheckForInPath}"; return 1
 	fi ;:;}
-fAppendStr(){
-	##	Unit tests passed on: 20250704.
-	[[ -v varName_s74nj ]] && fThrowError "The first [and only] argument must be a parent-scoped variable, by-reference, to receive the this function's return value."
-	local -n varName_s74nj=$1                        ## Arg <REQUIRED>: Variable reference that contains the string that will be modified in-place.
-	local -r appendFirstIfExistingNotEmpty="${2:-}"  ## Arg [optional]: String to append between contents in $varName_s74nj if not empty, and $appendStr.
-	local -r appendStr="${3:-}"                      ## Arg [optional]: String to append at end.
-	[[ -n "${varName_s74nj:-}" ]] && varName_s74nj="${varName_s74nj}${appendFirstIfExistingNotEmpty}"
-	varName_s74nj="${varName_s74nj:-}${appendStr}" ;:;}
 fIntroPromptToContinue(){
 	{ ((doQuietly)) || ((! doPromptToContinue)); } && return 0
 	local -r extraInfoString="${1:-}"
@@ -500,21 +316,35 @@ fPressAnyKeyToContinue(){
 	read -n 1 -s -p "${promptStr}" userAnswer
 	fEcho_Clean_Force
 	}
-declare -i _wasLastEchoBlank=0
-declare -i _isEchoInRawInlineMode=0
-fEcho_ResetBlankCounter()     { _wasLastEchoBlank=0;      }
-fEcho_WasLastEchoBlank_Set()  { { [[ "${1}" == "1" ]]  &&  _wasLastEchoBlank=1; }  ||  _wasLastEchoBlank=0;  }
-fEcho_WasLastEchoBlank_Get()  { { ((_wasLastEchoBlank > 0))  &&  return 0; }  ||  return 1; }
-fEcho_IsInRawInlineMode_Set() { { [[ "${1}" == "1" ]]  &&  _isEchoInRawInlineMode=1; }  ||  _isEchoInRawInlineMode=1; }  ## Script it telling fEcho* that something is going to be echoing to the screen in non-linefeed mode without its knowledge. (E.g. "echo -n 'something: '".)
-fEcho_IsInRawInlineMode_Get() { { ((_isEchoInRawInlineMode))  &&  return 0; }  ||  return 1; }
-fEcho_Clean(){
-	((_isEchoInRawInlineMode))  &&  { echo; _wasLastEchoBlank=0; _isEchoInRawInlineMode=0; }
-	if [[ -n "${1:-}" ]]; then echo -e "$*"; _wasLastEchoBlank=0; elif [[ $_wasLastEchoBlank -eq 0 ]]; then echo; _wasLastEchoBlank=1; fi; }
-fEcho()                   { if [[ -n "$*" ]]; then fEcho_Clean "[ $* ]"; else fEcho_Clean ""; fi; }
-fEcho_Force()             { fEcho_ResetBlankCounter; fEcho "$*";       }
-fEcho_Clean_Force()       { fEcho_ResetBlankCounter; fEcho_Clean "$*"; }
 
-#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Echo-related (minified but not obfuscated)
+declare -gi _wasLastEchoBlank=0
+declare -gi _isEchoInRawInlineMode=0
+fEcho_ResetBlankCounter()     { _wasLastEchoBlank=0;      }
+fEcho_WasLastEchoBlank_Set()  { { [[ "${1:-}" == "1" ]] && _wasLastEchoBlank=1; } || _wasLastEchoBlank=0;  }
+fEcho_WasLastEchoBlank_Get()  { { ((_wasLastEchoBlank > 0)) && return 0; } || return 1; }
+fEcho_IsInRawInlineMode_Set() { { [[ "${1:-}" == "1" ]] && _isEchoInRawInlineMode=1; } || { _isEchoInRawInlineMode=0; _wasLastEchoBlank=0; echo; }; }  ## Script it telling fEcho* that something is going to be echoing to the screen in non-linefeed mode without its knowledge. (E.g. "echo -n 'something: '".)
+fEcho_IsInRawInlineMode_Get() { { ((_isEchoInRawInlineMode)) && return 0; } || return 1; }
+fEcho_Clean_byref(){
+	## Validate nameref args:
+	[[ -v 1  ]] || fThrowError "Calling function must pass a nameref to supply the input value to this function, as arg1 (string to echo)."
+	## Gather args
+	local -n ptr_ToEcho_t5jf2=$1
+	## Logic
+	((_isEchoInRawInlineMode)) && fEcho_IsInRawInlineMode_Set 0
+	if [[ -n "${ptr_ToEcho_t5jf2}" ]]; then
+		echo -e "${ptr_ToEcho_t5jf2}"
+		_wasLastEchoBlank=0
+	elif [[ $_wasLastEchoBlank -eq 0 ]]; then
+		echo
+		_wasLastEchoBlank=1
+	fi
+}
+fEcho_Clean()        { local -r toEcho="${1:-}"; fEcho_Clean_byref toEcho; }
+fEcho()              { { [[ -z "${1:-}" ]] && fEcho_Clean ""; } || { local -r toEcho="[ ${1:-} ]"; fEcho_Clean_byref toEcho; }; }
+fEcho_Force()        { _wasLastEchoBlank=0; fEcho "${1:-}"; }
+fEcho_Clean_Force()  { _wasLastEchoBlank=0; local -r toEcho="${1:-}"; fEcho_Clean_byref toEcho; }
+
 ## Error-handling
 declare -i _wasCleanupRun=0  ## Managed internally by this suite.
 declare -i _doExitOnThrow=0    ## Managed internally by this suite.
@@ -547,13 +377,13 @@ _fSingleExitPoint(){
 _fTrap_Exit(){
 	if [[ "${_wasCleanupRun}" == "0" ]]; then  ## String compare is less to fail than integer
 		_wasCleanupRun=1
-		_fSingleExitPoint "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" "${12:-}" "${13:-}" "${14:-}" "${15:-}" "${16:-}" "${17:-}" "${18:-}" "${19:-}" "${20:-}" "${21:-}" "${22:-}" "${23:-}" "${24:-}" "${25:-}" "${26:-}" "${27:-}" "${28:-}" "${29:-}" "${30:-}" "${31:-}" "${32:-}"
+		_fSingleExitPoint "${@}"
 	fi ;}
 _fTrap_Error(){
 	if [[ "${_wasCleanupRun}" == "0" ]]; then  ## String compare is less to fail than integer
 		_wasCleanupRun=1
 		fEcho_ResetBlankCounter
-		_fSingleExitPoint "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" "${12:-}" "${13:-}" "${14:-}" "${15:-}" "${16:-}" "${17:-}" "${18:-}" "${19:-}" "${20:-}" "${21:-}" "${22:-}" "${23:-}" "${24:-}" "${25:-}" "${26:-}" "${27:-}" "${28:-}" "${29:-}" "${30:-}" "${31:-}" "${32:-}"
+		_fSingleExitPoint "${@}"
 	fi ;}
 _fTrap_Error_Ignore(){ _ErrVal=1; true;  return 0; }
 _fTrap_Error_Soft(){   _ErrVal=1; false; return 1; }
@@ -566,7 +396,7 @@ fThrowError(){
 	for (( i = 1; i < ${#FUNCNAME[@]}; i++ )); do
 		[[ "${FUNCNAME[i]}" =~ main|source ]] && continue
 		[[ -n "${callStack}" ]] && callStack="${callStack}, "; callStack="${callStack}${FUNCNAME[i]}()"
-	done
+	done;:
 	[[ -n "${callStack}" ]] && callStack="Reverse call stack: ${callStack}"
 	fEcho_Clean; echo -e "${errMsg}\n${callStack}" >&2; fEcho_ResetBlankCounter
 	_ErrVal=1
@@ -583,6 +413,9 @@ trap '_fTrap_Exit  EXIT    ${LINENO} $? $_' EXIT
 trap '_fTrap_Exit  INT     ${LINENO} $? $_' INT
 trap '_fTrap_Exit  TERM    ${LINENO} $? $_' TERM
 
+
+#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+# Script entry point
 
 ## Bash environment settings (comment out what you don't want)
  set -u  #..................: Require variable declaration. Stronger than mere linting. But can struggle if functions are in sourced files.
@@ -602,40 +435,13 @@ if [[ -z "${serialDT+x}"     ]]; then
 	declare -r meName="$(basename "${mePath}")"
 	declare -r meDir="$(dirname "${mePath}")"
 	declare -r serialDT="$(date "+%Y%m%d-%H%M%S")"
-	declare -r relaunch_Key_sudo="${meName}_relaunch_sudo_4KQDYluNbzLQHwMwsWxgdk"  ## This isn't for 'security' or uniqueness. It just needs to be an exceptionally unlikely user argument.
 fi
 
 ## Make sure relative paths work
 cd "${meDir}"
 
-## Pass control to either fMain, or chained function.
-if [[ "${1:-}" == "${relaunch_Key_sudo}" ]]; then
-	[[ -z "${2:-}" ]]                     &&  fThrowError "A valid relaunch key was passed as arg1, but no function name was passed as arg2."
-	declare -f "${2:-}" > /dev/null 2>&1  ||  fThrowError "The function name passed as arg2 isn't defined in this environment: '${2:-}'."
-	## Invoke function specified by arg2
-	${2:-} "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" "${12:-}" "${13:-}" "${14:-}" "${15:-}" "${16:-}" "${17:-}" "${18:-}" "${19:-}" "${20:-}" "${21:-}" "${22:-}" "${23:-}" "${24:-}" "${25:-}" "${26:-}" "${27:-}" "${28:-}" "${29:-}" "${30:-}" "${31:-}" "${32:-}" "${33:-}" "${34:-}"
-else
-	## Invoke main
-	fMain  "${1:-}" "${2:-}" "${3:-}" "${4:-}" "${5:-}" "${6:-}" "${7:-}" "${8:-}" "${9:-}" "${10:-}" "${11:-}" "${12:-}" "${13:-}" "${14:-}" "${15:-}" "${16:-}" "${17:-}" "${18:-}" "${19:-}" "${20:-}" "${21:-}" "${22:-}" "${23:-}" "${24:-}" "${25:-}" "${26:-}" "${27:-}" "${28:-}" "${29:-}" "${30:-}" "${31:-}" "${32:-}"
-fi
-
-
-
-
-##	SPDX-License-Identifier: GPL-2.0-or-later
-##	Preamble:
-##		This program is free software: you can redistribute it and/or modify
-##		it under the terms of the GNU General Public License as published by
-##		the Free Software Foundation, either version 2 of the License, or
-##		(at your option) any later version.
-##
-##		This program is distributed in the hope that it will be useful,
-##		but WITHOUT ANY WARRANTY; without even the implied warranty of
-##		MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-##		GNU General Public License for more details.
-##
-##		You should have received a copy of the GNU General Public License
-##		along with this program.  If not, see <https://www.gnu.org/licenses/>.
+## Invoke main
+fMain  "${@}"
 
 
 ##	Script history:
@@ -644,3 +450,8 @@ fi
 ##		- 20260428 JC: Added extracting Windows exe from zip, to list of dir candidates.
 ##		- 20260503 JC: Added explicit $dirPath_Base variable, and 'cd'ing to it.
 ##		- 20260511 JC: Renamed to *.bash to make it clear it's not a POSIX shell.
+##		- 20260519 JC:
+##			- Removed some template cruft.
+##			- Better cp args.
+##			- Updated fEcho functions.
+##			- Changed license from GPL2 to MIT.
