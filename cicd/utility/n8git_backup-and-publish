@@ -111,7 +111,9 @@ fMain(){
 	local -r dirName_Top="$(basename "$(readlink -f "${dirPath_Top}")")"
 	local -r dirPath_Rar="${dirPath_Top}/versions"
 	local -r filePath_Rar="${dirPath_Rar}/${dirName_Top}_${serialDT}.rar"
-	baseCmdArgs="${baseCmdArgs} -x'*/${dirName_GitProj}/.git/*' -x'*/versions/*' -x'*/github/target/*' -x'*/private/backgrounds/*'"
+	## Exclude Go intermediate/local builds (bin/ and the loose 'make local' binary),
+	## but keep source/dist/ - those are the final cross-compiled release archives.
+	baseCmdArgs="${baseCmdArgs} -x'*/${dirName_GitProj}/.git/*' -x'*/versions/*' -x'*/source/bin/*' -x'*/source/convert-base-v2'"
 	readonly baseCmdArgs
 	local -r cmd_Rar="rar ${baseCmdArgs}  '${filePath_Rar}'  '../.'"
 
