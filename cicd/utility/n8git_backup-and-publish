@@ -1,4 +1,6 @@
 #!/bin/bash
+
+#  shellcheck disable=1091  ## 'source is valid here, but shellcheck doesn't know the path to it.'
 #  shellcheck disable=2001  ## 'See if you can use ${variable//search/replace} instead.' Complains about good uses of sed.
 #  shellcheck disable=2016  ## 'Expressions don't expand in single quotes, use double quotes for that.' I know, and I often want an explicit '$'.
 #  shellcheck disable=2034  ## 'variable appears unused.' Complains about valid use of variable indirection (e.g. later use of local -n var=$1)
@@ -28,15 +30,14 @@
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Settings
-if [[ -z "${doQuietly+x}" ]]; then
-	declare  -i doQuietly=0
-	declare  -i doPromptToContinue=1
-	declare -r  thisVersion="1.0.0-beta3"
-	declare -r  thisBuild="1n0rx7c"
-	declare -r  thisCopyrightYear="2026"
-	declare -r  thisAuthor="Jim Collier"
-	declare -ri atLeastOneArgRequired=0
-fi
+[[ -v doQuietly              ]] || declare  -i doQuietly=0                ; [[ "${GIT_BACKUP_AND_PUBLISH_QUIET:-0}" == "1" ]] && doQuietly=1
+[[ -v doPromptToContinue     ]] || declare  -i doPromptToContinue=1
+[[ -v thisVersion            ]] || declare -r  thisVersion="1.0.0-beta3"
+[[ -v thisBuild              ]] || declare -r  thisBuild="1n0rx7c"
+[[ -v thisCopyrightYear      ]] || declare -r  thisCopyrightYear="2026"
+[[ -v thisAuthor             ]] || declare -r  thisAuthor="Jim Collier"
+[[ -v atLeastOneArgRequired  ]] || declare -ri atLeastOneArgRequired=0
+[[ -v skipBackup             ]] || declare  -i skipBackup=0                ; [[ "${GIT_BACKUP_AND_PUBLISH_NOBACKUP:-0}" == "1" ]] && skipBackup=1
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Copyright, about, & syntax (minified)
@@ -54,7 +55,7 @@ fAbout(){ { ((doQuietly)) || ((wasShown_About)); } && return; wasShown_About=1;
 	#           X-------------------------------------------------------------------------------X
 	fEcho_Clean "Backs up a github directory to a versioned archive, and publishes changes, ie:"
 	fEcho_Clean "  • rar {flags} ../versions/{version}.rar  ../*"
-	fEcho_Clean "  • git stash  &&  git pull --rebase  &&  git stash pop"
+	fEcho_Clean "  • git stash push --include-untracked &&  git pull --no-ff  &&  git stash pop"
 	fEcho_Clean "  • git add --all  &&  git commit"
 	fEcho_Clean "  • git push origin"
 	#           X-------------------------------------------------------------------------------X
@@ -110,7 +111,8 @@ fMain(){
 	local -r dirName_Top="$(basename "$(readlink -f "${dirPath_Top}")")"
 	local -r dirPath_Rar="${dirPath_Top}/versions"
 	local -r filePath_Rar="${dirPath_Rar}/${dirName_Top}_${serialDT}.rar"
-	baseCmdArgs="${baseCmdArgs} -x'*/${dirName_GitProj}/.git/*' -x'*/versions/*'"
+	baseCmdArgs="${baseCmdArgs} -x'*/${dirName_GitProj}/.git/*' -x'*/versions/*' -x'*/github/target/*' -x'*/private/backgrounds/*'"
+	readonly baseCmdArgs
 	local -r cmd_Rar="rar ${baseCmdArgs}  '${filePath_Rar}'  '../.'"
 
 	## Validate
@@ -120,12 +122,14 @@ fMain(){
 	if ((! doQuietly)); then
 		fCopyright
 		fAbout
-		fEcho_Clean "Archive source ...............: ${dirPath_GitProj}"
-		fEcho_Clean "Archive target ...............: ${filePath_Rar}"
-		fEcho_Clean
-		fEcho_Clean "Rar command:"
-		fEcho_Clean "${cmd_Rar}"
-		fEcho_Clean
+		if ((! skipBackup)); then
+			fEcho_Clean "Archive source ...............: ${dirPath_GitProj}"
+			fEcho_Clean "Archive target ...............: ${filePath_Rar}"
+			fEcho_Clean
+			fEcho_Clean "Rar command:"
+			fEcho_Clean "${cmd_Rar}"
+			fEcho_Clean
+		fi
 		fEcho_Clean "Remote info (git remote -v); make sure it's 'git@' and not 'https://':"
 		git remote -v
 		fEcho_Clean
@@ -136,32 +140,45 @@ fMain(){
 		git config user.name
 		git config user.email
 		fEcho_Clean
-		fEcho_Clean "SSH login test to remote:"
-		ssh -T git@github.com || true
+		fEcho_Clean "SSH key being used"
+		ssh -Tv git@github.com 2>&1 | grep -iE "offering|successfully authenticated" | sed 's/debug1: //' || true
 		fIntroPromptToContinue  ""
 		fEcho_Clean
 	fi
 
 	## Make backup dir
-	[[ -d "${dirPath_Rar}" ]]  ||  mkdir -p "${dirPath_Rar}"
+	if ((! skipBackup)); then
+		[[ -d "${dirPath_Rar}" ]]  ||  mkdir -p "${dirPath_Rar}"
 
-	fEcho "Creating version backup '${filePath_Rar}' ..."
-	eval "${cmd_Rar}"
+		fEcho "Creating version backup '${filePath_Rar}' ..."
+		eval "${cmd_Rar}"
+
+		## Prune old backups (GFS): keep ~30 - first + newest-per-
+		## hour/day/week/month/year + the last 10. Also conforms pre-existing
+		## backup names. Tunable via GFS_KEEP_* env (see include/gfs-rotate.bash).
+		fEcho; fEcho "Rotating version backups (GFS retention) ..."
+		## Non-fatal: pruning is housekeeping and must never abort a good publish.
+		gfs_rotate "${dirPath_Rar}" "${dirName_Top}" rar || fEcho "WARNING: backup rotation failed (non-fatal); continuing."
+	fi
 
 	## Variables for git actions
 	local -i didStash=0
+	local -i preCount
+	local -i postCount
 
 	## Stash
 	if ! git diff --quiet || ! git diff --cached --quiet; then
-		fEcho; fEcho "git stash push ..."
-		git stash push -u -m "auto-stash"
-		didStash=1
+		fEcho; fEcho "git stash push --include-untracked..."
+		preCount=$(git stash list | wc -l)
+		git stash push --include-untracked -m "auto-stash"
+		postCount=$(git stash list | wc -l)
+		didStash=$((postCount > preCount ? 1 : 0))
 	fi
 
 	## Pull with rebase
 	if git ls-remote --exit-code --heads origin main >/dev/null 2>&1; then
-		fEcho; fEcho "git pull --rebase ..."
-		git pull --rebase
+		fEcho; fEcho "git pull --no-ff ..."
+		git pull --no-ff
 	fi
 
 	## Stash pop
@@ -189,14 +206,14 @@ fMain(){
 	fi
 
 	## Done
-	((! doQuietly)) && { fEcho_Force; fEcho "Done."; }
-}
+	if ((! doQuietly)); then fEcho_Force; fEcho "${meName}: Done."; fi
+:;}
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 fCleanup(){
-	if ((! doQuietly)); then
+#	if ((! doQuietly)); then
 		fEcho_Clean
-	fi
+#	fi
 }
 
 
@@ -433,12 +450,15 @@ trap '_fTrap_Exit  TERM    ${LINENO} $? $_' TERM
 declare -i isSourced; { (return 0 2>/dev/null) && isSourced=1; } || isSourced=0
 
 ## Common constants but detect if already set
-if [[ -z "${serialDT+x}"     ]]; then
-	declare -r serialDT="$(date "+%Y%m%d-%H%M%S")"
-	declare -r mePath="${BASH_SOURCE[0]}"
-	declare -r meName="$(basename "${mePath}")"
-	declare -r relaunch_Key_sudo="${meName}_relaunch_sudo_4KQDYluNbzLQHwMwsWxgdk"  ## This isn't for 'security' or uniqueness. It just needs to be an exceptionally unlikely user argument.
-fi
+[[ -v serialDT          ]] || declare -r serialDT="$(date "+%Y%m%d-%H%M%S")"
+[[ -v mePath            ]] || declare -r mePath="${BASH_SOURCE[0]}"
+[[ -v meName            ]] || declare -r meName="$(basename "${mePath}")"
+[[ -v meDir             ]] || declare -r meDir="$(cd "$(dirname "${mePath}")" && pwd)"
+[[ -v relaunch_Key_sudo ]] || declare -r relaunch_Key_sudo="${meName}_relaunch_sudo_4KQDYluNbzLQHwMwsWxgdk"  ## This isn't for 'security' or uniqueness. It just needs to be an exceptionally unlikely user argument.
+
+# Reusable GFS rotation (its own logic, kept separate from the backup logic below).
+# shellcheck source=/dev/null
+source "${meDir}/include/gfs-rotate.bash"
 
 ## Invoke main
 fMain  "${@}"
@@ -450,3 +470,9 @@ fMain  "${@}"
 ##		- 20260519 JC:
 ##			- Removed several cruft template functions.
 ##			- Changed license from GPL 2, to MIT.
+##		- 20260622 JC:
+##			- Validate SSH key directly, not via git config core.sshCommand, which may not be set.
+##			- Added check of environment variable 'N8GIT_BACKUP_AND_PUBLISH_QUIET'.
+##			- Added check of environment variable 'N8GIT_BACKUP_AND_PUBLISH_NOBACKUP'.
+##		- 20260628 JC:
+##			- Call gfs-rotate.bash to prune old backups (GFS retention).
