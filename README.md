@@ -42,8 +42,9 @@
 	</tr style="border: none; border-collapse: collapse;">
 </table>
 
-
-
+<!--
+<p align="center"><img src="assets/logo.png" alt="P" width="128"></p>
+>
 
 <!-- TOC ignore:true -->
 ## Table of contents
