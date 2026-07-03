@@ -26,6 +26,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Other work
 
+- Reworked the CI/CD scripts [20260703]:
+	- Split the pipeline into a generic engine and a per-project config, matching the sister project's layout.
+	- The pipeline now formats, builds, tests, cross-compiles, dogfoods a fixed-name local copy, then backs up and publishes quietly.
+	- Replaced the test harness with a self-contained, table-driven one. It covers the CLI, conversions, custom bases, errors, oversized and hostile input, binary round-trips, and fuzzing across every defined base. The base list is read from the program, so new bases are tested automatically.
+	- Kept the previous scripts under `legacy/`.
+
 - Updated to CI/CD scripts [20250519]:
 	- Updated for less boilerplate.
 	- Changed license (of CI/CD scripts) from GPL2 to MIT.
