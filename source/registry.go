@@ -51,7 +51,7 @@ type Base struct {
 
 	// derived
 	value      map[string]int // symbol -> digit value (plus case-flipped ASCII letters for input leniency)
-	allOneByte bool           // every symbol has len(sym)==1 → byte-iteration fast path
+	allOneByte bool           // every symbol has len(sym)==1 -> byte-iteration fast path
 	byteValue  [256]int       // populated when allOneByte; -1 means not a digit
 	negative   string         // effective negative marker ("" if disabled)
 	decimal    string         // effective decimal marker ("" if disabled)
@@ -170,10 +170,10 @@ func (b *Base) finalize() error {
 
 	// Resolve effective negative/decimal markers.
 	//
-	//   nil         → use global default; collision with a digit is an error
+	//   nil         -> use global default; collision with a digit is an error
 	//                 (to force-disable, point the field at "")
-	//   &""         → explicitly disabled
-	//   &"X"        → use X; collision is an error
+	//   &""         -> explicitly disabled
+	//   &"X"        -> use X; collision is an error
 	var err error
 	b.negative, err = resolveMarker("negative", b.Negative, DefaultNegative, b.value, b.Name())
 	if err != nil {

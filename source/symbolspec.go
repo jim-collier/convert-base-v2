@@ -40,11 +40,11 @@ type SymbolSpec struct {
 // Escape sequences allow characters that would otherwise conflict with the
 // whitespace-delimited format to be used as digit symbols:
 //
-//	\<space>  → literal space
-//	\\        → literal backslash
-//	\t        → tab
-//	\n        → newline
-//	\"        → double quote
+//	\<space>  -> literal space
+//	\\        -> literal backslash
+//	\t        -> tab
+//	\n        -> newline
+//	\"        -> double quote
 func ParseSymbolSpec(s string) (SymbolSpec, error) {
 	s = unescapeSpec(s)
 
