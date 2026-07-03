@@ -372,10 +372,10 @@ func reportSide(out io.Writer, label string, reg *Registry, name, symbols, flagN
 	case symbols != "":
 		sp, err := ParseSymbolSpec(symbols)
 		if err != nil {
-			fmt.Fprintf(out, "  %s: %s — INVALID SPEC: %v\n", label, flagName, err)
+			fmt.Fprintf(out, "  %s: %s -> INVALID SPEC: %v\n", label, flagName, err)
 			return
 		}
-		fmt.Fprintf(out, "  %s: custom spec via %s — %d digits", label, flagName, len(sp.Symbols))
+		fmt.Fprintf(out, "  %s: custom spec via %s -> %d digits", label, flagName, len(sp.Symbols))
 		if sp.Negative != nil {
 			fmt.Fprintf(out, ", neg=%s", fmtMarker(sp.Negative))
 		}
@@ -392,7 +392,7 @@ func reportSide(out io.Writer, label string, reg *Registry, name, symbols, flagN
 		fmt.Fprintf(out, "  %s: alias %q -> base %q (%d digits), source: %s\n",
 			label, name, b.Name(), len(b.Symbols), b.Source)
 	default:
-		fmt.Fprintf(out, "  %s: (unset — would default to base 10, source: built-in)\n", label)
+		fmt.Fprintf(out, "  %s: (unset, would default to base 10, source: built-in)\n", label)
 	}
 }
 

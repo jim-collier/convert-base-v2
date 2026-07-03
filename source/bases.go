@@ -276,8 +276,8 @@ func predefinedBases() []*Base {
 		}),
 
 		// Base-42
-		// One of a limited set of higher bases for which the complete list of minimal primes—prime numbers in
-		//   that base having no proper subsequence of digits that forms a prime in the same base—has been enumerated
+		// One of a limited set of higher bases for which the complete list of minimal primes has been enumerated.
+		//   Minimal primes are prime numbers in that base having no proper subsequence of digits that forms a prime in the same base.
 		//   and is considered known.
 		// Also, the ultimate answer.
 		// https://grokipedia.com/page/Base_42
@@ -467,7 +467,7 @@ func predefinedBases() []*Base {
 			DisallowDec: true,
 		}),
 
-		// Base 85, RFC 1924 — "A Compact Representation of IPv6 Addresses," published April 1, 1996 by Robert Elz.
+		// Base 85, RFC 1924, "A Compact Representation of IPv6 Addresses," published April 1, 1996 by Robert Elz.
 		// An April Fools' Day RFC that has actually caught on, but was never seriously adopted for IPv6 representation.
 		// Negative and decimal disabled, as both are used, and neither make sense for intended IPv6 encoding.
 		// https://www.rfc-editor.org/rfc/rfc1924.html
@@ -650,9 +650,9 @@ func predefinedBases() []*Base {
 //
 // Semantics for NegSymbol / DecSymbol + Disallow flags:
 //
-//	Zero values (NegSymbol="", DisallowNeg=false) → use global default (nil in Base)
-//	DisallowNeg=true                              → explicitly disabled (&"" in Base)
-//	NegSymbol="~"                                 → custom marker (&"~" in Base)
+//	Zero values (NegSymbol="", DisallowNeg=false) -> use global default (nil in Base)
+//	DisallowNeg=true                              -> explicitly disabled (&"" in Base)
+//	NegSymbol="~"                                 -> custom marker (&"~" in Base)
 //
 // Same pattern applies to DecSymbol / DisallowDec.
 type SpecOpts struct {
@@ -726,8 +726,8 @@ func binaryBase() *Base {
 
 // leftTokens returns the first n whitespace-separated tokens from s, joined
 // by single spaces, with a single space on each end (matching the constant
-// convention of space-padded edges). Panics if n exceeds the token count —
-// this is called at init, so a bad count is a bug, not a runtime condition.
+// convention of space-padded edges). Panics if n exceeds the token count.
+// This is called at init, so a bad count is a bug, not a runtime condition.
 func leftTokens(s string, n int) string {
 	tokens := strings.Fields(s)
 	if n > len(tokens) {

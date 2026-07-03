@@ -94,7 +94,7 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	fromRadix := big.NewInt(int64(len(from.Symbols)))
 	toRadix := big.NewInt(int64(len(to.Symbols)))
 
-	// Integer part → big.Int (Horner's method).
+	// Integer part -> big.Int (Horner's method).
 	intVal := new(big.Int)
 	tmp := new(big.Int)
 	for _, d := range intDigits {
@@ -102,7 +102,7 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		intVal.Add(intVal, tmp.SetInt64(int64(from.value[d])))
 	}
 
-	// Fractional part → num/den.
+	// Fractional part -> num/den.
 	fracNum := new(big.Int)
 	fracDen := big.NewInt(1)
 	for _, d := range fracDigits {
@@ -111,7 +111,7 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		fracDen.Mul(fracDen, fromRadix)
 	}
 
-	// Integer part → output base (repeated division).
+	// Integer part -> output base (repeated division).
 	var intOut []string
 	if intVal.Sign() == 0 {
 		intOut = []string{to.Symbols[0]}
@@ -124,7 +124,7 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		}
 	}
 
-	// Fractional part → output base (repeated multiplication).
+	// Fractional part -> output base (repeated multiplication).
 	var fracOut []string
 	if fracNum.Sign() > 0 {
 		digit := new(big.Int)
@@ -247,12 +247,12 @@ func convertBitPacked(input string, from, to *Base, kIn, kOut int) (string, erro
 	if accBits > 0 {
 		if to.Binary {
 			// We're about to drop accBits worth of trailing bits. This is only
-			// safe when they're padding (all zero) — that's what the encoder
+			// safe when they're padding (all zero). That's what the encoder
 			// adds when a binary source doesn't align to kIn. If any trailing
 			// bit is set, the source wasn't a padded encoding of a binary
 			// blob, and discarding would corrupt data.
 			if acc != 0 {
-				return "", fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero — input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
+				return "", fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
 			}
 		} else {
 			// Pad LSB with zeros to make one more full output digit.
