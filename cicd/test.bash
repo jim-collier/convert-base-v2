@@ -23,7 +23,7 @@
 ##			- Errors and robustness: bad bases, bad digits, malformed input, shell-metachar input, oversized input.
 ##			- Binary/streaming: bit-perfect round-trips through power-of-2 bases, and the byte-alignment guard.
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
-##			- Cross-base fuzz: random values carried from an established source base through a random target base and back, never touching base 10.
+##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Optional cross-check against the bundled v1 binary when present.
 ##		- Knobs (env):
 ##			- CICDTEST_EXE ..........: path to the binary under test (default: ../source/bin/convert-base-v2).
@@ -100,6 +100,9 @@ _rand_int(){
 	printf '%s' "$digits"
 }
 
+## One 16-bit unsigned random number (0..65535). Enough to index the largest base.
+_rand16(){ od -An -N2 -tu2 /dev/urandom | tr -d ' '; }
+
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## CLI surface
@@ -112,6 +115,16 @@ check ok  "-h exits 0"              -   -h
 check ok  "--examples exits 0"      -   --examples
 _run --list
 { ((_rc == 0)) && [[ "$_out" == *NAME* ]]; } && _pass "--list lists bases" || _fail "--list lists bases" "rc=$_rc"
+
+## Base-introspection query flags (used by the full-coverage fuzz below).
+_run --get-index-count
+{ ((_rc == 0)) && [[ "$_out" =~ ^[0-9]+$ ]] && ((_out > 0)); } && _pass "--get-index-count prints a count" || _fail "--get-index-count prints a count" "rc=$_rc out=[$_out]"
+check eq     "--get-base-name --by-index=0" 2               -- --get-base-name --by-index=0
+check eq     "--get-base-name alias hex"    16              -- --get-base-name hex
+check errmsg "--by-index out of range"      'out of range'  -- --get-base-name --by-index=999999
+check errmsg "query needs a selector"       'select a base' -- --get-base-name
+_run --show-symbols 16
+{ ((_rc == 0)) && [[ "$(wc -l <"${CBT_OUT}")" -eq 16 ]]; } && _pass "--show-symbols 16 lists 16 symbols" || _fail "--show-symbols 16 lists 16 symbols" "rc=$_rc lines=$(wc -l <"${CBT_OUT}")"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -245,27 +258,57 @@ for ((i=0; i<iters; i++)); do
 done
 ((fuzz_fail == 0)) && _pass "randomized fuzz round-trip (${iters} iterations, maxlen ${maxlen})" || printf '  %s%d fuzz failures above%s\n' "${red}" "$fuzz_fail" "${rst}"
 
-## Cross-base self round-trip: start from an established source base, carry the
-## value through a random target base, then back to the source. Exercises the
-## base-to-base paths that never route through base 10. Source strings come from
-## a base-10 seed encoded into the source base, so they are canonical (no leading
-## zeros to drift on) yet still random in length and content.
-gen_want=(2 3 4 5 6 7 8 16 64 64u)
-declare -a GEN_BASES=()
-for g in "${gen_want[@]}"; do
-	for n in "${FUZZ_BASES[@]}"; do [[ "$n" == "$g" ]] && { GEN_BASES+=("$g"); break; }; done
+## Full-coverage symbol round-trip: for every base (not just a handful), build a
+## random-length string from its own randomly chosen symbols, carry it through a
+## random target base, and bring it back. Bases, names, and symbol alphabets all
+## come from the binary itself (--get-index-count, --get-base-name, --show-symbols),
+## so every defined base is exercised with no hand-maintained tables. The first
+## symbol is kept off the zero digit so the source string is already canonical and
+## a clean string compare is a valid round-trip check. Binary (raw bytes) is the
+## one base left out; it is covered bit-perfectly in its own section above.
+n_bases="$("${EXE}" --get-index-count)"
+declare -a IDX_NAME=()
+for ((i=0; i<n_bases; i++)); do IDX_NAME[i]="$("${EXE}" --get-base-name --by-index="$i")"; done
+declare -a ELIG=()
+for ((i=0; i<n_bases; i++)); do [[ "${IDX_NAME[i]}" == "binary" ]] || ELIG+=("$i"); done
+
+## Symbols are loaded once per base, on first use, into a per-index array.
+declare -A SYM_LOADED=()
+_load_syms(){
+	local idx="$1"
+	[[ -n "${SYM_LOADED[$idx]:-}" ]] && return
+	mapfile -t "SYMS_${idx}" < <("${EXE}" --show-symbols --by-index="$idx")
+	SYM_LOADED[$idx]=1
+}
+
+## Random string of `1..maxlen` symbols from base at index $1. First symbol is a
+## non-zero digit (index 1..size-1) so there is no leading-zero ambiguity.
+_rand_symbols(){
+	local -n arr="SYMS_$1"
+	local -i size=${#arr[@]}
+	local -i len=$(( 1 + $(_rand16) % maxlen ))
+	local rvals; mapfile -t rvals < <(head -c $((2 * len)) /dev/urandom | od -An -v -tu2 | tr -s ' ' '\n' | grep -v '^$')
+	local out=""; local -i j r idx
+	for ((j = 0; j < len; j++)); do
+		r=${rvals[j]:-0}
+		if ((j == 0)); then idx=$(( 1 + r % (size - 1) )); else idx=$(( r % size )); fi
+		out+="${arr[idx]}"
+	done
+	printf '%s' "$out"
+}
+
+sfz_fail=0; sfz_n=0
+for ((i = 0; i < iters; i++)); do
+	sidx="${ELIG[$(( $(_rand16) % ${#ELIG[@]} ))]}"
+	tidx="${ELIG[$(( $(_rand16) % ${#ELIG[@]} ))]}"
+	_load_syms "$sidx"
+	sName="${IDX_NAME[sidx]}"; tName="${IDX_NAME[tidx]}"
+	R="$(_rand_symbols "$sidx")"
+	_run --from "$sName" --to "$tName" -- "$R"; Y="$_out"; ((_rc == 0)) || { sfz_fail=$((sfz_fail+1)); _fail "symbol fuzz enc $sName->$tName" "R=[$R] rc=$_rc err=[$_err]"; continue; }
+	_run --from "$tName" --to "$sName" -- "$Y"; sfz_n=$((sfz_n + 1))
+	{ ((_rc == 0)) && [[ "$_out" == "$R" ]]; } || { sfz_fail=$((sfz_fail+1)); _fail "symbol fuzz round-trip $sName<->$tName" "R=[$R] Y=[$Y] got=[$_out] rc=$_rc"; }
 done
-xb_fail=0; xb_n=0
-for ((i=0; i<iters; i++)); do
-	src="${GEN_BASES[$(( $(od -An -N2 -tu2 /dev/urandom) % ${#GEN_BASES[@]} ))]}"
-	tgt="${FUZZ_BASES[$(( $(od -An -N2 -tu2 /dev/urandom) % ${#FUZZ_BASES[@]} ))]}"
-	seed="$(_rand_int "$maxlen")"
-	_run --from 10 --to "$src" -- "$seed"; x="$_out"; ((_rc == 0)) || { xb_fail=$((xb_fail+1)); _fail "xbase seed enc src=$src" "rc=$_rc err=[$_err]"; continue; }
-	_run --from "$src" --to "$tgt" -- "$x"; y="$_out"; ((_rc == 0)) || { xb_fail=$((xb_fail+1)); _fail "xbase enc src=$src tgt=$tgt" "x=[$x] rc=$_rc err=[$_err]"; continue; }
-	_run --from "$tgt" --to "$src" -- "$y"; xb_n=$((xb_n + 1))
-	{ ((_rc == 0)) && [[ "$_out" == "$x" ]]; } || { xb_fail=$((xb_fail+1)); _fail "xbase round-trip src=$src tgt=$tgt" "x=[$x] y=[$y] got=[$_out] rc=$_rc"; }
-done
-((xb_fail == 0)) && _pass "cross-base self round-trip (${xb_n} iterations, ${#GEN_BASES[@]} source bases)" || printf '  %s%d cross-base failures above%s\n' "${red}" "$xb_fail" "${rst}"
+((sfz_fail == 0)) && _pass "full-coverage symbol round-trip (${sfz_n} iterations, ${#ELIG[@]} bases, maxlen ${maxlen})" || printf '  %s%d symbol-fuzz failures above%s\n' "${red}" "$sfz_fail" "${rst}"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

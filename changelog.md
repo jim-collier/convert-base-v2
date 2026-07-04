@@ -24,6 +24,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## v1.1.0-beta5 (unreleased) - WIP
 
+### Added
+
+- Base-introspection flags for scripting: `--get-index-count`, `--get-base-name`, and `--show-symbols`, with a base selectable by name, alias, or `--by-index`.
+
 ### Other work
 
 - Reworked the CI/CD scripts [20260703]:

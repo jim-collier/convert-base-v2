@@ -54,3 +54,4 @@ This is an easier way to brainstorm and prioritize tasks, before creating issues
 | Created  |Issue#|Score|Imp|Urg|Eff|Aff| Started  | by | Completed | Description | Notes
 | :------  | :--- | --: |--:|--:|--:|--:| :------  |:---| :-------- | :---------- | :----
 | 20260420 |      | 2.7 | 3 | 3 | 2 |   |          | JC | 20260422  | Add known issues to Github.
+| 20260703 |      | 2.5 | 3 | 3 | 2 | 2 | 20260703 | JC | 20260703  | Add base query flags (count, name, symbols) and full-coverage self round-trip tests | Every base is now fuzzed with its own random symbols, source to target and back.

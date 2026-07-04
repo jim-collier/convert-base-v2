@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bufio"
 	"flag"
 	"fmt"
 	"io"
@@ -31,19 +32,23 @@ func main() {
 
 func run() error {
 	var (
-		fromName     = flag.String("from", "", "input base name/alias (e.g. 10, hex, 64u); default 10")
-		toName       = flag.String("to", "", "output base name/alias; default 10; also accepted as a positional arg")
-		fromSymbols  = flag.String("from-symbols", "", `custom input base (spec form: "SYMS [neg=X] [dec=Y]")`)
-		toSymbols    = flag.String("to-symbols", "", `custom output base (spec form: "SYMS [neg=X] [dec=Y]")`)
-		precision    = flag.Int("precision", 50, "max fractional digits in output")
-		lower        = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
-		raw          = flag.Bool("raw", false, "write output as raw bytes with no trailing newline (for binary output)")
-		list         = flag.Bool("list", false, "list all known bases and exit")
-		configFile   = flag.String("config", userConfigPath(), "user-level YAML config file; /etc is always tried too (missing file is OK)\n        ")
-		showVersion  = flag.Bool("version", false, "print version and exit")
-		helpFlag     = flag.Bool("help", false, "show help and exit")
-		hFlag        = flag.Bool("h", false, "alias for -help")
-		examplesFlag = flag.Bool("examples", false, "show usage examples and exit")
+		fromName      = flag.String("from", "", "input base name/alias (e.g. 10, hex, 64u); default 10")
+		toName        = flag.String("to", "", "output base name/alias; default 10; also accepted as a positional arg")
+		fromSymbols   = flag.String("from-symbols", "", `custom input base (spec form: "SYMS [neg=X] [dec=Y]")`)
+		toSymbols     = flag.String("to-symbols", "", `custom output base (spec form: "SYMS [neg=X] [dec=Y]")`)
+		precision     = flag.Int("precision", 50, "max fractional digits in output")
+		lower         = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
+		raw           = flag.Bool("raw", false, "write output as raw bytes with no trailing newline (for binary output)")
+		list          = flag.Bool("list", false, "list all known bases and exit")
+		getIndexCount = flag.Bool("get-index-count", false, "print the count of known bases and exit")
+		getBaseName   = flag.Bool("get-base-name", false, "print a base's canonical name (select by alias arg or --by-index) and exit")
+		showSymbols   = flag.Bool("show-symbols", false, "print a base's symbols, one per line (select by alias arg or --by-index) and exit")
+		byIndex       = flag.Int("by-index", -1, "select a base by its --list index (0-based) for the query flags above")
+		configFile    = flag.String("config", userConfigPath(), "user-level YAML config file; /etc is always tried too (missing file is OK)\n        ")
+		showVersion   = flag.Bool("version", false, "print version and exit")
+		helpFlag      = flag.Bool("help", false, "show help and exit")
+		hFlag         = flag.Bool("h", false, "alias for -help")
+		examplesFlag  = flag.Bool("examples", false, "show usage examples and exit")
 	)
 
 	// Suppress Go's default auto-exit on -h/-help; we handle help ourselves
@@ -90,6 +95,34 @@ func run() error {
 	if *list {
 		reg.Print(os.Stdout)
 		return nil
+	}
+
+	// Base-introspection query modes. Each prints one thing and exits, like
+	// --list. They let scripts enumerate bases (count, name-by-index, symbols)
+	// without parsing the human-readable --list table.
+	if *getIndexCount {
+		fmt.Println(len(reg.orderedBases()))
+		return nil
+	}
+	if *getBaseName || *showSymbols {
+		posName := ""
+		if a := flag.Args(); len(a) >= 1 {
+			posName = a[0]
+		}
+		b, err := selectBase(reg, *byIndex, posName)
+		if err != nil {
+			return err
+		}
+		if *getBaseName {
+			fmt.Println(b.Name())
+			return nil
+		}
+		// --show-symbols: one per line. Buffered for the big bases (up to 65536).
+		w := bufio.NewWriter(os.Stdout)
+		for _, s := range b.Symbols {
+			fmt.Fprintln(w, s)
+		}
+		return w.Flush()
 	}
 
 	// Defaults: both input and output default to base 10.
@@ -182,6 +215,22 @@ func run() error {
 	return nil
 }
 
+// selectBase picks a base for the query flags: by --list index if byIndex >= 0,
+// otherwise by name/alias. Index order matches --list (see orderedBases).
+func selectBase(reg *Registry, byIndex int, name string) (*Base, error) {
+	if byIndex >= 0 {
+		ob := reg.orderedBases()
+		if byIndex >= len(ob) {
+			return nil, fmt.Errorf("--by-index=%d out of range (have %d bases: 0..%d)", byIndex, len(ob), len(ob)-1)
+		}
+		return ob[byIndex], nil
+	}
+	if name == "" {
+		return nil, fmt.Errorf("select a base by name/alias argument or --by-index=N")
+	}
+	return reg.Lookup(name)
+}
+
 // resolveBase returns a Base either from the registry (by name) or from a
 // custom symbols spec (which, if provided, takes precedence over the name).
 // CLI-supplied custom bases are tagged with Source indicating the flag name.
@@ -272,7 +321,7 @@ func userConfigPath() string {
 func printHelp(reg *Registry, etcPath, userPath, fromName, toName, fromSyms, toSyms string) {
 	out := os.Stderr
 	printCopyright()
-	fmt.Fprintf(out, `Convert an arbitrarily large number to/from arbitrary bases.
+	fmt.Fprint(out, `Convert an arbitrarily large number to/from arbitrary bases.
 
 Usage:
   convert-base-v2 [flags] NUMBER [OUTBASE]
@@ -283,7 +332,7 @@ If --from is unset, input base defaults to 10. If neither --to nor OUTBASE is
 given, output base also defaults to 10.
 
 Flags:
-`, version)
+`)
 
 	// This replaces flag.PrintDefaults(), so that flags are printed more clearly with leading '--', instead of just '-'.
 	flag.VisitAll(func(f *flag.Flag) {

@@ -312,13 +312,21 @@ func (r *Registry) Lookup(name string) (*Base, error) {
 	return nil, fmt.Errorf("unknown base %q", name)
 }
 
-// Print writes a human-readable listing to w.
-func (r *Registry) Print(w io.Writer) {
+// orderedBases returns all registered bases sorted by radix (stable). This is
+// the canonical index order: the same order --list prints, so --by-index=N
+// addresses the same base as the N-th --list row.
+func (r *Registry) orderedBases() []*Base {
 	bases := make([]*Base, len(r.ordered))
 	copy(bases, r.ordered)
 	sort.SliceStable(bases, func(i, j int) bool {
 		return len(bases[i].Symbols) < len(bases[j].Symbols)
 	})
+	return bases
+}
+
+// Print writes a human-readable listing to w.
+func (r *Registry) Print(w io.Writer) {
+	bases := r.orderedBases()
 	fmt.Fprintf(w, "%-16s  %-6s  %-5s  %-5s  %s\n", "NAME", "SIZE", "NEG", "DEC", "ALIASES")
 	for _, b := range bases {
 		neg := b.negative
