@@ -269,8 +269,8 @@ done
 n_bases="$("${EXE}" --get-index-count)"
 declare -a IDX_NAME=()
 for ((i=0; i<n_bases; i++)); do IDX_NAME[i]="$("${EXE}" --get-base-name --by-index="$i")"; done
-declare -a ELIG=()
-for ((i=0; i<n_bases; i++)); do [[ "${IDX_NAME[i]}" == "binary" ]] || ELIG+=("$i"); done
+declare -a ELIGIBLE=()
+for ((i=0; i<n_bases; i++)); do [[ "${IDX_NAME[i]}" == "binary" ]] || ELIGIBLE+=("$i"); done
 
 ## Symbols are loaded once per base, on first use, into a per-index array.
 declare -A SYM_LOADED=()
@@ -284,31 +284,31 @@ _load_syms(){
 ## Random string of `1..maxlen` symbols from base at index $1. First symbol is a
 ## non-zero digit (index 1..size-1) so there is no leading-zero ambiguity.
 _rand_symbols(){
-	local -n arr="SYMS_$1"
-	local -i size=${#arr[@]}
+	local -n syms="SYMS_$1"
+	local -i size=${#syms[@]}
 	local -i len=$(( 1 + $(_rand16) % maxlen ))
-	local rvals; mapfile -t rvals < <(head -c $((2 * len)) /dev/urandom | od -An -v -tu2 | tr -s ' ' '\n' | grep -v '^$')
-	local out=""; local -i j r idx
+	local rand_vals; mapfile -t rand_vals < <(head -c $((2 * len)) /dev/urandom | od -An -v -tu2 | tr -s ' ' '\n' | grep -v '^$')
+	local out=""; local -i j rand_val idx
 	for ((j = 0; j < len; j++)); do
-		r=${rvals[j]:-0}
-		if ((j == 0)); then idx=$(( 1 + r % (size - 1) )); else idx=$(( r % size )); fi
-		out+="${arr[idx]}"
+		rand_val=${rand_vals[j]:-0}
+		if ((j == 0)); then idx=$(( 1 + rand_val % (size - 1) )); else idx=$(( rand_val % size )); fi
+		out+="${syms[idx]}"
 	done
 	printf '%s' "$out"
 }
 
-sfz_fail=0; sfz_n=0
+symfuzz_fail=0; symfuzz_n=0
 for ((i = 0; i < iters; i++)); do
-	sidx="${ELIG[$(( $(_rand16) % ${#ELIG[@]} ))]}"
-	tidx="${ELIG[$(( $(_rand16) % ${#ELIG[@]} ))]}"
-	_load_syms "$sidx"
-	sName="${IDX_NAME[sidx]}"; tName="${IDX_NAME[tidx]}"
-	R="$(_rand_symbols "$sidx")"
-	_run --from "$sName" --to "$tName" -- "$R"; Y="$_out"; ((_rc == 0)) || { sfz_fail=$((sfz_fail+1)); _fail "symbol fuzz enc $sName->$tName" "R=[$R] rc=$_rc err=[$_err]"; continue; }
-	_run --from "$tName" --to "$sName" -- "$Y"; sfz_n=$((sfz_n + 1))
-	{ ((_rc == 0)) && [[ "$_out" == "$R" ]]; } || { sfz_fail=$((sfz_fail+1)); _fail "symbol fuzz round-trip $sName<->$tName" "R=[$R] Y=[$Y] got=[$_out] rc=$_rc"; }
+	src_idx="${ELIGIBLE[$(( $(_rand16) % ${#ELIGIBLE[@]} ))]}"
+	tgt_idx="${ELIGIBLE[$(( $(_rand16) % ${#ELIGIBLE[@]} ))]}"
+	_load_syms "$src_idx"
+	src_name="${IDX_NAME[src_idx]}"; tgt_name="${IDX_NAME[tgt_idx]}"
+	src_str="$(_rand_symbols "$src_idx")"
+	_run --from "$src_name" --to "$tgt_name" -- "$src_str"; encoded="$_out"; ((_rc == 0)) || { symfuzz_fail=$((symfuzz_fail+1)); _fail "symbol fuzz enc $src_name->$tgt_name" "src=[$src_str] rc=$_rc err=[$_err]"; continue; }
+	_run --from "$tgt_name" --to "$src_name" -- "$encoded"; symfuzz_n=$((symfuzz_n + 1))
+	{ ((_rc == 0)) && [[ "$_out" == "$src_str" ]]; } || { symfuzz_fail=$((symfuzz_fail+1)); _fail "symbol fuzz round-trip $src_name<->$tgt_name" "src=[$src_str] enc=[$encoded] got=[$_out] rc=$_rc"; }
 done
-((sfz_fail == 0)) && _pass "full-coverage symbol round-trip (${sfz_n} iterations, ${#ELIG[@]} bases, maxlen ${maxlen})" || printf '  %s%d symbol-fuzz failures above%s\n' "${red}" "$sfz_fail" "${rst}"
+((symfuzz_fail == 0)) && _pass "full-coverage symbol round-trip (${symfuzz_n} iterations, ${#ELIGIBLE[@]} bases, maxlen ${maxlen})" || printf '  %s%d symbol-fuzz failures above%s\n' "${red}" "$symfuzz_fail" "${rst}"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
