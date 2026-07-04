@@ -23,6 +23,7 @@
 ##			- Errors and robustness: bad bases, bad digits, malformed input, shell-metachar input, oversized input.
 ##			- Binary/streaming: bit-perfect round-trips through power-of-2 bases, and the byte-alignment guard.
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
+##			- Cross-base fuzz: random values carried from an established source base through a random target base and back, never touching base 10.
 ##			- Optional cross-check against the bundled v1 binary when present.
 ##		- Knobs (env):
 ##			- CICDTEST_EXE ..........: path to the binary under test (default: ../source/bin/convert-base-v2).
@@ -243,6 +244,28 @@ for ((i=0; i<iters; i++)); do
 	{ ((_rc == 0)) && [[ "$_out" == "$val" ]]; } || { fuzz_fail=$((fuzz_fail+1)); _fail "fuzz round-trip base=$base" "val=[$val] enc=[$enc] got=[$_out] rc=$_rc"; }
 done
 ((fuzz_fail == 0)) && _pass "randomized fuzz round-trip (${iters} iterations, maxlen ${maxlen})" || printf '  %s%d fuzz failures above%s\n' "${red}" "$fuzz_fail" "${rst}"
+
+## Cross-base self round-trip: start from an established source base, carry the
+## value through a random target base, then back to the source. Exercises the
+## base-to-base paths that never route through base 10. Source strings come from
+## a base-10 seed encoded into the source base, so they are canonical (no leading
+## zeros to drift on) yet still random in length and content.
+gen_want=(2 3 4 5 6 7 8 16 64 64u)
+declare -a GEN_BASES=()
+for g in "${gen_want[@]}"; do
+	for n in "${FUZZ_BASES[@]}"; do [[ "$n" == "$g" ]] && { GEN_BASES+=("$g"); break; }; done
+done
+xb_fail=0; xb_n=0
+for ((i=0; i<iters; i++)); do
+	src="${GEN_BASES[$(( $(od -An -N2 -tu2 /dev/urandom) % ${#GEN_BASES[@]} ))]}"
+	tgt="${FUZZ_BASES[$(( $(od -An -N2 -tu2 /dev/urandom) % ${#FUZZ_BASES[@]} ))]}"
+	seed="$(_rand_int "$maxlen")"
+	_run --from 10 --to "$src" -- "$seed"; x="$_out"; ((_rc == 0)) || { xb_fail=$((xb_fail+1)); _fail "xbase seed enc src=$src" "rc=$_rc err=[$_err]"; continue; }
+	_run --from "$src" --to "$tgt" -- "$x"; y="$_out"; ((_rc == 0)) || { xb_fail=$((xb_fail+1)); _fail "xbase enc src=$src tgt=$tgt" "x=[$x] rc=$_rc err=[$_err]"; continue; }
+	_run --from "$tgt" --to "$src" -- "$y"; xb_n=$((xb_n + 1))
+	{ ((_rc == 0)) && [[ "$_out" == "$x" ]]; } || { xb_fail=$((xb_fail+1)); _fail "xbase round-trip src=$src tgt=$tgt" "x=[$x] y=[$y] got=[$_out] rc=$_rc"; }
+done
+((xb_fail == 0)) && _pass "cross-base self round-trip (${xb_n} iterations, ${#GEN_BASES[@]} source bases)" || printf '  %s%d cross-base failures above%s\n' "${red}" "$xb_fail" "${rst}"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
