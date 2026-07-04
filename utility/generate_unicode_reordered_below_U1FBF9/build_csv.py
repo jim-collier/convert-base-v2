@@ -9,7 +9,6 @@ To run:
 	- Run: python3 build_csv.py
 
 Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
-	https://www.anthropic.com/legal/consumer-terms
 Licensed under the GNU General Public License v2.0 or later. Full text at:
 	https://spdx.org/licenses/GPL-2.0-or-later.html
 SPDX-License-Identifier: GPL-2.0-or-later
@@ -17,6 +16,7 @@ SPDX-License-Identifier: GPL-2.0-or-later
 
 import unicodedata
 import csv
+import os
 import re
 import sys
 from collections import defaultdict
@@ -43,7 +43,8 @@ def safe_name(cp):
 	except ValueError:
 		return None
 
-sys.path.insert(0, '/home/claude')
+# blocks.py sits next to this script; make sure it's importable from any cwd.
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from blocks import BLOCKS
 
 def block_for(cp):
@@ -798,7 +799,7 @@ def main():
 
 	rows.sort(key=lambda r: r[0])  # stable sort by byte length
 
-	with open('/home/claude/unicode_printable.csv','w',newline='',encoding='utf-8') as f:
+	with open('unicode_printable.csv','w',newline='',encoding='utf-8') as f:
 		w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
 		w.writerow(['Unicode range(s)', 'UTF-8 bytes', 'Group name', 'Characters', 'Width', 'Height'])
 		for bl, name, cps in rows:
