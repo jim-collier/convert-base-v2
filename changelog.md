@@ -27,6 +27,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Base-introspection flags for scripting: `--get-index-count`, `--get-base-name`, and `--show-symbols`, with a base selectable by name, alias, or `--by-index`.
+- Screenshots section in the README, with a responsive grid that links to full-size images.
 
 ### Other work
 

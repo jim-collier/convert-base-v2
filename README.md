@@ -53,6 +53,7 @@
 - [Introduction](#introduction)
 	- [Features](#features)
 	- [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
+- [Screenshots](#screenshots)
 - [Status](#status)
 - [Limitations](#limitations)
 	- [Streaming binary conversion](#streaming-binary-conversion)
@@ -115,6 +116,18 @@ At larger non-standard bases that this project created (e.g. `base-256jc1`), car
 - Keep the character selection consistent across bases.
 
 _Note: The command `convert-base-v2` has a version number on the end, to distinguish it from v1, which as predicted in that project, this v2 has a necessary minor break from in output, in one narrow edge case. And like v1, in the future there may be good reasons for the output to change again in a v3. For example, there are no "official standards" for large bases above 94 as of time of writing, but that could change. So to avoid overwriting an old script on a running system that may rely on it and it's predictable output, a new suffix number will be given to future programs if the output changes, and the two will coexist. That the existing version has a number, indicates that expected inevitability now._
+
+## Screenshots
+
+Click any image for the full-size version.
+
+<p align="center">
+	<a href="assets/screenshots/large/01-everyday.png"><img src="assets/screenshots/01-everyday.png" width="48%" alt="Everyday conversions"></a>
+	<a href="assets/screenshots/large/02-bignum.png"><img src="assets/screenshots/02-bignum.png" width="48%" alt="Arbitrary size, exotic bases"></a>
+	<a href="assets/screenshots/large/03-custom.png"><img src="assets/screenshots/03-custom.png" width="48%" alt="Custom alphabets and markers"></a>
+	<a href="assets/screenshots/large/04-binary.png"><img src="assets/screenshots/04-binary.png" width="48%" alt="Binary streaming round-trip"></a>
+	<a href="assets/screenshots/large/05-settings.png"><img src="assets/screenshots/05-settings.png" width="48%" alt="Configuration and base list"></a>
+</p>
 
 ## Status
 

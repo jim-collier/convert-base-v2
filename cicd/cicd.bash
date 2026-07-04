@@ -27,7 +27,8 @@
 ##	   3. tests (exhaustive: deterministic, security, fuzz, binary round-trips)
 ##	   4. cross-compile every shipping platform (build sanity + release archives)
 ##	   5. dogfood (install the native build locally, fixed name)
-##	   6. backup + publish to git (runs from repo root)
+##	   6. project hooks (regenerate committed assets like screenshots; only if present)
+##	   7. backup + publish to git (runs from repo root)
 ##	- Syntax:
 ##	  cicd/cicd.bash [options]
 ##	  Options:
@@ -113,7 +114,7 @@ if ((! assume_yes)); then
 fi
 
 ## Stage 1: format.
-step "1/6  Format"
+step "1/7  Format"
 if ((${#FMT_CMD[@]} == 0)); then
 	note "format skipped"
 else
@@ -122,7 +123,7 @@ else
 fi
 
 ## Stage 2: native build, staged aside from what the cross stage cleans.
-step "2/6  Native build"
+step "2/7  Native build"
 "${NATIVE_BUILD_CMD[@]}"
 [[ -f "${NATIVE_BUILD_OUT}" ]] || die "native build produced no binary: ${NATIVE_BUILD_OUT}"
 mkdir -p "$(dirname "${STAGED_BIN}")"
@@ -130,12 +131,12 @@ cp -f "${NATIVE_BUILD_OUT}" "${STAGED_BIN}"
 ok "native build: ${STAGED_BIN} ($(du -h "${STAGED_BIN}" | cut -f1))  ($("${STAGED_BIN}" --version))"
 
 ## Stage 3: tests, against the staged binary.
-step "3/6  Tests"
+step "3/7  Tests"
 CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" "${TEST_CMD[@]}"
 ok "tests passed"
 
 ## Stage 4: cross-compile (build sanity + release archives).
-step "4/6  Cross-compile"
+step "4/7  Cross-compile"
 if ((BUILD_CROSS)); then
 	"${RELEASE_CMD[@]}"
 	count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' \) 2>/dev/null | wc -l)"
@@ -146,7 +147,7 @@ else
 fi
 
 ## Stage 5: dogfood (fixed name).
-step "5/6  Dogfood"
+step "5/7  Dogfood"
 if ((${#DOGFOOD_FIXED_DESTS[@]})); then
 	if [[ -n "$fixed_dest" ]]; then
 		if ! cp -f "${STAGED_BIN}" "${fixed_dest}/${EXE_NAME}" && [[ "${fixed_dest}" != "${HOME}/"* ]]; then
@@ -160,8 +161,29 @@ else
 	note "dogfood disabled"
 fi
 
-## Stage 6: backup + publish.
-step "6/6  Backup + publish"
+## Stage 6: project hooks (regenerate committed assets like screenshots).
+## Hooks live outside the repo under private/hooks, so they run only where
+## present. Each is called with (repo root, staged binary). A hook failure is a
+## warning, not a pipeline stop: a stale asset must not block a publish.
+step "6/7  Project hooks"
+hooks_root="${root}/../private/hooks"
+if [[ -d "${hooks_root}" ]]; then
+	mapfile -t hooks < <(find "${hooks_root}" -maxdepth 2 -type f -name '*.bash' 2>/dev/null | sort)
+	if ((${#hooks[@]})); then
+		for h in "${hooks[@]}"; do
+			note "hook: $(basename "$h")"
+			if "$h" "${root}" "${root}/${STAGED_BIN}"; then ok "hook ok: $(basename "$h")"
+			else warn "hook failed: $(basename "$h") (continuing)"; fi
+		done
+	else
+		note "no hooks under ${hooks_root}"
+	fi
+else
+	note "no project hooks dir; skipping"
+fi
+
+## Stage 7: backup + publish.
+step "7/7  Backup + publish"
 if ((${#GIT_PUBLISH[@]})); then
 	"${GIT_PUBLISH[@]}"
 	ok "published"
