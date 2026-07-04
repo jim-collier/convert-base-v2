@@ -219,11 +219,11 @@ func run() error {
 // otherwise by name/alias. Index order matches --list (see orderedBases).
 func selectBase(reg *Registry, byIndex int, name string) (*Base, error) {
 	if byIndex >= 0 {
-		ob := reg.orderedBases()
-		if byIndex >= len(ob) {
-			return nil, fmt.Errorf("--by-index=%d out of range (have %d bases: 0..%d)", byIndex, len(ob), len(ob)-1)
+		ordered := reg.orderedBases()
+		if byIndex >= len(ordered) {
+			return nil, fmt.Errorf("--by-index=%d out of range (have %d bases: 0..%d)", byIndex, len(ordered), len(ordered)-1)
 		}
-		return ob[byIndex], nil
+		return ordered[byIndex], nil
 	}
 	if name == "" {
 		return nil, fmt.Errorf("select a base by name/alias argument or --by-index=N")
