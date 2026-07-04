@@ -73,9 +73,11 @@ DOGFOOD_FIXED_DESTS=(
 	"/usr/local/sbin"
 )
 
-## Stage 6: backup + publish to git (runs from repo root). --quiet keeps it
-## non-interactive so the whole pipeline can finish unattended.
-GIT_PUBLISH=(cicd/utility/n8git_backup-and-publish --quiet)
+## Stage 6: backup + publish to git (runs from repo root). Quiet mode keeps it
+## non-interactive so the whole pipeline can finish unattended. The helper reads
+## this from the environment, not a flag.
+export GIT_BACKUP_AND_PUBLISH_QUIET=1
+GIT_PUBLISH=(cicd/utility/n8git_backup-and-publish)
 
 
 ##	History:
