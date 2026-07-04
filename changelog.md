@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Base-introspection flags for scripting: `--get-index-count`, `--get-base-name`, and `--show-symbols`, with a base selectable by name, alias, or `--by-index`.
+- Flags to query bases from a script: `--get-index-count`, `--get-base-name`, and `--show-symbols`. A base can be chosen by name, alias, or `--by-index`.
 
 ### Other work
 
