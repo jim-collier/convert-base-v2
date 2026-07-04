@@ -30,6 +30,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 	- Split the pipeline into a generic engine and a per-project config, matching the sister project's layout.
 	- The pipeline now formats, builds, tests, cross-compiles, dogfoods a fixed-name local copy, then backs up and publishes quietly.
 	- Replaced the test harness with a self-contained, table-driven one. It covers the CLI, conversions, custom bases, errors, oversized and hostile input, binary round-trips, and fuzzing across every defined base. The base list is read from the program, so new bases are tested automatically.
+	- Added byte-for-byte back-compat checks against v1 for every shared base, in both directions.
 	- Kept the previous scripts under `legacy/`.
 
 - Updated to CI/CD scripts [20250519]:

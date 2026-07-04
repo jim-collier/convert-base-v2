@@ -60,8 +60,6 @@ trap cleanup EXIT
 trap 'rc=$?; printf "\n%sHARNESS ABORTED (exit %s) at line %s: %s%s\n" "${red}" "$rc" "$LINENO" "$BASH_COMMAND" "${rst}" >&2; exit $rc' ERR
 
 section(){ printf '\n%s>>> %s%s\n' "${b}" "$*" "${rst}"; }
-note(){ printf '  %s\n' "$*"; }
-warn(){ printf '%s  WARN: %s%s\n' "${ylw}" "$*" "${rst}" >&2; }
 
 ## _run ARGS...           : run EXE with ARGS (argv, never a shell string), capture _out/_err/_rc.
 ## _run_in FILE ARGS...   : same, but feed FILE on stdin.
@@ -248,22 +246,41 @@ done
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## Optional: cross-check against the bundled v1 binary
+## Back-compat against the bundled v1 binary (gating, byte-for-byte)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## Advisory only: the exact v1 base-name mapping isn't asserted here, so a
-## difference is reported but never fails the run. It exists to flag an obvious
-## drift for a human to look at, not to gate CI.
+## Each pair is "v2-base:v1-base". For a shared base, v2 must reproduce v1 output
+## byte-for-byte (encode side), and must read v1 output back to the original
+## (decode side). v1 only accepts base 10 (among a few) as input, so tests feed
+## base-10 values. These pairs were confirmed to agree across a range of values.
+V1_MAP=(
+	2:2  8:8  10:10  16:16  26:26  36:36  52:52  62:62
+	32:32  32h:32h  32c:32c  32ws:32ws
+	64:64  64u:64u  64h:64h  64jc1:64jc1
+	128jc1:128jc1  256jc1:256jc1  288jc1:288jc1
+	48v1compat:48v1compat  64v1compat:64v1compat  128v1compat:128v1compat
+	hostname:38host  username:39user  email:45email
+	48ws:48jc1ws  64w:64jc1ws  128w:128jc1ws
+)
+## Best-guess pairs that did NOT agree, left off until sorted out.
+## Double-check the correct mapping for these:
+#	45:45email   ## v2 base-45 (RFC 4648) uses a different alphabet than v1 45email; v1 has no plain base-45.
+
 if [[ -x "${EXE_V1B}" ]]; then
-	section "Back-compat cross-check vs v1 (advisory)"
-	for base in 48v1compat 64v1compat 128v1compat; do
-		v="$(_rand_int 30)"
-		v2="$("${EXE}" --from 10 --to "$base" -- "$v" 2>/dev/null || true)"
-		back="$("${EXE}" --from "$base" --to 10 -- "$v2" 2>/dev/null || true)"
-		if [[ "$back" == "$v" ]]; then
-			note "${base}: v2 self-round-trips (v1 alphabet compare not asserted)"
-		else
-			warn "${base}: v2 did not self-round-trip (v=[$v] enc=[$v2] back=[$back])"
-		fi
+	section "Back-compat vs v1 (byte-for-byte + round-trip)"
+	reps=3; ((doLong)) && reps=20
+	for pair in "${V1_MAP[@]}"; do
+		v2n="${pair%%:*}"; v1n="${pair##*:}"
+		enc_fail=0; rt_fail=0; detail=""
+		for ((r=0; r<reps; r++)); do
+			val="$(_rand_int 30)"
+			o2="$("${EXE}"     --from 10 --to "$v2n" -- "$val" 2>/dev/null || true)"
+			o1="$("${EXE_V1B}" --ibase 10 "$val" "$v1n"       2>/dev/null || true)"
+			if [[ -z "$o1" || "$o2" != "$o1" ]]; then enc_fail=1; detail="val=[$val] v2=[$o2] v1=[$o1]"; fi
+			back="$("${EXE}" --from "$v2n" --to 10 -- "$o1" 2>/dev/null || true)"
+			[[ -n "$o1" && "$back" == "$val" ]] || { rt_fail=1; detail="val=[$val] v1enc=[$o1] v2dec=[$back]"; }
+		done
+		((enc_fail == 0)) && _pass "v2==v1 encode: ${v2n} (== v1 ${v1n})" || _fail "v2==v1 encode: ${v2n} (== v1 ${v1n})" "$detail"
+		((rt_fail == 0))  && _pass "v1->v2 round-trip: ${v2n} (from v1 ${v1n})" || _fail "v1->v2 round-trip: ${v2n} (from v1 ${v1n})" "$detail"
 	done
 fi
 
