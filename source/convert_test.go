@@ -5,7 +5,11 @@
 
 package main
 
-import "testing"
+import (
+	"bytes"
+	"io"
+	"testing"
+)
 
 // Throughput benchmarks for the streaming binary path. Run one direction with
 //	go test -run x -bench BenchmarkEncode64 -benchmem ./...
@@ -75,3 +79,32 @@ func BenchmarkDecode64(b *testing.B) {
 
 // The big native base goes through a separate encoder (multi-byte symbols).
 func BenchmarkEncode65536(b *testing.B) { benchConvert(b, "binary", "65536", benchBytes()) }
+
+// Streaming benchmarks exercise the CLI's actual pipe path (streamConvert) with
+// no real I/O: a bytes.Reader in, io.Discard out. This is what a `cat file | ...`
+// invocation runs.
+func benchStream(b *testing.B, fromName, toName, input string) {
+	reg, _ := NewRegistry()
+	from, _ := reg.Lookup(fromName)
+	to, _ := reg.Lookup(toName)
+	b.SetBytes(int64(len(benchBytes()))) // report over the raw-byte side
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if ok, err := streamConvert(bytes.NewReader([]byte(input)), io.Discard, from, to); !ok || err != nil {
+			b.Fatalf("streamConvert ok=%v err=%v", ok, err)
+		}
+	}
+}
+
+func BenchmarkStreamEncode64(b *testing.B) { benchStream(b, "binary", "64u", benchBytes()) }
+func BenchmarkStreamEncode16(b *testing.B) { benchStream(b, "binary", "16", benchBytes()) }
+func BenchmarkStreamEncode32(b *testing.B) { benchStream(b, "binary", "32", benchBytes()) }
+
+func BenchmarkStreamDecode64(b *testing.B) {
+	reg, _ := NewRegistry()
+	from, _ := reg.Lookup("binary")
+	to, _ := reg.Lookup("64u")
+	enc, _ := Convert(benchBytes(), from, to, 0)
+	benchStream(b, "64u", "binary", enc)
+}

@@ -8,6 +8,7 @@ package main
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math/big"
 	"strings"
 	"unicode/utf8"
@@ -379,6 +380,227 @@ func decodeDigitsToBytes(input string, from *Base, kIn int) (string, error) {
 		return "", fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
 	}
 	return string(out), nil
+}
+
+// streamConvert handles the binary bit-packed conversions (raw bytes <-> a
+// single-byte-per-digit power-of-2 base, up to 8 bits per digit) by streaming
+// straight from r to w, holding neither the whole input nor the whole output in
+// memory. It returns handled=false, without writing anything, for any conversion
+// it can't stream, so the caller falls back to the buffered Convert. This is the
+// base64/base32/base16 hot path; it borrows the streaming + byte-aligned tricks
+// the system encoders use (base64's 3-bytes->4-chars, generalized to any k).
+func streamConvert(r io.Reader, w io.Writer, from, to *Base) (bool, error) {
+	kIn := powerOfTwoBits(len(from.Symbols))
+	kOut := powerOfTwoBits(len(to.Symbols))
+	if kIn == 0 || kOut == 0 {
+		return false, nil
+	}
+	kBase := kOut
+	if to.Binary {
+		kBase = kIn
+	}
+	if kBase > 8 { // the big native bases (2048/32768/65536) keep the buffered path
+		return false, nil
+	}
+	switch {
+	case from.Binary && !to.Binary && to.allOneByte:
+		return true, streamEncode(r, w, to, kOut)
+	case to.Binary && !from.Binary && from.allOneByte:
+		// A multi-byte pad symbol can't be matched a byte at a time, so bail.
+		if len(from.PadSymbol) > 1 {
+			return false, nil
+		}
+		return true, streamDecode(r, w, from, kIn)
+	}
+	return false, nil
+}
+
+// streamEncode packs raw bytes from r into single-byte digits on w. It works a
+// whole group at a time: groupBytes input bytes carry exactly groupChars output
+// digits (3->4 for base64, 5->8 for base32, 1->2 for hex, ...), so within a group
+// there is no bit-by-bit accumulator, just shifts and table lookups. The two hot
+// widths (base64, hex) get a hand-unrolled constant-shift inner loop, the way the
+// system encoders do; the rest use the general group loop. Output is written in
+// big batches (no per-byte calls). A final partial group zero-pads its last
+// digit, and RFC padding, if the base emits it, tops the output up to the group
+// boundary - matching the buffered path byte-for-byte.
+func streamEncode(r io.Reader, w io.Writer, to *Base, kOut int) error {
+	var table [256]byte
+	for i, n := 0, 1<<kOut; i < n; i++ {
+		table[i] = to.Symbols[i][0]
+	}
+	mask := uint64(1)<<kOut - 1
+	g := gcd(8, kOut)
+	groupBytes := kOut / g // == lcm(8,kOut)/8
+	groupChars := 8 / g    // == lcm(8,kOut)/kOut
+	bits := groupBytes * 8
+
+	const groupsPerBuf = 1 << 15
+	inbuf := make([]byte, groupBytes*groupsPerBuf)
+	out := make([]byte, groupChars*groupsPerBuf)
+
+	totalChars := 0
+	carry := 0
+	for {
+		nn, err := io.ReadFull(r, inbuf[carry:])
+		total := carry + nn
+		groups := total / groupBytes
+		o, p := 0, 0
+		switch kOut {
+		case 6: // base64: 3 bytes -> 4 chars
+			for gi := 0; gi < groups; gi++ {
+				b0, b1, b2 := inbuf[p], inbuf[p+1], inbuf[p+2]
+				p += 3
+				out[o] = table[b0>>2]
+				out[o+1] = table[(b0&0x03)<<4|(b1>>4)]
+				out[o+2] = table[(b1&0x0f)<<2|(b2>>6)]
+				out[o+3] = table[b2&0x3f]
+				o += 4
+			}
+		case 4: // hex: 1 byte -> 2 chars
+			for gi := 0; gi < groups; gi++ {
+				b := inbuf[p]
+				p++
+				out[o] = table[b>>4]
+				out[o+1] = table[b&0x0f]
+				o += 2
+			}
+		case 5: // base32: 5 bytes -> 8 chars
+			for gi := 0; gi < groups; gi++ {
+				b0, b1, b2, b3, b4 := inbuf[p], inbuf[p+1], inbuf[p+2], inbuf[p+3], inbuf[p+4]
+				p += 5
+				out[o] = table[b0>>3]
+				out[o+1] = table[(b0&0x07)<<2|(b1>>6)]
+				out[o+2] = table[(b1>>1)&0x1f]
+				out[o+3] = table[(b1&0x01)<<4|(b2>>4)]
+				out[o+4] = table[(b2&0x0f)<<1|(b3>>7)]
+				out[o+5] = table[(b3>>2)&0x1f]
+				out[o+6] = table[(b3&0x03)<<3|(b4>>5)]
+				out[o+7] = table[b4&0x1f]
+				o += 8
+			}
+		default:
+			for gi := 0; gi < groups; gi++ {
+				var acc uint64
+				for b := 0; b < groupBytes; b++ {
+					acc = acc<<8 | uint64(inbuf[p])
+					p++
+				}
+				for j := 0; j < groupChars; j++ {
+					out[o] = table[(acc>>(bits-(j+1)*kOut))&mask]
+					o++
+				}
+			}
+		}
+		if o > 0 {
+			if _, werr := w.Write(out[:o]); werr != nil {
+				return werr
+			}
+			totalChars += o
+		}
+		carry = total - groups*groupBytes
+		if carry > 0 {
+			copy(inbuf[:carry], inbuf[groups*groupBytes:total])
+		}
+		if err != nil { // io.EOF / io.ErrUnexpectedEOF: end of stream
+			break
+		}
+	}
+	// Final partial group + any RFC padding, assembled and written in one go.
+	if carry > 0 || (to.PadEmit && to.PadSymbol != "") {
+		var tail []byte
+		acc := uint64(0)
+		accBits := 0
+		for b := 0; b < carry; b++ {
+			acc = acc<<8 | uint64(inbuf[b])
+			accBits += 8
+			for accBits >= kOut {
+				accBits -= kOut
+				tail = append(tail, table[(acc>>accBits)&mask])
+				acc &= uint64(1)<<accBits - 1
+				totalChars++
+			}
+		}
+		if accBits > 0 {
+			tail = append(tail, table[(acc<<(kOut-accBits))&mask])
+			totalChars++
+		}
+		if to.PadEmit && to.PadSymbol != "" {
+			if rem := totalChars % groupChars; rem != 0 {
+				for i := 0; i < groupChars-rem; i++ {
+					tail = append(tail, to.PadSymbol...)
+				}
+			}
+		}
+		if len(tail) > 0 {
+			if _, err := w.Write(tail); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+// streamDecode unpacks single-byte digits from r into raw bytes on w. It reads
+// each digit through the base's byteValue table (which carries the case-flipped
+// input aliases), tolerates line breaks the way standard decoders do (so it reads
+// wrapped base64/base32), and strips a trailing run of the pad symbol. Output is
+// batched per input chunk. Any leftover sub-byte bits at the end must be zero,
+// matching the buffered guard against non-byte-aligned input (odd-length hex).
+func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
+	var padByte byte
+	hasPad := from.PadSymbol != ""
+	if hasPad {
+		padByte = from.PadSymbol[0]
+	}
+	const bufSize = 1 << 16
+	inbuf := make([]byte, bufSize)
+	out := make([]byte, 0, bufSize*kIn/8+1)
+
+	var acc uint64
+	var accBits int
+	for {
+		nn, err := r.Read(inbuf)
+		out = out[:0]
+		for i := 0; i < nn; i++ {
+			c := inbuf[i]
+			// Common case first: a valid digit. Each digit adds kIn (<= 8) bits to
+			// an accumulator holding < 8, so at most one whole byte comes out - an
+			// "if", not a loop.
+			v := from.byteValue[c]
+			if v >= 0 {
+				acc = acc<<kIn | uint64(v)
+				accBits += kIn
+				if accBits >= 8 {
+					accBits -= 8
+					out = append(out, byte(acc>>accBits))
+					acc &= uint64(1)<<accBits - 1
+				}
+				continue
+			}
+			// Uncommon: line breaks (tolerated, so wrapped input decodes) and a
+			// trailing run of the pad symbol are skipped; anything else is an error.
+			if c == '\n' || c == '\r' || (hasPad && c == padByte) {
+				continue
+			}
+			return fmt.Errorf("byte %#02x (%q) not in base %q", c, string(c), from.Name())
+		}
+		if len(out) > 0 {
+			if _, werr := w.Write(out); werr != nil {
+				return werr
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+	if accBits > 0 && acc != 0 {
+		return fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
+	}
+	return nil
 }
 
 // encodeBinaryPrefixed encodes raw bytes into a power-of-2 base with more than

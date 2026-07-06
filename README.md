@@ -147,11 +147,11 @@ Although support for streaming conversion of binary data was added in this compi
 
 It was really a matter of a "why not" feature, while already adding support for piping input and output. (Which v1 also didn't have.)
 
-But for day-to-day streaming binary conversion, `basenc` is at least 4x faster than this anyway, and has a much longer track-record.
+For day-to-day streaming binary conversion, `basenc` is still faster and has a much longer track record. The streaming path here is now close on the standard bases (base-64/32/16 encode runs within roughly 1.5x of `basenc`), but that isn't the point - reach for this tool when you need a base `basenc` doesn't have.
 
 Furthermore, base-64 - which `basenc` supports - is statistically the most compact way to store binary data as UTF-8 text. It might seem strange, but not even qntm's base-65536 (which this program has a named setting for) can beat the space density specifically for UTF-8 encoding. All modern OSes use UTF-8 by default. (For Twitter/𝕏, qntm's base-2048 allegedly optimally encodes binary data. Which this program also has a named setting for.)
 
-The only good reason for using this program for streaming binary conversion, is for bases that no other program supports. (Such as aforementioned bases 2048, 65536 - as well as specialty byte-aligned bases such as the myriad variations of base 32 this supports. Or your own custom 2^N base positional notation symbol alphabet.) But until a future fix is put in place, it will gracefully error, if the input is not byte-aligned.
+The only good reason for using this program for streaming binary conversion, is for bases that no other program supports. (Such as aforementioned bases 2048, 65536 - as well as specialty byte-aligned bases such as the myriad variations of base 32 this supports. Or your own custom 2^N base positional notation symbol alphabet.) RFC `=` padding is emitted and accepted where it applies, and decoding tolerates line-wrapped input; a decode whose bits don't land on a whole byte (e.g. odd-length hex) still errors by design.
 
 ## Example output
 

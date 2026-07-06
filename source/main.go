@@ -137,29 +137,10 @@ func run() error {
 
 	args := flag.Args()
 
-	// NUMBER: from args, or from stdin if arg is "-" or missing-and-piped.
-	var number string
-	switch {
-	case len(args) >= 1 && args[0] != "-":
-		number = args[0]
-	case len(args) >= 1 && args[0] == "-":
-		number, err = readStdin(from)
-		if err != nil {
-			return err
-		}
-	case len(args) == 0 && !isTerminal(os.Stdin):
-		number, err = readStdin(from)
-		if err != nil {
-			return err
-		}
-	default:
-		// No args and stdin is a terminal - nothing to do. Show help.
-		printHelp(reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
-		os.Exit(2)
-	}
-
 	// OUTBASE: --to flag wins over positional. Positional is args[1] when
-	// args[0] is the number (or "-"). Default to "10" if neither set.
+	// args[0] is the number (or "-"). Default to "10" if neither set. Resolved
+	// up front (it doesn't depend on the number) so the streaming path below can
+	// be chosen before a byte is read.
 	outBaseName := *toName
 	posOut := ""
 	if len(args) >= 2 {
@@ -197,6 +178,44 @@ func run() error {
 	// silently ignored; now strict, per user preference).
 	if *lower && !canLowercase(to) {
 		return fmt.Errorf("--lower is invalid for mixed-case output base %q: lowercasing its digits would change their meaning", to.Name())
+	}
+
+	// Is the number coming from stdin (explicit "-", or piped with no arg)?
+	fromStdin := (len(args) >= 1 && args[0] == "-") || (len(args) == 0 && !isTerminal(os.Stdin))
+
+	// No number and stdin is a terminal - nothing to do. Show help.
+	if len(args) == 0 && !fromStdin {
+		printHelp(reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
+		os.Exit(2)
+	}
+
+	// Streaming fast path: for the binary bit-packed conversions, pipe stdin
+	// straight to stdout with no whole-file buffering. --lower would need
+	// per-chunk rewriting, so it falls through to the buffered path.
+	if fromStdin && !*lower {
+		handled, serr := streamConvert(os.Stdin, os.Stdout, from, to)
+		if serr != nil {
+			return serr
+		}
+		if handled {
+			// Text output normally ends in a newline (as the buffered path's
+			// Println does); raw and binary output stay byte-exact.
+			if !to.Binary && !*raw {
+				fmt.Println()
+			}
+			return nil
+		}
+	}
+
+	// Buffered path: read the whole number (from stdin or argv), convert, emit.
+	var number string
+	if fromStdin {
+		number, err = readStdin(from)
+		if err != nil {
+			return err
+		}
+	} else {
+		number = args[0]
 	}
 
 	result, err := Convert(number, from, to, *precision)
@@ -490,9 +509,9 @@ func printExamples() {
   convert-base-v2  --from-symbols "aeiouy.-_0 neg=~ dec=/"  --to 20w  "~y0-._/ooo"
 
   # Convert a binary file to any 2^N base (i.e. 4, 8, 16, 32, 64 ... 65536)
-  # Unlike base-to-base conversion in N(O^2) time, this is done in linear time.
-  # But 'basenc' is much faster, and base-64 is maximally efficient in UTF-8
-  # vs larger bases. TLDR, for speed and compactness, use 'basenc --base64'.
+  # This streams in linear time and is now within striking distance of 'basenc'
+  # for the standard bases. The reason to reach for this tool is the bases nothing
+  # else has (2048, 65536, your own 2^N alphabet); for plain base-64, basenc is fine.
   cat file.bin | convert-base-v2 --from binary --to 64u > out.b64
 
   cat out.b64  | convert-base-v2 --from 64u --to binary > file2.bin       # base64url -> File (bit-perfect)
