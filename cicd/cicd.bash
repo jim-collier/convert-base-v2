@@ -27,18 +27,19 @@
 ##	   3. tests (exhaustive: deterministic, security, fuzz, binary round-trips)
 ##	   4. cross-compile every shipping platform (build sanity + release archives)
 ##	   5. dogfood (install the native build locally, fixed name)
-##	   6. project hooks (regenerate committed assets like screenshots; only if present)
+##	   6. screenshots (regenerate committed README images; skipped by --quick)
 ##	   7. backup + publish to git (runs from repo root)
 ##	- Syntax:
 ##	  cicd/cicd.bash [options]
 ##	  Options:
-##	   -y, --yes       run unattended (no confirm prompt)
-##	   --no-fmt        skip the formatter stage
-##	   --no-cross      skip the cross-compile stage
-##	   --no-dogfood    skip installing the native build locally
-##	   --no-publish    skip the git backup + publish stage
-##	   --long          exhaustive test run (sets CICDTEST_DO_LONGTEST=1)
-##	   --quick         skip the slow stage (cross-compile)
+##	   -y, --yes         run unattended (no confirm prompt)
+##	   --no-fmt          skip the formatter stage
+##	   --no-cross        skip the cross-compile stage
+##	   --no-dogfood      skip installing the native build locally
+##	   --no-publish      skip the git backup + publish stage
+##	   --no-screenshots  skip regenerating README screenshots
+##	   --long            exhaustive test run (sets CICDTEST_DO_LONGTEST=1)
+##	   --quick           skip the slow stages (cross-compile and screenshots)
 ##	- Reuse: copy the cicd/ directory into another project and edit config.bash.
 
 ##	History: At bottom of script.
@@ -66,8 +67,9 @@ while (($#)); do case "$1" in
 	--no-cross)   BUILD_CROSS=0; shift ;;
 	--no-dogfood) DOGFOOD_FIXED_DESTS=(); shift ;;
 	--no-publish) GIT_PUBLISH=(); shift ;;
+	--no-screenshots) DO_SCREENSHOTS=0; shift ;;
 	--long)       do_long=1; shift ;;
-	--quick)      BUILD_CROSS=0; shift ;;
+	--quick)      BUILD_CROSS=0; DO_SCREENSHOTS=0; shift ;;
 	-h|--help)    sed -n '/^##	- Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##	\{0,1\}//'; exit 0 ;;
 	*) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
 esac; done
@@ -101,6 +103,11 @@ if ((${#DOGFOOD_FIXED_DESTS[@]})); then
 	else note "Dogfood, fixed name .: <none of: ${DOGFOOD_FIXED_DESTS[*]} exists - will skip>"; fi
 else
 	note "Dogfood, fixed name .: (disabled)"
+fi
+if ((DO_SCREENSHOTS)); then
+	note "Screenshots .........: ${SCREENSHOT_CMD[*]}"
+else
+	note "Screenshots .........: (skipped)"
 fi
 if ((${#GIT_PUBLISH[@]})); then
 	note "Publish (last) ......: ${GIT_PUBLISH[*]}"
@@ -161,25 +168,18 @@ else
 	note "dogfood disabled"
 fi
 
-## Stage 6: project hooks (regenerate committed assets like screenshots).
-## Hooks live outside the repo under private/hooks, so they run only where
-## present. Each is called with (repo root, staged binary). A hook failure is a
-## warning, not a pipeline stop: a stale asset must not block a publish.
-step "6/7  Project hooks"
-hooks_root="${root}/../private/hooks"
-if [[ -d "${hooks_root}" ]]; then
-	mapfile -t hooks < <(find "${hooks_root}" -maxdepth 2 -type f -name '*.bash' 2>/dev/null | sort)
-	if ((${#hooks[@]})); then
-		for h in "${hooks[@]}"; do
-			note "hook: $(basename "$h")"
-			if "$h" "${root}" "${root}/${STAGED_BIN}"; then ok "hook ok: $(basename "$h")"
-			else warn "hook failed: $(basename "$h") (continuing)"; fi
-		done
-	else
-		note "no hooks under ${hooks_root}"
-	fi
+## Stage 6: screenshots. Regenerate the committed README images from the tested
+## binary. A failure here is a warning, not a stop: a stale image must not block
+## a publish. Needs ImageMagick; the utility reports and exits if it is missing.
+step "6/7  Screenshots"
+screenshot_util="${root}/${SCREENSHOT_CMD[0]}"
+if ((! DO_SCREENSHOTS)); then
+	note "screenshots skipped"
+elif [[ -f "${screenshot_util}" ]]; then
+	if bash "${screenshot_util}" "${root}" "${root}/${STAGED_BIN}"; then ok "screenshots regenerated"
+	else warn "screenshot generation failed (continuing)"; fi
 else
-	note "no project hooks dir; skipping"
+	note "no screenshot utility at ${screenshot_util}; skipping"
 fi
 
 ## Stage 7: backup + publish.
@@ -192,6 +192,7 @@ else
 fi
 
 hr; printf '%s%s CI/CD: done.%s\n' "${grn}${b}" "${APP_NAME}" "${rst}"
+echo
 
 
 ##	History:
