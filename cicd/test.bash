@@ -220,6 +220,21 @@ for pair in "16" "64u" "32h" "64"; do
 		_fail "binary round-trip via ${pair}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"
 	fi
 done
+## Big power-of-2 bases (more than 8 bits per char) use a length-prefixed scheme
+## so every input length round-trips, including the odd lengths a zero-padded
+## tail used to corrupt. Sweep edge lengths for each.
+for pair in "2048twitter" "2048rust" "32768qntm" "65536"; do
+	bigfail=0
+	for n in 0 1 2 3 4 5 7 8 15 16 17 31 32 33 64 333; do
+		src="${CBT_TMP}/bp_src"; mid="${CBT_TMP}/bp_mid"; out="${CBT_TMP}/bp_out"
+		head -c "$n" /dev/urandom >"$src"
+		rc1=0; rc2=0
+		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$pair" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
+		"${TIMEOUT[@]}" "${EXE}" --from "$pair" --to binary <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
+		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || bigfail=$((bigfail+1))
+	done
+	((bigfail == 0)) && _pass "binary round-trip via ${pair} (all lengths)" || _fail "binary round-trip via ${pair}" "${bigfail} lengths mismatched"
+done
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
 check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to binary ABC
 

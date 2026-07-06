@@ -29,6 +29,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Flags to query bases from a script: `--get-index-count`, `--get-base-name`, and `--show-symbols`. A base can be chosen by name, alias, or `--by-index`.
 - Screenshots section in the README, with a responsive grid that links to full-size images.
 
+### Fixed
+
+- Binary encoding to base 2048, 32768, and 65536 now round-trips at every input length. Before, some lengths came back with an extra trailing byte. Output for these bases changed to carry the exact byte length. Matching the published third-party layouts for these bases is still to come.
+
 ### Other work
 
 - Reworked the CI/CD scripts [20260703]:

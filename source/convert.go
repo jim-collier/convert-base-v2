@@ -6,6 +6,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"math/big"
 	"strings"
@@ -34,7 +35,23 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 			}
 			return "", fmt.Errorf("binary mode requires a power-of-2 counterpart (2, 4, 8, 16, 32, 64, 128, 256); base %q has %d digits", other.Name(), len(other.Symbols))
 		}
-		return convertBitPacked(input, from, to, kIn, kOut)
+		// The non-binary side's bit width decides the tail handling. Up to 8
+		// bits per digit, the plain bit-packed path already round-trips every
+		// length and matches the standard encodings, so it is left alone. Above
+		// 8 bits (base 2048, 32768, 65536) a zero-padded tail can add a whole
+		// byte the decoder can't distinguish from data, so those use a
+		// length-prefixed scheme that stays lossless at any length.
+		kBase := kOut
+		if to.Binary {
+			kBase = kIn
+		}
+		if kBase <= 8 {
+			return convertBitPacked(input, from, to, kIn, kOut)
+		}
+		if from.Binary {
+			return encodeBinaryPrefixed(input, to, kOut), nil
+		}
+		return decodeBinaryPrefixed(input, from, kIn)
 	}
 
 	if input == "" {
@@ -264,4 +281,63 @@ func convertBitPacked(input string, from, to *Base, kIn, kOut int) (string, erro
 		return string(out), nil
 	}
 	return sb.String(), nil
+}
+
+// encodeBinaryPrefixed encodes raw bytes into a power-of-2 base with more than
+// 8 bits per digit (2048, 32768, 65536). For those bases a zero-padded tail can
+// add a whole byte the decoder can't tell from real data, so the byte length is
+// written as a leading varint and the whole payload is bit-packed. The decoder
+// reads the length back and returns exactly that many bytes, so the final
+// padding is harmless. Lossless at any input length. Matching the published
+// third-party tail schemes for these bases is a separate, later step; this is
+// the internal, always-correct default.
+func encodeBinaryPrefixed(data string, to *Base, k int) string {
+	payload := binary.AppendUvarint(make([]byte, 0, len(data)+4), uint64(len(data)))
+	payload = append(payload, data...)
+
+	var sb strings.Builder
+	sb.Grow(len(payload) * 8 / k)
+	var acc uint64
+	var accBits int
+	for i := 0; i < len(payload); i++ {
+		acc = (acc << 8) | uint64(payload[i])
+		accBits += 8
+		for accBits >= k {
+			accBits -= k
+			sb.WriteString(to.Symbols[int(acc>>accBits)])
+			acc &= (uint64(1) << accBits) - 1
+		}
+	}
+	if accBits > 0 {
+		sb.WriteString(to.Symbols[int(acc<<(k-accBits))])
+	}
+	return sb.String()
+}
+
+// decodeBinaryPrefixed reverses encodeBinaryPrefixed: unpack the digits back to
+// bytes, read the leading varint length, and return exactly that many bytes.
+// Trailing zero-pad bytes past the counted length are ignored.
+func decodeBinaryPrefixed(input string, from *Base, k int) (string, error) {
+	digits, err := from.Tokenize(input)
+	if err != nil {
+		return "", err
+	}
+	buf := make([]byte, 0, len(digits)*k/8)
+	var acc uint64
+	var accBits int
+	for _, d := range digits {
+		acc = (acc << k) | uint64(from.value[d])
+		accBits += k
+		for accBits >= 8 {
+			accBits -= 8
+			buf = append(buf, byte(acc>>accBits))
+			acc &= (uint64(1) << accBits) - 1
+		}
+	}
+	// Any remaining sub-byte bits are zero padding from the encoder; ignore them.
+	n, m := binary.Uvarint(buf)
+	if m <= 0 || n > uint64(len(buf)-m) {
+		return "", fmt.Errorf("cannot decode to binary: input is not a valid %s binary encoding", from.Name())
+	}
+	return string(buf[m : m+int(n)]), nil
 }
