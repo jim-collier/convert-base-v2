@@ -337,8 +337,13 @@ func (r *Registry) Print(w io.Writer) {
 		if dec == "" {
 			dec = "(off)"
 		}
+		// NAME is the first alias, so list only the remaining aliases here.
+		otherAliases := ""
+		if len(b.Aliases) > 1 {
+			otherAliases = strings.Join(b.Aliases[1:], ", ")
+		}
 		fmt.Fprintf(w, "%-16s  %-6d  %-5s  %-5s  %s\n",
-			b.Name(), len(b.Symbols), neg, dec, strings.Join(b.Aliases, ", "))
+			b.Name(), len(b.Symbols), neg, dec, otherAliases)
 	}
 }
 

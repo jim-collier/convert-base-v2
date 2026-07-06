@@ -73,7 +73,13 @@ DOGFOOD_FIXED_DESTS=(
 	"/usr/local/sbin"
 )
 
-## Stage 6: backup + publish to git (runs from repo root). Quiet mode keeps it
+## Stage 6: regenerate the committed README screenshots. Set DO_SCREENSHOTS=0
+## (or --no-screenshots/--quick) to skip. The utility is called with the repo
+## root and the tested binary; a failure is a warning, not a stop.
+DO_SCREENSHOTS=1
+SCREENSHOT_CMD=(utility/gen-screenshots.bash)
+
+## Stage 7: backup + publish to git (runs from repo root). Quiet mode keeps it
 ## non-interactive so the whole pipeline can finish unattended. The helper reads
 ## this from the environment, not a flag.
 export GIT_BACKUP_AND_PUBLISH_QUIET=1

@@ -293,7 +293,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 36) + "\\  $ % * + - . / :", // "\ " Is an escaped space symbol; required double '\\'. Extra space after it separates it from "$".
 			Aliases:     []string{"45", "45r", "45rfc9285", "RFC9285"},
-			NegSymbol:   "–", // N-dash [&ndash]
+			NegSymbol:   "~", // tilde; '-' is a base symbol here
 			DecSymbol:   "•", // Bullet [&bull]
 		}),
 
@@ -384,7 +384,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " - _",
 			Aliases:     []string{"64u", "64url", "64ru", "64rfc4648s5", "rfc4648s5"},
-			NegSymbol:   "–", // &ndash
+			NegSymbol:   "~", // tilde; '-' is a base symbol here
 		}),
 
 		// Base 64, hex-style (with RFC URL-style extensions)
@@ -395,7 +395,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: base_62hex + " - _",
 			Aliases:     []string{"64h", "64hex", "64hexurl", "64hu"},
-			NegSymbol:   "–", // &ndash
+			NegSymbol:   "~", // tilde; '-' is a base symbol here
 		}),
 
 		// Base 64p: Programmer-friendly base-64.
@@ -441,7 +441,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " + / - * < > |",
 			Aliases:     []string{"69prsh", "69pshihn"},
-			NegSymbol:   "–", // &ndash
+			NegSymbol:   "~", // tilde; '-' is a base symbol here
 		}),
 
 		// Base-85, "Z85 - ZeroMQ RFC 32"
