@@ -34,8 +34,8 @@ func run() error {
 	var (
 		fromName      = flag.String("from", "", "input base name/alias (e.g. 10, hex, 64u); default 10")
 		toName        = flag.String("to", "", "output base name/alias; default 10; also accepted as a positional arg")
-		fromSymbols   = flag.String("from-symbols", "", `custom input base (spec form: "SYMS [neg=X] [dec=Y]")`)
-		toSymbols     = flag.String("to-symbols", "", `custom output base (spec form: "SYMS [neg=X] [dec=Y]")`)
+		fromSymbols   = flag.String("from-symbols", "", `custom input base (spec form: "SYMS [neg=X] [dec=Y] [pad=Z]")`)
+		toSymbols     = flag.String("to-symbols", "", `custom output base (spec form: "SYMS [neg=X] [dec=Y] [pad=Z]")`)
 		precision     = flag.Int("precision", 50, "max fractional digits in output")
 		lower         = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
 		raw           = flag.Bool("raw", false, "write output as raw bytes with no trailing newline (for binary output)")
@@ -247,6 +247,7 @@ func resolveBase(reg *Registry, name, customSpec string) (*Base, error) {
 			Decimal:  sp.Decimal,
 			Source:   "--from-symbols / --to-symbols (CLI flag)",
 		}
+		applyPad(b, sp.Pad)
 		if err := b.finalize(); err != nil {
 			return nil, err
 		}
@@ -430,6 +431,9 @@ func reportSide(out io.Writer, label string, reg *Registry, name, symbols, flagN
 		}
 		if sp.Decimal != nil {
 			fmt.Fprintf(out, ", dec=%s", fmtMarker(sp.Decimal))
+		}
+		if sp.Pad != nil {
+			fmt.Fprintf(out, ", pad=%s", fmtMarker(sp.Pad))
 		}
 		fmt.Fprintln(out)
 	case name != "":

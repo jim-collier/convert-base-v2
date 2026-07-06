@@ -17,10 +17,18 @@ import (
 //	nil   - not set by this spec (caller falls back to defaults)
 //	&""   - explicitly disabled  (spec token was a bare "neg=" or "dec=")
 //	&"X"  - explicit marker X    (spec token was "neg=X" or "dec=X")
+//
+// Pad is the optional RFC-style padding character for binary output:
+//
+//	nil   - no padding (the default)
+//	&"X"  - pad binary output up to the group boundary with X, and strip a
+//	        trailing run of X on decode. Only meaningful for power-of-2 bases.
+//	        A bare "pad=" (empty) is treated the same as nil.
 type SymbolSpec struct {
 	Symbols  []string
 	Negative *string
 	Decimal  *string
+	Pad      *string
 }
 
 // ParseSymbolSpec parses a whitespace-delimited spec string.
@@ -29,6 +37,8 @@ type SymbolSpec struct {
 //	  - Tokens of the form "neg=X" and "dec=Y" set the respective marker.
 //	    (X and Y are everything after the '='; they may be multi-char, or empty
 //	    to explicitly disable that feature for this base.)
+//	  - A "pad=X" token turns on RFC-style padding for binary output (see
+//	    SymbolSpec.Pad). A bare "pad=" means no padding.
 //	  - All other tokens are digit symbols, in order.
 //	  - If there is exactly one digit token, it is further split:
 //	      * if it contains commas, split on commas (each piece is a symbol);
@@ -60,6 +70,9 @@ func ParseSymbolSpec(s string) (SymbolSpec, error) {
 		case strings.HasPrefix(t, "dec="):
 			v := t[len("dec="):]
 			out.Decimal = &v
+		case strings.HasPrefix(t, "pad="):
+			v := t[len("pad="):]
+			out.Pad = &v
 		default:
 			digitTokens = append(digitTokens, t)
 		}

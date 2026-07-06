@@ -203,6 +203,14 @@ func (b *Base) finalize() error {
 		return fmt.Errorf("base %q: negative and decimal markers are both %q", b.Name(), b.negative)
 	}
 
+	// A padding symbol must not also be a digit: binary decode strips a trailing
+	// run of it, so a pad that doubled as a digit would eat real trailing data.
+	if b.PadSymbol != "" {
+		if _, collides := b.value[b.PadSymbol]; collides {
+			return fmt.Errorf("base %q: padding symbol %q is also a digit", b.Name(), b.PadSymbol)
+		}
+	}
+
 	// Native binary tail repertoire lookup, if this base defines one.
 	if len(b.TailSymbols) > 0 {
 		b.tailValue = make(map[string]int, len(b.TailSymbols))
@@ -399,6 +407,15 @@ func isDigitByte(b byte) bool { return b >= '0' && b <= '9' }
 // where you need a *string value (e.g. strPtr("") to mean "explicitly disabled").
 func strPtr(s string) *string { return &s }
 
+// applyPad sets a base's padding from a spec/config *string. A non-empty value
+// turns on padding (emit + lenient decode strip); nil or "" leaves it off.
+func applyPad(b *Base, pad *string) {
+	if pad != nil && *pad != "" {
+		b.PadSymbol = *pad
+		b.PadEmit = true
+	}
+}
+
 // --- YAML config loading ----------------------------------------------------
 
 // configBase is the YAML shape of one base entry. The top-level config file
@@ -416,6 +433,7 @@ type configBase struct {
 	Symbols  yaml.Node `yaml:"symbols"`
 	Negative *string   `yaml:"negative,omitempty"`
 	Decimal  *string   `yaml:"decimal,omitempty"`
+	Pad      *string   `yaml:"pad,omitempty"`
 }
 
 // LoadConfig reads the YAML config at path and registers each base it defines.
@@ -463,6 +481,7 @@ func (cb configBase) toBase() (*Base, error) {
 		b.Symbols = spec.Symbols
 		b.Negative = spec.Negative
 		b.Decimal = spec.Decimal
+		applyPad(b, spec.Pad)
 	case yaml.SequenceNode:
 		var arr []string
 		if err := cb.Symbols.Decode(&arr); err != nil {
@@ -480,6 +499,9 @@ func (cb configBase) toBase() (*Base, error) {
 	}
 	if cb.Decimal != nil {
 		b.Decimal = cb.Decimal
+	}
+	if cb.Pad != nil {
+		applyPad(b, cb.Pad)
 	}
 	return b, nil
 }

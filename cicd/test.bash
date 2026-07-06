@@ -281,6 +281,17 @@ pipecheck "base64url unpadded" raw 64u "foob"     "Zm9vYg"
 pipecheck "base64 strips pad"  64  raw "Zm9vYmFy" "foobar"
 pipecheck "base64url takes pad" 64u raw "Zm9vYg==" "foob"
 
+## Custom (user-defined) bases can opt into the same padding with a pad= token.
+## This custom alphabet mirrors RFC 4648 base32, so its padded output must match.
+B32C="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567 pad=="
+padgot=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from binary --to-symbols "$B32C" 2>"${CBT_ERR}")
+[[ "$padgot" == "IE======" ]] && _pass "custom base32 emits pad" || _fail "custom base32 emits pad" "got='$padgot'"
+padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from binary --to-symbols "$B32C" 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --to binary 2>"${CBT_ERR}")
+[[ "$padrt" == "A" ]] && _pass "custom pad round-trips" || _fail "custom pad round-trips" "got='$padrt'"
+padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --to binary 2>"${CBT_ERR}")
+[[ "$padun" == "A" ]] && _pass "custom pad decode takes unpadded" || _fail "custom pad decode takes unpadded" "got='$padun'"
+check errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF pad=A" --to 10 5
+
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
 check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to binary ABC
 
