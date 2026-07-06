@@ -220,9 +220,9 @@ for pair in "16" "64u" "32h" "64"; do
 		_fail "binary round-trip via ${pair}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"
 	fi
 done
-## Big power-of-2 bases (more than 8 bits per char) use a length-prefixed scheme
-## so every input length round-trips, including the odd lengths a zero-padded
-## tail used to corrupt. Sweep edge lengths for each.
+## Big bases (more than 8 bits per char) round-trip at every input length,
+## including the odd lengths a zero-padded tail used to corrupt. Sweep edge
+## lengths for each.
 for pair in "2048twitter" "2048rust" "32768qntm" "65536"; do
 	bigfail=0
 	for n in 0 1 2 3 4 5 7 8 15 16 17 31 32 33 64 333; do
@@ -235,6 +235,34 @@ for pair in "2048twitter" "2048rust" "32768qntm" "65536"; do
 	done
 	((bigfail == 0)) && _pass "binary round-trip via ${pair} (all lengths)" || _fail "binary round-trip via ${pair}" "${bigfail} lengths mismatched"
 done
+## The four big bases match the published third-party layouts byte-for-byte.
+## These fixed vectors (input bytes -> exact output code points) guard that
+## interop; they come straight from the reference implementations. Each pins the
+## tail/secondary-block handling, and for 65536 the little-endian byte order.
+nvec(){ # LABEL BASE INPUT_HEX EXPECTED_CODEPOINTS(space-separated hex)
+	local label="$1" base="$2" hex="$3" cps="$4" src exp="" got cp
+	src="${CBT_TMP}/nv_src"
+	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
+	for cp in $cps; do exp+=$(printf "\\U$(printf '%08x' "0x${cp}")"); done
+	got=$("${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" <"$src" 2>"${CBT_ERR}")
+	[[ "$got" == "$exp" ]] && _pass "native vector ${label}" \
+		|| _fail "native vector ${label}" "want=[$cps] got=[$(printf '%s' "$got" | od -An -tx1 | tr -d '\n')]"
+}
+nvec "65536 lone byte"   65536       00         1500
+nvec "65536 byte order"  65536       0102       3601
+nvec "65536 pair+tail"   65536       010203     "3601 1503"
+nvec "65536 high block"  65536       ffff       285FF
+nvec "65536 Hello"       65536       48656c6c6f "9A48 A36C 156F"
+nvec "32768 one byte"    32768qntm   00         06BF
+nvec "32768 two bytes"   32768qntm   0000       "04A0 025F"
+nvec "32768 short tail"  32768qntm   000000000000 "04A0 04A0 04A0 018F"
+nvec "2048 one byte"     2048twitter 00         0046
+nvec "2048 two bytes"    2048twitter 0000       "0038 0110"
+nvec "2048 three-bit tail" 2048twitter 010203   "0047 01B7 0037"
+nvec "rust one byte"     2048rust    00         00D8
+nvec "rust tail zero"    2048rust    000000     "00D8 00D8 0F0D"
+nvec "rust tail three"   2048rust    010203     "00C5 0140 0F10"
+
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
 check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to binary ABC
 

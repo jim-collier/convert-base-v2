@@ -48,6 +48,20 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		if kBase <= 8 {
 			return convertBitPacked(input, from, to, kIn, kOut)
 		}
+		// Above 8 bits per digit. If the non-binary base carries a published
+		// native scheme (2048, 32768, 65536), match it byte-for-byte using its
+		// secondary tail repertoire. Otherwise fall back to the generic
+		// length-prefixed packing, which round-trips any power-of-2 base.
+		big := to
+		if to.Binary {
+			big = from
+		}
+		if big.BinaryScheme != "" {
+			if from.Binary {
+				return encodeBigBaseNative(input, big), nil
+			}
+			return decodeBigBaseNative(input, big)
+		}
 		if from.Binary {
 			return encodeBinaryPrefixed(input, to, kOut), nil
 		}
@@ -340,4 +354,159 @@ func decodeBinaryPrefixed(input string, from *Base, k int) (string, error) {
 		return "", fmt.Errorf("cannot decode to binary: input is not a valid %s binary encoding", from.Name())
 	}
 	return string(buf[m : m+int(n)]), nil
+}
+
+// swap16 exchanges the two bytes of a 16-bit value. Base65536 indexes its
+// repertoire by the byte-swapped (little-endian) pair, so the raw big-endian
+// accumulator and the code-point index differ by this swap in both directions.
+func swap16(x int) int { return 256*(x&0xff) + (x >> 8) }
+
+// encodeBigBaseNative encodes raw bytes into one of the published big bases
+// (2048, 32768, 65536) exactly as the reference implementations do, so the
+// output interoperates with them. Bits are consumed most-significant-first.
+// Full chunks map to the primary repertoire; a final partial chunk maps to the
+// smaller tail repertoire (or a padded primary char), per the base's scheme.
+func encodeBigBaseNative(data string, big *Base) string {
+	kPrimary := powerOfTwoBits(len(big.Symbols))
+	kTail := powerOfTwoBits(len(big.TailSymbols))
+
+	var sb strings.Builder
+	sb.Grow(len(data) * 8 / kPrimary)
+
+	emitPrimary := func(idx int) {
+		if big.BinaryScheme == "qntm65536" {
+			idx = swap16(idx)
+		}
+		sb.WriteString(big.Symbols[idx])
+	}
+
+	var acc uint64
+	var accBits int
+	for i := 0; i < len(data); i++ {
+		acc = (acc << 8) | uint64(data[i])
+		accBits += 8
+		for accBits >= kPrimary {
+			accBits -= kPrimary
+			emitPrimary(int(acc >> accBits))
+			acc &= (uint64(1) << accBits) - 1
+		}
+	}
+	if accBits == 0 {
+		return sb.String()
+	}
+
+	// Final partial chunk.
+	if big.BinaryScheme == "rust2048" {
+		// The Rust crate right-justifies the leftover value with zero high bits;
+		// no padding bits are added.
+		if accBits <= kTail {
+			sb.WriteString(big.TailSymbols[int(acc)])
+		} else {
+			emitPrimary(int(acc))
+		}
+		return sb.String()
+	}
+
+	// qntm bases: left-justify the data and pad the low bits with 1s up to the
+	// next available repertoire width (tail if it fits, else primary).
+	if accBits <= kTail {
+		idx := int(acc<<(kTail-accBits)) | (1<<(kTail-accBits) - 1)
+		sb.WriteString(big.TailSymbols[idx])
+	} else {
+		idx := int(acc<<(kPrimary-accBits)) | (1<<(kPrimary-accBits) - 1)
+		emitPrimary(idx)
+	}
+	return sb.String()
+}
+
+// decodeBigBaseNative reverses encodeBigBaseNative for the published big bases.
+// Each character is looked up in the primary or the tail repertoire; a tail
+// character is only legal as the last one. qntm bases verify the trailing pad
+// is all-ones; the Rust base reconstructs the exact bit count from position.
+func decodeBigBaseNative(input string, big *Base) (string, error) {
+	kPrimary := powerOfTwoBits(len(big.Symbols))
+	kTail := powerOfTwoBits(len(big.TailSymbols))
+	runes := []rune(input)
+	rust := big.BinaryScheme == "rust2048"
+
+	var out []byte
+	var acc uint64
+	var accBits int
+	flush := func() {
+		for accBits >= 8 {
+			accBits -= 8
+			out = append(out, byte(acc>>accBits))
+			acc &= (uint64(1) << accBits) - 1
+		}
+	}
+
+	for i, r := range runes {
+		last := i == len(runes)-1
+		s := string(r)
+
+		if idx, ok := big.value[s]; ok {
+			bits := kPrimary
+			if rust && last {
+				bits = rustFinalBits(len(runes), kPrimary) // 4..kPrimary
+			}
+			if big.BinaryScheme == "qntm65536" {
+				idx = swap16(idx)
+			}
+			if idx >= (1 << bits) {
+				return "", fmt.Errorf("cannot decode from %s: final digit carries more bits than the input length allows", big.Name())
+			}
+			acc = (acc << bits) | uint64(idx)
+			accBits += bits
+			flush()
+			continue
+		}
+
+		idx, ok := big.tailValue[s]
+		if !ok {
+			return "", fmt.Errorf("cannot decode from %s: symbol %q is not in the base", big.Name(), s)
+		}
+		if !last {
+			return "", fmt.Errorf("cannot decode from %s: tail symbol %q appears before the end", big.Name(), s)
+		}
+		bits := kTail
+		if rust {
+			bits = 8 - (accBits % 8) // exact bits needed to finish the last byte
+			if bits == 0 || bits > kTail {
+				return "", fmt.Errorf("cannot decode from %s: misplaced tail symbol %q", big.Name(), s)
+			}
+		}
+		if idx >= (1 << bits) {
+			return "", fmt.Errorf("cannot decode from %s: tail digit out of range", big.Name())
+		}
+		acc = (acc << bits) | uint64(idx)
+		accBits += bits
+		flush()
+	}
+
+	if rust {
+		if accBits != 0 {
+			return "", fmt.Errorf("cannot decode from %s: input is not a whole number of bytes", big.Name())
+		}
+	} else if acc != (uint64(1)<<accBits)-1 {
+		// qntm pads the tail with 1-bits; anything else is not a valid encoding.
+		return "", fmt.Errorf("cannot decode from %s: bad trailing padding", big.Name())
+	}
+	return string(out), nil
+}
+
+// rustFinalBits returns how many bits the last character of a rust-base2048
+// string carries when that character comes from the primary repertoire. The
+// first n-1 characters carry kPrimary bits each; the last carries whatever is
+// needed to land on a whole number of bytes (kPrimary for an exact fit).
+func rustFinalBits(n, kPrimary int) int {
+	remainder := (kPrimary * (n - 1)) % 8
+	need := (8 - remainder) % 8 // 0..7
+	switch {
+	case need == 0:
+		return 8
+	case need <= 3:
+		return need + 8 // 9..kPrimary
+	default:
+		return need // 4..7
+	}
 }

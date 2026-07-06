@@ -37,7 +37,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
-- Binary encoding to base 2048, 32768, and 65536 now round-trips at every input length. Before, some lengths came back with an extra trailing byte. Output for these bases changed to carry the exact byte length. Matching the published third-party layouts for these bases is still to come.
+- Binary encoding to base 2048 (both variants), 32768, and 65536 now round-trips at every input length and matches the published third-party encodings byte-for-byte, using each one's own secondary alphabet for the final partial chunk. Before, some lengths came back with an extra trailing byte.
 
 ### Other work
 

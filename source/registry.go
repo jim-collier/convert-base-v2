@@ -49,7 +49,15 @@ type Base struct {
 	// and used by the --help output. Doesn't affect behavior.
 	Source string
 
+	// TailSymbols is a secondary, smaller repertoire used only by the native
+	// binary schemes (base 2048/32768/65536) to encode a final partial chunk.
+	// Empty means no native scheme: binary conversion falls back to the
+	// generic length-prefixed packing. BinaryScheme selects which layout.
+	TailSymbols  []string
+	BinaryScheme string // "", "qntm", "qntm65536", or "rust2048"
+
 	// derived
+	tailValue  map[string]int // tail symbol -> index (native binary decode)
 	value      map[string]int // symbol -> digit value (plus case-flipped ASCII letters for input leniency)
 	allOneByte bool           // every symbol has len(sym)==1 -> byte-iteration fast path
 	byteValue  [256]int       // populated when allOneByte; -1 means not a digit
@@ -185,6 +193,20 @@ func (b *Base) finalize() error {
 	}
 	if b.negative != "" && b.decimal != "" && b.negative == b.decimal {
 		return fmt.Errorf("base %q: negative and decimal markers are both %q", b.Name(), b.negative)
+	}
+
+	// Native binary tail repertoire lookup, if this base defines one.
+	if len(b.TailSymbols) > 0 {
+		b.tailValue = make(map[string]int, len(b.TailSymbols))
+		for i, s := range b.TailSymbols {
+			if s == "" {
+				return fmt.Errorf("base %q: empty tail symbol at index %d", b.Name(), i)
+			}
+			if _, dup := b.tailValue[s]; dup {
+				return fmt.Errorf("base %q: duplicate tail symbol %q", b.Name(), s)
+			}
+			b.tailValue[s] = i
+		}
 	}
 
 	return nil
