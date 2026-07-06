@@ -29,6 +29,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Flags to query bases from a script: `--get-index-count`, `--get-base-name`, and `--show-symbols`. A base can be chosen by name, alias, or `--by-index`.
 - Screenshots section in the README, with a responsive grid that links to full-size images.
 
+### Changed
+
+- Bases whose symbols include `-` now use `~` as the negative marker, instead of the en-dash. Affects base 45, 64u, 64h, and 69prsh.
+- `--list` no longer repeats the base name in its aliases column.
+- Clearer help text for the base-query flags.
+
 ### Other work
 
 - Reworked the CI/CD scripts [20260703]:
