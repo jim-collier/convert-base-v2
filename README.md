@@ -147,20 +147,33 @@ Although support for streaming conversion of binary data was added in this compi
 
 It was really a matter of a "why not" feature, while already adding support for piping input and output. (Which v1 also didn't have.)
 
-That said, the streaming path is quick. Throughput against the standard tools, same box, same inputs:
+That said, the streaming path is quick. Throughput against the standard tools, one table per format:
+
+**Base-64**
 
 | Program | text -> binary | binary -> text |
 | :-- | --: | --: |
-| convert-base-v2 (base-64) | 725 | 758 |
-| coreutils `base64` | 322 | 1,066 |
-| coreutils `basenc` | 320 | 1,078 |
-| openssl `base64` | 273 | 1,229 |
-| convert-base-v2 (base-32) | 591 | 708 |
-| coreutils `base32` | 402 | 860 |
-| convert-base-v2 (hex) | 540 | 875 |
-| `xxd` (hex) | 57 | 103 |
+| convert-base-v2 | 744 | 755 |
+| coreutils `base64` | 323 | 1,056 |
+| coreutils `basenc` | 323 | 1,048 |
+| openssl `base64` | 276 | 1,221 |
 
-Numbers are MiB/s over the binary side, mean of 10 runs, one process each, all I/O in a tmpfs (RAM) so disk speed doesn't enter into it. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and each format group's own canonical text to decode. Each tool is single-threaded. Reproduce with `github/utility/bench-encoders.bash` (it auto-skips tools you don't have). Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
+**Base-32**
+
+| Program | text -> binary | binary -> text |
+| :-- | --: | --: |
+| convert-base-v2 | 596 | 716 |
+| coreutils `base32` | 400 | 855 |
+| coreutils `basenc` | 376 | 851 |
+
+**Hex**
+
+| Program | text -> binary | binary -> text |
+| :-- | --: | --: |
+| convert-base-v2 | 521 | 850 |
+| `xxd` | 57 | 102 |
+
+Numbers are MiB/s over the binary side, mean of 10 runs, one process each, all I/O in a tmpfs (RAM) so disk speed doesn't enter into it. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and each format's own canonical text to decode. Each tool is single-threaded. Reproduce with `github/utility/bench-encoders.bash` (it auto-skips tools you don't have). Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
 
 convert-base-v2 leads every decode column and trails the fastest encoders; the standard tools have decade-plus head starts, so landing in the same range at all is the notable part.
 

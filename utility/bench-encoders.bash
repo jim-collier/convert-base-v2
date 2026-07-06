@@ -80,15 +80,21 @@ memgib=$(( $(sed -n 's/^MemTotal:[[:space:]]*\([0-9]*\).*/\1/p' /proc/meminfo) /
 printf '\n%s MiB random blob, mean of %s runs, one process each, all I/O in RAM.\n' "$SIZE_MIB" "$RUNS"
 printf 'CPU: %s (%s threads).  RAM: %s GiB.\n\n' "$cpu" "$(nproc)" "$memgib"
 
-echo "| Program | text -> binary | binary -> text |"
-echo "| :-- | --: | --: |"
+# One table per format, so like-for-like sits together.
+table() { printf '\n%s\n\n| Program | text -> binary | binary -> text |\n| :-- | --: | --: |\n' "$1"; }
 
-row "convert-base-v2 (base-64)" "$b64" "$EXE --from binary --to 64" "$EXE --from 64 --to binary --raw"
+table "Base-64"
+row "convert-base-v2" "$b64" "$EXE --from binary --to 64" "$EXE --from 64 --to binary --raw"
 if have base64;  then row "coreutils base64"  "$b64" "base64"          "base64 -d";          fi
 if have basenc;  then row "coreutils basenc"  "$b64" "basenc --base64" "basenc -d --base64"; fi
 if have openssl; then row "openssl base64"    "$b64" "openssl base64"  "openssl base64 -d";  fi
-row "convert-base-v2 (base-32)" "$b32" "$EXE --from binary --to 32" "$EXE --from 32 --to binary --raw"
+
+table "Base-32"
+row "convert-base-v2" "$b32" "$EXE --from binary --to 32" "$EXE --from 32 --to binary --raw"
 if have base32;  then row "coreutils base32"  "$b32" "base32"          "base32 -d";          fi
-row "convert-base-v2 (hex)"     "$hex" "$EXE --from binary --to 16" "$EXE --from 16 --to binary --raw"
-if have xxd;     then row "xxd (hex)"         "$hex" "xxd -p"          "xxd -p -r";          fi
+if have basenc;  then row "coreutils basenc"  "$b32" "basenc --base32" "basenc -d --base32"; fi
+
+table "Hex"
+row "convert-base-v2" "$hex" "$EXE --from binary --to 16" "$EXE --from 16 --to binary --raw"
+if have xxd;     then row "xxd"               "$hex" "xxd -p"          "xxd -p -r";          fi
 echo
