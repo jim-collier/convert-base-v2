@@ -147,15 +147,17 @@ Although support for streaming conversion of binary data was added in this compi
 
 It was really a matter of a "why not" feature, while already adding support for piping input and output. (Which v1 also didn't have.)
 
-That said, the streaming path is quick. Base-64 throughput against the standard tools, same box, same inputs:
+That said, the streaming path is quick. Throughput against the standard tools, same box, same inputs:
 
-| Program | binary -> text | text -> binary |
+| Program | text -> binary | binary -> text |
 | :-- | --: | --: |
-| convert-base-v2 | 750 | 734 |
-| coreutils `base64` | 1,059 | 322 |
-| coreutils `basenc` | 1,064 | 320 |
+| convert-base-v2 (base-64) | 739 | 741 |
+| coreutils `base64` | 323 | 1,069 |
+| coreutils `basenc` | 318 | 1,058 |
+| convert-base-v2 (hex) | 454 | 831 |
+| `xxd` (hex) | 56 | 102 |
 
-Numbers are MiB/s over the binary side, mean of 10 runs, one process per run. Every program gets the identical input: the same 256 MiB blob of random bytes for encoding, and the same base-64 text (`base64`'s own output) for decoding. Each tool is single-threaded. Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
+Numbers are MiB/s over the binary side, mean of 10 runs, one process per run. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and that group's own canonical text to decode (`base64`'s output for the base-64 rows, `xxd`'s for the hex rows). Each tool is single-threaded. Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
 
 base-64 is statistically the most compact way to store binary data as UTF-8 text. It might seem strange, but not even qntm's base-65536 (which this program has a named setting for) can beat the space density specifically for UTF-8 encoding. All modern OSes use UTF-8 by default. (For Twitter/𝕏, qntm's base-2048 allegedly optimally encodes binary data. Which this program also has a named setting for.)
 
