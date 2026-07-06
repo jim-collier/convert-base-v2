@@ -37,7 +37,7 @@
 
 <table style="border: none; border-collapse: collapse;">
 	<tr style="border: none; border-collapse: collapse;">
-		<td style="border: none; border-collapse: collapse;"><img src="https://github.com/jim-collier/convert-base-v2/blob/main/assets/mascot.png?raw=true" alt="x9convert-base-v2" width="320"/></td>
+		<td style="border: none; border-collapse: collapse;"><img src="https://github.com/jim-collier/convert-base-v2/blob/main/assets/mascot.png?raw=true" alt="convert-base-v2 mascot" width="320"/></td>
 		<td style="border: none;">A cross-platform CLI program written in Go, to convert any number of any size, to and from any arbitrary base. Dozens of predefined named bases, or specify your own. And all the standards like base-10, 16, RFC base-64, etc. Supports negatives, floating-point, and piped binary data.</td>
 	</tr style="border: none; border-collapse: collapse;">
 </table>
@@ -54,9 +54,7 @@
 	- [Features](#features)
 	- [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
 - [Screenshots](#screenshots)
-- [Status](#status)
-- [Limitations](#limitations)
-	- [Streaming binary conversion](#streaming-binary-conversion)
+- [Speed](#speed)
 - [Example output](#example-output)
 - [List of supported bases and their positional notation symbols](#list-of-supported-bases-and-their-positional-notation-symbols)
 - [Supporting work](#supporting-work)
@@ -89,21 +87,19 @@ A universal cross-platform CLI number conversion program, written in Go, that:
 
 	- In other words, it can do what `basenc` can do, and also in O(N) linear time. (Which is unlike its regular base conversion operation, which necessarily works in O(N^2) quadratic time.)
 
-	- But since this is first and foremost a _base converter_ and not an _encoder/decoder_, it's not as fast as `basenc`. The only benefit over `basenc` is that it can encode/decode to/from any arbitrary base that's a power of 2. `basenc` can "only" handle three bases (plus three variations).
-
 - Accepts data from the command line, and/or from `stdin` (e.g. piped data).
 
 ### Why convert a number to a large base
 
 There are myriad useful technical reasons, that would otherwise require chaining together a series of standard tools. Or, that would require using a web-based tool in a way that can't be scripted.
 
-- As a trivial example, let's say you want to manually generate "serial numbers" now and then for physical, real-world use. You need, say, at most minute-level precision to insure uniqueness. But you need short, human-readable, unambiguous characters rather than a long date or number.
+- As a trivial example, let's say you want to manually generate "serial numbers" now and then for physical, real-world use. You need, say, at most minute-level precision to ensure uniqueness. But you need short, human-readable, unambiguous characters rather than a long date or number.
 
 	You could use POSIX time (the number of seconds since 1970), divided by 60 for shorter minute-level precision, then convert that integer to Bitcoin's original base-58 "readable" scheme.
 
 	As another example, "2026-01-01 @ 12:15 PM" could be represented as "1fLcL4" in standard base-64 RFC 4648 §5 `64u`, or "£±Яᛯ" in base-256 `256jc1`.
 
-- The more obvious example is encoding binary data to text. Base 64 (`64r`, `64u`, `64jc1`) is the most effecient way to encode binary to UTF-8 text. But even higher bases are available for niche cases - e.g. base-2048 `2048twitter`, specifically designed by qntm for Twitter; or base-65536 `65536qntm` for optimal UTF-32 binary-to-text encoding.
+- The more obvious example is encoding binary data to text. Base 64 (`64r`, `64u`, `64jc1`) is the most efficient way to encode binary to UTF-8 text. But even higher bases are available for niche cases - e.g. base-2048 `2048twitter`, specifically designed by qntm for Twitter; or base-65536 `65536qntm` for optimal UTF-32 binary-to-text encoding.
 
 At larger non-standard bases that this project created (e.g. `base-256jc1`), careful effort was made to:
 
@@ -115,7 +111,7 @@ At larger non-standard bases that this project created (e.g. `base-256jc1`), car
 
 - Keep the character selection consistent across bases.
 
-_Note: The command `convert-base-v2` has a version number on the end, to distinguish it from v1, which as predicted in that project, this v2 has a necessary minor break from in output, in one narrow edge case. And like v1, in the future there may be good reasons for the output to change again in a v3. For example, there are no "official standards" for large bases above 94 as of time of writing, but that could change. So to avoid overwriting an old script on a running system that may rely on it and it's predictable output, a new suffix number will be given to future programs if the output changes, and the two will coexist. That the existing version has a number, indicates that expected inevitability now._
+_Note: The command `convert-base-v2` has a version number on the end, to distinguish it from v1, which as predicted in that project, this v2 has a necessary minor break from in output, in one narrow edge case. And like v1, in the future there may be good reasons for the output to change again in a v3. For example, there are no "official standards" for large bases above 94 as of time of writing, but that could change. So to avoid overwriting an old script on a running system that may rely on it and its predictable output, a new suffix number will be given to future programs if the output changes, and the two will coexist. That the existing version has a number, indicates that expected inevitability now._
 
 ## Screenshots
 
@@ -129,29 +125,41 @@ Click any image for the full-size version.
 	<a href="assets/screenshots/large/05-settings.png"><img src="assets/screenshots/05-settings.png" width="48%" alt="Configuration and base list"></a>
 </p>
 
-## Status
+## Speed
 
-- [v1.0.0-rc4](https://github.com/jim-collier/convert-base-v2/releases/tag/v1.0.0-rc4) works great for almost everything, except for:
+The binary/text streaming path is very fast. Here are benchmarked throughput results against the standard tools, one table per format:
 
-	- Streaming binary conversions: This is a rare edge use-case for a number-converter application, that you have to go out of your way to do and have a good reason. If the data is not aligned to the base, the program will intentionally error, to avoid dropping significant digits. (Previously it would just quietly drop significant digits.) A future update will pad with placeholders if not byte-aligned, so that any binary data, byte-aligned or not, can be converted.
+**Base-64**
 
-	- Floating-point: Another rare edge use-case. For decimal places less than 50, the result will get stretched out to 50 places. Sometimes with inherent floating-point imprecision. There is no loss of data to the original value, there's just "hallucinated" precision that wasn't there before. Future versions will limit precision to what was given. Most uses of base converters are for integers.
+| Program | text -> binary | binary -> text |
+| :-- | --: | --: |
+| `convert-base-v2` | **744** | 755 |
+| coreutils `base64` | 323 | 1,056 |
+| coreutils `basenc` | 323 | 1,048 |
+| openssl `base64` | 276 | **1,221** |
 
-		The data isn't "wrong", it just shows meaningless if not misleading "precision".
+**Base-32**
 
-## Limitations
+| Program | text -> binary | binary -> text |
+| :-- | --: | --: |
+| `convert-base-v2` | **596** | 716 |
+| coreutils `base32` | 400 | **855** |
+| coreutils `basenc` | 376 | 851 |
 
-### Streaming binary conversion
+**Hex**
 
-Although support for streaming conversion of binary data was added in this compiled v2 release (vs no such thing in the scripted v1 release), "binary encoding/decoding" is not really something that is expected of base converters.
+| Program | text -> binary | binary -> text |
+| :-- | --: | --: |
+| `convert-base-v2` | **521** | **850** |
+| `xxd` | 57 | 102 |
 
-It was really a matter of a "why not" feature, while already adding support for piping input and output. (Which v1 also didn't have.)
+Numbers are MiB/s. Mean of 10 runs, one process each, all I/O in a tmpfs (RAM) so disk speed doesn't enter into it. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and each format's own canonical text to decode. Each tool is single-threaded. Reproducible with `github/utility/bench-encoders.bash` (it auto-skips tools you don't have). Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
 
-But for day-to-day streaming binary conversion, `basenc` is at least 4x faster than this anyway, and has a much longer track-record.
+`convert-base-v2` leads every decode column, but slightly trails the fastest encoders. (The standard tools have decade-plus head starts, so landing in the same range at all is notable.)
 
-Furthermore, base-64 - which `basenc` supports - is statistically the most compact way to store binary data as UTF-8 text. It might seem strange, but not even qntm's base-65536 (which this program has a named setting for) can beat the space density specifically for UTF-8 encoding. All modern OSes use UTF-8 by default. (For Twitter/𝕏, qntm's base-2048 allegedly optimally encodes binary data. Which this program also has a named setting for.)
+Base-64 is statistically the most compact way to store binary data as UTF-8 text. (Which makes sense when you understand how UTF-8 encoding works.) All modern OSes use UTF-8 by default.
 
-The only good reason for using this program for streaming binary conversion, is for bases that no other program supports. (Such as aforementioned bases 2048, 65536 - as well as specialty byte-aligned bases such as the myriad variations of base 32 this supports. Or your own custom 2^N base positional notation symbol alphabet.) But until a future fix is put in place, it will gracefully error, if the input is not byte-aligned.
+For embedding binary data in Twitter/𝕏 posts, qntm's base-2048 is allegedly optimal, which this program faithfully reproduces (and tests) as a named setting.
 
 ## Example output
 
@@ -243,11 +251,13 @@ Any number of any size can be converted to and from any of these bases. Most sup
 | 64    | 64rfcurl             | 64rfcu, 64ru                                          |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
 | 64    | 64wordsafe           | 64ws, 64w, 64jcws, 64nofks                            |                                  |               | 23456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱ
 | 64    | 64v1compat           | 64j1uw                                                |                                  |               | 0123456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠
+| 64    | 64emoji              | emoji, 64e                                            | Emoji faces (U+1F600..1F63F); also encodes binary. |     | 😀😁😂😃😄😅😆😇😈😉😊😋😌😍😎😏😐😑😒😓😔😕😖😗😘😙😚😛😜😝😞😟😠😡😢😣😤😥😦😧😨😩😪😫😬😭😮😯😰😱😲😳😴😵😶😷😸😹😺😻😼😽😾😿
 | 69    | 69pshihn             |                                                       |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/-*<>\|
 | 85    | z85                  | 85z, 85zeromq                                         |                                  |               | 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#
 | 85    | postscript           | 85adobe, 85postscript, 85ps                           |                                  |               | !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_\`abcdefghijklmnopqrstu
 | 85    | 85ipv6               | 85rfc1924, 85aprilfools, 85fools, 85elz               |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+-;<=>?@^_\`{\|}~
 | 91    | 91hk                 | 91bas                                                 |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_\`{\|}~"
+| 98    | keyboard             | 98, text, ascii, kbd                                  | Any plain-text document is valid input as-is. |      | 0-9 A-Z a-z, then space and the ASCII punctuation, plus tab, newline, return
 | 128   | 128jc                | 128p                                                  |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱΞψϠδϟЋЖЯѢф¢£¥§¿ɤʬ⍤⍩⌲⍋⍒⍢ÂĈÊĜĤÎĴÔŜÛŴ
 | 128   | 128v1compat          | 128j1                                                 |                                  |               | 0123456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱΞψϠδϟЋЖЯѢф¢£¥§¿ɤʬ⍤⍩⌲⍋⍒⍢ÂĈÊĜĤĴŜŴŶâĉêĝĥĵŝŵŷÃẼÑỸãẽñỹÄËẄẌŸäëẅẍÿÁĆÉ
 | 256   | 256jc                | 256p, 256j1                                           |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ ...to... óŕśúẃýźĀĒĪŌŪȲāēīōūȳǍČĎĚǦȞǨŇǑŘŠǓǎčďěǧȟǩňǒřšǔǝɹʇʌ₸᛬웃유ㅈㅊㅍㅎㅱㅸㅠソッゞぅぇォ
@@ -264,7 +274,7 @@ Note: The following are directory listings that typically contain a raw `.csv` f
 
 LibreOffice would have been much preferred to [Gnumeric](https://download.cnet.com/gnumeric/) (both are multi-platform open-source spreadsheets), except that for these large spreadsheets covering most or all Unicode, LibreOffice chokes too hard to use. (Even on 32 cores and 128GB RAM in 2026.) Gnumeric handles it with ease, seemingly even better than Excel.
 
-Also, font rendering for Unicode look significantly smoother on Linux (with B&W font-smoothing with no hinting), than Excel for Windows. (Though to be fair, my version of Excel is older and still uses ClearType, with RGB subpixel hinting and overly-strong hinting.) MacOS should look great too.
+Also, font rendering for Unicode looks significantly smoother on Linux (with B&W font-smoothing with no hinting), than Excel for Windows. (Though to be fair, my version of Excel is older and still uses ClearType, with RGB subpixel hinting and overly-strong hinting.) MacOS should look great too.
 
 Unicode listings:
 
@@ -272,7 +282,7 @@ Unicode listings:
 
 - [Nicely AI-ordered lists of printable Unicode characters <= U+1FBF9](https://github.com/jim-collier/convert-base-v2/tree/main/reference/unicode_ordered_below_U1FBF9) (i.e. directly printable in most modern fonts).
 
-	Characters are, in many cases at higher code points, re-ordered to look nice and "expected" in a positional notation numbering system. (I.e. numbered balls grouped by type and go in order, arrows grouped by style and rotate from "north" to "northwest".
+	Characters are, in many cases at higher code points, re-ordered to look nice and "expected" in a positional notation numbering system. (I.e. numbered balls grouped by type and in order, arrows grouped by style and rotating from "north" to "northwest".)
 
 	This is a great reference to start from, for designing a large base.
 

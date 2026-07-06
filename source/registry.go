@@ -49,7 +49,23 @@ type Base struct {
 	// and used by the --help output. Doesn't affect behavior.
 	Source string
 
+	// TailSymbols is a secondary, smaller repertoire used only by the native
+	// binary schemes (base 2048/32768/65536) to encode a final partial chunk.
+	// Empty means no native scheme: binary conversion falls back to the
+	// generic length-prefixed packing. BinaryScheme selects which layout.
+	TailSymbols  []string
+	BinaryScheme string // "", "qntm", "qntm65536", or "rust2048"
+
+	// PadSymbol is the RFC-style padding character (e.g. "=") for base32/base64.
+	// When set, binary decode strips a trailing run of it (lenient input). When
+	// PadEmit is also true, binary encode pads its output up to the encoding's
+	// group boundary. Set only on the strict RFC variants that require padding;
+	// the URL/hex variants accept it but don't emit it.
+	PadSymbol string
+	PadEmit   bool
+
 	// derived
+	tailValue  map[string]int // tail symbol -> index (native binary decode)
 	value      map[string]int // symbol -> digit value (plus case-flipped ASCII letters for input leniency)
 	allOneByte bool           // every symbol has len(sym)==1 -> byte-iteration fast path
 	byteValue  [256]int       // populated when allOneByte; -1 means not a digit
@@ -185,6 +201,28 @@ func (b *Base) finalize() error {
 	}
 	if b.negative != "" && b.decimal != "" && b.negative == b.decimal {
 		return fmt.Errorf("base %q: negative and decimal markers are both %q", b.Name(), b.negative)
+	}
+
+	// A padding symbol must not also be a digit: binary decode strips a trailing
+	// run of it, so a pad that doubled as a digit would eat real trailing data.
+	if b.PadSymbol != "" {
+		if _, collides := b.value[b.PadSymbol]; collides {
+			return fmt.Errorf("base %q: padding symbol %q is also a digit", b.Name(), b.PadSymbol)
+		}
+	}
+
+	// Native binary tail repertoire lookup, if this base defines one.
+	if len(b.TailSymbols) > 0 {
+		b.tailValue = make(map[string]int, len(b.TailSymbols))
+		for i, s := range b.TailSymbols {
+			if s == "" {
+				return fmt.Errorf("base %q: empty tail symbol at index %d", b.Name(), i)
+			}
+			if _, dup := b.tailValue[s]; dup {
+				return fmt.Errorf("base %q: duplicate tail symbol %q", b.Name(), s)
+			}
+			b.tailValue[s] = i
+		}
 	}
 
 	return nil
@@ -369,6 +407,15 @@ func isDigitByte(b byte) bool { return b >= '0' && b <= '9' }
 // where you need a *string value (e.g. strPtr("") to mean "explicitly disabled").
 func strPtr(s string) *string { return &s }
 
+// applyPad sets a base's padding from a spec/config *string. A non-empty value
+// turns on padding (emit + lenient decode strip); nil or "" leaves it off.
+func applyPad(b *Base, pad *string) {
+	if pad != nil && *pad != "" {
+		b.PadSymbol = *pad
+		b.PadEmit = true
+	}
+}
+
 // --- YAML config loading ----------------------------------------------------
 
 // configBase is the YAML shape of one base entry. The top-level config file
@@ -386,6 +433,7 @@ type configBase struct {
 	Symbols  yaml.Node `yaml:"symbols"`
 	Negative *string   `yaml:"negative,omitempty"`
 	Decimal  *string   `yaml:"decimal,omitempty"`
+	Pad      *string   `yaml:"pad,omitempty"`
 }
 
 // LoadConfig reads the YAML config at path and registers each base it defines.
@@ -433,6 +481,7 @@ func (cb configBase) toBase() (*Base, error) {
 		b.Symbols = spec.Symbols
 		b.Negative = spec.Negative
 		b.Decimal = spec.Decimal
+		applyPad(b, spec.Pad)
 	case yaml.SequenceNode:
 		var arr []string
 		if err := cb.Symbols.Decode(&arr); err != nil {
@@ -450,6 +499,9 @@ func (cb configBase) toBase() (*Base, error) {
 	}
 	if cb.Decimal != nil {
 		b.Decimal = cb.Decimal
+	}
+	if cb.Pad != nil {
+		applyPad(b, cb.Pad)
 	}
 	return b, nil
 }

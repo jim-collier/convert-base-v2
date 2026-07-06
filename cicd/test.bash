@@ -46,6 +46,9 @@ meDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXE="${CICDTEST_EXE:-${meDir}/../source/bin/convert-base-v2}"
 EXE_V1B="${meDir}/utility/convert-base-v1b"
 doLong=0; [[ "${CICDTEST_DO_LONGTEST:-0}" == "1" ]] && doLong=1
+## Performance section runs on any long run, or whenever the engine asks for it
+## (it does so unless --quick was passed). A long run always includes it.
+doPerf=0; { ((doLong)) || [[ "${CICDTEST_DO_PERF:-0}" == "1" ]]; } && doPerf=1
 
 ## Guard against hangs: a check that doesn't return quickly is a failure, not a wait.
 TIMEOUT=(); command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout 60)
@@ -220,8 +223,134 @@ for pair in "16" "64u" "32h" "64"; do
 		_fail "binary round-trip via ${pair}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"
 	fi
 done
+## Big bases (more than 8 bits per char) round-trip at every input length,
+## including the odd lengths a zero-padded tail used to corrupt. Sweep edge
+## lengths for each.
+for pair in "2048twitter" "2048rust" "32768qntm" "65536"; do
+	bigfail=0
+	for n in 0 1 2 3 4 5 7 8 15 16 17 31 32 33 64 333; do
+		src="${CBT_TMP}/bp_src"; mid="${CBT_TMP}/bp_mid"; out="${CBT_TMP}/bp_out"
+		head -c "$n" /dev/urandom >"$src"
+		rc1=0; rc2=0
+		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$pair" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
+		"${TIMEOUT[@]}" "${EXE}" --from "$pair" --to binary <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
+		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || bigfail=$((bigfail+1))
+	done
+	((bigfail == 0)) && _pass "binary round-trip via ${pair} (all lengths)" || _fail "binary round-trip via ${pair}" "${bigfail} lengths mismatched"
+done
+## Every power-of-2 base (not just the handful above) round-trips raw bytes
+## bit-perfectly. Blob lengths are picked to force a partial final chunk in each,
+## so padding and tail handling get exercised. Bases and sizes come from --list,
+## so a new power-of-2 base is covered with no edit here.
+declare -a POW2_BASES=()
+while read -r bname bsize _; do
+	case "$bsize" in
+		2|4|8|16|32|64|128|256|512|1024|2048|4096|8192|16384|32768|65536)
+			[[ "$bname" == "binary" ]] || POW2_BASES+=("$bname") ;;
+	esac
+done < <("${EXE}" --list 2>/dev/null | tail -n +2)
+raw_all_fail=0; raw_all_n=0
+for base in "${POW2_BASES[@]}"; do
+	for n in 1 2 3 5 7 11 13 17 31 63 100 255 257 $(( 1 + $(_rand16) % 512 )); do
+		src="${CBT_TMP}/ra_src"; mid="${CBT_TMP}/ra_mid"; out="${CBT_TMP}/ra_out"
+		head -c "$n" /dev/urandom >"$src"
+		rc1=0; rc2=0
+		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
+		raw_all_n=$((raw_all_n + 1))
+		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail "raw round-trip ${base} n=${n}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"; }
+	done
+done
+((raw_all_fail == 0)) && _pass "raw round-trip, all power-of-2 bases (${#POW2_BASES[@]} bases, ${raw_all_n} blobs)" || printf '  %s%d raw round-trip failures above%s\n' "${red}" "$raw_all_fail" "${rst}"
+## The four big bases match the published third-party layouts byte-for-byte.
+## These fixed vectors (input bytes -> exact output code points) guard that
+## interop; they come straight from the reference implementations. Each pins the
+## tail/secondary-block handling, and for 65536 the little-endian byte order.
+nvec(){ # LABEL BASE INPUT_HEX EXPECTED_CODEPOINTS(space-separated hex)
+	local label="$1" base="$2" hex="$3" cps="$4" src exp="" got cp
+	src="${CBT_TMP}/nv_src"
+	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
+	for cp in $cps; do exp+=$(printf "\\U$(printf '%08x' "0x${cp}")"); done
+	got=$("${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" <"$src" 2>"${CBT_ERR}")
+	[[ "$got" == "$exp" ]] && _pass "native vector ${label}" \
+		|| _fail "native vector ${label}" "want=[$cps] got=[$(printf '%s' "$got" | od -An -tx1 | tr -d '\n')]"
+}
+nvec "65536 lone byte"   65536       00         1500
+nvec "65536 byte order"  65536       0102       3601
+nvec "65536 pair+tail"   65536       010203     "3601 1503"
+nvec "65536 high block"  65536       ffff       285FF
+nvec "65536 Hello"       65536       48656c6c6f "9A48 A36C 156F"
+nvec "32768 one byte"    32768qntm   00         06BF
+nvec "32768 two bytes"   32768qntm   0000       "04A0 025F"
+nvec "32768 short tail"  32768qntm   000000000000 "04A0 04A0 04A0 018F"
+nvec "2048 one byte"     2048twitter 00         0046
+nvec "2048 two bytes"    2048twitter 0000       "0038 0110"
+nvec "2048 three-bit tail" 2048twitter 010203   "0047 01B7 0037"
+nvec "rust one byte"     2048rust    00         00D8
+nvec "rust tail zero"    2048rust    000000     "00D8 00D8 0F0D"
+nvec "rust tail three"   2048rust    010203     "00C5 0140 0F10"
+
+## RFC 4648 padding: the strict base64 (s4) and base32 (s6) variants emit '='
+## padding to the group boundary (vectors from RFC 4648 s10). The URL/hex
+## variants stay unpadded but still accept padded input on decode.
+pipecheck(){ # LABEL FROM TO INPUT EXPECTED
+	local label="$1" f="$2" t="$3" in="$4" want="$5" got
+	got=$(printf '%s' "$in" | "${TIMEOUT[@]}" "${EXE}" --from "$f" --to "$t" 2>"${CBT_ERR}")
+	[[ "$got" == "$want" ]] && _pass "$label" || _fail "$label" "in='$in' want='$want' got='$got'"
+}
+pipecheck "rfc64 pad f"        raw 64  "f"        "Zg=="
+pipecheck "rfc64 pad fo"       raw 64  "fo"       "Zm8="
+pipecheck "rfc64 pad foobar"   raw 64  "foobar"   "Zm9vYmFy"
+pipecheck "rfc32 pad f"        raw 32  "f"        "MY======"
+pipecheck "rfc32 pad foob"     raw 32  "foob"     "MZXW6YQ="
+pipecheck "rfc32 pad foobar"   raw 32  "foobar"   "MZXW6YTBOI======"
+pipecheck "base64url unpadded" raw 64u "foob"     "Zm9vYg"
+pipecheck "base64 strips pad"  64  raw "Zm9vYmFy" "foobar"
+pipecheck "base64url takes pad" 64u raw "Zm9vYg==" "foob"
+
+## Custom (user-defined) bases can opt into the same padding with a pad= token.
+## This custom alphabet mirrors RFC 4648 base32, so its padded output must match.
+B32C="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567 pad=="
+padgot=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from binary --to-symbols "$B32C" 2>"${CBT_ERR}")
+[[ "$padgot" == "IE======" ]] && _pass "custom base32 emits pad" || _fail "custom base32 emits pad" "got='$padgot'"
+padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from binary --to-symbols "$B32C" 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --to binary 2>"${CBT_ERR}")
+[[ "$padrt" == "A" ]] && _pass "custom pad round-trips" || _fail "custom pad round-trips" "got='$padrt'"
+padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --to binary 2>"${CBT_ERR}")
+[[ "$padun" == "A" ]] && _pass "custom pad decode takes unpadded" || _fail "custom pad decode takes unpadded" "got='$padun'"
+check errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF pad=A" --to 10 5
+
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
 check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to binary ABC
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Keyboard (text) base: a plain-text document is valid input as-is
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Every printable keyboard character plus tab/newline/return is a digit, so
+## source code, prose, JSON, and the like convert with no escaping. Like binary
+## it holds newline as a digit, so it needs --raw output and file-based checks.
+## Round-trips are exact except a leading zero-digit (tab), which vanishes like
+## any leading zero, so the samples start on a non-tab byte.
+section "Keyboard (text) base"
+ksrc="${CBT_TMP}/kb_src"; kmid="${CBT_TMP}/kb_mid"; kout="${CBT_TMP}/kb_out"
+printf 'def f(x):\n\treturn {"k": [1, 2], "s": "a+b/c=d"}  # note\n' >"$ksrc"
+kfail=0
+for tb in 16 10; do
+	if "${TIMEOUT[@]}" "${EXE}" --from keyboard --to "$tb" <"$ksrc" >"$kmid" 2>"${CBT_ERR}" \
+		&& "${TIMEOUT[@]}" "${EXE}" --from "$tb" --to keyboard --raw <"$kmid" >"$kout" 2>"${CBT_ERR}" \
+		&& cmp -s "$ksrc" "$kout"; then :; else kfail=$((kfail+1)); fi
+done
+((kfail == 0)) && _pass "keyboard sample round-trips (base 16 and 10)" || _fail "keyboard sample round-trips" "${kfail} of 2 failed"
+## Random text blobs of only valid keyboard bytes, forced to start on a non-tab
+## byte so no leading digit is lost.
+krand_fail=0
+for len in 1 2 5 33 200 1500; do
+	{ printf '#'; head -c "$((len * 8 + 64))" /dev/urandom | LC_ALL=C tr -cd '\11\12\15\40-\176' | head -c "$len"; } >"$ksrc" || true
+	if "${TIMEOUT[@]}" "${EXE}" --from keyboard --to 16 <"$ksrc" >"$kmid" 2>"${CBT_ERR}" \
+		&& "${TIMEOUT[@]}" "${EXE}" --from 16 --to keyboard --raw <"$kmid" >"$kout" 2>"${CBT_ERR}" \
+		&& cmp -s "$ksrc" "$kout"; then :; else krand_fail=$((krand_fail+1)); fi
+done
+((krand_fail == 0)) && _pass "keyboard random text round-trips (6 blobs)" || _fail "keyboard random text round-trips" "${krand_fail} lengths mismatched"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -230,7 +359,13 @@ check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 
 section "Fuzz round-trips (all bases)"
 mapfile -t BASE_NAMES < <("${EXE}" --list 2>/dev/null | tail -n +2 | awk '{print $1}')
 declare -a FUZZ_BASES=()
-for n in "${BASE_NAMES[@]}"; do [[ "$n" == "binary" ]] || FUZZ_BASES+=("$n"); done
+## binary and keyboard both carry newline as a digit, so their output can't
+## survive $(...) capture (it strips trailing newlines). Both get their own
+## file-based, --raw round-trip sections instead.
+for n in "${BASE_NAMES[@]}"; do
+	case "$n" in binary|keyboard) continue ;; esac
+	FUZZ_BASES+=("$n")
+done
 printf '  %s%d bases under fuzz%s\n' "${dim}" "${#FUZZ_BASES[@]}" "${rst}"
 
 ## Deterministic matrix: a few fixed values through every base (fast, always on).
@@ -270,7 +405,10 @@ n_bases="$("${EXE}" --get-index-count)"
 declare -a IDX_NAME=()
 for ((i=0; i<n_bases; i++)); do IDX_NAME[i]="$("${EXE}" --get-base-name --by-index="$i")"; done
 declare -a ELIGIBLE=()
-for ((i=0; i<n_bases; i++)); do [[ "${IDX_NAME[i]}" == "binary" ]] || ELIGIBLE+=("$i"); done
+for ((i=0; i<n_bases; i++)); do
+	case "${IDX_NAME[i]}" in binary|keyboard) continue ;; esac
+	ELIGIBLE+=("$i")
+done
 
 ## Symbols are loaded once per base, on first use, into a per-index array.
 declare -A SYM_LOADED=()
@@ -348,6 +486,37 @@ if [[ -x "${EXE_V1B}" ]]; then
 		((enc_fail == 0)) && _pass "v2==v1 encode: ${v2n} (== v1 ${v1n})" || _fail "v2==v1 encode: ${v2n} (== v1 ${v1n})" "$detail"
 		((rt_fail == 0))  && _pass "v1->v2 round-trip: ${v2n} (from v1 ${v1n})" || _fail "v1->v2 round-trip: ${v2n} (from v1 ${v1n})" "$detail"
 	done
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Performance: streaming throughput of the binary path (long test only)
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## A repeatable throughput baseline for the streaming binary<->text path, with
+## the system base64 alongside for context. Round-trips must still be
+## bit-perfect; the numbers are informational and guard against regressions.
+if ((doPerf)); then
+	section "Performance (streaming throughput)"
+	perf_mib=4
+	perfsrc="${CBT_TMP}/perf_src"; perfmid="${CBT_TMP}/perf_mid"; perfout="${CBT_TMP}/perf_out"
+	head -c "$((perf_mib * 1024 * 1024))" /dev/urandom >"$perfsrc"
+	for base in 16 64u; do
+		t0=$(date +%s.%N)
+		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" <"$perfsrc" >"$perfmid" 2>/dev/null
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary <"$perfmid" >"$perfout" 2>/dev/null
+		t1=$(date +%s.%N)
+		if cmp -s "$perfsrc" "$perfout"; then
+			mbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$perf_mib/d; else print \"inf\"}")
+			_pass "perf ${base}: ${perf_mib} MiB round-trip (~${mbps} MiB/s)"
+		else
+			_fail "perf ${base} round-trip" "output mismatch"
+		fi
+	done
+	if command -v base64 >/dev/null 2>&1; then
+		t0=$(date +%s.%N); base64 <"$perfsrc" >/dev/null; t1=$(date +%s.%N)
+		refbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", $perf_mib/d; else print \"inf\"}")
+		printf '  %sreference: system base64 encode ~%s MiB/s%s\n' "${dim}" "$refbps" "${rst}"
+	fi
 fi
 
 

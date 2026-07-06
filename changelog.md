@@ -28,14 +28,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Flags to query bases from a script: `--get-index-count`, `--get-base-name`, and `--show-symbols`. A base can be chosen by name, alias, or `--by-index`.
 - Screenshots section in the README, with a responsive grid that links to full-size images.
+- User-defined bases can opt into RFC-style output padding with a `pad=X` token in the symbol spec (or a `pad:` field in a config file). It follows the same group-boundary rule as the built-in base32/base64 bases: encode pads to the boundary, decode accepts input with or without it. A pad character that is also a digit is rejected.
+- New base "keyboard" (base 98): every printable keyboard character of a plain-text document, plus tab, newline, and return. The alphabet leads with the 62 alphanumerics 0-9 A-Z a-z, then the remaining characters in code-point order. Source code, prose, JSON, HTML, and embedded base64 are all valid input as-is, so a text file can be converted without escaping. Aliases: 98, text, ascii, kbd.
+- New base "64emoji" (base 64): the Unicode emoticon faces, U+1F600 through U+1F63F (56 yellow faces and 8 cat faces), all single code points with no skin-tone variants. Being a power of two it also encodes binary streams, so a file can be turned straight into emoji and back. Aliases: emoji, 64e.
 
 ### Changed
 
+- Streaming binary conversion is much faster in both directions. Piped input streams straight to output with no whole-file buffering, and the standard bases (16, 32, 64) use hand-unrolled, byte-aligned inner loops like the system tools. Encoding and decoding to and from base-64/32/16 now run at hundreds of MiB/s; on the test bench, base-64 decode is faster than `base64` and `basenc`, and encode is close behind. Output is unchanged, and decoding tolerates line-wrapped input, so it reads `base64`'s default output. See the throughput table in the README.
 - Bases whose symbols include `-` now use `~` as the negative marker, instead of the en-dash. Affects base 45, 64u, 64h, and 69prsh.
 - `--list` no longer repeats the base name in its aliases column.
 - Clearer help text for the base-query flags.
+- Base64 (RFC 4648 s4) and base32 (RFC 4648 s6) binary output is now padded with `=` to the standard group boundary. The URL and hex variants stay unpadded, and decoding accepts input with or without padding.
+
+### Fixed
+
+- Binary encoding to base 2048 (both variants), 32768, and 65536 now round-trips at every input length and matches the published third-party encodings byte-for-byte, using each one's own secondary alphabet for the final partial chunk. Before, some lengths came back with an extra trailing byte.
 
 ### Other work
+
+- Added `utility/bench-encoders.bash`, a repeatable streaming-throughput benchmark that pits the tool against base64, base32, basenc, openssl, and xxd. All I/O runs in a tmpfs so results don't depend on disk speed, and it auto-skips tools that aren't installed. The README throughput table is generated from it.
+
+- Broadened the test harness: every power-of-2 base now round-trips raw bytes at lengths that force a partial final chunk, and the long run reports streaming throughput with the system base64 alongside for reference.
 
 - Reworked the CI/CD scripts [20260703]:
 	- Split the pipeline into a generic engine and a per-project config, matching the sister project's layout.
