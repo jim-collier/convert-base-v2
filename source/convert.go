@@ -230,6 +230,18 @@ func powerOfTwoBits(n int) int {
 // trailing sub-byte bits (on the binary side) are discarded - which cancels
 // out the original padding exactly, giving bit-perfect roundtrip.
 func convertBitPacked(input string, from, to *Base, kIn, kOut int) (string, error) {
+	// Fast paths for the common shape: raw bytes on one side and a single-byte-
+	// per-digit base (base 16, 32, 64, ...) on the other. These skip the per-byte
+	// closures and string indexing of the general loop, writing straight into a
+	// sized byte buffer through a small lookup table. This is the base64/base16/
+	// base32 case, i.e. everything that competes with the system encoders.
+	if from.Binary && !to.Binary && to.allOneByte {
+		return encodeBytesToDigits(input, to, kOut), nil
+	}
+	if to.Binary && !from.Binary && from.allOneByte {
+		return decodeDigitsToBytes(input, from, kIn)
+	}
+
 	var out []byte
 	var sb strings.Builder
 	if !to.Binary {
@@ -308,6 +320,65 @@ func convertBitPacked(input string, from, to *Base, kIn, kOut int) (string, erro
 		return string(out), nil
 	}
 	return sb.String(), nil
+}
+
+// encodeBytesToDigits is the fast path of convertBitPacked for raw bytes ->
+// a single-byte-per-digit power-of-2 base (kOut bits per digit, kOut <= 8).
+// It packs bits most-significant-first and appends one output byte per digit
+// via a lookup table. A final partial digit is zero-padded in its low bits,
+// exactly as the general path does, so the reverse direction cancels it.
+func encodeBytesToDigits(input string, to *Base, kOut int) string {
+	var table [256]byte // index (0 .. 2^kOut-1) -> the digit's single byte
+	n := 1 << kOut
+	for i := 0; i < n; i++ {
+		table[i] = to.Symbols[i][0]
+	}
+
+	out := make([]byte, 0, len(input)*8/kOut+1)
+	var acc uint64
+	var accBits int
+	for i := 0; i < len(input); i++ {
+		acc = (acc << 8) | uint64(input[i])
+		accBits += 8
+		for accBits >= kOut {
+			accBits -= kOut
+			out = append(out, table[acc>>accBits])
+			acc &= (uint64(1) << accBits) - 1
+		}
+	}
+	if accBits > 0 {
+		out = append(out, table[acc<<(kOut-accBits)])
+	}
+	return string(out)
+}
+
+// decodeDigitsToBytes is the fast path of convertBitPacked for a single-byte-
+// per-digit power-of-2 base -> raw bytes. Each input byte maps to its kIn-bit
+// digit value through the base's byteValue table (which already carries the
+// case-flipped input aliases), packed most-significant-first into output bytes.
+// Any trailing sub-byte bits must be zero, or the input wasn't a byte-aligned
+// encoding (e.g. odd-length hex); that mirrors the general path's guard.
+func decodeDigitsToBytes(input string, from *Base, kIn int) (string, error) {
+	out := make([]byte, 0, len(input)*kIn/8+1)
+	var acc uint64
+	var accBits int
+	for i := 0; i < len(input); i++ {
+		v := from.byteValue[input[i]]
+		if v < 0 {
+			return "", fmt.Errorf("byte %#02x (%q) not in base %q", input[i], string(input[i]), from.Name())
+		}
+		acc = (acc << kIn) | uint64(v)
+		accBits += kIn
+		for accBits >= 8 {
+			accBits -= 8
+			out = append(out, byte(acc>>accBits))
+			acc &= (uint64(1) << accBits) - 1
+		}
+	}
+	if accBits > 0 && acc != 0 {
+		return "", fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
+	}
+	return string(out), nil
 }
 
 // encodeBinaryPrefixed encodes raw bytes into a power-of-2 base with more than
