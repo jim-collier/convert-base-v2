@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math/big"
 	"strings"
+	"unicode/utf8"
 )
 
 // Convert converts a number string from 'from' base to 'to' base.
@@ -46,7 +47,19 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 			kBase = kIn
 		}
 		if kBase <= 8 {
-			return convertBitPacked(input, from, to, kIn, kOut)
+			// RFC base32/base64: strip padding on decode (lenient input), and
+			// emit it on encode for the strict variants that require it.
+			if to.Binary && from.PadSymbol != "" {
+				input = strings.TrimRight(input, from.PadSymbol)
+			}
+			out, err := convertBitPacked(input, from, to, kIn, kOut)
+			if err != nil {
+				return "", err
+			}
+			if from.Binary && to.PadEmit {
+				out = rfcPad(out, to)
+			}
+			return out, nil
 		}
 		// Above 8 bits per digit. If the non-binary base carries a published
 		// native scheme (2048, 32768, 65536), match it byte-for-byte using its
@@ -354,6 +367,26 @@ func decodeBinaryPrefixed(input string, from *Base, k int) (string, error) {
 		return "", fmt.Errorf("cannot decode to binary: input is not a valid %s binary encoding", from.Name())
 	}
 	return string(buf[m : m+int(n)]), nil
+}
+
+// rfcPad appends the base's padding character to bring the encoded output up to
+// the encoding's group boundary (4 characters for base64, 8 for base32), as
+// RFC 4648 requires. Called only for bases that emit padding.
+func rfcPad(s string, to *Base) string {
+	k := powerOfTwoBits(len(to.Symbols))
+	group := 8 / gcd(8, k) // characters per whole-byte group
+	rem := utf8.RuneCountInString(s) % group
+	if rem == 0 {
+		return s
+	}
+	return s + strings.Repeat(to.PadSymbol, group-rem)
+}
+
+func gcd(a, b int) int {
+	for b != 0 {
+		a, b = b, a%b
+	}
+	return a
 }
 
 // swap16 exchanges the two bytes of a 16-bit value. Base65536 indexes its

@@ -56,6 +56,14 @@ type Base struct {
 	TailSymbols  []string
 	BinaryScheme string // "", "qntm", "qntm65536", or "rust2048"
 
+	// PadSymbol is the RFC-style padding character (e.g. "=") for base32/base64.
+	// When set, binary decode strips a trailing run of it (lenient input). When
+	// PadEmit is also true, binary encode pads its output up to the encoding's
+	// group boundary. Set only on the strict RFC variants that require padding;
+	// the URL/hex variants accept it but don't emit it.
+	PadSymbol string
+	PadEmit   bool
+
 	// derived
 	tailValue  map[string]int // tail symbol -> index (native binary decode)
 	value      map[string]int // symbol -> digit value (plus case-flipped ASCII letters for input leniency)

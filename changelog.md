@@ -34,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bases whose symbols include `-` now use `~` as the negative marker, instead of the en-dash. Affects base 45, 64u, 64h, and 69prsh.
 - `--list` no longer repeats the base name in its aliases column.
 - Clearer help text for the base-query flags.
+- Base64 (RFC 4648 s4) and base32 (RFC 4648 s6) binary output is now padded with `=` to the standard group boundary. The URL and hex variants stay unpadded, and decoding accepts input with or without padding.
 
 ### Fixed
 

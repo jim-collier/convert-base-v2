@@ -221,6 +221,8 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: upperAZ_c26 + " 2 3 4 5 6 7 ",
 			Aliases:     []string{"32", "32r", "32rfc", "32rfc4648s6", "RFC4648s6"},
+			Pad:         "=",
+			PadEmit:     true, // strict RFC 4648 s6 output is padded
 		}),
 
 		// Base-32hex (numbers first), RFC 4648 §7.
@@ -230,6 +232,7 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 32),
 			Aliases:     []string{"32h", "32hex", "32rfc4648s7", "RFC4648s7", "TheOneTrue32"},
+			Pad:         "=", // accept padding on input, but the hex variant is left unpadded
 		}),
 
 		// Crockford's base-32; designed for less human-read ambiguity, no I, L, O, U
@@ -376,6 +379,8 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " + /",
 			Aliases:     []string{"64", "64r", "64rfc", "64rfc4648s4", "rfc4648s4"},
+			Pad:         "=",
+			PadEmit:     true, // strict RFC 4648 s4 output is padded
 		}),
 
 		// Base64 URL-safe, RFC 4648 §5
@@ -385,6 +390,7 @@ func predefinedBases() []*Base {
 			BaseSymbols: rfc4648start_c62 + " - _",
 			Aliases:     []string{"64u", "64url", "64ru", "64rfc4648s5", "rfc4648s5"},
 			NegSymbol:   "~", // tilde; '-' is a base symbol here
+			Pad:         "=", // accept padding on input; URL-safe output is left unpadded
 		}),
 
 		// Base 64, hex-style (with RFC URL-style extensions)
@@ -396,6 +402,7 @@ func predefinedBases() []*Base {
 			BaseSymbols: base_62hex + " - _",
 			Aliases:     []string{"64h", "64hex", "64hexurl", "64hu"},
 			NegSymbol:   "~", // tilde; '-' is a base symbol here
+			Pad:         "=", // accept padding on input; hex-style output is left unpadded
 		}),
 
 		// Base 64p: Programmer-friendly base-64.
@@ -673,6 +680,9 @@ type SpecOpts struct {
 
 	TailSymbols  []string // secondary repertoire for the native binary schemes (2048/32768/65536)
 	BinaryScheme string   // "qntm", "qntm65536", or "rust2048"
+
+	Pad     string // RFC padding char (e.g. "="); enables lenient decode stripping
+	PadEmit bool   // also emit padding on encode (strict RFC base32 s6 / base64 s4)
 }
 
 // mkSpec builds a *Base from a SpecOpts. It panics on errors because this is
@@ -694,11 +704,17 @@ func mkSpec(opts SpecOpts) *Base {
 		panic(fmt.Sprintf("predefinedBases: spec %q: %v", opts.Aliases, err))
 	}
 
+	if opts.PadEmit && opts.Pad == "" {
+		panic(fmt.Sprintf("predefinedBases %q: PadEmit set but Pad is empty", opts.Aliases))
+	}
+
 	b := &Base{
 		Aliases:      opts.Aliases,
 		Symbols:      sp.Symbols,
 		TailSymbols:  opts.TailSymbols,
 		BinaryScheme: opts.BinaryScheme,
+		PadSymbol:    opts.Pad,
+		PadEmit:      opts.PadEmit,
 	}
 
 	switch {

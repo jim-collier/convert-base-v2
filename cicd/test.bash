@@ -263,6 +263,24 @@ nvec "rust one byte"     2048rust    00         00D8
 nvec "rust tail zero"    2048rust    000000     "00D8 00D8 0F0D"
 nvec "rust tail three"   2048rust    010203     "00C5 0140 0F10"
 
+## RFC 4648 padding: the strict base64 (s4) and base32 (s6) variants emit '='
+## padding to the group boundary (vectors from RFC 4648 s10). The URL/hex
+## variants stay unpadded but still accept padded input on decode.
+pipecheck(){ # LABEL FROM TO INPUT EXPECTED
+	local label="$1" f="$2" t="$3" in="$4" want="$5" got
+	got=$(printf '%s' "$in" | "${TIMEOUT[@]}" "${EXE}" --from "$f" --to "$t" 2>"${CBT_ERR}")
+	[[ "$got" == "$want" ]] && _pass "$label" || _fail "$label" "in='$in' want='$want' got='$got'"
+}
+pipecheck "rfc64 pad f"        raw 64  "f"        "Zg=="
+pipecheck "rfc64 pad fo"       raw 64  "fo"       "Zm8="
+pipecheck "rfc64 pad foobar"   raw 64  "foobar"   "Zm9vYmFy"
+pipecheck "rfc32 pad f"        raw 32  "f"        "MY======"
+pipecheck "rfc32 pad foob"     raw 32  "foob"     "MZXW6YQ="
+pipecheck "rfc32 pad foobar"   raw 32  "foobar"   "MZXW6YTBOI======"
+pipecheck "base64url unpadded" raw 64u "foob"     "Zm9vYg"
+pipecheck "base64 strips pad"  64  raw "Zm9vYmFy" "foobar"
+pipecheck "base64url takes pad" 64u raw "Zm9vYg==" "foob"
+
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
 check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to binary ABC
 
