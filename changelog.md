@@ -46,6 +46,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Other work
 
+- Added `utility/bench-encoders.bash`, a repeatable streaming-throughput benchmark that pits the tool against base64, base32, basenc, openssl, and xxd. All I/O runs in a tmpfs so results don't depend on disk speed, and it auto-skips tools that aren't installed. The README throughput table is generated from it.
+
 - Broadened the test harness: every power-of-2 base now round-trips raw bytes at lengths that force a partial final chunk, and the long run reports streaming throughput with the system base64 alongside for reference.
 
 - Reworked the CI/CD scripts [20260703]:

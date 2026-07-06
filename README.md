@@ -151,13 +151,18 @@ That said, the streaming path is quick. Throughput against the standard tools, s
 
 | Program | text -> binary | binary -> text |
 | :-- | --: | --: |
-| convert-base-v2 (base-64) | 739 | 741 |
-| coreutils `base64` | 323 | 1,069 |
-| coreutils `basenc` | 318 | 1,058 |
-| convert-base-v2 (hex) | 454 | 831 |
-| `xxd` (hex) | 56 | 102 |
+| convert-base-v2 (base-64) | 725 | 758 |
+| coreutils `base64` | 322 | 1,066 |
+| coreutils `basenc` | 320 | 1,078 |
+| openssl `base64` | 273 | 1,229 |
+| convert-base-v2 (base-32) | 591 | 708 |
+| coreutils `base32` | 402 | 860 |
+| convert-base-v2 (hex) | 540 | 875 |
+| `xxd` (hex) | 57 | 103 |
 
-Numbers are MiB/s over the binary side, mean of 10 runs, one process per run. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and that group's own canonical text to decode (`base64`'s output for the base-64 rows, `xxd`'s for the hex rows). Each tool is single-threaded. Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
+Numbers are MiB/s over the binary side, mean of 10 runs, one process each, all I/O in a tmpfs (RAM) so disk speed doesn't enter into it. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and each format group's own canonical text to decode. Each tool is single-threaded. Reproduce with `github/utility/bench-encoders.bash` (it auto-skips tools you don't have). Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
+
+convert-base-v2 leads every decode column and trails the fastest encoders; the standard tools have decade-plus head starts, so landing in the same range at all is the notable part.
 
 base-64 is statistically the most compact way to store binary data as UTF-8 text. It might seem strange, but not even qntm's base-65536 (which this program has a named setting for) can beat the space density specifically for UTF-8 encoding. All modern OSes use UTF-8 by default. (For Twitter/𝕏, qntm's base-2048 allegedly optimally encodes binary data. Which this program also has a named setting for.)
 
