@@ -235,6 +235,30 @@ for pair in "2048twitter" "2048rust" "32768qntm" "65536"; do
 	done
 	((bigfail == 0)) && _pass "binary round-trip via ${pair} (all lengths)" || _fail "binary round-trip via ${pair}" "${bigfail} lengths mismatched"
 done
+## Every power-of-2 base (not just the handful above) round-trips raw bytes
+## bit-perfectly. Blob lengths are picked to force a partial final chunk in each,
+## so padding and tail handling get exercised. Bases and sizes come from --list,
+## so a new power-of-2 base is covered with no edit here.
+declare -a POW2_BASES=()
+while read -r bname bsize _; do
+	case "$bsize" in
+		2|4|8|16|32|64|128|256|512|1024|2048|4096|8192|16384|32768|65536)
+			[[ "$bname" == "binary" ]] || POW2_BASES+=("$bname") ;;
+	esac
+done < <("${EXE}" --list 2>/dev/null | tail -n +2)
+raw_all_fail=0; raw_all_n=0
+for base in "${POW2_BASES[@]}"; do
+	for n in 1 2 3 5 7 11 13 17 31 63 100 255 257 $(( 1 + $(_rand16) % 512 )); do
+		src="${CBT_TMP}/ra_src"; mid="${CBT_TMP}/ra_mid"; out="${CBT_TMP}/ra_out"
+		head -c "$n" /dev/urandom >"$src"
+		rc1=0; rc2=0
+		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
+		raw_all_n=$((raw_all_n + 1))
+		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail "raw round-trip ${base} n=${n}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"; }
+	done
+done
+((raw_all_fail == 0)) && _pass "raw round-trip, all power-of-2 bases (${#POW2_BASES[@]} bases, ${raw_all_n} blobs)" || printf '  %s%d raw round-trip failures above%s\n' "${red}" "$raw_all_fail" "${rst}"
 ## The four big bases match the published third-party layouts byte-for-byte.
 ## These fixed vectors (input bytes -> exact output code points) guard that
 ## interop; they come straight from the reference implementations. Each pins the
@@ -420,6 +444,37 @@ if [[ -x "${EXE_V1B}" ]]; then
 		((enc_fail == 0)) && _pass "v2==v1 encode: ${v2n} (== v1 ${v1n})" || _fail "v2==v1 encode: ${v2n} (== v1 ${v1n})" "$detail"
 		((rt_fail == 0))  && _pass "v1->v2 round-trip: ${v2n} (from v1 ${v1n})" || _fail "v1->v2 round-trip: ${v2n} (from v1 ${v1n})" "$detail"
 	done
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Performance: streaming throughput of the binary path (long test only)
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## A repeatable throughput baseline for the streaming binary<->text path, with
+## the system base64 alongside for context. Round-trips must still be
+## bit-perfect; the numbers are informational and guard against regressions.
+if ((doLong)); then
+	section "Performance (streaming throughput)"
+	perf_mib=4
+	perfsrc="${CBT_TMP}/perf_src"; perfmid="${CBT_TMP}/perf_mid"; perfout="${CBT_TMP}/perf_out"
+	head -c "$((perf_mib * 1024 * 1024))" /dev/urandom >"$perfsrc"
+	for base in 16 64u; do
+		t0=$(date +%s.%N)
+		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" <"$perfsrc" >"$perfmid" 2>/dev/null
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary <"$perfmid" >"$perfout" 2>/dev/null
+		t1=$(date +%s.%N)
+		if cmp -s "$perfsrc" "$perfout"; then
+			mbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$perf_mib/d; else print \"inf\"}")
+			_pass "perf ${base}: ${perf_mib} MiB round-trip (~${mbps} MiB/s)"
+		else
+			_fail "perf ${base} round-trip" "output mismatch"
+		fi
+	done
+	if command -v base64 >/dev/null 2>&1; then
+		t0=$(date +%s.%N); base64 <"$perfsrc" >/dev/null; t1=$(date +%s.%N)
+		refbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", $perf_mib/d; else print \"inf\"}")
+		printf '  %sreference: system base64 encode ~%s MiB/s%s\n' "${dim}" "$refbps" "${rst}"
+	fi
 fi
 
 

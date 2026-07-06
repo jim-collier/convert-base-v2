@@ -43,6 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Other work
 
+- Broadened the test harness: every power-of-2 base now round-trips raw bytes at lengths that force a partial final chunk, and the long run reports streaming throughput with the system base64 alongside for reference.
+
 - Reworked the CI/CD scripts [20260703]:
 	- Split the pipeline into a generic engine and a per-project config, matching the sister project's layout.
 	- The pipeline now formats, builds, tests, cross-compiles, dogfoods a fixed-name local copy, then backs up and publishes quietly.
