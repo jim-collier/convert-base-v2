@@ -43,15 +43,17 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 Allow arbitrary-length binary-to-text encoding conversions (and vice-versa) that don't align on 2^n.
+- 🔘 Screenshots: Put blank lines in between test runs.
 
-- 🔘 Pad binary-to-text conversions properly (and vice-versa).
-	- For my custom bases, not necessarily with just '===' etc. (Except for the standard binary encoding bases like base64 that expect specific, defined encoding characters.)
-	- Some existing third-party big bases actually shrink down to smaller bases for the padding, and use lower unicode/ascii characters that aren't in the base definition, as padding (e.g. 0-9). Notably the two base 2048's, base 32768, and 65536.
+- 🔘 CICD testing: Rigorous regression testing, performance testing, profiling (if `--quick` not passed), and include round-tripping all bases in raw mode with random length, random binary blobs, more than long enough in every base to trigger padding requirements.
 
-- 🔘 Process the third-party binary big-base conversions properly, according to their own online published specs. Specifically, their more complex padding implementation. This may require carefully reading and reverse-engineering some of their JS, Python, and/or Rust code. (Or maybe their spec definitions are enough to figure it out.)
+- 🔘 Create a new base that covers all possible printable keyboard characters in a plain text document. (Including programming code, regular human writing, email addresses, newline, return, tab, etc.) Without worrying about higher unicode alternatives (e.g. curly-quotes, mdash, etc.) - those would have to go through some separate conversion preprocessing in order to work with this base. I believe this should also covers Rich-Text format (which I believe has no special characters), MD, HTML, XML, JSON, embedded base64, etc., as-is.
 
-- 🔘 Update comments in code, help output, readme.md, and design.md to properly use "radix" and/or "base" in context, etc. But not the actual program interface, don't change that.
+- 🔘 Create a base64 that's all emojis
+	- Only emojis noted/suggested by unicode to print graphically.
+	- Symbols in LANG=C order.
+	- Use generic yellow emojis for skintone-based ones, not skin-tone variants.
+	- Skip emojis that look too similar; use only the first one.
 
 - 🔘 Improve the performance of streaming binary-to-text conversion and vice-versa, to better approach existing linux utilities. Go should be able to get close.
 
@@ -60,6 +62,14 @@ In each section, items are listed approximately from newest to oldest.
 #### Done - Bugs
 
 #### Done - New features and enhancements
+
+- ✅ An optional padding scheme for custom bases (not necessarily `===`). The published big bases and the RFC base32/base64 bases already pad correctly; this is about letting user-defined bases opt into padding too.
+
+- ✅ Update comments in code, help output, readme.md, and design.md to properly use "radix" and/or "base" in context, etc. But not the actual program interface, don't change that.
+
+- ✅ Base64 (RFC 4648 s4) and base32 (RFC 4648 s6) binary output is now padded with `=` to the standard group boundary, matching the RFC test vectors. The URL and hex variants stay unpadded, and decoding accepts input with or without padding.
+
+- ✅ Binary conversions to the big published bases (both base 2048's, 32768, 65536) round-trip at any input length and match the reference encoders byte-for-byte, using each one's own secondary alphabet for the final partial chunk. Odd-length tails no longer come back a byte long. Fixed vectors from the reference implementations guard the interop.
 
 - ✅ Bases with '-' in the symbol set now use '~' as the negative marker instead of the en-dash. '~' was free in all four affected bases (45, 64u, 64h, 69prsh).
 

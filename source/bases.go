@@ -440,13 +440,13 @@ func predefinedBases() []*Base {
 		// [end of the base-64 domain]
 		//
 
-		// Base-64 of emojis. Every symbol is a single-code-point emoji that
-		// Unicode marks Emoji_Presentation (renders in color by default), with no
-		// skin-tone variants, listed in code-point (LANG=C) order and hand-picked
-		// to look distinct from one another. Being 2^6 it also works in the
-		// binary/streaming path, so binary data can be encoded straight to emoji.
+		// Base-64 of emoji: the Unicode "Emoticons" block, U+1F600..1F63F - the 56
+		// yellow faces followed by the 8 cat faces, in code-point order. Every
+		// symbol is a single code point (no ZWJ sequences, no skin-tone modifiers)
+		// that renders in color by default. Being 2^6 it also works in the binary/
+		// streaming path, so binary data can be encoded straight to emoji.
 		mkSpec(SpecOpts{
-			BaseSymbols: "⌚ ☔ ☕ ⚽ ⛄ ✅ ✨ ❌ ❓ ⭐ 🌈 🌙 🌵 🌷 🍄 🍇 🍉 🍌 🍎 🍔 🍕 🍦 🍰 🍷 🍺 🎁 🎈 🎉 🎓 🎨 🎯 🎸 🏆 🐌 🐍 🐘 🐙 🐟 🐢 🐧 🐸 🐼 👀 👑 👻 👽 💀 💎 💡 💣 💰 📌 📷 🔑 🔔 🔥 🔨 🔭 😀 😍 😭 😴 🚀 🚲",
+			BaseSymbols: strings.Join(runeRange(0x1F600, 0x1F63F), " "),
 			Aliases:     []string{"64emoji", "emoji", "64e"},
 			DisallowNeg: true,
 			DisallowDec: true,
@@ -751,8 +751,10 @@ func mkSpec(opts SpecOpts) *Base {
 
 // keyboardBase returns a base-98 covering every printable keyboard character of
 // a plain-text document: the 95 printable ASCII glyphs (0x20 space through 0x7E
-// tilde) plus tab, newline, and carriage return. Digits are in code-point order
-// (tab=0, newline=1, return=2, space=3, ... tilde=97).
+// tilde) plus tab, newline, and carriage return. The alphabet leads with the 62
+// alphanumerics 0-9 A-Z a-z (same ordering as base_62hex), then the remaining 36
+// characters in code-point order (tab, newline, return, space, and the ASCII
+// punctuation). So it starts hex-like and the zero digit is "0", not a control.
 //
 // The point is that source code, prose, email, JSON, HTML, base64, and the like
 // are all valid input as-is - every byte a text file normally holds is a digit,
@@ -761,17 +763,28 @@ func mkSpec(opts SpecOpts) *Base {
 // to ASCII first. Sign and decimal markers are disabled: there is no spare ASCII
 // character to spend on them, and they are meaningless for whole-text values.
 // Since 98 is not a power of two, conversion goes through the number path, so a
-// leading tab (the zero digit) drops off like any leading zero; the payload is
+// leading "0" (the zero digit) drops off like any leading zero; the payload is
 // otherwise exact. Output needs --raw, since newline is a digit and an appended
 // newline would be ambiguous.
 func keyboardBase() *Base {
 	syms := make([]string, 0, 98)
-	for _, c := range []byte{'\t', '\n', '\r'} {
+	add := func(lo, hi byte) {
+		for c := lo; c <= hi; c++ {
+			syms = append(syms, string([]byte{c}))
+		}
+	}
+	// Alphanumerics first (base_62hex ordering).
+	add('0', '9')
+	add('A', 'Z')
+	add('a', 'z')
+	// Then the rest, in code-point order: tab, newline, return, space, punctuation.
+	for _, c := range []byte{'\t', '\n', '\r', ' '} {
 		syms = append(syms, string([]byte{c}))
 	}
-	for c := byte(0x20); c <= 0x7E; c++ {
-		syms = append(syms, string([]byte{c}))
-	}
+	add(0x21, 0x2F) // ! " # $ % & ' ( ) * + , - . /
+	add(0x3A, 0x40) // : ; < = > ? @
+	add(0x5B, 0x60) // [ \ ] ^ _ `
+	add(0x7B, 0x7E) // { | } ~
 	return &Base{
 		Aliases:  []string{"keyboard", "98", "text", "ascii", "kbd"},
 		Symbols:  syms,
