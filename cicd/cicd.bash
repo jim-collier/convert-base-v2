@@ -39,7 +39,7 @@
 ##	   --no-publish      skip the git backup + publish stage
 ##	   --no-screenshots  skip regenerating README screenshots
 ##	   --long            exhaustive test run (sets CICDTEST_DO_LONGTEST=1)
-##	   --quick           skip the slow stages (cross-compile and screenshots)
+##	   --quick           skip the slow/extra stages (cross-compile, screenshots, perf)
 ##	- Reuse: copy the cicd/ directory into another project and edit config.bash.
 
 ##	History: At bottom of script.
@@ -60,7 +60,7 @@ cd "${root}"
 stamp="$(date +%Y%m%d-%H%M%S)"
 
 ## Parse options.
-assume_yes=0; do_long=0
+assume_yes=0; do_long=0; do_perf=1
 while (($#)); do case "$1" in
 	-y|--yes)     assume_yes=1; shift ;;
 	--no-fmt)     FMT_CMD=(); shift ;;
@@ -69,7 +69,7 @@ while (($#)); do case "$1" in
 	--no-publish) GIT_PUBLISH=(); shift ;;
 	--no-screenshots) DO_SCREENSHOTS=0; shift ;;
 	--long)       do_long=1; shift ;;
-	--quick)      BUILD_CROSS=0; DO_SCREENSHOTS=0; shift ;;
+	--quick)      BUILD_CROSS=0; DO_SCREENSHOTS=0; do_perf=0; shift ;;
 	-h|--help)    sed -n '/^##	- Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##	\{0,1\}//'; exit 0 ;;
 	*) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
 esac; done
@@ -139,7 +139,7 @@ ok "native build: ${STAGED_BIN} ($(du -h "${STAGED_BIN}" | cut -f1))  ($("${STAG
 
 ## Stage 3: tests, against the staged binary.
 step "3/7  Tests"
-CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" "${TEST_CMD[@]}"
+CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" CICDTEST_DO_PERF="${do_perf}" "${TEST_CMD[@]}"
 ok "tests passed"
 
 ## Stage 4: cross-compile (build sanity + release archives).

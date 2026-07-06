@@ -46,6 +46,9 @@ meDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 EXE="${CICDTEST_EXE:-${meDir}/../source/bin/convert-base-v2}"
 EXE_V1B="${meDir}/utility/convert-base-v1b"
 doLong=0; [[ "${CICDTEST_DO_LONGTEST:-0}" == "1" ]] && doLong=1
+## Performance section runs on any long run, or whenever the engine asks for it
+## (it does so unless --quick was passed). A long run always includes it.
+doPerf=0; { ((doLong)) || [[ "${CICDTEST_DO_PERF:-0}" == "1" ]]; } && doPerf=1
 
 ## Guard against hangs: a check that doesn't return quickly is a failure, not a wait.
 TIMEOUT=(); command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout 60)
@@ -492,7 +495,7 @@ fi
 ## A repeatable throughput baseline for the streaming binary<->text path, with
 ## the system base64 alongside for context. Round-trips must still be
 ## bit-perfect; the numbers are informational and guard against regressions.
-if ((doLong)); then
+if ((doPerf)); then
 	section "Performance (streaming throughput)"
 	perf_mib=4
 	perfsrc="${CBT_TMP}/perf_src"; perfmid="${CBT_TMP}/perf_mid"; perfout="${CBT_TMP}/perf_out"
