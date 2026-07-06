@@ -648,6 +648,9 @@ func predefinedBases() []*Base {
 			DisallowDec: true,
 		}),
 
+		// Every printable keyboard character of a plain-text document (base 98).
+		keyboardBase(),
+
 		// Raw binary bytes (bit-perfect roundtrip mode)
 		// Each digit is one of the 256 byte values. See Base.Binary and
 		// convertBitPacked in convert.go. Distinct from base "2" - base 2
@@ -732,6 +735,37 @@ func mkSpec(opts SpecOpts) *Base {
 	}
 
 	return b
+}
+
+// keyboardBase returns a base-98 covering every printable keyboard character of
+// a plain-text document: the 95 printable ASCII glyphs (0x20 space through 0x7E
+// tilde) plus tab, newline, and carriage return. Digits are in code-point order
+// (tab=0, newline=1, return=2, space=3, ... tilde=97).
+//
+// The point is that source code, prose, email, JSON, HTML, base64, and the like
+// are all valid input as-is - every byte a text file normally holds is a digit,
+// so no escaping or preprocessing is needed. Higher-Unicode look-alikes (curly
+// quotes, en/em dashes, ...) are deliberately out of scope; convert those down
+// to ASCII first. Sign and decimal markers are disabled: there is no spare ASCII
+// character to spend on them, and they are meaningless for whole-text values.
+// Since 98 is not a power of two, conversion goes through the number path, so a
+// leading tab (the zero digit) drops off like any leading zero; the payload is
+// otherwise exact. Output needs --raw, since newline is a digit and an appended
+// newline would be ambiguous.
+func keyboardBase() *Base {
+	syms := make([]string, 0, 98)
+	for _, c := range []byte{'\t', '\n', '\r'} {
+		syms = append(syms, string([]byte{c}))
+	}
+	for c := byte(0x20); c <= 0x7E; c++ {
+		syms = append(syms, string([]byte{c}))
+	}
+	return &Base{
+		Aliases:  []string{"keyboard", "98", "text", "ascii", "kbd"},
+		Symbols:  syms,
+		Negative: strPtr(""), // no spare ASCII char, and sign is meaningless here
+		Decimal:  strPtr(""), // ditto for a fractional separator
+	}
 }
 
 // binaryBase returns the raw-binary mode (256 byte values as base_10, Binary=true).

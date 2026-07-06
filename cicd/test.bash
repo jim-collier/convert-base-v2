@@ -321,12 +321,48 @@ check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Keyboard (text) base: a plain-text document is valid input as-is
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Every printable keyboard character plus tab/newline/return is a digit, so
+## source code, prose, JSON, and the like convert with no escaping. Like binary
+## it holds newline as a digit, so it needs --raw output and file-based checks.
+## Round-trips are exact except a leading zero-digit (tab), which vanishes like
+## any leading zero, so the samples start on a non-tab byte.
+section "Keyboard (text) base"
+ksrc="${CBT_TMP}/kb_src"; kmid="${CBT_TMP}/kb_mid"; kout="${CBT_TMP}/kb_out"
+printf 'def f(x):\n\treturn {"k": [1, 2], "s": "a+b/c=d"}  # note\n' >"$ksrc"
+kfail=0
+for tb in 16 10; do
+	if "${TIMEOUT[@]}" "${EXE}" --from keyboard --to "$tb" <"$ksrc" >"$kmid" 2>"${CBT_ERR}" \
+		&& "${TIMEOUT[@]}" "${EXE}" --from "$tb" --to keyboard --raw <"$kmid" >"$kout" 2>"${CBT_ERR}" \
+		&& cmp -s "$ksrc" "$kout"; then :; else kfail=$((kfail+1)); fi
+done
+((kfail == 0)) && _pass "keyboard sample round-trips (base 16 and 10)" || _fail "keyboard sample round-trips" "${kfail} of 2 failed"
+## Random text blobs of only valid keyboard bytes, forced to start on a non-tab
+## byte so no leading digit is lost.
+krand_fail=0
+for len in 1 2 5 33 200 1500; do
+	{ printf '#'; head -c "$((len * 8 + 64))" /dev/urandom | LC_ALL=C tr -cd '\11\12\15\40-\176' | head -c "$len"; } >"$ksrc" || true
+	if "${TIMEOUT[@]}" "${EXE}" --from keyboard --to 16 <"$ksrc" >"$kmid" 2>"${CBT_ERR}" \
+		&& "${TIMEOUT[@]}" "${EXE}" --from 16 --to keyboard --raw <"$kmid" >"$kout" 2>"${CBT_ERR}" \
+		&& cmp -s "$ksrc" "$kout"; then :; else krand_fail=$((krand_fail+1)); fi
+done
+((krand_fail == 0)) && _pass "keyboard random text round-trips (6 blobs)" || _fail "keyboard random text round-trips" "${krand_fail} lengths mismatched"
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Fuzz: random values round-tripped through every defined base
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Fuzz round-trips (all bases)"
 mapfile -t BASE_NAMES < <("${EXE}" --list 2>/dev/null | tail -n +2 | awk '{print $1}')
 declare -a FUZZ_BASES=()
-for n in "${BASE_NAMES[@]}"; do [[ "$n" == "binary" ]] || FUZZ_BASES+=("$n"); done
+## binary and keyboard both carry newline as a digit, so their output can't
+## survive $(...) capture (it strips trailing newlines). Both get their own
+## file-based, --raw round-trip sections instead.
+for n in "${BASE_NAMES[@]}"; do
+	case "$n" in binary|keyboard) continue ;; esac
+	FUZZ_BASES+=("$n")
+done
 printf '  %s%d bases under fuzz%s\n' "${dim}" "${#FUZZ_BASES[@]}" "${rst}"
 
 ## Deterministic matrix: a few fixed values through every base (fast, always on).
@@ -366,7 +402,10 @@ n_bases="$("${EXE}" --get-index-count)"
 declare -a IDX_NAME=()
 for ((i=0; i<n_bases; i++)); do IDX_NAME[i]="$("${EXE}" --get-base-name --by-index="$i")"; done
 declare -a ELIGIBLE=()
-for ((i=0; i<n_bases; i++)); do [[ "${IDX_NAME[i]}" == "binary" ]] || ELIGIBLE+=("$i"); done
+for ((i=0; i<n_bases; i++)); do
+	case "${IDX_NAME[i]}" in binary|keyboard) continue ;; esac
+	ELIGIBLE+=("$i")
+done
 
 ## Symbols are loaded once per base, on first use, into a per-index array.
 declare -A SYM_LOADED=()
