@@ -34,7 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
-- Streaming binary conversion is much faster. Piped input now streams straight to output with no whole-file buffering, and the single-character bases (base 16, 32, 64) use hand-unrolled, byte-aligned inner loops like the standard encoders. Encoding a file to base-64/32/16 is several times quicker than before and within roughly 1.5x of `basenc`; output is unchanged. Decoding now also tolerates line-wrapped input, so it reads `base64`'s default wrapped output.
+- Streaming binary conversion is much faster in both directions. Piped input streams straight to output with no whole-file buffering, and the standard bases (16, 32, 64) use hand-unrolled, byte-aligned inner loops like the system tools. Encoding and decoding to and from base-64/32/16 now run at hundreds of MiB/s; on the test bench, base-64 decode is faster than `base64` and `basenc`, and encode is close behind. Output is unchanged, and decoding tolerates line-wrapped input, so it reads `base64`'s default output. See the throughput table in the README.
 - Bases whose symbols include `-` now use `~` as the negative marker, instead of the en-dash. Affects base 45, 64u, 64h, and 69prsh.
 - `--list` no longer repeats the base name in its aliases column.
 - Clearer help text for the base-query flags.

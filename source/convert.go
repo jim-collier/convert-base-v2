@@ -547,12 +547,19 @@ func streamEncode(r io.Reader, w io.Writer, to *Base, kOut int) error {
 // wrapped base64/base32), and strips a trailing run of the pad symbol. Output is
 // batched per input chunk. Any leftover sub-byte bits at the end must be zero,
 // matching the buffered guard against non-byte-aligned input (odd-length hex).
+//
+// The hot widths (base64, base32, hex) get an unrolled group path: whenever the
+// accumulator is group-aligned and the next whole group of digits is all valid,
+// the group is decoded with constant shifts and no accumulator bookkeeping. A
+// line break, pad, or chunk edge drops back to the per-byte path, which realigns
+// the accumulator and lets the group path resume - so wrapped input still flies.
 func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
 	var padByte byte
 	hasPad := from.PadSymbol != ""
 	if hasPad {
 		padByte = from.PadSymbol[0]
 	}
+	dec := &from.byteValue
 	const bufSize = 1 << 16
 	inbuf := make([]byte, bufSize)
 	out := make([]byte, 0, bufSize*kIn/8+1)
@@ -562,12 +569,53 @@ func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
 	for {
 		nn, err := r.Read(inbuf)
 		out = out[:0]
-		for i := 0; i < nn; i++ {
+		i := 0
+		for i < nn {
+			// Unrolled group path, only while byte-aligned (accBits == 0).
+			if accBits == 0 {
+				switch kIn {
+				case 6: // base64: 4 digits -> 3 bytes
+					for i+4 <= nn {
+						v0, v1, v2, v3 := dec[inbuf[i]], dec[inbuf[i+1]], dec[inbuf[i+2]], dec[inbuf[i+3]]
+						if v0|v1|v2|v3 < 0 {
+							break
+						}
+						out = append(out, byte(v0<<2|v1>>4), byte(v1<<4|v2>>2), byte(v2<<6|v3))
+						i += 4
+					}
+				case 4: // hex: 2 digits -> 1 byte
+					for i+2 <= nn {
+						v0, v1 := dec[inbuf[i]], dec[inbuf[i+1]]
+						if v0|v1 < 0 {
+							break
+						}
+						out = append(out, byte(v0<<4|v1))
+						i += 2
+					}
+				case 5: // base32: 8 digits -> 5 bytes
+					for i+8 <= nn {
+						v0, v1, v2, v3 := dec[inbuf[i]], dec[inbuf[i+1]], dec[inbuf[i+2]], dec[inbuf[i+3]]
+						v4, v5, v6, v7 := dec[inbuf[i+4]], dec[inbuf[i+5]], dec[inbuf[i+6]], dec[inbuf[i+7]]
+						if v0|v1|v2|v3|v4|v5|v6|v7 < 0 {
+							break
+						}
+						out = append(out,
+							byte(v0<<3|v1>>2),
+							byte(v1<<6|v2<<1|v3>>4),
+							byte(v3<<4|v4>>1),
+							byte(v4<<7|v5<<2|v6>>3),
+							byte(v6<<5|v7))
+						i += 8
+					}
+				}
+			}
+			if i >= nn {
+				break
+			}
+			// Per-byte path: one digit, or a skipped line break / pad, or an error.
 			c := inbuf[i]
-			// Common case first: a valid digit. Each digit adds kIn (<= 8) bits to
-			// an accumulator holding < 8, so at most one whole byte comes out - an
-			// "if", not a loop.
-			v := from.byteValue[c]
+			i++
+			v := dec[c]
 			if v >= 0 {
 				acc = acc<<kIn | uint64(v)
 				accBits += kIn
@@ -578,8 +626,6 @@ func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
 				}
 				continue
 			}
-			// Uncommon: line breaks (tolerated, so wrapped input decodes) and a
-			// trailing run of the pad symbol are skipped; anything else is an error.
 			if c == '\n' || c == '\r' || (hasPad && c == padByte) {
 				continue
 			}

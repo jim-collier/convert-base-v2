@@ -509,9 +509,8 @@ func printExamples() {
   convert-base-v2  --from-symbols "aeiouy.-_0 neg=~ dec=/"  --to 20w  "~y0-._/ooo"
 
   # Convert a binary file to any 2^N base (i.e. 4, 8, 16, 32, 64 ... 65536)
-  # This streams in linear time and is now within striking distance of 'basenc'
-  # for the standard bases. The reason to reach for this tool is the bases nothing
-  # else has (2048, 65536, your own 2^N alphabet); for plain base-64, basenc is fine.
+  # Streams in linear time at speeds competitive with basenc/base64. The draw is
+  # the bases nothing else has: 2048, 65536, or your own 2^N alphabet.
   cat file.bin | convert-base-v2 --from binary --to 64u > out.b64
 
   cat out.b64  | convert-base-v2 --from 64u --to binary > file2.bin       # base64url -> File (bit-perfect)
