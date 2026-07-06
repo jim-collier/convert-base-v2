@@ -440,6 +440,18 @@ func predefinedBases() []*Base {
 		// [end of the base-64 domain]
 		//
 
+		// Base-64 of emojis. Every symbol is a single-code-point emoji that
+		// Unicode marks Emoji_Presentation (renders in color by default), with no
+		// skin-tone variants, listed in code-point (LANG=C) order and hand-picked
+		// to look distinct from one another. Being 2^6 it also works in the
+		// binary/streaming path, so binary data can be encoded straight to emoji.
+		mkSpec(SpecOpts{
+			BaseSymbols: "⌚ ☔ ☕ ⚽ ⛄ ✅ ✨ ❌ ❓ ⭐ 🌈 🌙 🌵 🌷 🍄 🍇 🍉 🍌 🍎 🍔 🍕 🍦 🍰 🍷 🍺 🎁 🎈 🎉 🎓 🎨 🎯 🎸 🏆 🐌 🐍 🐘 🐙 🐟 🐢 🐧 🐸 🐼 👀 👑 👻 👽 💀 💎 💡 💣 💰 📌 📷 🔑 🔔 🔥 🔨 🔭 😀 😍 😭 😴 🚀 🚲",
+			Aliases:     []string{"64emoji", "emoji", "64e"},
+			DisallowNeg: true,
+			DisallowDec: true,
+		}),
+
 		// Base-69: The nice radix.
 		// It was debated on including a childish base like this.
 		// But in the spirit of being comprehensive, it was included.
