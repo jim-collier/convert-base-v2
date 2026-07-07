@@ -7,7 +7,7 @@
 
 ![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)
 ![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)
-![Lifecycle: Beta](https://img.shields.io/badge/Lifecycle-Beta-yellow)
+![Lifecycle: Stable](https://img.shields.io/badge/Lifecycle-Stable-brightgreen)
 ![Support](https://img.shields.io/badge/Support-Maintained-brightgreen)
 ![Status: Passing](https://img.shields.io/badge/Status-Passing-brightgreen)
 
@@ -37,8 +37,8 @@
 
 <table style="border: none; border-collapse: collapse;">
 	<tr style="border: none; border-collapse: collapse;">
-		<td style="border: none; border-collapse: collapse;"><img src="https://github.com/jim-collier/convert-base-v2/blob/main/assets/mascot.png?raw=true" alt="convert-base-v2 mascot" width="320"/></td>
-		<td style="border: none;">A cross-platform CLI program written in Go, to convert any number of any size, to and from any arbitrary base. Dozens of predefined named bases, or specify your own. And all the standards like base-10, 16, RFC base-64, etc. Supports negatives, floating-point, and piped binary data.</td>
+		<td style="border: none; border-collapse: collapse;"><img src="https://github.com/jim-collier/convert-base-v2/blob/main/assets/mascot.png?raw=true" alt="Logo" width="320"/></td>
+		<td style="border: none;">A cross-platform CLI program written in Go, to convert any number of any size, to and from any arbitrary base. Dozens of predefined named bases, or specify your own. And all the standards like base-10, 16, RFC base-64, etc.<br /><br />Supports negatives and floating-point (even for bases originally designed for binary stream encoding), and piped binary data.<br /><br />Supports binary-to-text encoding and decoding, in any base.</td>
 	</tr style="border: none; border-collapse: collapse;">
 </table>
 
@@ -54,11 +54,10 @@
 - [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
 	- [Also why the -v2?](#also-why-the--v2)
 - [Speed](#speed)
-- [Complex third-party encoding algorithms](#complex-third-party-encoding-algorithms)
+- [Complex third-party binary encode/decode algorithms](#complex-third-party-binary-encodedecode-algorithms)
 - [Example output](#example-output)
 - [List of predefined bases and their positional notation symbols](#list-of-predefined-bases-and-their-positional-notation-symbols)
-- [Screenshots](#screenshots)
-- [Supporting work](#supporting-work)
+- [How to design a numeric base](#how-to-design-a-numeric-base)
 - [Document history](#document-history)
 - [Copyright and license](#copyright-and-license)
 
@@ -80,12 +79,15 @@ A universal cross-platform CLI number conversion program, written in Go, that:
 
 - You can define your own arbitrary base and alphabet (the set of positional notation symbols), just by providing the alphabet.
 
-	- E.g.: "`a 0 c X 🫪 だ`" is a perfectly valid, functional base-6 for some reason.
+	- E.g.: "`a 0 c X 🫪 だ`" is a perfectly valid, functional base-6 (for some reason).
 
-- Supports stream-encoding to, and from, binary input/output.
+- Supports stream-encoding any amount of binary data to text, and vice-versa, in any base.
 
-	- In other words, it can do what `basenc` can do, and also in O(N) linear time, at roughly the same speed.
-	- Regular finite base conversion, however, necessarily works in O(N^2) quadratic time.)
+	- In other words, it can do what `basenc` can do, also in O(N) linear time, at roughly the same speed. But in any base.
+
+		- *Regular finite positional base conversion, however, necessarily works in O(N^2) quadratic time*.
+
+	- Binary-to-text stream encoding and decoding is a separate concept - and code path - than positional base translation. But the plumbing - and the base definitions - are there, so why not?
 
 - Accepts data from the command line, and/or from `stdin` (e.g. piped data).
 
@@ -115,15 +117,19 @@ At larger non-standard bases that this project created (e.g. `base-256jc1`), car
 
 ### Also why the -v2?
 
-As you've probably noticed, the command `convert-base-v2` has a version number on the end - to distinguish it from v1. As predicted in that project, this v2 has a necessary minor break in output from v1, in one narrow edge case. And like v1, in the future there may be good reasons for the output to change again in some future v3.
+As you've probably noticed, the command `convert-base-v2` has a version number on the end - this is, possibly as a non-answer, to distinguish it from v1.
 
-For example, there are no "official standards" for large bases above 94 as of time of writing, but that could change. So to avoid overwriting an old script on a running system that may rely on it and its predictable output, a new suffix number will be given to future programs if the output changes, and the two will coexist. "-v2" is both to coexist with "-v1" (and "-v1b"), and also leaves room for the possibility of now name collisions in the future.
+As predicted as an eventual possibility in the v1 project (also on github), this v2 has a necessary minor break in output from v1, in one narrow edge case. And like v1, in the future there may be good reasons for the output to change again in some future v3.
+
+- *For example, there are no "official standards" for large bases above 94 as of time of writing. But that could change. This program has dozens of large named base defitions, that could someday result in a "name collision" with some future official standard. Unlikely, but possible. So to avoid overwriting an old script on a running system that may rely on this program and its predictable, stable, fully deterministic output - a new suffix number will be given to future programs if the output changes, and the two can coexist. "-v2" is there to coexist with "-v1" (and "-v1b"), and also leaves room for the possibility of new name collisions in the future, e.g. with a "-v3"*.
 
 ## Speed
 
-The binary/text streaming path is very fast. Here are benchmarked throughput results against the standard tools, one table per format.
+`convert-base-v2` is very fast.
 
-(You can see that this program smokes the competition on decoding. On encoding, it's only fractionally slower - not magnitudes.)
+Binary/text stream encoding/decoding is the most easily benchmarked (and relevant in terms of raw speed), so here are benchmarked throughput results against the standard tools - one table per format.
+
+(You can see that `convert-base-v2` smokes the "competition" on decoding. On encoding, it's only fractionally slower - not magnitudes.)
 
 **Base-64**
 
@@ -158,7 +164,7 @@ FYI: Base-64 is statistically the most compact way to store binary data as UTF-8
 
 For embedding binary data in Twitter/𝕏 posts, qntm's base-2048 is allegedly optimal.
 
-## Complex third-party encoding algorithms
+## Complex third-party binary encode/decode algorithms
 
 This program faithfully recreates four complex (or at least non-direct and non-trivial) binary-to-text encoding algorithms - that ordinarily require custom implementation in JS, Rust, and/or Python:
 
@@ -170,13 +176,13 @@ This program faithfully recreates four complex (or at least non-direct and non-t
 
 - [Base 65536](https://github.com/qntm/base65536) by [qntm](https://github.com/qntm/), "Unicode's answer to Base64". (Most optimal radix for binary-to-text encoding for UTF-32. Not an official standard, but "published".)
 
-Note: This program doesn't use any of their published open-source code - it implements them "clean-room" style directly from their specs. (Only due to - well, code the incompatibility issue.)
+Note: This program doesn't use any of their published open-source code - they were engineered "clean-room" style, directly from their specs. (Only because - well, Go isn't those other languages.)
 
 ## Example output
 
-The table below shows one base-10 number, 2023090613425900000000000000001, represented in every displayable base. It is regenerated from the program with `github/utility/gen-example-table.bash` whenever the set of bases changes.
+The table below shows one base-10 number, `2023090613425900000000000000001`, represented in every displayable base.
 
-Note that some of the larger bases appear to have longer output - but that's only due to being rendered with proportional fonts, combined with some of the wider Unicode characters. Look at the "Chars" column to see the actual # of characters in the output.
+Note that some of the larger bases appear to have longer output - but that's only due to being rendered with proportional fonts, combined with double-width Unicode characters. Look at the "Chars" column to see the actual # of characters in the output.
 
 | Base | Chars | Number representation
 | :-- | --: | :--
@@ -320,38 +326,16 @@ You can define your own arbitrary base of any size >1. These are just all of the
 | 32768 | 32768qntm            | 32768utf16                                            | Tightest binary-to-text encoding for UTF-16.  |               | ҠҡҢңҤҥҦҧҨҩҪҫҬҭҮүҰұҲҳҴҵҶҷҸҹҺһҼҽҾҿԀԁԂԃԄԅԆԇԈԉԊԋԌԍԎԏԐԑԒԓԔԕԖԗԘԙԚԛԜԝԞԟ ...to... ꞀꞁꞂꞃꞄꞅꞆꞇꞈ꞉꞊ꞋꞌꞍꞎꞏꞐꞑꞒꞓꞔꞕꞖꞗꞘꞙꞚꞛꞜꞝꞞꞟꡀꡁꡂꡃꡄꡅꡆꡇꡈꡉꡊꡋꡌꡍꡎꡏꡐꡑꡒꡓꡔꡕꡖꡗꡘꡙꡚꡛꡜꡝꡞꡟ
 | 65536 | 65536                | 65536qntm, 65536utf32                                 | Tightest binary-to-text encoding for UTF-32.  |               | 㐀㐁㐂㐃㐄㐅㐆㐇㐈㐉㐊㐋㐌㐍㐎㐏㐐㐑㐒㐓㐔㐕㐖㐗㐘㐙㐚㐛㐜㐝㐞㐟㐠㐡㐢㐣㐤㐥㐦㐧㐨㐩㐪㐫㐬㐭㐮㐯㐰㐱㐲㐳㐴㐵㐶㐷㐸㐹㐺㐻㐼㐽㐾㐿 ...to... [encoded but not printable by non-dedicated fonts]
 
-## Screenshots
+## How to design a numeric base
 
-Click any image for the full-size version.
-
-<p align="center">
-	<a href="assets/screenshots/large/01-everyday.png"><img src="assets/screenshots/01-everyday.png" width="48%" alt="Everyday conversions"></a>
-	<a href="assets/screenshots/large/02-bignum.png"><img src="assets/screenshots/02-bignum.png" width="48%" alt="Arbitrary size, exotic bases"></a>
-	<a href="assets/screenshots/large/03-custom.png"><img src="assets/screenshots/03-custom.png" width="48%" alt="Custom alphabets and markers"></a>
-	<a href="assets/screenshots/large/04-binary.png"><img src="assets/screenshots/04-binary.png" width="48%" alt="Binary streaming round-trip"></a>
-	<a href="assets/screenshots/large/05-settings.png"><img src="assets/screenshots/05-settings.png" width="48%" alt="Configuration and base list"></a>
-</p>
-
-## Supporting work
-
-Note: The following are directory listings that typically contain a raw `.csv` file, the same data in a better-formatted Gnumeric spreadsheet, and an Excel version.
-
-LibreOffice would have been much preferred to [Gnumeric](https://download.cnet.com/gnumeric/) (both are multi-platform open-source spreadsheets), except that for these large spreadsheets covering most or all Unicode, LibreOffice chokes too hard to use. (Even on 32 cores and 128GB RAM in 2026.) Gnumeric handles it with ease, seemingly even better than Excel.
-
-Also, font rendering for Unicode looks significantly smoother on Linux (with B&W font-smoothing with no hinting), than Excel for Windows. (Though to be fair, my version of Excel is older and still uses ClearType, with RGB subpixel hinting and overly-strong hinting.) MacOS should look great too.
-
-Unicode listings:
-
-- [All printable Unicode characters, ordered by block](https://github.com/jim-collier/convert-base-v2/tree/main/reference/unicode_all_grouped_by_block).
-
-- [Nicely AI-ordered lists of printable Unicode characters <= U+1FBF9](https://github.com/jim-collier/convert-base-v2/tree/main/reference/unicode_ordered_below_U1FBF9) (i.e. directly printable in most modern fonts).
-
-	Characters are, in many cases at higher code points, re-ordered to look nice and "expected" in a positional notation numbering system. (I.e. numbered balls grouped by type and in order, arrows grouped by style and rotating from "north" to "northwest".)
-
-	This is a great reference to start from, for designing a large base.
+[This document](how_to_design_a_numeric_base.md) (in this repo) describes how to design a good numeric base - either as a positional notation system, and/or as a binary-to-text codec. It's not as easy as you might think. (Hence all the whacky bases as "official standards".)
 
 ## Document history
 
+- 2026-06-06:
+	- Updates to reflect program updates.
+	- Removed some unnecessary sections.
+	- Updated base lists.
 - 2026-05-03:
 	- Fixed incorrect lifecycle and status badges.
 	- Minor corrections.
