@@ -144,6 +144,14 @@ func predefinedBases() []*Base {
 			Aliases:     []string{"Rods", "10rods"},
 		}),
 
+		// Base-10 in emoji (custom hand-picked)
+		mkSpec(SpecOpts{
+			BaseSymbols: "😀 😑 😔 😘 😜 😠 😬 😮 🙄 🤔",
+			Aliases:     []string{"emoji10"},
+			NegSymbol:   "🥕",
+			DecSymbol:   "⚽",
+		}),
+
 		//
 		// [end of base-10]
 		//
@@ -447,7 +455,7 @@ func predefinedBases() []*Base {
 		// streaming path, so binary data can be encoded straight to emoji.
 		mkSpec(SpecOpts{
 			BaseSymbols: strings.Join(runeRange(0x1F600, 0x1F63F), " "),
-			Aliases:     []string{"64emoji", "emoji", "64e"},
+			Aliases:     []string{"emoji64"},
 			DisallowNeg: true,
 			DisallowDec: true,
 		}),
