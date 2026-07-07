@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
-#
-# Generate the README "Example output" table: one fixed base-10 number shown in
-# every displayable base, with a character count. Regenerate whenever the set of
-# bases (or their alphabets) changes, and paste the output into README.md under
-# the "Example output" heading.
-#
-# Usage:  gen-example-table.bash [path-to-convert-base-v2]
-# Env:    CBTABLE_NUM (the base-10 number to show; has a sensible default)
-#
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## gen-example-table.bash
+##
+##	Generates the README "Example output" table: one fixed base-10 number
+##	shown in every displayable base, with a character count. Regenerate
+##	whenever the set of bases (or their alphabets) changes, and paste the
+##	output into README.md under the "Example output" heading.
+##
+##	Usage:
+##		gen-example-table.bash [path-to-convert-base-v2]
+##	Env:
+##		CBTABLE_NUM (the base-10 number to show; has a sensible default)
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+
+##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
+
 set -Eeuo pipefail
 
 meDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
