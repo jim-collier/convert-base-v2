@@ -38,7 +38,7 @@
 <table style="border: none; border-collapse: collapse;">
 	<tr style="border: none; border-collapse: collapse;">
 		<td style="border: none; border-collapse: collapse;"><img src="https://github.com/jim-collier/convert-base-v2/blob/main/assets/mascot.png?raw=true" alt="Logo" width="320"/></td>
-		<td style="border: none;">A cross-platform CLI program written in Go, to convert any number of any size, to and from any arbitrary base. Dozens of predefined named bases, or specify your own. And all the standards like base-10, 16, RFC base-64, etc.<br /><br />Supports negatives and floating-point (even for bases originally designed for binary stream encoding), and piped binary data.<br /><br />Supports binary-to-text encoding and decoding, in any base.</td>
+		<td style="border: none;">A cross-platform CLI program written in Go, to convert any number of any size, to and from any arbitrary base. Dozens of predefined named bases, or specify your own. And all the standards like base-10, 16, RFC base-64, etc.<br /><br />Supports negatives and floating-point (even for bases originally designed for binary stream encoding), and piped binary data.<br /><br />Supports binary-to-text encoding and decoding for power-of-two bases and the standard chunked codecs (base45, Ascii85, Z85, base91).</td>
 	</tr style="border: none; border-collapse: collapse;">
 </table>
 
@@ -81,13 +81,13 @@ A universal cross-platform CLI number conversion program, written in Go, that:
 
 	- E.g.: "`a 0 c X 🫪 だ`" is a perfectly valid, functional base-6 (for some reason).
 
-- Supports stream-encoding any amount of binary data to text, and vice-versa, in any base.
+- Encodes and decodes binary data to and from text, for every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. Other bases have no byte-exact mapping, so binary mode reports which bases qualify (the RAW column of `--list`) and refuses the rest.
 
-	- In other words, it can do what `basenc` can do, also in O(N) linear time, at roughly the same speed. But in any base.
+	- In other words, it can do what `basenc` can do, also in O(N) linear time, at roughly the same speed - plus bases `basenc` never heard of, like base-2048 and base-65536.
 
 		- *Regular finite positional base conversion, however, necessarily works in O(N^2) quadratic time*.
 
-	- Binary-to-text stream encoding and decoding is a separate concept - and code path - than positional base translation. But the plumbing - and the base definitions - are there, so why not?
+	- Binary-to-text encoding and decoding is a separate concept - and code path - than positional base translation. Only the power-of-two bases and the defined codecs have a spec for carrying raw bytes; the rest are positional-only.
 
 - Accepts data from the command line, and/or from `stdin` (e.g. piped data).
 

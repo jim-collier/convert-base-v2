@@ -302,10 +302,11 @@ func predefinedBases() []*Base {
 		// "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ $%*+-./:"
 		// https://www.rfc-editor.org/rfc/rfc9285.html
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_62hex, 36) + "\\  $ % * + - . / :", // "\ " Is an escaped space symbol; required double '\\'. Extra space after it separates it from "$".
-			Aliases:     []string{"45", "45r", "45rfc9285", "RFC9285"},
-			NegSymbol:   "~", // tilde; '-' is a base symbol here
-			DecSymbol:   "•", // Bullet [&bull]
+			BaseSymbols:  leftTokens(base_62hex, 36) + "\\  $ % * + - . / :", // "\ " Is an escaped space symbol; required double '\\'. Extra space after it separates it from "$".
+			Aliases:      []string{"45", "45r", "45rfc9285", "RFC9285"},
+			NegSymbol:    "~", // tilde; '-' is a base symbol here
+			DecSymbol:    "•", // Bullet [&bull]
+			BinaryScheme: "base45",
 		}),
 
 		// Base-48
@@ -476,10 +477,11 @@ func predefinedBases() []*Base {
 		// Negative and decimal disabled, as both are used, and neither make sense for intended binary encoding.
 		// https://rfc.zeromq.org/spec/32/
 		mkSpec(SpecOpts{
-			BaseSymbols: base_10 + lowerAZ_c26 + upperAZ_c26 + " . - : + = ^ ! / * ? & < > ( ) [ ] { } @ % $ #",
-			Aliases:     []string{"85z", "z85", "85zeromq"},
-			DisallowNeg: true,
-			DisallowDec: true,
+			BaseSymbols:  base_10 + lowerAZ_c26 + upperAZ_c26 + " . - : + = ^ ! / * ? & < > ( ) [ ] { } @ % $ #",
+			Aliases:      []string{"85z", "z85", "85zeromq"},
+			DisallowNeg:  true,
+			DisallowDec:  true,
+			BinaryScheme: "z85",
 		}),
 
 		// Base 85, Ascii85 Adobe variant, used in PostScript Level 2 and PDF
@@ -487,11 +489,14 @@ func predefinedBases() []*Base {
 		// Requires spaces due to comma in set, also easier to read the two escaped characters.
 		// https://en.wikipedia.org/wiki/Ascii85
 		mkSpec(SpecOpts{
-			BaseSymbols: "! \" # $ % & ' ( ) * + , - . /" + base_10 + " : ; < = > ? @ " + upperAZ_c26 + " [ \\ ] ^ _ ` " + leftTokens(lowerAZ_c26, 21),
+			// The backslash symbol needs '\\\\' here: '\\' would reach the spec parser as a
+			// single '\', which then escapes the following space and drops the symbol.
+			BaseSymbols: "! \" # $ % & ' ( ) * + , - . /" + base_10 + " : ; < = > ? @ " + upperAZ_c26 + " [ \\\\ ] ^ _ ` " + leftTokens(lowerAZ_c26, 21),
 			Aliases:     []string{"85ps", "85postscript", "85adobe", "postscript"},
 			// Wasn't designed for positional notation
-			DisallowNeg: true,
-			DisallowDec: true,
+			DisallowNeg:  true,
+			DisallowDec:  true,
+			BinaryScheme: "ascii85",
 		}),
 
 		// Base 85, RFC 1924, "A Compact Representation of IPv6 Addresses," published April 1, 1996 by Robert Elz.
@@ -514,8 +519,9 @@ func predefinedBases() []*Base {
 			BaseSymbols: rfc4648start_c62 + " ! # $ % & ( ) * + , . / : ; < = > ? @ [ ] ^ _ ` { | } ~ \"",
 			Aliases:     []string{"91hk", "91bas"},
 			// Wasn't designed for positional notation
-			DisallowNeg: true,
-			DisallowDec: true,
+			DisallowNeg:  true,
+			DisallowDec:  true,
+			BinaryScheme: "base91",
 		}),
 
 		// Base 122

@@ -26,15 +26,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Raw binary conversion now works with any base, not just powers of two. A non-power-of-2 base treats the byte stream as one big-endian integer, with leading zero bytes carried as leading zero digits, so it round-trips at any length. The power-of-2 bit-packing path is unchanged.  [20260706]
+- Raw binary encode and decode for four more bases, each per its official spec: base45 (RFC 9285), Ascii85 (Adobe/PostScript), Z85 (ZeroMQ RFC 32), and base91 (basE91). These are chunked binary-to-text codecs, so they carry bytes exactly and round-trip at any length (Z85 requires 4-byte-aligned input, per its spec). Powers of two still use the fast bit-packing path. Any other base has no byte-exact mapping and is refused in binary mode.  [20260707]
 
 ### Changed
 
+- `--list` gains a RAW column showing which bases can carry a raw binary stream (the power-of-two bases plus the codecs above).  [20260707]
 - The README no longer includes screenshots, and the pipeline no longer regenerates them by default. The generator is kept for on-demand use.  [20260706]
+
+### Fixed
+
+- The Ascii85 base (`85ps`) was defined with 84 symbols instead of 85: its backslash symbol was being dropped by the symbol-spec escape handling. Now a correct 85-symbol alphabet.  [20260707]
 
 ### Other work
 
-- Broadened the test harness: raw round-trips now cover every base (not just powers of two) at lengths that force padding, with fixed vectors pinning the base-x leading-zero convention. Added a resource profile (peak memory and wall time) and a base-x timing guard, both skipped by `--quick`.  [20260706]
+- Broadened the test harness: raw round-trips now cover every base the RAW column advertises, with fixed spec vectors for each codec and a check that non-codec bases refuse raw binary. Added a resource profile (peak memory and wall time) and a codec throughput guard, both skipped by `--quick`.  [20260707]
 
 ## v1.1.0 - 2026-07-06
 

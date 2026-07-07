@@ -31,16 +31,21 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		kIn := powerOfTwoBits(len(from.Symbols))
 		kOut := powerOfTwoBits(len(to.Symbols))
 		if kIn == 0 || kOut == 0 {
-			// Non-power-of-2 base: bit-packing doesn't apply, so treat the whole
-			// byte stream as one big-endian integer and convert it, base-x style.
-			// Leading zero bytes carry no weight in the integer, so each maps to a
-			// leading zero digit (the base58 convention); the reverse restores
-			// them. Lossless and round-trips at any length. It rides the O(N^2)
-			// big.Int path, so it's for the odd non-2^N base, not bulk files.
-			if from.Binary {
-				return encodeBytesAnyBase(input, to), nil
+			// The non-binary side isn't a power of two, so bit-packing doesn't
+			// apply. Only a defined binary-to-text codec (base45, ascii85, z85,
+			// base91) can carry raw bytes, each per its own spec; any other base
+			// has no byte-exact mapping and is rejected.
+			codec := to
+			if to.Binary {
+				codec = from
 			}
-			return decodeBytesAnyBase(input, from)
+			if codec.BinaryScheme == "" {
+				return "", fmt.Errorf("binary mode requires a power-of-2 base (2, 4, 8, ... 256) or a defined binary-to-text codec (base45, ascii85, z85, base91); base %q has %d digits and is neither", codec.Name(), len(codec.Symbols))
+			}
+			if from.Binary {
+				return encodeCodec(input, codec)
+			}
+			return decodeCodec(input, codec)
 		}
 		// The non-binary side's bit width decides the tail handling. Up to 8
 		// bits per digit, the plain bit-packed path already round-trips every
@@ -713,56 +718,307 @@ func decodeBinaryPrefixed(input string, from *Base, k int) (string, error) {
 	return string(buf[m : m+int(n)]), nil
 }
 
-// encodeBytesAnyBase encodes raw bytes into an arbitrary base (any radix, not
-// just a power of two) by reading the whole stream as one big-endian integer and
-// converting it. Leading zero bytes have no place in the integer, so each is
-// emitted as a leading zero digit, base58-style, and decodeBytesAnyBase turns
-// them back into zero bytes. Lossless and round-trips at any length.
-func encodeBytesAnyBase(data string, to *Base) string {
-	zeros := 0
-	for zeros < len(data) && data[zeros] == 0 {
-		zeros++
+// encodeCodec / decodeCodec route a raw byte stream through the binary-to-text
+// codec named by the base's BinaryScheme. These are the non-power-of-2 bases that
+// carry bytes: each has an official spec (chunk sizes, padding, byte order) that
+// the plain positional conversion can't reproduce, so they get a dedicated path.
+func encodeCodec(data string, codec *Base) (string, error) {
+	switch codec.BinaryScheme {
+	case "base45":
+		return encodeBase45(data, codec), nil
+	case "ascii85":
+		return encodeAscii85(data, codec), nil
+	case "z85":
+		return encodeZ85(data, codec)
+	case "base91":
+		return encodeBase91(data, codec), nil
 	}
-	radix := big.NewInt(int64(len(to.Symbols)))
-	n := new(big.Int).SetBytes([]byte(data))
-	mod := new(big.Int)
-	var rev []int // digit values, least significant first
-	for n.Sign() > 0 {
-		n.DivMod(n, radix, mod)
-		rev = append(rev, int(mod.Int64()))
-	}
+	return "", fmt.Errorf("base %q has no raw binary codec", codec.Name())
+}
 
-	var sb strings.Builder
-	for i := 0; i < zeros; i++ {
-		sb.WriteString(to.Symbols[0])
+func decodeCodec(input string, codec *Base) (string, error) {
+	switch codec.BinaryScheme {
+	case "base45":
+		return decodeBase45(input, codec)
+	case "ascii85":
+		return decodeAscii85(input, codec)
+	case "z85":
+		return decodeZ85(input, codec)
+	case "base91":
+		return decodeBase91(input, codec)
 	}
-	for i := len(rev) - 1; i >= 0; i-- {
-		sb.WriteString(to.Symbols[rev[i]])
+	return "", fmt.Errorf("base %q has no raw binary codec", codec.Name())
+}
+
+// --- base45 (RFC 9285) ---------------------------------------------------------
+// Two bytes become three symbols: n = hi*256 + lo, emitted low-symbol first
+// (n%45, then (n/45)%45, then n/45/45). A lone trailing byte becomes two symbols.
+
+func encodeBase45(data string, b *Base) string {
+	var sb strings.Builder
+	sb.Grow(len(data)*3/2 + 2)
+	i := 0
+	for ; i+2 <= len(data); i += 2 {
+		n := int(data[i])<<8 | int(data[i+1])
+		sb.WriteString(b.Symbols[n%45])
+		sb.WriteString(b.Symbols[(n/45)%45])
+		sb.WriteString(b.Symbols[n/45/45])
+	}
+	if i < len(data) {
+		n := int(data[i])
+		sb.WriteString(b.Symbols[n%45])
+		sb.WriteString(b.Symbols[n/45])
 	}
 	return sb.String()
 }
 
-// decodeBytesAnyBase reverses encodeBytesAnyBase: read the digits back into a
-// big-endian integer, and turn each leading zero digit into a leading zero byte.
-func decodeBytesAnyBase(input string, from *Base) (string, error) {
-	digits, err := from.Tokenize(input)
-	if err != nil {
-		return "", err
+func decodeBase45(input string, b *Base) (string, error) {
+	// base45 has space as a digit, so nothing is treated as skippable whitespace.
+	vals := make([]int, 0, len(input))
+	for i := 0; i < len(input); i++ {
+		v := b.byteValue[input[i]]
+		if v < 0 {
+			return "", fmt.Errorf("cannot decode from %s: byte %#02x (%q) is not a base-45 symbol", b.Name(), input[i], string(input[i]))
+		}
+		vals = append(vals, v)
 	}
-	zeros := 0
-	for zeros < len(digits) && from.value[digits[zeros]] == 0 {
-		zeros++
+	var out []byte
+	i := 0
+	for ; i+3 <= len(vals); i += 3 {
+		n := vals[i] + vals[i+1]*45 + vals[i+2]*45*45
+		if n > 0xFFFF {
+			return "", fmt.Errorf("cannot decode from %s: a 3-symbol group is out of range", b.Name())
+		}
+		out = append(out, byte(n>>8), byte(n))
 	}
-	radix := big.NewInt(int64(len(from.Symbols)))
-	n := new(big.Int)
-	tmp := new(big.Int)
-	for _, d := range digits {
-		n.Mul(n, radix)
-		n.Add(n, tmp.SetInt64(int64(from.value[d])))
+	switch len(vals) - i {
+	case 0:
+	case 2:
+		n := vals[i] + vals[i+1]*45
+		if n > 0xFF {
+			return "", fmt.Errorf("cannot decode from %s: the 2-symbol tail is out of range", b.Name())
+		}
+		out = append(out, byte(n))
+	default: // a lone leftover symbol can't complete a group
+		return "", fmt.Errorf("cannot decode from %s: input length is not a valid base-45 encoding", b.Name())
 	}
-	body := n.Bytes()
-	out := make([]byte, zeros+len(body))
-	copy(out[zeros:], body)
+	return string(out), nil
+}
+
+// --- Ascii85 (Adobe / PostScript, no <~ ~> framing) ---------------------------
+// Four bytes become five symbols (big-endian uint32 in base 85, most significant
+// first). An all-zero full group is written as the single shortcut 'z'. A final
+// partial group is zero-padded to four bytes and emits one more symbol than bytes.
+
+func encodeAscii85(data string, b *Base) string {
+	var sb strings.Builder
+	sb.Grow(len(data)*5/4 + 8)
+	i := 0
+	for ; i+4 <= len(data); i += 4 {
+		n := uint32(data[i])<<24 | uint32(data[i+1])<<16 | uint32(data[i+2])<<8 | uint32(data[i+3])
+		if n == 0 {
+			sb.WriteByte('z')
+			continue
+		}
+		var d [5]byte
+		for j := 4; j >= 0; j-- {
+			d[j] = b.Symbols[n%85][0]
+			n /= 85
+		}
+		sb.Write(d[:])
+	}
+	if rem := len(data) - i; rem > 0 {
+		var buf [4]byte
+		copy(buf[:], data[i:]) // low bytes stay zero
+		n := uint32(buf[0])<<24 | uint32(buf[1])<<16 | uint32(buf[2])<<8 | uint32(buf[3])
+		var d [5]byte
+		for j := 4; j >= 0; j-- {
+			d[j] = b.Symbols[n%85][0]
+			n /= 85
+		}
+		sb.Write(d[:rem+1]) // drop the zero-pad symbols
+	}
+	return sb.String()
+}
+
+func decodeAscii85(input string, b *Base) (string, error) {
+	var out []byte
+	var group [5]int
+	gi := 0
+	flush := func(count int) error {
+		for k := count; k < 5; k++ {
+			group[k] = 84 // pad the tail with the highest symbol ('u')
+		}
+		var n uint64
+		for k := 0; k < 5; k++ {
+			n = n*85 + uint64(group[k])
+		}
+		if n > 0xFFFFFFFF {
+			return fmt.Errorf("cannot decode from %s: a 5-symbol group overflows 32 bits", b.Name())
+		}
+		v := uint32(n)
+		full := [4]byte{byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)}
+		out = append(out, full[:count-1]...)
+		return nil
+	}
+	for i := 0; i < len(input); i++ {
+		c := input[i]
+		if c == 'z' { // all-zero group shortcut, only on a group boundary
+			if gi != 0 {
+				return "", fmt.Errorf("cannot decode from %s: 'z' shortcut inside a group", b.Name())
+			}
+			out = append(out, 0, 0, 0, 0)
+			continue
+		}
+		if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f' || c == '\v' {
+			continue // Ascii85 ignores whitespace
+		}
+		v := b.byteValue[c]
+		if v < 0 {
+			return "", fmt.Errorf("cannot decode from %s: byte %#02x (%q) is not an Ascii85 symbol", b.Name(), c, string(c))
+		}
+		group[gi] = v
+		gi++
+		if gi == 5 {
+			if err := flush(5); err != nil {
+				return "", err
+			}
+			gi = 0
+		}
+	}
+	if gi == 1 {
+		return "", fmt.Errorf("cannot decode from %s: a single trailing symbol is not a valid group", b.Name())
+	}
+	if gi > 0 {
+		if err := flush(gi); err != nil {
+			return "", err
+		}
+	}
+	return string(out), nil
+}
+
+// --- Z85 (ZeroMQ RFC 32) ------------------------------------------------------
+// Like Ascii85's core (four bytes -> five symbols, big-endian) but with the Z85
+// alphabet and NO padding: the spec requires the byte length to be a multiple of
+// 4 (and the symbol count a multiple of 5), so anything else is an error.
+
+func encodeZ85(data string, b *Base) (string, error) {
+	if len(data)%4 != 0 {
+		return "", fmt.Errorf("cannot encode to %s: Z85 (ZeroMQ RFC 32) requires the input length to be a multiple of 4 bytes; got %d", b.Name(), len(data))
+	}
+	var sb strings.Builder
+	sb.Grow(len(data) / 4 * 5)
+	for i := 0; i+4 <= len(data); i += 4 {
+		n := uint32(data[i])<<24 | uint32(data[i+1])<<16 | uint32(data[i+2])<<8 | uint32(data[i+3])
+		var d [5]byte
+		for j := 4; j >= 0; j-- {
+			d[j] = b.Symbols[n%85][0]
+			n /= 85
+		}
+		sb.Write(d[:])
+	}
+	return sb.String(), nil
+}
+
+func decodeZ85(input string, b *Base) (string, error) {
+	vals := make([]int, 0, len(input))
+	for i := 0; i < len(input); i++ {
+		c := input[i]
+		if c == '\n' || c == '\r' {
+			continue // tolerate line wrapping; Z85 has no whitespace symbols
+		}
+		v := b.byteValue[c]
+		if v < 0 {
+			return "", fmt.Errorf("cannot decode from %s: byte %#02x (%q) is not a Z85 symbol", b.Name(), c, string(c))
+		}
+		vals = append(vals, v)
+	}
+	if len(vals)%5 != 0 {
+		return "", fmt.Errorf("cannot decode from %s: Z85 requires the symbol count to be a multiple of 5; got %d", b.Name(), len(vals))
+	}
+	var out []byte
+	for i := 0; i+5 <= len(vals); i += 5 {
+		var n uint64
+		for k := 0; k < 5; k++ {
+			n = n*85 + uint64(vals[i+k])
+		}
+		if n > 0xFFFFFFFF {
+			return "", fmt.Errorf("cannot decode from %s: a 5-symbol group overflows 32 bits", b.Name())
+		}
+		v := uint32(n)
+		out = append(out, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
+	}
+	return string(out), nil
+}
+
+// --- base91 (basE91, Henning Henkel) ------------------------------------------
+// A bit queue: bytes are shifted in LSB-first, and whenever 13 or 14 bits are
+// available (13 if the low 13 bits exceed 88, else 14) a value 0..8191 is pulled
+// and written as two symbols (low = v%91, high = v/91). A short tail flushes one
+// or two symbols. Reference behavior; unknown input characters are ignored.
+
+func encodeBase91(data string, b *Base) string {
+	var sb strings.Builder
+	sb.Grow(len(data)*123/100 + 2)
+	var acc uint32
+	var nbits uint
+	for i := 0; i < len(data); i++ {
+		acc |= uint32(data[i]) << nbits
+		nbits += 8
+		if nbits > 13 {
+			v := acc & 8191
+			if v > 88 {
+				acc >>= 13
+				nbits -= 13
+			} else {
+				v = acc & 16383
+				acc >>= 14
+				nbits -= 14
+			}
+			sb.WriteString(b.Symbols[v%91])
+			sb.WriteString(b.Symbols[v/91])
+		}
+	}
+	if nbits > 0 {
+		sb.WriteString(b.Symbols[acc%91])
+		if nbits > 7 || acc > 90 {
+			sb.WriteString(b.Symbols[acc/91])
+		}
+	}
+	return sb.String()
+}
+
+func decodeBase91(input string, b *Base) (string, error) {
+	var out []byte
+	v := -1
+	var acc uint32
+	var nbits uint
+	for i := 0; i < len(input); i++ {
+		d := b.byteValue[input[i]]
+		if d < 0 {
+			continue // reference basE91 ignores characters outside the alphabet
+		}
+		if v < 0 {
+			v = d
+			continue
+		}
+		v += d * 91
+		acc |= uint32(v) << nbits
+		if v&8191 > 88 {
+			nbits += 13
+		} else {
+			nbits += 14
+		}
+		for nbits >= 8 {
+			out = append(out, byte(acc))
+			acc >>= 8
+			nbits -= 8
+		}
+		v = -1
+	}
+	if v >= 0 {
+		out = append(out, byte(acc|uint32(v)<<nbits))
+	}
 	return string(out), nil
 }
 
