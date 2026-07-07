@@ -194,6 +194,7 @@ Note that some of the larger bases appear to have longer output - but that's onl
 | Hindi | 31 | २०२३०९०६१३४२५९००००००००००००००००१
 | ArabicIndic | 31 | ٢٠٢٣٠٩٠٦١٣٤٢٥٩٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠١
 | Rods | 31 | 𝍡〇𝍡𝍢〇𝍨〇𝍥𝍠𝍢𝍣𝍡𝍤𝍨〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇𝍠
+| emoji10 | 31 | 😔😀😔😘😀🤔😀😬😑😘😜😔😠🤔😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😑
 | 12 | 29 | 12888834200A750490B5219507855
 | 16 | 26 | 1988F5553691D3492235FE0001
 | 20 | 24 | 284DDI4C93BCC6HA00000001
@@ -228,7 +229,7 @@ Note that some of the larger bases appear to have longer output - but that's onl
 | 64jc1 | 17 | PYFLLDf7JII8rλW01
 | 64w | 17 | mμQffMᛨ9XWWC◂Ʊʞ23
 | 64v1compat | 17 | hʞMXXHᛝ7VRR8▸≠w01
-| 64emoji | 17 | 😙😢😏😕😕😍😩😇😓😒😒😈😵😿😠😀😁
+| emoji64 | 17 | 😙😢😏😕😕😍😩😇😓😒😒😈😵😿😠😀😁
 | 69prsh | 17 | Ht2KiYhQQD8K*hSqv
 | 85ps | 16 | <X:34$)?'/f+&+qV
 | 85z | 16 | ndMmoZum[KT@d01F
@@ -267,6 +268,7 @@ You can define your own arbitrary base of any size >1. These are just all of the
 | 10    | hindi                | 10hindi, india, hārat, भारत                            |                                  |               | ०१२३४५६७८९
 | 10    | arabicindic          | 10arabicindic, 10easternarabic, easternarabic         |                                  |               | ٠١٢٣٤٥٦٧٨٩
 | 10    | rods                 | 10rods                                                |                                  |               | 〇𝍠𝍡𝍢𝍣𝍤𝍥𝍦𝍧𝍨
+| 10    | emoji10              |                                                       | Base-10 in emoji (neg 🥕, dec ⚽) |               | 😀😑😔😘😜😠😬😮🙄🤔
 | 12    | 12                   | 12hex, 12h, dozenal, duodecimal                       |                                  |               | 0123456789AB
 | 16    | 16                   | 16hex, 16h, hex, hexadecimal, nerdnumber, onepounder  |                                  |               | 0123456789ABCDEF
 | 20    | 20                   | 20hex, 20h, vigesimal, venti                          |                                  |               | 0123456789ABCDEFGHIJ
@@ -301,7 +303,7 @@ You can define your own arbitrary base of any size >1. These are just all of the
 | 64    | 64rfcurl             | 64rfcu, 64ru                                          |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_
 | 64    | 64wordsafe           | 64ws, 64w, 64jcws, 64nofks                            |                                  |               | 23456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱ
 | 64    | 64v1compat           | 64j1uw                                                |                                  |               | 0123456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠
-| 64    | 64emoji              | emoji, 64e                                            | Emoji faces (U+1F600..1F63F); also encodes binary. |     | 😀😁😂😃😄😅😆😇😈😉😊😋😌😍😎😏😐😑😒😓😔😕😖😗😘😙😚😛😜😝😞😟😠😡😢😣😤😥😦😧😨😩😪😫😬😭😮😯😰😱😲😳😴😵😶😷😸😹😺😻😼😽😾😿
+| 64    | emoji64              |                                                       | Emoji faces (U+1F600..1F63F); also encodes binary. |     | 😀😁😂😃😄😅😆😇😈😉😊😋😌😍😎😏😐😑😒😓😔😕😖😗😘😙😚😛😜😝😞😟😠😡😢😣😤😥😦😧😨😩😪😫😬😭😮😯😰😱😲😳😴😵😶😷😸😹😺😻😼😽😾😿
 | 69    | 69pshihn             |                                                       |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/-*<>\|
 | 85    | z85                  | 85z, 85zeromq                                         |                                  |               | 0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.-:+=^!/*?&<>()[]{}@%$#
 | 85    | postscript           | 85adobe, 85postscript, 85ps                           |                                  |               | !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_\`abcdefghijklmnopqrstu
