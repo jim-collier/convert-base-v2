@@ -212,21 +212,21 @@ def load_confusables():
 ##
 ## Emoji detection
 
-def is_emoji_by_metadata(cp):
+def is_emoji_by_metadata(code_point):
 	# Check known emoji blocks
-	for lo, hi in EMOJI_BLOCKS:
-		if lo <= cp <= hi:
+	for block_lo, block_hi in EMOJI_BLOCKS:
+		if block_lo <= code_point <= block_hi:
 			return True
 	return False
 
 def has_color_pixels(cell_img):
 	"""Return True if the cell contains non-grayscale pixels (colored emoji)."""
 	rgb = cell_img.convert('RGB')
-	count = 0
+	colored_count = 0
 	for r, g, b in rgb.getdata():
 		if max(abs(r-g), abs(r-b), abs(g-b)) >= COLOR_SATURATION_MIN:
-			count += 1
-			if count > COLOR_PIXEL_THRESHOLD:
+			colored_count += 1
+			if colored_count > COLOR_PIXEL_THRESHOLD:
 				return True
 	return False
 
@@ -255,9 +255,9 @@ def get_reference_center(font, cfg):
 		return (cfg.cell_w / 2, cfg.cell_h / 2)
 	rows_px = [idx // cfg.cell_w for idx in dark]
 	cols_px = [idx  % cfg.cell_w for idx in dark]
-	center_c = (min(cols_px) + max(cols_px)) / 2
-	center_r = (min(rows_px) + max(rows_px)) / 2
-	return (center_c, center_r)
+	center_col = (min(cols_px) + max(cols_px)) / 2
+	center_row = (min(rows_px) + max(rows_px)) / 2
+	return (center_col, center_row)
 
 
 ##
@@ -271,12 +271,12 @@ def render_char(c, font, cfg):
 		# so that off-center glyphs (subscripts, superscripts, etc.) are
 		# genuinely off-center in the rendered cell rather than individually centered.
 		ascent, descent = font.getmetrics()
-		advance_w = font.getlength(c)
-		if advance_w <= 0:
-			advance_w = font.getlength('M')
-		x = (cfg.cell_w - advance_w) / 2
-		y = (cfg.cell_h - (ascent + descent)) / 2
-		draw.text((x, y), c, fill=(0, 0, 0), font=font)
+		advance_width = font.getlength(c)
+		if advance_width <= 0:
+			advance_width = font.getlength('M')
+		text_x = (cfg.cell_w - advance_width) / 2
+		text_y = (cfg.cell_h - (ascent + descent)) / 2
+		draw.text((text_x, text_y), c, fill=(0, 0, 0), font=font)
 	except Exception:
 		pass
 	return cell
@@ -291,20 +291,20 @@ def analyze_cell(cell_img, cfg, ref_center=None):
 		return {'blank': True, 'dark_count': len(dark)}
 	rows_px = [idx // cfg.cell_w for idx in dark]
 	cols_px = [idx  % cfg.cell_w for idx in dark]
-	min_r, max_r = min(rows_px), max(rows_px)
-	min_c, max_c = min(cols_px), max(cols_px)
+	min_row, max_row = min(rows_px), max(rows_px)
+	min_col, max_col = min(cols_px), max(cols_px)
 	margin_h = round(cfg.cell_w * cfg.edge_margin_h)
 	margin_v = round(cfg.cell_h * cfg.edge_margin_v)
 	touches_edge = (
-		min_r <= margin_v or max_r >= cfg.cell_h - 1 - margin_v or
-		min_c <= margin_h or max_c >= cfg.cell_w - 1 - margin_h
+		min_row <= margin_v or max_row >= cfg.cell_h - 1 - margin_v or
+		min_col <= margin_h or max_col >= cfg.cell_w - 1 - margin_h
 	)
-	center_c = (min_c + max_c) / 2
-	center_r = (min_r + max_r) / 2
-	ref_c = ref_center[0] if ref_center else cfg.cell_w / 2
-	ref_r = ref_center[1] if ref_center else cfg.cell_h / 2
-	off_h = abs(center_c - ref_c)
-	off_v = abs(center_r - ref_r)
+	center_col = (min_col + max_col) / 2
+	center_row = (min_row + max_row) / 2
+	ref_col = ref_center[0] if ref_center else cfg.cell_w / 2
+	ref_row = ref_center[1] if ref_center else cfg.cell_h / 2
+	off_h = abs(center_col - ref_col)
+	off_v = abs(center_row - ref_row)
 	poorly_centered = (
 		off_h > cfg.cell_w * cfg.center_h_tolerance or
 		off_v > cfg.cell_h * cfg.center_v_tolerance
@@ -316,7 +316,7 @@ def analyze_cell(cell_img, cfg, ref_center=None):
 	# Horizontal gaps (empty columns within bounding box)
 	max_h_gap = 0
 	gap = 0
-	for col in range(min_c, max_c + 1):
+	for col in range(min_col, max_col + 1):
 		if col not in dark_cols:
 			gap += 1
 			max_h_gap = max(max_h_gap, gap)
@@ -325,7 +325,7 @@ def analyze_cell(cell_img, cfg, ref_center=None):
 	# Vertical gaps (empty rows within bounding box)
 	max_v_gap = 0
 	gap = 0
-	for row in range(min_r, max_r + 1):
+	for row in range(min_row, max_row + 1):
 		if row not in dark_rows:
 			gap += 1
 			max_v_gap = max(max_v_gap, gap)
@@ -344,36 +344,36 @@ def analyze_cell(cell_img, cfg, ref_center=None):
 	# within that window meets vert_line_min_density, merge adjacent columns
 	# into line groups, and track the maximum group count across all windows.
 	vert_line_count = 0
-	bbox_h = max_r - min_r + 1
+	bbox_h = max_row - min_row + 1
 	min_band_h = max(1, int(cfg.cell_h * cfg.vert_line_min_height))
 	if cfg.max_vert_lines >= 1 and bbox_h >= min_band_h:
 		# Build a per-column, per-row presence map within the bounding box
 		col_row_dark = {}  # col -> set of rows with dark pixels
 		for idx in dark:
-			r = idx // cfg.cell_w
-			c = idx  % cfg.cell_w
-			if min_r <= r <= max_r and min_c <= c <= max_c:
-				if c not in col_row_dark:
-					col_row_dark[c] = set()
-				col_row_dark[c].add(r)
+			row = idx // cfg.cell_w
+			col = idx  % cfg.cell_w
+			if min_row <= row <= max_row and min_col <= col <= max_col:
+				if col not in col_row_dark:
+					col_row_dark[col] = set()
+				col_row_dark[col].add(row)
 		# Slide a window of height min_band_h across the bbox rows
-		for win_top in range(min_r, max_r - min_band_h + 2):
+		for win_top in range(min_row, max_row - min_band_h + 2):
 			win_bot = win_top + min_band_h - 1
 			win_h = min_band_h
 			# Find columns dense enough within this window
 			vert_cols = set()
-			for c in range(min_c, max_c + 1):
-				if c not in col_row_dark:
+			for col in range(min_col, max_col + 1):
+				if col not in col_row_dark:
 					continue
-				count = sum(1 for r in col_row_dark[c] if win_top <= r <= win_bot)
+				count = sum(1 for row in col_row_dark[col] if win_top <= row <= win_bot)
 				if count / win_h >= cfg.vert_line_min_density:
-					vert_cols.add(c)
+					vert_cols.add(col)
 			# Merge adjacent columns into line groups
 			if vert_cols:
-				sorted_vc = sorted(vert_cols)
+				sorted_vert_cols = sorted(vert_cols)
 				groups = 1
-				for i in range(1, len(sorted_vc)):
-					if sorted_vc[i] - sorted_vc[i - 1] > cfg.vert_line_col_merge + 1:
+				for i in range(1, len(sorted_vert_cols)):
+					if sorted_vert_cols[i] - sorted_vert_cols[i - 1] > cfg.vert_line_col_merge + 1:
 						groups += 1
 				if groups > vert_line_count:
 					vert_line_count = groups
@@ -388,15 +388,15 @@ def analyze_cell(cell_img, cfg, ref_center=None):
 		'vert_line_count': vert_line_count,
 		'off_h': off_h,
 		'off_v': off_v,
-		'center_c': center_c,
-		'center_r': center_r,
+		'center_c': center_col,
+		'center_r': center_row,
 	}
 
 
 ##
 ##  Debug rendering
 
-def render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_pixels, char_decisions, ref_center=None):
+def render_font_grid(chars, font, cfg, label_font, ascii_confusables, missing_pixels, char_decisions, ref_center=None):
 	"""Render a debug grid image for one font, with pass/fail/no-glyph colored borders.
 	   Green  = pass
 	   Blue   = pass, but this font has no glyph (abstained)
@@ -418,19 +418,19 @@ def render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_pix
 	row_px_limit  = step_w * COLS   # wrap rows at this many pixels
 
 	##
-	##  Pre-pass: compute (row_num, sx, is_wide) for each char
+	##  Pre-pass: compute (row_num, slot_x, is_wide) for each char
 
 	layout  = []
 	row_num = 0
 	row_x   = 0
 	for c in chars:
-		wide  = unicodedata.east_asian_width(c) in ('W', 'F')
-		s_px  = step_w_wide if wide else step_w
-		if row_x > 0 and row_x + s_px > row_px_limit:
+		wide    = unicodedata.east_asian_width(c) in ('W', 'F')
+		step_px = step_w_wide if wide else step_w
+		if row_x > 0 and row_x + step_px > row_px_limit:
 			row_num += 1
 			row_x = 0
 		layout.append((row_num, row_x, wide))
-		row_x += s_px
+		row_x += step_px
 	num_rows = (layout[-1][0] + 1) if layout else 1
 
 	header_h = FONT_LABEL_H if cfg.label else 0
@@ -444,19 +444,19 @@ def render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_pix
 		gdraw.text((4, 4), cfg.label, fill=(220, 220, 220), font=label_font)
 
 	for i, c in enumerate(chars):
-		row_num, sx, wide = layout[i]
-		cp   = ord(c)
-		sy   = header_h + row_num * (slot_h + cell_gap + LABEL_H)
-		w_px = slot_w_wide if wide else slot_w
+		row_num, slot_x, wide = layout[i]
+		code_point = ord(c)
+		slot_y     = header_h + row_num * (slot_h + cell_gap + LABEL_H)
+		slot_w_px  = slot_w_wide if wide else slot_w
 
 		# Filter checks use standard-width cell so is_missing_glyph comparison stays valid
 		fails    = []
 		metrics  = None
-		if is_emoji_by_metadata(cp):
+		if is_emoji_by_metadata(code_point):
 			fails.append('EMOJI_META')
-		if cp > 127 and cp in ascii_confusables:
+		if code_point > 127 and code_point in ascii_confusables:
 			fails.append('ASCII_CONFUSABLE')
-		std_cell = render_char(c, fnt, cfg)
+		std_cell = render_char(c, font, cfg)
 		no_glyph = is_missing_glyph(std_cell, missing_pixels)
 		if not no_glyph and not fails:
 			# For wide chars, re-render in double-width cell for analysis
@@ -468,7 +468,7 @@ def render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_pix
 				acfg.disconnect_h_gap = cfg.disconnect_h_gap_wide
 				acfg.disconnect_any_gap = cfg.disconnect_any_gap_wide
 				acfg.max_vert_lines = cfg.max_vert_lines_wide
-				analysis_cell = render_char(c, fnt, acfg)
+				analysis_cell = render_char(c, font, acfg)
 				grid_ref_ctr = (ref_center[0] + (cfg.cell_w_wide - cfg.cell_w) / 2, ref_center[1]) if ref_center else None
 			else:
 				acfg = cfg
@@ -490,25 +490,25 @@ def render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_pix
 					fails.append('VERT_LINES')
 
 		# Display: render into wide cell if needed (disp_w = slot minus equal border on each side)
-		disp_w    = w_px - 2 * BORDER_W
+		disp_w    = slot_w_px - 2 * BORDER_W
 		if DEBUG_OVERLAY:
 			# Use render_char positioning (same as analysis) so overlays align accurately
 			if wide:
 				dcfg = copy(cfg)
 				dcfg.cell_w = disp_w
-				disp_cell = render_char(c, fnt, dcfg)
+				disp_cell = render_char(c, font, dcfg)
 			else:
-				disp_cell = render_char(c, fnt, cfg)
+				disp_cell = render_char(c, font, cfg)
 				# render_char uses cfg.cell_w which equals disp_w for non-wide
 		else:
 			disp_cell = Image.new('RGB', (disp_w, cfg.cell_h), (255, 255, 255))
 			ddraw     = ImageDraw.Draw(disp_cell)
 			try:
-				bbox = fnt.getbbox(c)
-				gw = bbox[2] - bbox[0]
-				gh = bbox[3] - bbox[1]
-				ddraw.text(((disp_w - gw) // 2 - bbox[0], (cfg.cell_h - gh) // 2 - bbox[1]),
-					c, fill=(0, 0, 0), font=fnt)
+				bbox = font.getbbox(c)
+				glyph_width  = bbox[2] - bbox[0]
+				glyph_height = bbox[3] - bbox[1]
+				ddraw.text(((disp_w - glyph_width) // 2 - bbox[0], (cfg.cell_h - glyph_height) // 2 - bbox[1]),
+					c, fill=(0, 0, 0), font=font)
 			except Exception:
 				pass
 
@@ -530,8 +530,8 @@ def render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_pix
 				border_color = (0xff, 0x00, 0x00) if this_font_voted_no else (0xc0, 0x80, 0x80)  # red
 		else:
 			border_color = (60, 60, 180) if no_glyph else (0, 180, 0)
-		gdraw.rectangle([sx, sy, sx + w_px - 1, sy + slot_h - 1], fill=border_color)
-		grid.paste(disp_cell, (sx + BORDER_W, sy + BORDER_W))
+		gdraw.rectangle([slot_x, slot_y, slot_x + slot_w_px - 1, slot_y + slot_h - 1], fill=border_color)
+		grid.paste(disp_cell, (slot_x + BORDER_W, slot_y + BORDER_W))
 
 		##
 		## Debug overlays
@@ -553,31 +553,31 @@ def render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_pix
 				odraw.rectangle([0, 0, disp_w - 1, margin_v - 1], fill=margin_color)
 				odraw.rectangle([0, cfg.cell_h - margin_v, disp_w - 1, cfg.cell_h - 1], fill=margin_color)
 			# Center tolerance zone (light blue rectangle around reference center)
-			rc = ref_center if ref_center else (disp_w / 2, cfg.cell_h / 2)
+			ref_pt = ref_center if ref_center else (disp_w / 2, cfg.cell_h / 2)
 			if wide and ref_center:
-				rc = (ref_center[0] + (cfg.cell_w_wide - cfg.cell_w) / 2, ref_center[1])
-			tol_hw = disp_w    * cfg.center_h_tolerance
-			tol_hh = cfg.cell_h * cfg.center_v_tolerance
+				ref_pt = (ref_center[0] + (cfg.cell_w_wide - cfg.cell_w) / 2, ref_center[1])
+			tol_half_w = disp_w    * cfg.center_h_tolerance
+			tol_half_h = cfg.cell_h * cfg.center_v_tolerance
 			tol_color = (100, 150, 255, 120)
 			odraw.rectangle([
-				int(rc[0] - tol_hw), int(rc[1] - tol_hh),
-				int(rc[0] + tol_hw), int(rc[1] + tol_hh)
+				int(ref_pt[0] - tol_half_w), int(ref_pt[1] - tol_half_h),
+				int(ref_pt[0] + tol_half_w), int(ref_pt[1] + tol_half_h)
 			], fill=tol_color)
 			# Crosshair at actual glyph bounding-box center (red)
 			if not no_glyph and metrics and not metrics.get('blank'):
-				gc = metrics.get('center_c')
-				gr = metrics.get('center_r')
-				if gc is not None and gr is not None:
+				glyph_center_x = metrics.get('center_c')
+				glyph_center_y = metrics.get('center_r')
+				if glyph_center_x is not None and glyph_center_y is not None:
 					cross_color = (255, 0, 0, 100)
-					odraw.line([(int(gc), 0), (int(gc), cfg.cell_h - 1)], fill=cross_color, width=1)
-					odraw.line([(0, int(gr)), (disp_w - 1, int(gr))], fill=cross_color, width=1)
+					odraw.line([(int(glyph_center_x), 0), (int(glyph_center_x), cfg.cell_h - 1)], fill=cross_color, width=1)
+					odraw.line([(0, int(glyph_center_y)), (disp_w - 1, int(glyph_center_y))], fill=cross_color, width=1)
 			# Composite overlay onto grid
-			cell_x = sx + BORDER_W
-			cell_y = sy + BORDER_W
+			cell_x = slot_x + BORDER_W
+			cell_y = slot_y + BORDER_W
 			region = grid.crop((cell_x, cell_y, cell_x + disp_w, cell_y + cfg.cell_h)).convert('RGBA')
 			composited = Image.alpha_composite(region, overlay)
 			grid.paste(composited.convert('RGB'), (cell_x, cell_y))
-		gdraw.text((sx + BORDER_W + 1, sy + slot_h + 1), f"{cp:04X}",
+		gdraw.text((slot_x + BORDER_W + 1, slot_y + slot_h + 1), f"{code_point:04X}",
 			fill=(60, 60, 60), font=label_font)
 
 	return grid
@@ -590,7 +590,7 @@ def composite_images(images):
 	if len(images) == 1:
 		return images[0]
 
-	n      = len(images)
+	image_count = len(images)
 	cell_w = max(img.width  for img in images)
 	cell_h = max(img.height for img in images)
 
@@ -602,12 +602,12 @@ def composite_images(images):
 	best_ar_diff  = float('inf')
 
 	GAP = 16
-	for cols in range(1, n + 1):
-		rows    = (n + cols - 1) // cols
-		ar      = (GAP + cols * (cell_w + GAP)) / (GAP + rows * (cell_h + GAP))
-		if ar > MAX_AR or ar < MIN_AR:
+	for cols in range(1, image_count + 1):
+		rows    = (image_count + cols - 1) // cols
+		aspect_ratio = (GAP + cols * (cell_w + GAP)) / (GAP + rows * (cell_h + GAP))
+		if aspect_ratio > MAX_AR or aspect_ratio < MIN_AR:
 			continue
-		diff = abs(ar - TARGET)
+		diff = abs(aspect_ratio - TARGET)
 		if diff < best_ar_diff:
 			best_ar_diff = diff
 			best_cols    = cols
@@ -616,25 +616,25 @@ def composite_images(images):
 		# All layouts exceed bounds; pick the one with aspect ratio closest to target anyway
 		best_cols    = 1
 		best_ar_diff = float('inf')
-		for cols in range(1, n + 1):
-			rows = (n + cols - 1) // cols
-			ar   = (GAP + cols * (cell_w + GAP)) / (GAP + rows * (cell_h + GAP))
-			diff = abs(ar - TARGET)
+		for cols in range(1, image_count + 1):
+			rows = (image_count + cols - 1) // cols
+			aspect_ratio = (GAP + cols * (cell_w + GAP)) / (GAP + rows * (cell_h + GAP))
+			diff = abs(aspect_ratio - TARGET)
 			if diff < best_ar_diff:
 				best_ar_diff = diff
 				best_cols    = cols
 
 	cols    = best_cols
-	rows    = (n + cols - 1) // cols
+	rows    = (image_count + cols - 1) // cols
 	GAP     = 16
 	total_w = GAP + cols * (cell_w + GAP)
 	total_h = GAP + rows * (cell_h + GAP)
 	out     = Image.new('RGB', (total_w, total_h), (0, 0, 0))
 
 	for i, img in enumerate(images):
-		x = GAP + (i % cols) * (cell_w + GAP)
-		y = GAP + (i // cols) * (cell_h + GAP)
-		out.paste(img, (x, y))
+		paste_x = GAP + (i % cols) * (cell_w + GAP)
+		paste_y = GAP + (i // cols) * (cell_h + GAP)
+		out.paste(img, (paste_x, paste_y))
 
 	return out
 
@@ -666,19 +666,19 @@ def append_legend(img):
 	legend_h = swatch_h + 2 * padding
 	legend = Image.new('RGB', (img.width, legend_h), (40, 40, 40))
 	ldraw  = ImageDraw.Draw(legend)
-	x = max(padding, (img.width - total_w) // 2)
+	cursor_x = max(padding, (img.width - total_w) // 2)
 	for color, text in legend_items:
 		y_swatch = (legend_h - swatch_h) // 2
-		ldraw.rectangle([x, y_swatch, x + swatch_w - 1, y_swatch + swatch_h - 1], fill=color)
-		text_x = x + swatch_w + 8
+		ldraw.rectangle([cursor_x, y_swatch, cursor_x + swatch_w - 1, y_swatch + swatch_h - 1], fill=color)
+		text_x = cursor_x + swatch_w + 8
 		# Vertically center text with swatch
 		text_bbox = legend_font.getbbox(text)
 		text_h = text_bbox[3] - text_bbox[1]
 		text_y = y_swatch + (swatch_h - text_h) // 2 - text_bbox[1]
 		ldraw.text((text_x, text_y), text, fill=(200, 200, 200), font=legend_font)
 		text_w = legend_font.getlength(text)
-		x = text_x + int(text_w) + gap
-		if x > img.width - 50:
+		cursor_x = text_x + int(text_w) + gap
+		if cursor_x > img.width - 50:
 			break
 
 	out = Image.new('RGB', (img.width, img.height + legend_h), (0, 0, 0))
@@ -693,40 +693,40 @@ def append_legend(img):
 def _filter_chars(chars):
 	"""Core filter: takes a list of unique characters, returns (passed, fail_log).
 	   passed:   list of characters that passed all filters.
-	   fail_log: list of (cp, char, 'FAIL:reason+...', name) tuples for failures.
+	   fail_log: list of (code_point, char, 'FAIL:reason+...', name) tuples for failures.
 	"""
 	ascii_confusables = load_confusables()
 
 	# Load all fonts and compute per-font missing-glyph fingerprints + reference centers
-	font_setups = []  # list of (cfg, fnt, missing_pixels, ref_center)
+	font_setups = []  # list of (cfg, font, missing_pixels, ref_center)
 	for cfg in FONTS:
-		fnt        = ImageFont.truetype(cfg.font_path, cfg.font_size)
-		missing_px = get_missing_glyph_pixels(fnt, cfg)
-		ref_ctr    = get_reference_center(fnt, cfg)
-		font_setups.append((cfg, fnt, missing_px, ref_ctr))
+		font       = ImageFont.truetype(cfg.font_path, cfg.font_size)
+		missing_px = get_missing_glyph_pixels(font, cfg)
+		ref_ctr    = get_reference_center(font, cfg)
+		font_setups.append((cfg, font, missing_px, ref_ctr))
 
 	passed   = []
 	fail_log = []
 
 	for c in chars:
-		cp    = ord(c)
+		code_point = ord(c)
 		# ASCII characters always pass — no filter applies
-		if cp < 128:
+		if code_point < 128:
 			passed.append(c)
 			continue
 		# Latin-1 Supplement (U+0080–U+00FF) always passes, like ASCII
-		if 0x80 <= cp <= 0xFF:
+		if 0x80 <= code_point <= 0xFF:
 			passed.append(c)
 			continue
 		name  = unicodedata.name(c, '')
 		fails = []
 
 		## Filter 1: emoji by metadata
-		if is_emoji_by_metadata(cp):
+		if is_emoji_by_metadata(code_point):
 			fails.append('EMOJI_META')
 
 		## Filter 2: ASCII confusable (skip if char is itself ASCII)
-		if cp > 127 and cp in ascii_confusables:
+		if code_point > 127 and code_point in ascii_confusables:
 			fails.append('ASCII_CONFUSABLE')
 
 		## Filters 3-5: per-font pixel checks
@@ -737,8 +737,8 @@ def _filter_chars(chars):
 			votes_total    = 0
 			votes_fail     = 0
 			all_font_fails = []
-			for cfg, fnt, missing_px, ref_ctr in font_setups:
-				cell = render_char(c, fnt, cfg)
+			for cfg, font, missing_px, ref_ctr in font_setups:
+				cell = render_char(c, font, cfg)
 				if is_missing_glyph(cell, missing_px):
 					continue  # this font abstains
 				# Re-render wide chars in a double-width cell for accurate analysis
@@ -750,7 +750,7 @@ def _filter_chars(chars):
 					wcfg.disconnect_h_gap = cfg.disconnect_h_gap_wide
 					wcfg.disconnect_any_gap = cfg.disconnect_any_gap_wide
 					wcfg.max_vert_lines = cfg.max_vert_lines_wide
-					cell = render_char(c, fnt, wcfg)
+					cell = render_char(c, font, wcfg)
 					wide_ref_ctr = (ref_ctr[0] + (cfg.cell_w_wide - cfg.cell_w) / 2, ref_ctr[1])
 				else:
 					wcfg = cfg
@@ -786,7 +786,7 @@ def _filter_chars(chars):
 		if not fails:
 			passed.append(c)
 		else:
-			fail_log.append((cp, c, 'FAIL:' + '+'.join(fails), name))
+			fail_log.append((code_point, c, 'FAIL:' + '+'.join(fails), name))
 
 	return passed, fail_log, ascii_confusables, font_setups
 
@@ -841,7 +841,7 @@ def main():
 	## Build per-char decision map for debug rendering
 
 	char_decisions = {c: ('pass', set()) for c in passed}
-	for _cp, _c, _result, _name in fail_log:
+	for _code_point, _c, _result, _name in fail_log:
 		_reasons = set(_result.replace('FAIL:', '').split('+'))
 		if _reasons <= {'EMOJI_META', 'ASCII_CONFUSABLE'}:
 			char_decisions[_c] = ('fail_confusable', _reasons) if 'ASCII_CONFUSABLE' in _reasons else ('fail_meta', _reasons)
@@ -857,19 +857,19 @@ def main():
 	if fail_log:
 		print(f"\nFiltered out {len(fail_log)} characters:", file=sys.stderr)
 		col_result_w = max(len(result) for _, _, result, _ in fail_log)
-		for cp, c, result, name in fail_log:
-			print(f"  U+{cp:04X}  {c}  {result:<{col_result_w}}  '{name.lower()}'", file=sys.stderr)
+		for code_point, c, result, name in fail_log:
+			print(f"  U+{code_point:04X}  {c}  {result:<{col_result_w}}  '{name.lower()}'", file=sys.stderr)
 
 	if debug:
 		label_font = ImageFont.truetype(LABEL_FONT_PATH, LABEL_FONT_SIZE)
 		grids = []
-		for cfg, fnt, missing_px, ref_ctr in font_setups:
-			grid = render_font_grid(chars, fnt, cfg, label_font, ascii_confusables, missing_px, char_decisions, ref_center=ref_ctr)
+		for cfg, font, missing_px, ref_ctr in font_setups:
+			grid = render_font_grid(chars, font, cfg, label_font, ascii_confusables, missing_px, char_decisions, ref_center=ref_ctr)
 			grids.append(grid)
 		out_img   = append_legend(composite_images(grids))
-		codepoints = [ord(c) for c in chars]
-		cp_lo, cp_hi = min(codepoints), max(codepoints)
-		base_name = f"unicode_visual_debug_{cp_lo:04X}-{cp_hi:04X}.png"
+		code_points = [ord(c) for c in chars]
+		code_point_lo, code_point_hi = min(code_points), max(code_points)
+		base_name = f"unicode_visual_debug_{code_point_lo:04X}-{code_point_hi:04X}.png"
 		out_dir   = debug_dir if debug_dir else os.path.dirname(os.path.abspath(__file__))
 		os.makedirs(out_dir, exist_ok=True)
 		out_path  = os.path.join(out_dir, base_name)

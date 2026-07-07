@@ -1,4 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## unicode_3_visual_alter_xclipboard_contents.bash
+##
+##	Runs filter_3_visual.py over the X clipboard text and writes the filtered
+##	result back to the clipboard.
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+
+##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
 
 fMain(){
 

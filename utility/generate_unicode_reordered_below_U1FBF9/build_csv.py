@@ -24,22 +24,22 @@ from collections import defaultdict
 MAX_CP = 0x1FBF9
 MAX_GROUP_SIZE = 256
 
-def utf8_len(cp):
-	if cp < 0x80: return 1
-	if cp < 0x800: return 2
-	if cp < 0x10000: return 3
+def utf8_len(code_point):
+	if code_point < 0x80: return 1
+	if code_point < 0x800: return 2
+	if code_point < 0x10000: return 3
 	return 4
 
-def is_printable(cp):
-	c = chr(cp)
-	cat = unicodedata.category(c)
-	if cat.startswith('C') or cat in ('Zl','Zp'):
+def is_printable(code_point):
+	char = chr(code_point)
+	category = unicodedata.category(char)
+	if category.startswith('C') or category in ('Zl','Zp'):
 		return False
 	return True
 
-def safe_name(cp):
+def safe_name(code_point):
 	try:
-		return unicodedata.name(chr(cp))
+		return unicodedata.name(chr(code_point))
 	except ValueError:
 		return None
 
@@ -47,10 +47,10 @@ def safe_name(cp):
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from blocks import BLOCKS
 
-def block_for(cp):
-	for s,e,n in BLOCKS:
-		if s <= cp <= e:
-			return n
+def block_for(code_point):
+	for start,end,name in BLOCKS:
+		if start <= code_point <= end:
+			return name
 	return None
 
 LETTER_ORDER = {c:i for i,c in enumerate("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")}
@@ -72,30 +72,30 @@ DIR_MAP = {
 	'NORTHWEST':7, 'UPPERLEFT':7,
 }
 
-def _normalize_compounds(s):
-	s = re.sub(r'\bNORTH\s+WEST\b','NORTHWEST',s)
-	s = re.sub(r'\bNORTH\s+EAST\b','NORTHEAST',s)
-	s = re.sub(r'\bSOUTH\s+WEST\b','SOUTHWEST',s)
-	s = re.sub(r'\bSOUTH\s+EAST\b','SOUTHEAST',s)
-	s = re.sub(r'\bUPPER\s+LEFT\b','UPPERLEFT',s)
-	s = re.sub(r'\bUPPER\s+RIGHT\b','UPPERRIGHT',s)
-	s = re.sub(r'\bLOWER\s+LEFT\b','LOWERLEFT',s)
-	s = re.sub(r'\bLOWER\s+RIGHT\b','LOWERRIGHT',s)
-	return s
+def _normalize_compounds(text):
+	text = re.sub(r'\bNORTH\s+WEST\b','NORTHWEST',text)
+	text = re.sub(r'\bNORTH\s+EAST\b','NORTHEAST',text)
+	text = re.sub(r'\bSOUTH\s+WEST\b','SOUTHWEST',text)
+	text = re.sub(r'\bSOUTH\s+EAST\b','SOUTHEAST',text)
+	text = re.sub(r'\bUPPER\s+LEFT\b','UPPERLEFT',text)
+	text = re.sub(r'\bUPPER\s+RIGHT\b','UPPERRIGHT',text)
+	text = re.sub(r'\bLOWER\s+LEFT\b','LOWERLEFT',text)
+	text = re.sub(r'\bLOWER\s+RIGHT\b','LOWERRIGHT',text)
+	return text
 
 # Back-compat (used elsewhere as a set-of-direction-tokens)
 DIR_ORDER = {k: v for k, v in DIR_MAP.items()}
 
 def direction_key(name):
-	up = _normalize_compounds(name.upper())
+	upper_name = _normalize_compounds(name.upper())
 	# Priority 1: what's before POINTING wins (canonical pointing direction)
-	m = re.search(r'\b(NORTHWEST|NORTHEAST|SOUTHEAST|SOUTHWEST|UPPERLEFT|UPPERRIGHT|LOWERLEFT|LOWERRIGHT|LEFTWARDS|LEFT|RIGHTWARDS|RIGHT|UPWARDS|UP|DOWNWARDS|DOWN|NORTH|SOUTH|EAST|WEST)[\s-]*POINTING\b', up)
-	if m:
-		return DIR_MAP[m.group(1)]
+	match = re.search(r'\b(NORTHWEST|NORTHEAST|SOUTHEAST|SOUTHWEST|UPPERLEFT|UPPERRIGHT|LOWERLEFT|LOWERRIGHT|LEFTWARDS|LEFT|RIGHTWARDS|RIGHT|UPWARDS|UP|DOWNWARDS|DOWN|NORTH|SOUTH|EAST|WEST)[\s-]*POINTING\b', upper_name)
+	if match:
+		return DIR_MAP[match.group(1)]
 	# Priority 2: first direction token that appears in name
-	m = re.search(r'\b(NORTHWEST|NORTHEAST|SOUTHEAST|SOUTHWEST|UPPERLEFT|UPPERRIGHT|LOWERLEFT|LOWERRIGHT|LEFTWARDS|LEFT|RIGHTWARDS|RIGHT|UPWARDS|UP|DOWNWARDS|DOWN|NORTHWARDS|NORTH|SOUTHWARDS|SOUTH|EASTWARDS|EAST|WESTWARDS|WEST|UPPER|LOWER)\b', up)
-	if m:
-		return DIR_MAP.get(m.group(1), 99)
+	match = re.search(r'\b(NORTHWEST|NORTHEAST|SOUTHEAST|SOUTHWEST|UPPERLEFT|UPPERRIGHT|LOWERLEFT|LOWERRIGHT|LEFTWARDS|LEFT|RIGHTWARDS|RIGHT|UPWARDS|UP|DOWNWARDS|DOWN|NORTHWARDS|NORTH|SOUTHWARDS|SOUTH|EASTWARDS|EAST|WESTWARDS|WEST|UPPER|LOWER)\b', upper_name)
+	if match:
+		return DIR_MAP.get(match.group(1), 99)
 	return 99
 
 def wave_split_items(sorted_items):
@@ -105,19 +105,19 @@ def wave_split_items(sorted_items):
 	if not sorted_items:
 		return []
 	by_dir = defaultdict(list)
-	for cp, dk in sorted_items:
-		by_dir[dk].append(cp)
+	for code_point, direction in sorted_items:
+		by_dir[direction].append(code_point)
 	if len(by_dir) == 1:
 		return [sorted_items]
-	max_count = max(len(v) for v in by_dir.values())
+	max_count = max(len(codepoints) for codepoints in by_dir.values())
 	if max_count == 1:
 		return [sorted_items]
 	waves = []
 	for i in range(max_count):
 		wave = []
-		for d in sorted(by_dir.keys()):
-			if i < len(by_dir[d]):
-				wave.append((by_dir[d][i], d))
+		for direction in sorted(by_dir.keys()):
+			if i < len(by_dir[direction]):
+				wave.append((by_dir[direction][i], direction))
 		waves.append(wave)
 	return waves
 
@@ -129,27 +129,27 @@ DIACRITIC_ORDER = [
 ]
 
 def diacritic_priority(mods):
-	for i, d in enumerate(DIACRITIC_ORDER):
-		if d in mods:
+	for i, diacritic in enumerate(DIACRITIC_ORDER):
+		if diacritic in mods:
 			return i
 	return len(DIACRITIC_ORDER) + 1
 
 def parse_letter_name(name):
-	m = re.match(r'^(LATIN|GREEK|CYRILLIC|COPTIC|ARMENIAN|HEBREW)\s+(SMALL|CAPITAL)\s+LETTER\s+([A-Z][A-Z ]*?)(?:\s+WITH\s+(.+))?$', name)
-	if m:
-		return (m.group(1), m.group(2), m.group(3).strip(), m.group(4) or '')
-	m = re.match(r'^(LATIN|GREEK|CYRILLIC)\s+LETTER\s+(.+?)(?:\s+WITH\s+(.+))?$', name)
-	if m:
-		return (m.group(1), 'OTHER', m.group(2).strip(), m.group(3) or '')
+	match = re.match(r'^(LATIN|GREEK|CYRILLIC|COPTIC|ARMENIAN|HEBREW)\s+(SMALL|CAPITAL)\s+LETTER\s+([A-Z][A-Z ]*?)(?:\s+WITH\s+(.+))?$', name)
+	if match:
+		return (match.group(1), match.group(2), match.group(3).strip(), match.group(4) or '')
+	match = re.match(r'^(LATIN|GREEK|CYRILLIC)\s+LETTER\s+(.+?)(?:\s+WITH\s+(.+))?$', name)
+	if match:
+		return (match.group(1), 'OTHER', match.group(2).strip(), match.group(3) or '')
 	return None
 
 def parse_digit_name(name):
-	m = re.search(r'\b(ZERO|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|THIRTEEN|FOURTEEN|FIFTEEN|SIXTEEN|SEVENTEEN|EIGHTEEN|NINETEEN|TWENTY)\b', name)
-	if m:
-		return DIGIT_WORDS[m.group(1)]
-	m = re.search(r'\b(\d+)\b', name)
-	if m:
-		return int(m.group(1))
+	match = re.search(r'\b(ZERO|ONE|TWO|THREE|FOUR|FIVE|SIX|SEVEN|EIGHT|NINE|TEN|ELEVEN|TWELVE|THIRTEEN|FOURTEEN|FIFTEEN|SIXTEEN|SEVENTEEN|EIGHTEEN|NINETEEN|TWENTY)\b', name)
+	if match:
+		return DIGIT_WORDS[match.group(1)]
+	match = re.search(r'\b(\d+)\b', name)
+	if match:
+		return int(match.group(1))
 	return None
 
 def chunk_group(label, cps, max_size=MAX_GROUP_SIZE):
@@ -167,32 +167,32 @@ def format_ranges(cps):
 		return ""
 	cps = sorted(cps)
 	ranges = []
-	s = cps[0]; prev = s
-	for cp in cps[1:]:
-		if cp == prev + 1:
-			prev = cp; continue
-		if s == prev:
-			ranges.append(f"U+{s:04X}")
+	start = cps[0]; prev = start
+	for code_point in cps[1:]:
+		if code_point == prev + 1:
+			prev = code_point; continue
+		if start == prev:
+			ranges.append(f"U+{start:04X}")
 		else:
-			ranges.append(f"U+{s:04X}-U+{prev:04X}")
-		s = cp; prev = cp
-	if s == prev:
-		ranges.append(f"U+{s:04X}")
+			ranges.append(f"U+{start:04X}-U+{prev:04X}")
+		start = code_point; prev = code_point
+	if start == prev:
+		ranges.append(f"U+{start:04X}")
 	else:
-		ranges.append(f"U+{s:04X}-U+{prev:04X}")
+		ranges.append(f"U+{start:04X}-U+{prev:04X}")
 	return ", ".join(ranges)
 
 # ---- processors ----
 
 def process_basic_latin(cps):
-	digits = [cp for cp in cps if 0x30 <= cp <= 0x39]
-	upper = [cp for cp in cps if 0x41 <= cp <= 0x5A]
-	lower = [cp for cp in cps if 0x61 <= cp <= 0x7A]
+	digits = [code_point for code_point in cps if 0x30 <= code_point <= 0x39]
+	upper = [code_point for code_point in cps if 0x41 <= code_point <= 0x5A]
+	lower = [code_point for code_point in cps if 0x61 <= code_point <= 0x7A]
 	letterset = set(digits+upper+lower)
-	rest = [cp for cp in cps if cp not in letterset]
-	space = [cp for cp in rest if unicodedata.category(chr(cp)) == 'Zs']
-	punct = [cp for cp in rest if unicodedata.category(chr(cp)).startswith('P')]
-	sym = [cp for cp in rest if unicodedata.category(chr(cp)).startswith('S')]
+	rest = [code_point for code_point in cps if code_point not in letterset]
+	space = [code_point for code_point in rest if unicodedata.category(chr(code_point)) == 'Zs']
+	punct = [code_point for code_point in rest if unicodedata.category(chr(code_point)).startswith('P')]
+	sym = [code_point for code_point in rest if unicodedata.category(chr(code_point)).startswith('S')]
 	if digits: yield ("ASCII digits 0-9", digits)
 	if upper: yield ("ASCII uppercase A-Z", upper)
 	if lower: yield ("ASCII lowercase a-z", lower)
@@ -202,20 +202,20 @@ def process_basic_latin(cps):
 
 def process_latin1_sup(cps):
 	upper = []; lower = []; other_letters = []; sym = []; punct = []; num = []
-	for cp in cps:
-		cat = unicodedata.category(chr(cp))
-		if cat == 'Lu': upper.append(cp)
-		elif cat == 'Ll': lower.append(cp)
-		elif cat.startswith('L'): other_letters.append(cp)
-		elif cat.startswith('N'): num.append(cp)
-		elif cat.startswith('P'): punct.append(cp)
-		else: sym.append(cp)
-	def dkey(cp):
-		p = parse_letter_name(safe_name(cp) or '')
-		if p:
-			_,_,base,mods = p
-			return (diacritic_priority(mods), mods, LETTER_ORDER.get(base, 99), cp)
-		return (99, '', 99, cp)
+	for code_point in cps:
+		category = unicodedata.category(chr(code_point))
+		if category == 'Lu': upper.append(code_point)
+		elif category == 'Ll': lower.append(code_point)
+		elif category.startswith('L'): other_letters.append(code_point)
+		elif category.startswith('N'): num.append(code_point)
+		elif category.startswith('P'): punct.append(code_point)
+		else: sym.append(code_point)
+	def dkey(code_point):
+		parsed = parse_letter_name(safe_name(code_point) or '')
+		if parsed:
+			_,_,base,mods = parsed
+			return (diacritic_priority(mods), mods, LETTER_ORDER.get(base, 99), code_point)
+		return (99, '', 99, code_point)
 	upper.sort(key=dkey); lower.sort(key=dkey)
 	if sym: yield ("Latin-1 symbols", sorted(sym))
 	if punct: yield ("Latin-1 punctuation", sorted(punct))
@@ -227,29 +227,29 @@ def process_latin1_sup(cps):
 def process_latin_extended(cps, block_label):
 	groups = defaultdict(list)
 	unparsed = []
-	for cp in cps:
-		n = safe_name(cp)
-		if not n: unparsed.append(cp); continue
-		p = parse_letter_name(n)
-		if not p or p[0] != 'LATIN':
-			unparsed.append(cp); continue
-		_, case, base, mods = p
+	for code_point in cps:
+		name = safe_name(code_point)
+		if not name: unparsed.append(code_point); continue
+		parsed = parse_letter_name(name)
+		if not parsed or parsed[0] != 'LATIN':
+			unparsed.append(code_point); continue
+		_, case, base, mods = parsed
 		if not mods:
-			groups[('_plain',)].append(cp)
+			groups[('_plain',)].append(code_point)
 		else:
-			groups[(mods,)].append(cp)
+			groups[(mods,)].append(code_point)
 	def gk(k):
 		if k == ('_plain',): return (-1,'')
 		return (diacritic_priority(k[0]), k[0])
 	for k in sorted(groups.keys(), key=gk):
 		cp_list = groups[k]
-		def ck(cp):
-			p = parse_letter_name(safe_name(cp) or '')
-			if not p: return (9,99,cp)
-			_, case, base, _ = p
-			cr = {'CAPITAL':0,'SMALL':1,'OTHER':2}.get(case,3)
-			br = LETTER_ORDER.get(base, 100 + (ord(base[0]) if base else 999))
-			return (cr, br, cp)
+		def ck(code_point):
+			parsed = parse_letter_name(safe_name(code_point) or '')
+			if not parsed: return (9,99,code_point)
+			_, case, base, _ = parsed
+			case_rank = {'CAPITAL':0,'SMALL':1,'OTHER':2}.get(case,3)
+			base_rank = LETTER_ORDER.get(base, 100 + (ord(base[0]) if base else 999))
+			return (case_rank, base_rank, code_point)
 		cp_list.sort(key=ck)
 		if k == ('_plain',):
 			label = f"{block_label}: plain letters"
@@ -261,21 +261,21 @@ def process_latin_extended(cps, block_label):
 
 def process_greek(cps, block_label):
 	cap = []; small = []; other_l = []; punct = []; sym = []; num = []
-	for cp in cps:
-		cat = unicodedata.category(chr(cp))
-		n = safe_name(cp) or ''
-		if cat == 'Lu': cap.append(cp)
-		elif cat == 'Ll': small.append(cp)
-		elif cat.startswith('L'): other_l.append(cp)
-		elif cat.startswith('N'): num.append(cp)
-		elif cat.startswith('P'): punct.append(cp)
-		else: sym.append(cp)
-	def gk(cp):
-		p = parse_letter_name(safe_name(cp) or '')
-		if p:
-			_,_,base,mods = p
-			return (diacritic_priority(mods), mods, cp)
-		return (999,'',cp)
+	for code_point in cps:
+		category = unicodedata.category(chr(code_point))
+		name = safe_name(code_point) or ''
+		if category == 'Lu': cap.append(code_point)
+		elif category == 'Ll': small.append(code_point)
+		elif category.startswith('L'): other_l.append(code_point)
+		elif category.startswith('N'): num.append(code_point)
+		elif category.startswith('P'): punct.append(code_point)
+		else: sym.append(code_point)
+	def gk(code_point):
+		parsed = parse_letter_name(safe_name(code_point) or '')
+		if parsed:
+			_,_,base,mods = parsed
+			return (diacritic_priority(mods), mods, code_point)
+		return (999,'',code_point)
 	cap.sort(key=gk); small.sort(key=gk)
 	if num: yield (f"{block_label}: numerals", sorted(num))
 	if punct: yield (f"{block_label}: punctuation", sorted(punct))
@@ -288,24 +288,24 @@ def process_arrows(cps, block_label):
 	groups = defaultdict(list)
 	DIRS = set(DIR_MAP.keys())
 	SKIP = {'ARROW','ARROWS','AND','A','AN','THE','ON','POINTING'}
-	for cp in cps:
-		n = safe_name(cp) or ''
-		n_norm = _normalize_compounds(n.upper()).replace('-POINTING',' POINTING')
-		tokens = re.findall(r'[A-Z][A-Z-]*[A-Z]|[A-Z]', n_norm)
-		dir_count = sum(1 for t in tokens if t in DIRS)
-		dir_indices = [i for i, t in enumerate(tokens) if t in DIRS]
+	for code_point in cps:
+		name = safe_name(code_point) or ''
+		normalized_name = _normalize_compounds(name.upper()).replace('-POINTING',' POINTING')
+		tokens = re.findall(r'[A-Z][A-Z-]*[A-Z]|[A-Z]', normalized_name)
+		dir_count = sum(1 for token in tokens if token in DIRS)
+		dir_indices = [i for i, token in enumerate(tokens) if token in DIRS]
 		adjacent_dirs = any(dir_indices[i+1] - dir_indices[i] == 1 for i in range(len(dir_indices)-1))
 		has_over = 'OVER' in tokens
 		def extract_style_tokens(also_skip=()):
 			seen = set()
 			out = []
-			for t in tokens:
-				if t in SKIP: continue
-				if t in also_skip: continue
-				if t in DIRS: continue
-				if t in seen: continue
-				seen.add(t)
-				out.append(t)
+			for token in tokens:
+				if token in SKIP: continue
+				if token in also_skip: continue
+				if token in DIRS: continue
+				if token in seen: continue
+				seen.add(token)
+				out.append(token)
 			return tuple(out)
 		if has_over and dir_count >= 2:
 			style = ('paired',) + extract_style_tokens(also_skip={'OVER'})
@@ -314,24 +314,24 @@ def process_arrows(cps, block_label):
 		else:
 			# Strip first direction only; keep secondary dirs and other modifiers
 			first_dir_found = False
-			style_toks = []
-			for t in tokens:
-				if t in SKIP: continue
-				if t in DIRS and not first_dir_found:
+			style_tokens = []
+			for token in tokens:
+				if token in SKIP: continue
+				if token in DIRS and not first_dir_found:
 					first_dir_found = True
 					continue
-				style_toks.append(t)
-			style = tuple(style_toks)
-		dk = direction_key(n)
-		groups[style].append((cp, dk))
+				style_tokens.append(token)
+			style = tuple(style_tokens)
+		direction = direction_key(name)
+		groups[style].append((code_point, direction))
 	for style in sorted(groups.keys(), key=lambda s: (len(s), s)):
 		items = groups[style]
 		items.sort(key=lambda x: (x[1], x[0]))
 		waves = wave_split_items(items)
-		styl = ' '.join(t.lower() for t in style) if style else '(plain)'
+		style_str = ' '.join(token.lower() for token in style) if style else '(plain)'
 		for i, wave in enumerate(waves):
 			suffix = '' if len(waves) == 1 else f' (v{i+1})'
-			yield (f"{block_label}: arrows {styl}{suffix}", [cp for cp,_ in wave])
+			yield (f"{block_label}: arrows {style_str}{suffix}", [code_point for code_point,_ in wave])
 
 def process_geometric_shapes(cps, block_label):
 	groups = defaultdict(list)
@@ -339,48 +339,48 @@ def process_geometric_shapes(cps, block_label):
 				   'HEXAGON','STAR','PARALLELOGRAMS','PARALLELOGRAM','LOZENGE',
 				   'OCTAGON','HEPTAGON','ELLIPSE']
 	DIRS = set(DIR_MAP.keys())
-	for cp in cps:
-		n = safe_name(cp) or ''
+	for code_point in cps:
+		name = safe_name(code_point) or ''
 		shape = None
-		for s in SHAPE_NAMES:
-			if s in n:
-				shape = s; break
+		for shape_name in SHAPE_NAMES:
+			if shape_name in name:
+				shape = shape_name; break
 		# Fill classification
-		if 'HALF' in n and ('BLACK' in n or 'WHITE' in n):
+		if 'HALF' in name and ('BLACK' in name or 'WHITE' in name):
 			fill = 'HALF'
-		elif 'WHITE' in n and 'BLACK' not in n:
+		elif 'WHITE' in name and 'BLACK' not in name:
 			fill = 'WHITE'
-		elif 'BLACK' in n and 'WHITE' not in n:
+		elif 'BLACK' in name and 'WHITE' not in name:
 			fill = 'BLACK'
 		else:
 			fill = 'MID'
 		# Style sub-signature (what distinguishes this char within its shape+fill)
-		n_norm = _normalize_compounds(n.upper()).replace('-POINTING',' POINTING')
-		tokens = re.findall(r'[A-Z][A-Z-]*[A-Z]|[A-Z]', n_norm)
+		normalized_name = _normalize_compounds(name.upper()).replace('-POINTING',' POINTING')
+		tokens = re.findall(r'[A-Z][A-Z-]*[A-Z]|[A-Z]', normalized_name)
 		# Corner form = has UPPER/LOWER compound direction but no POINTING
 		has_pointing = 'POINTING' in tokens
-		has_corner = bool(re.search(r'\b(UPPERLEFT|UPPERRIGHT|LOWERLEFT|LOWERRIGHT)\b', n_norm)) and not has_pointing
+		has_corner = bool(re.search(r'\b(UPPERLEFT|UPPERRIGHT|LOWERLEFT|LOWERRIGHT)\b', normalized_name)) and not has_pointing
 		# Build style tokens: strip first direction, fill words, shape word, common skips
 		SKIP = {'AND','FROM','TO','THROUGH','ABOVE','BELOW','A','AN','THE','ON',
 				'POINTING','BLACK','WHITE'}
 		first_dir_found = False
-		style_toks = []
-		for t in tokens:
-			if t in SKIP: continue
-			if shape and t == shape: continue
-			if t in DIRS and not first_dir_found:
+		style_tokens = []
+		for token in tokens:
+			if token in SKIP: continue
+			if shape and token == shape: continue
+			if token in DIRS and not first_dir_found:
 				first_dir_found = True
 				continue
-			style_toks.append(t)
+			style_tokens.append(token)
 		# Prepend a shape-form marker for triangles so pointing vs corner are separate
 		if shape == 'TRIANGLE':
 			if has_pointing:
-				style_toks = ['pointing'] + style_toks
+				style_tokens = ['pointing'] + style_tokens
 			elif has_corner:
-				style_toks = ['corner'] + style_toks
-		style = tuple(style_toks)
-		dk = direction_key(n)
-		groups[(shape or '_other', fill, style)].append((cp, dk))
+				style_tokens = ['corner'] + style_tokens
+		style = tuple(style_tokens)
+		direction = direction_key(name)
+		groups[(shape or '_other', fill, style)].append((code_point, direction))
 	FILL_ORDER = {'WHITE':0,'MID':1,'HALF':2,'BLACK':3}
 	FILL_NAME = {'WHITE':'white','MID':'other','HALF':'half-shaded','BLACK':'black'}
 	SHAPE_ORDER = ['CIRCLE','ELLIPSE','TRIANGLE','SQUARE','RECTANGLE','PARALLELOGRAM',
@@ -402,25 +402,25 @@ def process_geometric_shapes(cps, block_label):
 					label = f"{block_label}: {fill_str} {shape_str} {style_str}{suffix}"
 				else:
 					label = f"{block_label}: {fill_str} {shape_str}s{suffix}"
-				yield (label, [cp for cp,_ in wave])
+				yield (label, [code_point for code_point,_ in wave])
 
 def process_enclosed_alphanum(cps, block_label):
 	groups = defaultdict(list)
-	for cp in cps:
-		n = safe_name(cp) or ''
-		m = re.match(r'^(PARENTHESIZED|CIRCLED|NEGATIVE CIRCLED|DOUBLE CIRCLED|DINGBAT CIRCLED|DINGBAT NEGATIVE CIRCLED|SQUARED|NEGATIVE SQUARED|SQUARED LATIN)\s+(.+)$', n)
-		enc = m.group(1) if m else 'OTHER'
-		if 'DIGIT' in n or 'NUMBER' in n:
-			ctype = 'num'; val = parse_digit_name(n) or 999
-		elif 'LATIN SMALL' in n:
-			ctype = 'latin-small'; val = 0
-		elif 'LATIN CAPITAL' in n:
-			ctype = 'latin-capital'; val = 0
-		elif 'HANGUL' in n or 'IDEOGRAPH' in n or 'KATAKANA' in n:
-			ctype = 'cjk'; val = 0
+	for code_point in cps:
+		name = safe_name(code_point) or ''
+		match = re.match(r'^(PARENTHESIZED|CIRCLED|NEGATIVE CIRCLED|DOUBLE CIRCLED|DINGBAT CIRCLED|DINGBAT NEGATIVE CIRCLED|SQUARED|NEGATIVE SQUARED|SQUARED LATIN)\s+(.+)$', name)
+		enc = match.group(1) if match else 'OTHER'
+		if 'DIGIT' in name or 'NUMBER' in name:
+			ctype = 'num'; value = parse_digit_name(name) or 999
+		elif 'LATIN SMALL' in name:
+			ctype = 'latin-small'; value = 0
+		elif 'LATIN CAPITAL' in name:
+			ctype = 'latin-capital'; value = 0
+		elif 'HANGUL' in name or 'IDEOGRAPH' in name or 'KATAKANA' in name:
+			ctype = 'cjk'; value = 0
 		else:
-			ctype = 'other'; val = 0
-		groups[(enc, ctype)].append((cp, val, n))
+			ctype = 'other'; value = 0
+		groups[(enc, ctype)].append((code_point, value, name))
 	ENC_ORDER = ['CIRCLED','DINGBAT CIRCLED','NEGATIVE CIRCLED','DINGBAT NEGATIVE CIRCLED','DOUBLE CIRCLED','PARENTHESIZED','SQUARED','SQUARED LATIN','NEGATIVE SQUARED','OTHER']
 	CTYPE_ORDER = ['num','latin-capital','latin-small','cjk','other']
 	for enc in ENC_ORDER:
@@ -432,8 +432,8 @@ def process_enclosed_alphanum(cps, block_label):
 				items.sort(key=lambda x: (x[1], x[0]))
 			elif ct.startswith('latin'):
 				def lk(x):
-					m = re.search(r'LETTER\s+([A-Z])', x[2])
-					return (ord(m.group(1)) if m else 999, x[0])
+					match = re.search(r'LETTER\s+([A-Z])', x[2])
+					return (ord(match.group(1)) if match else 999, x[0])
 				items.sort(key=lk)
 			else:
 				items.sort(key=lambda x: x[0])
@@ -444,26 +444,26 @@ def process_playing_cards(cps, block_label):
 	RANK_ORDER = {'ACE':1,'TWO':2,'THREE':3,'FOUR':4,'FIVE':5,'SIX':6,'SEVEN':7,'EIGHT':8,'NINE':9,'TEN':10,
 				  'JACK':11,'KNIGHT':12,'QUEEN':13,'KING':14}
 	groups = defaultdict(list)
-	for cp in cps:
-		n = safe_name(cp) or ''
-		if 'TRUMP' in n or 'JOKER' in n:
-			val = parse_digit_name(n) or 0
-			groups['TRUMPS'].append((cp, val))
+	for code_point in cps:
+		name = safe_name(code_point) or ''
+		if 'TRUMP' in name or 'JOKER' in name:
+			value = parse_digit_name(name) or 0
+			groups['TRUMPS'].append((code_point, value))
 			continue
-		if 'BACK' in n:
-			groups['BACK'].append((cp, 0)); continue
+		if 'BACK' in name:
+			groups['BACK'].append((code_point, 0)); continue
 		suit = None
-		for s in ['SPADES','HEARTS','DIAMONDS','CLUBS']:
-			if s in n: suit = s; break
+		for suit_name in ['SPADES','HEARTS','DIAMONDS','CLUBS']:
+			if suit_name in name: suit = suit_name; break
 		rank = None
-		for r in RANK_ORDER:
-			if r in n: rank = r; break
-		groups[suit or 'OTHER'].append((cp, RANK_ORDER.get(rank, 99)))
-	for s in ['BACK','SPADES','HEARTS','DIAMONDS','CLUBS','TRUMPS','JOKER','OTHER']:
-		if s not in groups: continue
-		items = groups[s]
+		for rank_name in RANK_ORDER:
+			if rank_name in name: rank = rank_name; break
+		groups[suit or 'OTHER'].append((code_point, RANK_ORDER.get(rank, 99)))
+	for suit in ['BACK','SPADES','HEARTS','DIAMONDS','CLUBS','TRUMPS','JOKER','OTHER']:
+		if suit not in groups: continue
+		items = groups[suit]
 		items.sort(key=lambda x: (x[1], x[0]))
-		yield (f"{block_label}: {s.lower()}", [x[0] for x in items])
+		yield (f"{block_label}: {suit.lower()}", [x[0] for x in items])
 
 def process_math_alphanum(cps, block_label):
 	STYLE_ORDER = ['','BOLD','ITALIC','BOLD ITALIC','SCRIPT','BOLD SCRIPT','FRAKTUR','BOLD FRAKTUR',
@@ -471,27 +471,27 @@ def process_math_alphanum(cps, block_label):
 				   'MONOSPACE','DOUBLE-STRUCK ITALIC']
 	STYLE_PRI = {s:i for i,s in enumerate(STYLE_ORDER)}
 	groups = defaultdict(list)
-	for cp in cps:
-		n = safe_name(cp) or ''
+	for code_point in cps:
+		name = safe_name(code_point) or ''
 		style = ''
-		m = re.match(r'^MATHEMATICAL\s+(.+?)\s+(CAPITAL|SMALL|DIGIT)\s+', n)
-		if m:
-			style = m.group(1).strip()
-		if 'DIGIT' in n:
+		match = re.match(r'^MATHEMATICAL\s+(.+?)\s+(CAPITAL|SMALL|DIGIT)\s+', name)
+		if match:
+			style = match.group(1).strip()
+		if 'DIGIT' in name:
 			kind = 'digits'
-			val = parse_digit_name(n) or 0
-			lr = val
-		elif 'CAPITAL' in n:
+			value = parse_digit_name(name) or 0
+			sort_rank = value
+		elif 'CAPITAL' in name:
 			kind = 'capital'
-			lm = re.search(r'CAPITAL\s+([A-Z])', n)
-			lr = ord(lm.group(1)) if lm else 999
-		elif 'SMALL' in n:
+			letter_match = re.search(r'CAPITAL\s+([A-Z])', name)
+			sort_rank = ord(letter_match.group(1)) if letter_match else 999
+		elif 'SMALL' in name:
 			kind = 'small'
-			lm = re.search(r'SMALL\s+([A-Z])', n)
-			lr = ord(lm.group(1)) if lm else 999
+			letter_match = re.search(r'SMALL\s+([A-Z])', name)
+			sort_rank = ord(letter_match.group(1)) if letter_match else 999
 		else:
-			kind = 'other'; lr = 999
-		groups[(style, kind)].append((cp, lr))
+			kind = 'other'; sort_rank = 999
+		groups[(style, kind)].append((code_point, sort_rank))
 	KIND_ORDER = {'digits':0,'capital':1,'small':2,'other':3}
 	keys = sorted(groups.keys(), key=lambda k: (STYLE_PRI.get(k[0],99), k[0], KIND_ORDER[k[1]]))
 	for k in keys:
@@ -499,18 +499,18 @@ def process_math_alphanum(cps, block_label):
 		items.sort(key=lambda x: (x[1], x[0]))
 		style, kind = k
 		label = f"Math alphanumerics: {(style+' ').strip()} {kind}".strip()
-		yield (label, [cp for cp,_ in items])
+		yield (label, [code_point for code_point,_ in items])
 
 def process_block_elements(cps, block_label):
 	groups = defaultdict(list)
-	for cp in cps:
-		n = safe_name(cp) or ''
-		if 'SHADE' in n: key='shades'
-		elif 'QUADRANT' in n: key='quadrants'
-		elif 'HALF BLOCK' in n: key='half blocks'
-		elif 'BLOCK' in n: key='blocks'
+	for code_point in cps:
+		name = safe_name(code_point) or ''
+		if 'SHADE' in name: key='shades'
+		elif 'QUADRANT' in name: key='quadrants'
+		elif 'HALF BLOCK' in name: key='half blocks'
+		elif 'BLOCK' in name: key='blocks'
 		else: key='other'
-		groups[key].append(cp)
+		groups[key].append(code_point)
 	for k in ['blocks','half blocks','quadrants','shades','other']:
 		if k in groups:
 			yield (f"{block_label}: {k}", sorted(groups[k]))
@@ -519,35 +519,35 @@ def process_dingbats(cps, block_label):
 	groups = defaultdict(list)
 	arrow_cps = []
 	triangle_cps = []
-	for cp in cps:
-		n = safe_name(cp) or ''
-		if 'DIGIT' in n:
-			val = parse_digit_name(n) or 0
-			groups['digits'].append((cp, val))
-		elif 'CHECK' in n or 'TICK' in n:
-			groups['checks'].append((cp, 0))
-		elif 'BALLOT' in n and 'X' in n:
-			groups['crosses'].append((cp, 0))
-		elif re.search(r'\bCROSS\b', n):
-			groups['crosses'].append((cp, 0))
-		elif 'ARROW' in n:
-			arrow_cps.append(cp)
-		elif 'STAR' in n or 'ASTERISK' in n or 'STARBURST' in n:
-			groups['stars'].append((cp, 0))
-		elif 'HEART' in n:
-			groups['hearts'].append((cp, 0))
-		elif 'FLOWER' in n or 'FLORETTE' in n:
-			groups['flowers'].append((cp, 0))
-		elif 'TRIANGLE' in n:
-			triangle_cps.append(cp)
-		elif 'SPARKLE' in n:
-			groups['sparkles'].append((cp, 0))
-		elif 'BRACKET' in n or 'PARENTHESIS' in n or 'QUOT' in n:
-			groups['brackets/quotes'].append((cp, 0))
-		elif 'PENCIL' in n or 'HAND' in n or 'FIST' in n or 'SCISSOR' in n or 'WRITING' in n:
-			groups['hands/tools'].append((cp, 0))
+	for code_point in cps:
+		name = safe_name(code_point) or ''
+		if 'DIGIT' in name:
+			value = parse_digit_name(name) or 0
+			groups['digits'].append((code_point, value))
+		elif 'CHECK' in name or 'TICK' in name:
+			groups['checks'].append((code_point, 0))
+		elif 'BALLOT' in name and 'X' in name:
+			groups['crosses'].append((code_point, 0))
+		elif re.search(r'\bCROSS\b', name):
+			groups['crosses'].append((code_point, 0))
+		elif 'ARROW' in name:
+			arrow_cps.append(code_point)
+		elif 'STAR' in name or 'ASTERISK' in name or 'STARBURST' in name:
+			groups['stars'].append((code_point, 0))
+		elif 'HEART' in name:
+			groups['hearts'].append((code_point, 0))
+		elif 'FLOWER' in name or 'FLORETTE' in name:
+			groups['flowers'].append((code_point, 0))
+		elif 'TRIANGLE' in name:
+			triangle_cps.append(code_point)
+		elif 'SPARKLE' in name:
+			groups['sparkles'].append((code_point, 0))
+		elif 'BRACKET' in name or 'PARENTHESIS' in name or 'QUOT' in name:
+			groups['brackets/quotes'].append((code_point, 0))
+		elif 'PENCIL' in name or 'HAND' in name or 'FIST' in name or 'SCISSOR' in name or 'WRITING' in name:
+			groups['hands/tools'].append((code_point, 0))
 		else:
-			groups['other'].append((cp, 0))
+			groups['other'].append((code_point, 0))
 	for k in ['digits','stars','sparkles','flowers','hearts','checks','crosses']:
 		if k in groups:
 			items = sorted(groups[k], key=lambda x: (x[1], x[0]))
@@ -563,45 +563,45 @@ def process_dingbats(cps, block_label):
 
 def process_miscellaneous_symbols(cps, block_label):
 	groups = defaultdict(list)
-	for cp in cps:
-		n = safe_name(cp) or ''
-		up = n
+	for code_point in cps:
+		name = safe_name(code_point) or ''
+		upper_name = name
 		key = 'other'
-		if any(w in up for w in ['SUN','MOON','STAR','CLOUD','RAIN','SNOW','COMET','UMBRELLA','LIGHTNING','THERMOMETER']):
+		if any(w in upper_name for w in ['SUN','MOON','STAR','CLOUD','RAIN','SNOW','COMET','UMBRELLA','LIGHTNING','THERMOMETER']):
 			key = 'weather and celestial'
-		elif 'HEART' in up:
+		elif 'HEART' in upper_name:
 			key = 'hearts'
-		elif any(w in up for w in ['SPADE','CLUB SUIT','DIAMOND SUIT','SUIT']):
+		elif any(w in upper_name for w in ['SPADE','CLUB SUIT','DIAMOND SUIT','SUIT']):
 			key = 'card suits'
-		elif 'CHESS' in up:
+		elif 'CHESS' in upper_name:
 			key = 'chess'
-		elif 'MUSIC' in up or 'NOTE' in up or 'BEAMED' in up or 'FLAT' in up or 'SHARP' in up or 'NATURAL' in up:
+		elif 'MUSIC' in upper_name or 'NOTE' in upper_name or 'BEAMED' in upper_name or 'FLAT' in upper_name or 'SHARP' in upper_name or 'NATURAL' in upper_name:
 			key = 'musical'
-		elif any(w in up for w in ['ARIES','TAURUS','GEMINI','CANCER','LEO','VIRGO','LIBRA','SCORPIUS','SAGITTARIUS','CAPRICORN','AQUARIUS','PISCES','ZODIAC']):
+		elif any(w in upper_name for w in ['ARIES','TAURUS','GEMINI','CANCER','LEO','VIRGO','LIBRA','SCORPIUS','SAGITTARIUS','CAPRICORN','AQUARIUS','PISCES','ZODIAC']):
 			key = 'zodiac'
-		elif any(w in up for w in ['MALE','FEMALE','GENDER','MERCURY','VENUS','MARS','JUPITER','SATURN','URANUS','NEPTUNE','PLUTO','EARTH','PLANET']):
+		elif any(w in upper_name for w in ['MALE','FEMALE','GENDER','MERCURY','VENUS','MARS','JUPITER','SATURN','URANUS','NEPTUNE','PLUTO','EARTH','PLANET']):
 			key = 'astrological/gender'
-		elif 'ARROW' in up:
+		elif 'ARROW' in upper_name:
 			key = 'arrows'
-		elif 'CROSS' in up or 'CRUCIFIX' in up:
+		elif 'CROSS' in upper_name or 'CRUCIFIX' in upper_name:
 			key = 'crosses'
-		elif 'CIRCLE' in up or 'BULLET' in up or 'LOZENGE' in up:
+		elif 'CIRCLE' in upper_name or 'BULLET' in upper_name or 'LOZENGE' in upper_name:
 			key = 'circles/bullets'
-		elif any(w in up for w in ['TELEPHONE','ENVELOPE','AIRPLANE','PENCIL','SCISSORS','CUP','UMBRELLA','ANCHOR']):
+		elif any(w in upper_name for w in ['TELEPHONE','ENVELOPE','AIRPLANE','PENCIL','SCISSORS','CUP','UMBRELLA','ANCHOR']):
 			key = 'objects'
-		elif 'FACE' in up or 'SMILING' in up or 'FROWNING' in up:
+		elif 'FACE' in upper_name or 'SMILING' in upper_name or 'FROWNING' in upper_name:
 			key = 'faces'
-		elif any(w in up for w in ['YIN','YANG','ANKH','STAR OF DAVID','WHEEL OF DHARMA','KHANDA','ORTHODOX','OM','FARSI','KHAMSA','HAMMER','SICKLE','PEACE']):
+		elif any(w in upper_name for w in ['YIN','YANG','ANKH','STAR OF DAVID','WHEEL OF DHARMA','KHANDA','ORTHODOX','OM','FARSI','KHAMSA','HAMMER','SICKLE','PEACE']):
 			key = 'religious/cultural'
-		elif 'DICE' in up or 'DOMINO' in up:
+		elif 'DICE' in upper_name or 'DOMINO' in upper_name:
 			key = 'games'
-		elif 'HAND' in up or 'FINGER' in up or 'FIST' in up:
+		elif 'HAND' in upper_name or 'FINGER' in upper_name or 'FIST' in upper_name:
 			key = 'hands'
-		elif 'FLAG' in up:
+		elif 'FLAG' in upper_name:
 			key = 'flags'
-		elif 'WARNING' in up or 'SIGN' in up or 'RADIOACTIVE' in up or 'BIOHAZARD' in up or 'RECYCLING' in up or 'SKULL' in up:
+		elif 'WARNING' in upper_name or 'SIGN' in upper_name or 'RADIOACTIVE' in upper_name or 'BIOHAZARD' in upper_name or 'RECYCLING' in upper_name or 'SKULL' in upper_name:
 			key = 'signs/warnings'
-		groups[key].append(cp)
+		groups[key].append(code_point)
 	ORDER = ['weather and celestial','hearts','card suits','chess','musical','zodiac','astrological/gender',
 			 'religious/cultural','faces','hands','objects','games','flags','signs/warnings',
 			 'arrows','crosses','circles/bullets','other']
@@ -633,19 +633,19 @@ def process_emoji_pictographs(cps, block_label):
 	]
 	groups = defaultdict(list)
 	arrow_cps = []
-	for cp in cps:
-		n = safe_name(cp) or ''
-		up = n
+	for code_point in cps:
+		name = safe_name(code_point) or ''
+		upper_name = name
 		assigned = False
 		for cat_name, kws in CATEGORIES:
-			if any(kw in up for kw in kws):
+			if any(kw in upper_name for kw in kws):
 				if cat_name == 'arrows':
-					arrow_cps.append(cp)
+					arrow_cps.append(code_point)
 				else:
-					groups[cat_name].append(cp)
+					groups[cat_name].append(code_point)
 				assigned = True; break
 		if not assigned:
-			groups['other'].append(cp)
+			groups['other'].append(code_point)
 	for cat_name, _ in CATEGORIES:
 		if cat_name == 'arrows':
 			if arrow_cps:
@@ -657,16 +657,16 @@ def process_emoji_pictographs(cps, block_label):
 
 def process_numerics(cps, block_label):
 	digit_items = []; other = []
-	for cp in cps:
-		n = safe_name(cp) or ''
-		v = parse_digit_name(n)
-		if v is not None and any(k in n for k in ['DIGIT','NUMBER','FRACTION','SUBSCRIPT','SUPERSCRIPT','ROMAN','NUMERAL']):
-			digit_items.append((cp, v))
+	for code_point in cps:
+		name = safe_name(code_point) or ''
+		value = parse_digit_name(name)
+		if value is not None and any(k in name for k in ['DIGIT','NUMBER','FRACTION','SUBSCRIPT','SUPERSCRIPT','ROMAN','NUMERAL']):
+			digit_items.append((code_point, value))
 		else:
-			other.append(cp)
+			other.append(code_point)
 	digit_items.sort(key=lambda x: (x[1], x[0]))
 	if digit_items:
-		yield (f"{block_label}: numerals by value", [cp for cp,_ in digit_items])
+		yield (f"{block_label}: numerals by value", [code_point for code_point,_ in digit_items])
 	if other:
 		yield (f"{block_label}: other", sorted(other))
 
@@ -741,33 +741,33 @@ TALL_NAME_KEYWORDS = ('COMBINING','STACKED','TWO-LINE','N-ARY',
 					  'OVERLINE','UNDERLINE','OVERBAR','UNDERBAR',
 					  'DOUBLE INTEGRAL','TRIPLE INTEGRAL','SUMMATION')
 
-def char_width(cp):
+def char_width(code_point):
 	"""Return 0 (combining/zero-advance), 1 (single cell), or 2 (double-wide)."""
 	try:
-		ch = chr(cp)
-		cat = unicodedata.category(ch)
-		if cat in ('Mn', 'Me', 'Cf'):
+		char = chr(code_point)
+		category = unicodedata.category(char)
+		if category in ('Mn', 'Me', 'Cf'):
 			return 0
-		w = unicodedata.east_asian_width(ch)
-		if w in ('W', 'F'):
+		width = unicodedata.east_asian_width(char)
+		if width in ('W', 'F'):
 			return 2
 		return 1
 	except Exception:
 		return 1
 
-def char_height(cp):
+def char_height(code_point):
 	"""Heuristic: 1 (normal line), 2 (likely taller than line / may clip in terminal)."""
 	try:
-		ch = chr(cp)
-		cat = unicodedata.category(ch)
-		if cat in ('Mn', 'Me', 'Mc'):
+		char = chr(code_point)
+		category = unicodedata.category(char)
+		if category in ('Mn', 'Me', 'Mc'):
 			return 2
-		if cp in TALL_CODEPOINTS:
+		if code_point in TALL_CODEPOINTS:
 			return 2
-		for s, e in TALL_BLOCKS:
-			if s <= cp <= e:
+		for start, end in TALL_BLOCKS:
+			if start <= code_point <= end:
 				return 2
-		name = unicodedata.name(ch, '')
+		name = unicodedata.name(char, '')
 		if any(kw in name for kw in TALL_NAME_KEYWORDS):
 			return 2
 		return 1
@@ -776,46 +776,46 @@ def char_height(cp):
 
 def main():
 	by_block = defaultdict(list)
-	for cp in range(0, MAX_CP + 1):
-		if not is_printable(cp): continue
-		blk = block_for(cp) or "Unassigned"
-		by_block[blk].append(cp)
+	for code_point in range(0, MAX_CP + 1):
+		if not is_printable(code_point): continue
+		block_name = block_for(code_point) or "Unassigned"
+		by_block[block_name].append(code_point)
 
 	rows = []
-	for s, e, blk_name in BLOCKS:
-		if blk_name not in by_block: continue
-		cps = by_block[blk_name]
-		bl = utf8_len(cps[0])
+	for start, end, block_name in BLOCKS:
+		if block_name not in by_block: continue
+		cps = by_block[block_name]
+		byte_length = utf8_len(cps[0])
 		# Confirm all same byte length; split if not (rare)
-		proc = PROCESSORS.get(blk_name, lambda cps: process_default(cps, blk_name))
+		processor = PROCESSORS.get(block_name, lambda cps: process_default(cps, block_name))
 		try:
-			for label, cp_list in proc(cps):
+			for label, cp_list in processor(cps):
 				for sub_label, sub_cps in chunk_group(label, cp_list):
-					rows.append((bl, sub_label, sub_cps))
-		except Exception as ex:
-			print(f"Processor failed for {blk_name}: {ex}", file=sys.stderr)
-			for sub_label, sub_cps in chunk_group(blk_name, sorted(cps)):
-				rows.append((bl, sub_label, sub_cps))
+					rows.append((byte_length, sub_label, sub_cps))
+		except Exception as error:
+			print(f"Processor failed for {block_name}: {error}", file=sys.stderr)
+			for sub_label, sub_cps in chunk_group(block_name, sorted(cps)):
+				rows.append((byte_length, sub_label, sub_cps))
 
 	rows.sort(key=lambda r: r[0])  # stable sort by byte length
 
 	with open('unicode_printable.csv','w',newline='',encoding='utf-8') as f:
-		w = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
-		w.writerow(['Unicode range(s)', 'UTF-8 bytes', 'Group name', 'Characters', 'Width', 'Height'])
-		for bl, name, cps in rows:
-			rng = format_ranges(cps)
-			chars_str = ' '.join(chr(cp) for cp in cps)
-			width = max((char_width(cp) for cp in cps), default=1)
-			height = max((char_height(cp) for cp in cps), default=1)
-			w.writerow([rng, bl, name, chars_str, width, height])
+		writer = csv.writer(f, quoting=csv.QUOTE_MINIMAL)
+		writer.writerow(['Unicode range(s)', 'UTF-8 bytes', 'Group name', 'Characters', 'Width', 'Height'])
+		for byte_length, name, cps in rows:
+			range_str = format_ranges(cps)
+			chars_str = ' '.join(chr(code_point) for code_point in cps)
+			width = max((char_width(code_point) for code_point in cps), default=1)
+			height = max((char_height(code_point) for code_point in cps), default=1)
+			writer.writerow([range_str, byte_length, name, chars_str, width, height])
 
 	total_chars = sum(len(r[2]) for r in rows)
-	by_b = defaultdict(int)
-	for bl,_,cps in rows: by_b[bl] += len(cps)
+	chars_by_byte = defaultdict(int)
+	for byte_length,_,cps in rows: chars_by_byte[byte_length] += len(cps)
 	print(f"Total rows: {len(rows)}")
 	print(f"Total chars: {total_chars}")
-	for b in sorted(by_b):
-		print(f"  {b}-byte: {by_b[b]}")
+	for byte_length in sorted(chars_by_byte):
+		print(f"  {byte_length}-byte: {chars_by_byte[byte_length]}")
 
 if __name__ == '__main__':
 	main()

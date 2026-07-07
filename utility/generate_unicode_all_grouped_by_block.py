@@ -374,36 +374,36 @@ def parse_blocks(data):
 		line = line.strip()
 		if not line or line.startswith('#'):
 			continue
-		rng, name = line.split(';', 1)
-		start, end = rng.strip().split('..')
+		code_range, name = line.split(';', 1)
+		start, end = code_range.strip().split('..')
 		blocks.append((int(start, 16), int(end, 16), name.strip()))
 	return blocks
 
 
-def is_printable(cp):
-	if 0xD800 <= cp <= 0xDFFF:	# surrogates
+def is_printable(code_point):
+	if 0xD800 <= code_point <= 0xDFFF:	# surrogates
 		return False
 	try:
-		c = chr(cp)
+		char = chr(code_point)
 	except ValueError:
 		return False
-	cat = unicodedata.category(c)
-	if cat[0] == 'C':			  # Cc, Cf, Cs, Co, Cn
+	category = unicodedata.category(char)
+	if category[0] == 'C':			  # Cc, Cf, Cs, Co, Cn
 		return False
-	if cat in ('Zl', 'Zp'):		# line/paragraph separators
+	if category in ('Zl', 'Zp'):		# line/paragraph separators
 		return False
 	return True
 
 
-def utf8_bytes(cp):
-	if cp <= 0x7F:	return 1
-	if cp <= 0x7FF:   return 2
-	if cp <= 0xFFFF:  return 3
+def utf8_bytes(code_point):
+	if code_point <= 0x7F:	return 1
+	if code_point <= 0x7FF:   return 2
+	if code_point <= 0xFFFF:  return 3
 	return 4
 
 
-def fmt_cp(cp):
-	return f"U+{cp:04X}" if cp <= 0xFFFF else f"U+{cp:05X}"
+def fmt_cp(code_point):
+	return f"U+{code_point:04X}" if code_point <= 0xFFFF else f"U+{code_point:05X}"
 
 
 def fmt_range(start, end):
@@ -412,40 +412,40 @@ def fmt_range(start, end):
 
 def split_chunks(chars, target_max):
 	"""Split into ceil(n/target_max) chunks of near-equal size."""
-	n = len(chars)
-	num = max(1, (n + target_max - 1) // target_max)
-	base = n // num
-	extra = n % num
+	count = len(chars)
+	chunk_count = max(1, (count + target_max - 1) // target_max)
+	base_size = count // chunk_count
+	extra = count % chunk_count
 	chunks = []
-	idx = 0
-	for i in range(num):
-		size = base + (1 if i < extra else 0)
-		chunks.append(chars[idx:idx + size])
-		idx += size
+	index = 0
+	for i in range(chunk_count):
+		size = base_size + (1 if i < extra else 0)
+		chunks.append(chars[index:index + size])
+		index += size
 	return chunks
 
 
 def main():
 	blocks = parse_blocks(BLOCKS_DATA)
 
-	with open(output_path, 'w', newline='', encoding='utf-8') as f:
-		w = csv.writer(f)
-		w.writerow([
+	with open(output_path, 'w', newline='', encoding='utf-8') as csv_file:
+		writer = csv.writer(csv_file)
+		writer.writerow([
 			"Range", "Block name", "Block range",
 			"UTF-8 bytes", "Count", "Characters", "Comments"
 		])
 
 		# Row 1: printable ASCII (U+0020 - U+007E)
-		ascii_chars = [chr(cp) for cp in range(0x20, 0x7F)]
-		w.writerow([
+		ascii_chars = [chr(code_point) for code_point in range(0x20, 0x7F)]
+		writer.writerow([
 			fmt_range(0x20, 0x7E), "Basic Latin", fmt_range(0x0000, 0x007F),
 			1, len(ascii_chars), " ".join(ascii_chars),
 			"Printable 7-bit ASCII"
 		])
 
 		# Row 2: Windows-1252 (ANSI) extensions beyond ASCII
-		ansi_chars = [chr(cp) for cp in WIN1252_EXTENSIONS]
-		w.writerow([
+		ansi_chars = [chr(code_point) for code_point in WIN1252_EXTENSIONS]
+		writer.writerow([
 			"0x80-0xFF (Win-1252)", "(various)", "(various)",
 			"2/3", len(ansi_chars), " ".join(ansi_chars),
 			"Windows-1252 byte positions 0x80-0xFF; maps to scattered Unicode points"
@@ -458,7 +458,7 @@ def main():
 			if start == 0x0080 and end == 0x00FF:
 				continue   # covered by Row 2
 
-			chars = [chr(cp) for cp in range(start, end + 1) if is_printable(cp)]
+			chars = [chr(code_point) for code_point in range(start, end + 1) if is_printable(code_point)]
 			if not chars:
 				continue
 
@@ -466,7 +466,7 @@ def main():
 			for chunk in split_chunks(chars, MAX_ROW):
 				row_start = ord(chunk[0])
 				row_end   = ord(chunk[-1])
-				w.writerow([
+				writer.writerow([
 					fmt_range(row_start, row_end),
 					name,
 					block_range,

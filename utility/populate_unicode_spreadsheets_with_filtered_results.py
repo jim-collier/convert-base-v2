@@ -138,24 +138,24 @@ class GnumericAdapter(SpreadsheetAdapter):
 		self._max_row = 0
 		self._max_col = 0
 		for cell_el in self._cells_container.findall(f'{{{GNM_NS}}}Cell'):
-			r = int(cell_el.get('Row'))
-			c = int(cell_el.get('Col'))
-			self._cells[(r, c)] = cell_el
-			if r > self._max_row:
-				self._max_row = r
-			if c > self._max_col:
-				self._max_col = c
+			row = int(cell_el.get('Row'))
+			col = int(cell_el.get('Col'))
+			self._cells[(row, col)] = cell_el
+			if row > self._max_row:
+				self._max_row = row
+			if col > self._max_col:
+				self._max_col = col
 
 	def cell_value(self, row, col):
 		# Convert 1-based to 0-based
-		el = self._cells.get((row - 1, col - 1))
-		if el is None:
+		cell_el = self._cells.get((row - 1, col - 1))
+		if cell_el is None:
 			return None
-		vt = el.get('ValueType')
-		text = el.text
+		value_type = cell_el.get('ValueType')
+		text = cell_el.text
 		if text is None:
 			return None
-		if vt == '40':  # float
+		if value_type == '40':  # float
 			try:
 				return float(text)
 			except ValueError:
@@ -163,26 +163,26 @@ class GnumericAdapter(SpreadsheetAdapter):
 		return text
 
 	def set_cell_value(self, row, col, value):
-		r, c = row - 1, col - 1
-		el = self._cells.get((r, c))
-		if el is None:
-			el = ET.SubElement(self._cells_container, f'{{{GNM_NS}}}Cell')
-			el.set('Row', str(r))
-			el.set('Col', str(c))
-			self._cells[(r, c)] = el
-			if r > self._max_row:
-				self._max_row = r
-			if c > self._max_col:
-				self._max_col = c
+		zero_row, zero_col = row - 1, col - 1
+		cell_el = self._cells.get((zero_row, zero_col))
+		if cell_el is None:
+			cell_el = ET.SubElement(self._cells_container, f'{{{GNM_NS}}}Cell')
+			cell_el.set('Row', str(zero_row))
+			cell_el.set('Col', str(zero_col))
+			self._cells[(zero_row, zero_col)] = cell_el
+			if zero_row > self._max_row:
+				self._max_row = zero_row
+			if zero_col > self._max_col:
+				self._max_col = zero_col
 		if isinstance(value, datetime):
-			el.set('ValueType', '40')
-			el.text = str(_datetime_to_serial(value))
+			cell_el.set('ValueType', '40')
+			cell_el.text = str(_datetime_to_serial(value))
 		elif isinstance(value, (int, float)):
-			el.set('ValueType', '40')
-			el.text = str(value)
+			cell_el.set('ValueType', '40')
+			cell_el.text = str(value)
 		else:
-			el.set('ValueType', '60')
-			el.text = str(value) if value is not None else ''
+			cell_el.set('ValueType', '60')
+			cell_el.text = str(value) if value is not None else ''
 
 	def set_cell_number_format(self, row, col, fmt):
 		pass  # Format is defined in gnumeric StyleRegion, not per-cell
@@ -240,8 +240,8 @@ class OdsAdapter(SpreadsheetAdapter):
 					col_rep = raw_cell.getAttribute('numbercolumnsrepeated')
 					col_rep_n = int(col_rep) if col_rep else 1
 					# Only store non-empty cells (or first of repeated empties)
-					ps = raw_cell.getElementsByType(P)
-					has_value = bool(ps) or raw_cell.getAttribute('valuetype')
+					paragraphs = raw_cell.getElementsByType(P)
+					has_value = bool(paragraphs) or raw_cell.getAttribute('valuetype')
 					if has_value:
 						for k in range(col_rep_n):
 							self._cells[(logical_row, logical_col + k)] = raw_cell if k == 0 else None
@@ -255,15 +255,15 @@ class OdsAdapter(SpreadsheetAdapter):
 	def _get_cell_text(self, cell_el):
 		if cell_el is None:
 			return None
-		ps = cell_el.getElementsByType(self._P)
-		if not ps:
+		paragraphs = cell_el.getElementsByType(self._P)
+		if not paragraphs:
 			return None
 		# Concatenate text from all P elements
 		parts = []
-		for p in ps:
+		for paragraph in paragraphs:
 			# Recursively get all text content
 			text = ''
-			for node in p.childNodes:
+			for node in paragraph.childNodes:
 				if hasattr(node, 'data'):
 					text += node.data
 				elif hasattr(node, '__str__'):
@@ -275,18 +275,18 @@ class OdsAdapter(SpreadsheetAdapter):
 		cell_el = self._cells.get((row, col))
 		if cell_el is None:
 			return None
-		vtype = cell_el.getAttribute('valuetype')
-		if vtype == 'float':
-			val = cell_el.getAttribute('value')
-			if val is not None:
+		value_type = cell_el.getAttribute('valuetype')
+		if value_type == 'float':
+			float_value = cell_el.getAttribute('value')
+			if float_value is not None:
 				try:
-					return float(val)
+					return float(float_value)
 				except ValueError:
 					pass
-		if vtype == 'date':
-			dval = cell_el.getAttribute('datevalue')
-			if dval is not None:
-				return dval
+		if value_type == 'date':
+			date_value = cell_el.getAttribute('datevalue')
+			if date_value is not None:
+				return date_value
 		return self._get_cell_text(cell_el)
 
 	def _find_cell_in_row(self, row_el, col):
@@ -347,21 +347,21 @@ class OdsAdapter(SpreadsheetAdapter):
 			new_cell.setAttribute('valuetype', 'date')
 			new_cell.setAttribute('datevalue', iso)
 			display = value.strftime('%Y-%m-%d %H:%M:%S')
-			p = P()
-			p.addText(display)
-			new_cell.addElement(p)
+			paragraph = P()
+			paragraph.addText(display)
+			new_cell.addElement(paragraph)
 		elif isinstance(value, (int, float)):
 			new_cell.setAttribute('valuetype', 'float')
 			new_cell.setAttribute('value', str(value))
-			p = P()
-			p.addText(str(value))
-			new_cell.addElement(p)
+			paragraph = P()
+			paragraph.addText(str(value))
+			new_cell.addElement(paragraph)
 		else:
-			sval = str(value) if value is not None else ''
+			string_value = str(value) if value is not None else ''
 			new_cell.setAttribute('valuetype', 'string')
-			p = P()
-			p.addText(sval)
-			new_cell.addElement(p)
+			paragraph = P()
+			paragraph.addText(string_value)
+			new_cell.addElement(paragraph)
 
 		if found_cell is not None:
 			if found_rep == 1:
@@ -425,17 +425,17 @@ def find_py_columns(adapter):
 	for col_idx in range(1, adapter.max_column + 1):
 		val = adapter.cell_value(1, col_idx)
 		if val and '[py:' in str(val):
-			m = re.search(r'\[py:\s*(\w+)\]', str(val))
-			if m:
-				cols[m.group(1)] = col_idx
+			match = re.search(r'\[py:\s*(\w+)\]', str(val))
+			if match:
+				cols[match.group(1)] = col_idx
 	return cols
 
 
-def parse_range_str(s):
+def parse_range_str(range_str):
 	"""Parse 'U+XXXX-U+YYYY' into (start_int, end_int) or None."""
-	m = re.match(r'U\+([0-9A-Fa-f]+)\s*-\s*U\+([0-9A-Fa-f]+)', str(s).strip())
-	if m:
-		return (int(m.group(1), 16), int(m.group(2), 16))
+	match = re.match(r'U\+([0-9A-Fa-f]+)\s*-\s*U\+([0-9A-Fa-f]+)', str(range_str).strip())
+	if match:
+		return (int(match.group(1), 16), int(match.group(2), 16))
 	return None
 
 
@@ -464,9 +464,9 @@ def find_matching_row(chunk_start, chunk_end, block_start, block_end, row_index)
 	if (chunk_start, chunk_end) in row_index:
 		return row_index[(chunk_start, chunk_end)]
 	# Subset match: any existing range within block that overlaps this chunk
-	for (rs, re_), row in row_index.items():
-		if block_start <= rs and re_ <= block_end:
-			if rs <= chunk_end and re_ >= chunk_start:
+	for (range_start, range_end), row in row_index.items():
+		if block_start <= range_start and range_end <= block_end:
+			if range_start <= chunk_end and range_end >= chunk_start:
 				return row
 	return None
 
@@ -480,13 +480,13 @@ def generate_block_chunks():
 		if start >= MAX_CODEPOINT:
 			continue
 		chars = []
-		for cp in range(start, end + 1):
-			if not is_printable(cp):
+		for code_point in range(start, end + 1):
+			if not is_printable(code_point):
 				continue
-			c = chr(cp)
-			if unicodedata.category(c).startswith('Z'):
+			char = chr(code_point)
+			if unicodedata.category(char).startswith('Z'):
 				continue
-			chars.append(c)
+			chars.append(char)
 		if not chars:
 			continue
 		for chunk in split_chunks(chars, MAX_ROW):
@@ -581,7 +581,7 @@ def process_spreadsheet(path, chunks):
 		orig_chars = set(current_orig.split()) if current_orig else set()
 		visual_str = visual_result if messy_result else (adapter.cell_value(row, col_visual) or '')
 		visual_chars = set(visual_str.split()) if visual_str else set()
-		removed = [c for c in current_orig.split() if c not in visual_chars] if current_orig else []
+		removed = [char for char in current_orig.split() if char not in visual_chars] if current_orig else []
 		adapter.set_cell_value(row, col_filt_out, ' '.join(removed) if removed else '')
 
 		# [py: updated] — timestamp this row

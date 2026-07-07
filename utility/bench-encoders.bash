@@ -1,16 +1,27 @@
 #!/usr/bin/env bash
-#
-# Streaming binary<->text throughput benchmark: convert-base-v2 vs the common
-# system encoders (base64, base32, basenc, openssl, xxd).
-#
-# All I/O happens in a tmpfs (RAM, /dev/shm) so the numbers reflect the codecs,
-# not disk speed, and are repeatable on any machine. Each program is fed the
-# identical input: one random blob to encode, and each format group's own
-# canonical text to decode. Throughput is measured over the binary side.
-#
-# Usage:   bench-encoders.bash [path-to-convert-base-v2]
-# Env:     BENCH_SIZE_MIB (default 256), BENCH_RUNS (default 10)
-#
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## bench-encoders.bash
+##
+##	Streaming binary<->text throughput benchmark: convert-base-v2 vs the
+##	common system encoders (base64, base32, basenc, openssl, xxd).
+##
+##	All I/O happens in a tmpfs (RAM, /dev/shm) so the numbers reflect the
+##	codecs, not disk speed, and are repeatable on any machine. Each program
+##	is fed the identical input: one random blob to encode, and each format
+##	group's own canonical text to decode. Throughput is measured over the
+##	binary side.
+##
+##	Usage:
+##		bench-encoders.bash [path-to-convert-base-v2]
+##	Env:
+##		BENCH_SIZE_MIB (default 256), BENCH_RUNS (default 10)
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+
+##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
+
 set -Eeuo pipefail
 
 meDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

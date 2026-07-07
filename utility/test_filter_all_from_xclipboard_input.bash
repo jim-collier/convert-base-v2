@@ -1,4 +1,15 @@
-#!/bin/bash
+#!/usr/bin/env bash
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## test_filter_all_from_xclipboard_input.bash
+##
+##	Runs all three Unicode filters in sequence over the X clipboard text and
+##	prints each stage's result, for comparison.
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+
+##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
 
 fMain(){
 

@@ -121,8 +121,8 @@ def is_format(c): return unicodedata.category(c) == 'Cf'
 def is_rtl(c): return unicodedata.bidirectional(c) in ('R', 'AL', 'AN')
 
 def is_name_excluded(c):
-	cp = ord(c)
-	if cp in NAME_EXCLUSION_EXCEPTIONS: return False
+	code_point = ord(c)
+	if code_point in NAME_EXCLUSION_EXCEPTIONS: return False
 	cat = unicodedata.category(c)
 	if cat not in ('Lm', 'Sk', 'Lo'): return False
 	name = unicodedata.name(c, '')
@@ -134,13 +134,13 @@ def extract(text, debug=False):
 	fail_log = []
 	for char in unicodedata.normalize('NFC', text):
 		if unicodedata.category(char) in ('Zs', 'Zl', 'Zp'): continue
-		cp = ord(char)
+		code_point = ord(char)
 		reason = None
 		if is_mark(char):                reason = 'MARK'
 		elif is_format(char):            reason = 'FORMAT'
 		elif is_rtl(char):               reason = 'RIGHT_TO_LEFT'
-		elif cp in HARDCODED_EXCLUSIONS: reason = 'HARDCODED'
-		elif cp in ASCII_EXCLUDED_SYMBOLS: reason = 'ASCII_EXCLUDED'
+		elif code_point in HARDCODED_EXCLUSIONS: reason = 'HARDCODED'
+		elif code_point in ASCII_EXCLUDED_SYMBOLS: reason = 'ASCII_EXCLUDED'
 		elif is_name_excluded(char):     reason = 'NAME_EXCLUDED'
 		else:
 			nfd = unicodedata.normalize('NFD', char)
@@ -149,15 +149,15 @@ def extract(text, debug=False):
 		if reason:
 			if debug:
 				name = unicodedata.name(char, '')
-				fail_log.append((cp, char, 'FAIL:' + reason, name))
+				fail_log.append((code_point, char, 'FAIL:' + reason, name))
 			continue
-		if cp not in seen:
-			seen.add(cp); result.append(char)
+		if code_point not in seen:
+			seen.add(code_point); result.append(char)
 	if debug and fail_log:
 		print(f"\nFiltered out {len(fail_log)} characters:", file=sys.stderr)
 		col_result_w = max(len(r) for _, _, r, _ in fail_log)
-		for cp, c, reason, name in fail_log:
-			print(f"  U+{cp:04X}  {c}  {reason:<{col_result_w}}  '{name.lower()}'", file=sys.stderr)
+		for code_point, c, reason, name in fail_log:
+			print(f"  U+{code_point:04X}  {c}  {reason:<{col_result_w}}  '{name.lower()}'", file=sys.stderr)
 	return ' '.join(result)
 
 if __name__ == '__main__':
