@@ -38,10 +38,11 @@ type Base struct {
 	// Binary, if true, marks this base as the raw-binary mode: each of the
 	// 256 digits is one literal byte value. Convert() uses bit-packing (O(N),
 	// no big.Int) for roundtrips between binary and any other power-of-2
-	// base (2, 4, 8, 16, 32, 64, 128, 256). That scheme preserves leading
-	// zero bytes bit-perfectly. Conversions between binary and a non-power-
-	// of-2 base are rejected. Sign and decimal are nonsensical here and are
-	// always disabled.
+	// base (2, 4, 8, 16, 32, 64, 128, 256), which preserves leading zero bytes
+	// bit-perfectly. Conversions between binary and a non-power-of-2 base are
+	// rejected UNLESS that base is a defined binary-to-text codec (BinaryScheme
+	// set to base45/ascii85/z85/base91), which carries bytes per its own spec.
+	// Sign and decimal are nonsensical here and are always disabled.
 	Binary bool
 
 	// Source describes where this Base was defined (e.g. "built-in", a
@@ -53,8 +54,12 @@ type Base struct {
 	// binary schemes (base 2048/32768/65536) to encode a final partial chunk.
 	// Empty means no native scheme: binary conversion falls back to the
 	// generic length-prefixed packing. BinaryScheme selects which layout.
-	TailSymbols  []string
-	BinaryScheme string // "", "qntm", "qntm65536", or "rust2048"
+	TailSymbols []string
+	// BinaryScheme names a non-default raw-binary layout. Power-of-2 big bases
+	// use "qntm"/"qntm65536"/"rust2048" (with TailSymbols). Non-power-of-2
+	// binary-to-text codecs use "base45"/"ascii85"/"z85"/"base91", implemented
+	// per their official specs in convert.go.
+	BinaryScheme string
 
 	// PadSymbol is the RFC-style padding character (e.g. "=") for base32/base64.
 	// When set, binary decode strips a trailing run of it (lenient input). When
@@ -86,6 +91,14 @@ func (b *Base) Name() string {
 		return b.Aliases[0]
 	}
 	return fmt.Sprintf("base(%d)", len(b.Symbols))
+}
+
+// RawCodec reports whether this base can carry a raw binary stream (--from/--to
+// binary): every power-of-2 base via bit-packing, plus the defined binary-to-text
+// codecs (base45/ascii85/z85/base91) via their own schemes. Any other base has no
+// byte-exact mapping and errors in binary mode.
+func (b *Base) RawCodec() bool {
+	return powerOfTwoBits(len(b.Symbols)) != 0 || b.BinaryScheme != ""
 }
 
 // NegSym returns the effective negative marker (empty string if disabled).
@@ -365,7 +378,7 @@ func (r *Registry) orderedBases() []*Base {
 // Print writes a human-readable listing to w.
 func (r *Registry) Print(w io.Writer) {
 	bases := r.orderedBases()
-	fmt.Fprintf(w, "%-16s  %-6s  %-5s  %-5s  %s\n", "NAME", "SIZE", "NEG", "DEC", "ALIASES")
+	fmt.Fprintf(w, "%-16s  %-6s  %-5s  %-5s  %-5s  %s\n", "NAME", "SIZE", "NEG", "DEC", "RAW", "ALIASES")
 	for _, b := range bases {
 		neg := b.negative
 		if neg == "" {
@@ -375,13 +388,18 @@ func (r *Registry) Print(w io.Writer) {
 		if dec == "" {
 			dec = "(off)"
 		}
+		// RAW: can this base carry a raw binary stream (--from/--to binary)?
+		raw := "-"
+		if b.RawCodec() {
+			raw = "yes"
+		}
 		// NAME is the first alias, so list only the remaining aliases here.
 		otherAliases := ""
 		if len(b.Aliases) > 1 {
 			otherAliases = strings.Join(b.Aliases[1:], ", ")
 		}
-		fmt.Fprintf(w, "%-16s  %-6d  %-5s  %-5s  %s\n",
-			b.Name(), len(b.Symbols), neg, dec, otherAliases)
+		fmt.Fprintf(w, "%-16s  %-6d  %-5s  %-5s  %-5s  %s\n",
+			b.Name(), len(b.Symbols), neg, dec, raw, otherAliases)
 	}
 }
 

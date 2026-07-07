@@ -49,7 +49,7 @@ In each section, items are listed approximately from newest to oldest.
 
 #### Done - New features and enhancements
 
-- ✅ Any base now works in raw binary conversion, not just powers of two. Non-2^N bases treat the byte stream as one big-endian integer (base-x), with leading zero bytes carried as leading zero digits so it stays lossless and round-trips at any length. No technical blocker; the 2^N bit-packing path is unchanged.
+- ✅ Raw binary conversion now covers, besides the powers of two, the defined streaming binary-to-text codecs: base45, Ascii85, Z85, and base91, each implemented per its official spec. Any other non-2^N base has no byte-exact mapping and is refused in binary mode. `--list` shows which bases qualify (RAW column). (An earlier attempt to make every base work via whole-value base-x was reverted in favor of this, since a positional whole-value encoding isn't what a streaming codec means.)
 
 - ✅ Screenshots retired. The README no longer shows them and the CICD stage is off by default; the generator is kept so they can be made again if wanted. Dropped the orphaned image files.
 
