@@ -21,7 +21,8 @@
 ##			- Deterministic conversions, base-name aliases, negatives, fractionals, precision, lower, raw.
 ##			- Custom symbol specs, including neg/dec markers.
 ##			- Errors and robustness: bad bases, bad digits, malformed input, shell-metachar input, oversized input.
-##			- Binary/streaming: bit-perfect round-trips through power-of-2 bases, and the byte-alignment guard.
+##			- Binary/streaming: bit-perfect raw round-trips through every base (power-of-2 via bit-packing, the rest via the big-integer base-x path), plus the byte-alignment guard and fixed base-x vectors.
+##			- Performance and profiling (unless --quick): streaming throughput, peak-memory/wall-time resource profile, and a base-x timing guard.
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Optional cross-check against the bundled v1 binary when present.
@@ -238,30 +239,48 @@ for pair in "2048twitter" "2048rust" "32768qntm" "65536"; do
 	done
 	((bigfail == 0)) && _pass "binary round-trip via ${pair} (all lengths)" || _fail "binary round-trip via ${pair}" "${bigfail} lengths mismatched"
 done
-## Every power-of-2 base (not just the handful above) round-trips raw bytes
-## bit-perfectly. Blob lengths are picked to force a partial final chunk in each,
-## so padding and tail handling get exercised. Bases and sizes come from --list,
-## so a new power-of-2 base is covered with no edit here.
-declare -a POW2_BASES=()
-while read -r bname bsize _; do
-	case "$bsize" in
-		2|4|8|16|32|64|128|256|512|1024|2048|4096|8192|16384|32768|65536)
-			[[ "$bname" == "binary" ]] || POW2_BASES+=("$bname") ;;
-	esac
+## Every base (not just the power-of-2 ones) round-trips raw bytes bit-perfectly.
+## Power-of-2 bases go through bit-packing, and the blob lengths are picked to
+## force a partial final chunk so padding and tail handling get exercised; every
+## other base rides the big-integer base-x path (leading zero bytes map to leading
+## zero digits). --raw both ways keeps it byte-exact for bases that carry newline
+## as a digit. Bases and sizes come from --list, so a new base is covered with no
+## edit here.
+declare -a RAW_BASES=()
+while read -r bname _; do
+	[[ "$bname" == "binary" ]] && continue
+	RAW_BASES+=("$bname")
 done < <("${EXE}" --list 2>/dev/null | tail -n +2)
 raw_all_fail=0; raw_all_n=0
-for base in "${POW2_BASES[@]}"; do
+for base in "${RAW_BASES[@]}"; do
 	for n in 1 2 3 5 7 11 13 17 31 63 100 255 257 $(( 1 + $(_rand16) % 512 )); do
 		src="${CBT_TMP}/ra_src"; mid="${CBT_TMP}/ra_mid"; out="${CBT_TMP}/ra_out"
 		head -c "$n" /dev/urandom >"$src"
 		rc1=0; rc2=0
-		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
-		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
+		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" --raw <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary --raw <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
 		raw_all_n=$((raw_all_n + 1))
 		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail "raw round-trip ${base} n=${n}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"; }
 	done
 done
-((raw_all_fail == 0)) && _pass "raw round-trip, all power-of-2 bases (${#POW2_BASES[@]} bases, ${raw_all_n} blobs)" || printf '  %s%d raw round-trip failures above%s\n' "${red}" "$raw_all_fail" "${rst}"
+((raw_all_fail == 0)) && _pass "raw round-trip, all bases (${#RAW_BASES[@]} bases, ${raw_all_n} blobs)" || printf '  %s%d raw round-trip failures above%s\n' "${red}" "$raw_all_fail" "${rst}"
+
+## Fixed vectors for the non-power-of-2 raw path (base-x): exact bytes -> exact
+## digits, pinning the leading-zero convention and byte order so a regression in
+## encodeBytesAnyBase/decodeBytesAnyBase is caught, not just a round-trip drift.
+rawvec(){ # LABEL BASE INPUT_HEX EXPECTED_DIGITS
+	local label="$1" base="$2" hex="$3" want="$4" src got back
+	src="${CBT_TMP}/rv_src"
+	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
+	got=$("${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" --raw <"$src" 2>"${CBT_ERR}")
+	[[ "$got" == "$want" ]] && _pass "raw vector ${label}" || _fail "raw vector ${label}" "want=[$want] got=[$got]"
+	back=$(printf '%s' "$want" | "${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary --raw 2>"${CBT_ERR}" | od -An -tx1 | tr -d ' \n')
+	[[ "$back" == "$hex" ]] && _pass "raw vector ${label} (decode)" || _fail "raw vector ${label} (decode)" "want=[$hex] got=[$back]"
+}
+rawvec "ff -> base10"        10 ff     255
+rawvec "0100 -> base10"      10 0100   256
+rawvec "leading zero base10" 10 002a   042
+rawvec "ff -> base62"        62 ff     47
 ## The four big bases match the published third-party layouts byte-for-byte.
 ## These fixed vectors (input bytes -> exact output code points) guard that
 ## interop; they come straight from the reference implementations. Each pins the
@@ -496,7 +515,7 @@ fi
 ## the system base64 alongside for context. Round-trips must still be
 ## bit-perfect; the numbers are informational and guard against regressions.
 if ((doPerf)); then
-	section "Performance (streaming throughput)"
+	section "Performance and profiling"
 	perf_mib=4
 	perfsrc="${CBT_TMP}/perf_src"; perfmid="${CBT_TMP}/perf_mid"; perfout="${CBT_TMP}/perf_out"
 	head -c "$((perf_mib * 1024 * 1024))" /dev/urandom >"$perfsrc"
@@ -516,6 +535,34 @@ if ((doPerf)); then
 		t0=$(date +%s.%N); base64 <"$perfsrc" >/dev/null; t1=$(date +%s.%N)
 		refbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", $perf_mib/d; else print \"inf\"}")
 		printf '  %sreference: system base64 encode ~%s MiB/s%s\n' "${dim}" "$refbps" "${rst}"
+	fi
+
+	## Resource profile: peak memory and wall time for a large streaming encode,
+	## via GNU time when available. Informational, but it flags a memory or speed
+	## regression the throughput number alone would miss.
+	if [[ -x /usr/bin/time ]]; then
+		prof="${CBT_TMP}/prof"
+		/usr/bin/time -v "${EXE}" --from binary --to 64u <"$perfsrc" >"$perfmid" 2>"$prof" || true
+		peak=$(awk -F': ' '/Maximum resident set size/{print $2}' "$prof")
+		wall=$(awk -F': ' '/wall clock/{print $NF}' "$prof")
+		printf '  %sprofile: base64url encode of %s MiB - peak RSS %s KiB, wall %s%s\n' "${dim}" "$perf_mib" "${peak:-?}" "${wall:-?}" "${rst}"
+	fi
+
+	## The non-power-of-2 base-x path is O(N^2), so a moderate blob catches a
+	## blowup without stalling the suite. Time a base-62 raw round-trip and confirm
+	## it is still bit-perfect.
+	bxsrc="${CBT_TMP}/bx_src"; bxmid="${CBT_TMP}/bx_mid"; bxout="${CBT_TMP}/bx_out"
+	bx_kib=8; ((doLong)) && bx_kib=64
+	head -c "$((bx_kib * 1024))" /dev/urandom >"$bxsrc"
+	t0=$(date +%s.%N)
+	"${TIMEOUT[@]}" "${EXE}" --from binary --to 62 --raw <"$bxsrc" >"$bxmid" 2>/dev/null
+	"${TIMEOUT[@]}" "${EXE}" --from 62 --to binary --raw <"$bxmid" >"$bxout" 2>/dev/null
+	t1=$(date +%s.%N)
+	if cmp -s "$bxsrc" "$bxout"; then
+		bxbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.2f\", 2*$bx_kib/1024/d; else print \"inf\"}")
+		_pass "base-x profile: ${bx_kib} KiB base-62 round-trip (~${bxbps} MiB/s)"
+	else
+		_fail "base-x profile round-trip" "output mismatch"
 	fi
 fi
 

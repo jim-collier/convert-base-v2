@@ -73,10 +73,11 @@ DOGFOOD_FIXED_DESTS=(
 	"/usr/local/sbin"
 )
 
-## Stage 6: regenerate the committed README screenshots. Set DO_SCREENSHOTS=0
-## (or --no-screenshots/--quick) to skip. The utility is called with the repo
-## root and the tested binary; a failure is a warning, not a stop.
-DO_SCREENSHOTS=1
+## Stage 6: screenshots. The README no longer shows them, so this is off by
+## default. The generator (utility/gen-screenshots.bash) is kept, so flip this to
+## 1 to regenerate on demand. The utility is called with the repo root and the
+## tested binary; a failure is a warning, not a stop.
+DO_SCREENSHOTS=0
 SCREENSHOT_CMD=(utility/gen-screenshots.bash)
 
 ## Stage 7: backup + publish to git (runs from repo root). Quiet mode keeps it
