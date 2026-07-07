@@ -44,20 +44,20 @@ def _parse_chars(text, fail_log=None):
 					reason = 'MARK' if cat.startswith('M') else 'SPACE_FORMAT'
 					fail_log.append((ord(c), c, 'FAIL:' + reason, unicodedata.name(c, '')))
 				continue
-			cp = ord(c)
-			if cp > 127:
+			code_point = ord(c)
+			if code_point > 127:
 				name = unicodedata.name(c, '')
 				is_super_sub = _is_super_sub(name)
 				nfkd = unicodedata.normalize('NFKD', c)
 				# Non-ASCII that decomposes to multiple chars → combined, drop it
 				if len(nfkd) > 1 and not is_super_sub:
 					if fail_log is not None:
-						fail_log.append((cp, c, 'FAIL:NFKD_MULTI', name))
+						fail_log.append((code_point, c, 'FAIL:NFKD_MULTI', name))
 					continue
 				# Non-ASCII that decomposes to ASCII → masquerading, drop it
 				if ord(nfkd) < 128 and not is_super_sub:
 					if fail_log is not None:
-						fail_log.append((cp, c, 'FAIL:NFKD_ASCII', name))
+						fail_log.append((code_point, c, 'FAIL:NFKD_ASCII', name))
 					continue
 			chars.append(c)
 	return chars
@@ -82,8 +82,8 @@ def _is_super_sub(name):
 
 _RE_O_LIKE = re.compile(r'\bLETTER O\b|\bLETTER\b.*\bO$|\bOMICRON\b|\bLETTER OH\b')
 
-def _is_o_like(c, name, cp):
-	if cp < 128: return False
+def _is_o_like(c, name, code_point):
+	if code_point < 128: return False
 	if not _RE_O_LIKE.search(name): return False
 	# Only filter characters whose glyphs actually resemble Latin "O" (NFKD → ASCII)
 	return _nfkd_maps_to_ascii(c)
@@ -92,8 +92,8 @@ def _nfkd_maps_to_ascii(c):
 	"""True if NFKD decomposition produces any ASCII character."""
 	return any(ord(x) < 128 for x in unicodedata.normalize('NFKD', c))
 
-def _is_number_like(c, name, cat, cp):
-	if cp < 128: return False
+def _is_number_like(c, name, cat, code_point):
+	if code_point < 128: return False
 	# Only filter numbers/digits whose glyphs resemble ASCII (NFKD → ASCII)
 	if cat in ('Nd', 'No'):
 		return _nfkd_maps_to_ascii(c)
@@ -134,12 +134,12 @@ def _is_ligature(c, name):
 		return True
 	return False
 
-def _is_vertical_line(name, cp):
-	if cp < 128: return False
+def _is_vertical_line(name, code_point):
+	if code_point < 128: return False
 	return 'VERTICAL LINE' in name or 'VERTICAL BAR' in name
 
-def _is_horizontal_line(name, cp):
-	if cp < 128: return False
+def _is_horizontal_line(name, code_point):
+	if code_point < 128: return False
 	for kw in ('HORIZONTAL BAR', 'HORIZONTAL LINE', 'EM DASH', 'EN DASH',
 			   'FIGURE DASH', 'QUOTATION DASH'):
 		if kw in name:
@@ -156,12 +156,12 @@ _PILCROW_CPS = {
 	0x2E4D,  # ⹍ PARAGRAPHUS MARK
 }
 
-def _is_pilcrow(name, cp):
-	if cp in _PILCROW_CPS: return True
+def _is_pilcrow(name, code_point):
+	if code_point in _PILCROW_CPS: return True
 	return 'PILCROW' in name or 'PARAGRAPHOS' in name
 
-def _is_plain_dot(name, cp):
-	if 0x2000 <= cp <= 0x206F: return False  # General Punctuation block exempt
+def _is_plain_dot(name, code_point):
+	if 0x2000 <= code_point <= 0x206F: return False  # General Punctuation block exempt
 	for kw in ('MIDDLE DOT', 'BULLET', 'DOT OPERATOR', 'INTERPUNCT'):
 		if kw in name:
 			return True
@@ -169,8 +169,8 @@ def _is_plain_dot(name, cp):
 
 _RE_DOT_GROUP = re.compile(r'ELLIPSIS|TWO DOT|THREE DOT|FOUR DOT|FIVE DOT|SIX DOT')
 
-def _is_dot_group(name, cp):
-	if 0x2000 <= cp <= 0x206F: return False  # General Punctuation block exempt
+def _is_dot_group(name, code_point):
+	if 0x2000 <= code_point <= 0x206F: return False  # General Punctuation block exempt
 	return bool(_RE_DOT_GROUP.search(name))
 
 # Emoji-like blocks (color/graphical emoji, not general symbols)
@@ -196,18 +196,18 @@ _EMOJI_NAME_KEYWORDS = [
 	'EMOJI', 'EMOTICON', 'PICTOGRAPH',
 ]
 
-def _is_emoji_like(name, cat, cp):
+def _is_emoji_like(name, cat, code_point):
 	for lo, hi in _EMOJI_BLOCKS:
-		if lo <= cp <= hi:
+		if lo <= code_point <= hi:
 			return True
 	if any(kw in name for kw in _EMOJI_NAME_KEYWORDS):
 		return True
 	return False
 
-def _is_bitmap_symbol(name, cp):
-	if 0x2500 <= cp <= 0x257F: return True  # Box Drawing
-	if 0x2580 <= cp <= 0x259F: return True  # Block Elements
-	if 0x2800 <= cp <= 0x28FF: return True  # Braille
+def _is_bitmap_symbol(name, code_point):
+	if 0x2500 <= code_point <= 0x257F: return True  # Box Drawing
+	if 0x2580 <= code_point <= 0x259F: return True  # Block Elements
+	if 0x2800 <= code_point <= 0x28FF: return True  # Braille
 	for kw in ('BRAILLE', 'SHADE', 'QUADRANT', 'SEXTANT', 'OCTANT'):
 		if kw in name:
 			return True
@@ -227,11 +227,11 @@ _MATH_BLOCKS = [
 	(0x1D400, 0x1D7FF), # Mathematical Alphanumeric Symbols
 ]
 
-def _is_stray_math(c, cat, cp):
+def _is_stray_math(c, cat, code_point):
 	if cat != 'Sm': return False
-	if cp < 128: return False
+	if code_point < 128: return False
 	for lo, hi in _MATH_BLOCKS:
-		if lo <= cp <= hi:
+		if lo <= code_point <= hi:
 			return False
 	# Keep non-Latin math symbols with visually distinct glyphs
 	if not _nfkd_maps_to_ascii(c):
@@ -316,22 +316,22 @@ def extract(text, debug=False):
 
 	result = []
 	for c in chars:
-		cp = ord(c)
+		code_point = ord(c)
 		name = unicodedata.name(c, '')
 		cat = unicodedata.category(c)
 		wide = _is_wide(c)
 
 		# ASCII: only keep alphanumerics
-		if cp < 128:
+		if code_point < 128:
 			if not c.isalnum():
 				if fail_log is not None:
-					fail_log.append((cp, c, 'FAIL:ASCII_NON_ALNUM', name))
+					fail_log.append((code_point, c, 'FAIL:ASCII_NON_ALNUM', name))
 				continue
 			result.append(c)
 			continue
 
 		# Latin-1 Supplement exemptions — always pass
-		if cp in _LATIN1_EXEMPT:
+		if code_point in _LATIN1_EXEMPT:
 			result.append(c)
 			continue
 
@@ -339,35 +339,35 @@ def extract(text, debug=False):
 		if _is_super_sub(name):
 			if FILTER_SUPERSCRIPT:
 				if fail_log is not None:
-					fail_log.append((cp, c, 'FAIL:SUPERSCRIPT', name))
+					fail_log.append((code_point, c, 'FAIL:SUPERSCRIPT', name))
 				continue
 			result.append(c)
 			continue
 
 		# Section 1: Universal
 		reason = None
-		if _is_o_like(c, name, cp):           reason = 'O_LIKE'
-		elif _is_number_like(c, name, cat, cp):  reason = 'NUMBER_LIKE'
-		elif _is_emoji_like(name, cat, cp):   reason = 'EMOJI_LIKE'
-		elif cp in ascii_confusables:         reason = 'ASCII_CONFUSABLE'
+		if _is_o_like(c, name, code_point):           reason = 'O_LIKE'
+		elif _is_number_like(c, name, cat, code_point):  reason = 'NUMBER_LIKE'
+		elif _is_emoji_like(name, cat, code_point):   reason = 'EMOJI_LIKE'
+		elif code_point in ascii_confusables:         reason = 'ASCII_CONFUSABLE'
 
 		# Section 2: Non-wide only
 		if not reason and not wide:
 			if _has_diacritic_name(name):      reason = 'DIACRITIC'
 			elif _is_barred(name):             reason = 'BARRED'
 			elif _is_ligature(c, name):        reason = 'LIGATURE'
-			elif _is_vertical_line(name, cp):  reason = 'VERTICAL_LINE'
-			elif _is_horizontal_line(name, cp):reason = 'HORIZONTAL_LINE'
-			elif _is_pilcrow(name, cp):        reason = 'PILCROW'
-			elif _is_plain_dot(name, cp):      reason = 'PLAIN_DOT'
-			elif _is_dot_group(name, cp):      reason = 'DOT_GROUP'
-			elif _is_bitmap_symbol(name, cp):  reason = 'BITMAP'
+			elif _is_vertical_line(name, code_point):  reason = 'VERTICAL_LINE'
+			elif _is_horizontal_line(name, code_point):reason = 'HORIZONTAL_LINE'
+			elif _is_pilcrow(name, code_point):        reason = 'PILCROW'
+			elif _is_plain_dot(name, code_point):      reason = 'PLAIN_DOT'
+			elif _is_dot_group(name, code_point):      reason = 'DOT_GROUP'
+			elif _is_bitmap_symbol(name, code_point):  reason = 'BITMAP'
 			elif _is_tofu_like(name):          reason = 'TOFU_LIKE'
-			elif _is_stray_math(c, cat, cp):   reason = 'STRAY_MATH'
+			elif _is_stray_math(c, cat, code_point):   reason = 'STRAY_MATH'
 
 		if reason:
 			if fail_log is not None:
-				fail_log.append((cp, c, 'FAIL:' + reason, name))
+				fail_log.append((code_point, c, 'FAIL:' + reason, name))
 			continue
 
 		result.append(c)
@@ -432,8 +432,8 @@ def extract(text, debug=False):
 def _print_fail_log(fail_log):
 	print(f"\nFiltered out {len(fail_log)} characters:", file=sys.stderr)
 	col_result_w = max(len(r) for _, _, r, _ in fail_log)
-	for cp, c, reason, name in fail_log:
-		print(f"  U+{cp:04X}  {c}  {reason:<{col_result_w}}  '{name.lower()}'", file=sys.stderr)
+	for code_point, c, reason, name in fail_log:
+		print(f"  U+{code_point:04X}  {c}  {reason:<{col_result_w}}  '{name.lower()}'", file=sys.stderr)
 
 ##
 ## CLI
