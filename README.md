@@ -50,22 +50,21 @@
 ## Table of contents
 <!-- TOC -->
 
-- [Introduction](#introduction)
-	- [Features](#features)
-	- [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
-- [Screenshots](#screenshots)
+- [Features](#features)
+- [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
+	- [Also why the -v2?](#also-why-the--v2)
 - [Speed](#speed)
+- [Complex third-party encoding algorithms](#complex-third-party-encoding-algorithms)
 - [Example output](#example-output)
-- [List of supported bases and their positional notation symbols](#list-of-supported-bases-and-their-positional-notation-symbols)
+- [List of predefined bases and their positional notation symbols](#list-of-predefined-bases-and-their-positional-notation-symbols)
+- [Screenshots](#screenshots)
 - [Supporting work](#supporting-work)
 - [Document history](#document-history)
 - [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
 
-## Introduction
-
-### Features
+## Features
 
 A universal cross-platform CLI number conversion program, written in Go, that:
 
@@ -73,7 +72,7 @@ A universal cross-platform CLI number conversion program, written in Go, that:
 
 - The number can be arbitrarily large.
 
-- Supports negative and floating-point numbers in most bases. (Except a few that explicitly were not designed for that.) Even for bases designed only for binary-to-text encoding (RFC 4648 §4), can be used for positional notation - and thus negative and fractional numbers.
+- Supports negative and floating-point numbers in most bases. (Except a few for which that makes no sense.) Even bases designed only for binary-to-text encoding (RFC 4648 §4), can usually be used "off-label" for positional notation - and thus negative and fractional numbers.
 
 	- The program supports defining alternate symbols for "negative" and "decimal", if the regular ones clash with symbols already in the base.
 
@@ -83,13 +82,14 @@ A universal cross-platform CLI number conversion program, written in Go, that:
 
 	- E.g.: "`a 0 c X 🫪 だ`" is a perfectly valid, functional base-6 for some reason.
 
-- Supports streaming encoding to and from binary input/output.
+- Supports stream-encoding to, and from, binary input/output.
 
-	- In other words, it can do what `basenc` can do, and also in O(N) linear time. (Which is unlike its regular base conversion operation, which necessarily works in O(N^2) quadratic time.)
+	- In other words, it can do what `basenc` can do, and also in O(N) linear time, at roughly the same speed.
+	- Regular finite base conversion, however, necessarily works in O(N^2) quadratic time.)
 
 - Accepts data from the command line, and/or from `stdin` (e.g. piped data).
 
-### Why convert a number to a large base
+## Why convert a number to a large base
 
 There are myriad useful technical reasons, that would otherwise require chaining together a series of standard tools. Or, that would require using a web-based tool in a way that can't be scripted.
 
@@ -99,7 +99,9 @@ There are myriad useful technical reasons, that would otherwise require chaining
 
 	As another example, "2026-01-01 @ 12:15 PM" could be represented as "1fLcL4" in standard base-64 RFC 4648 §5 `64u`, or "£±Яᛯ" in base-256 `256jc1`.
 
-- The more obvious example is encoding binary data to text. Base 64 (`64r`, `64u`, `64jc1`) is the most efficient way to encode binary to UTF-8 text. But even higher bases are available for niche cases - e.g. base-2048 `2048twitter`, specifically designed by qntm for Twitter; or base-65536 `65536qntm` for optimal UTF-32 binary-to-text encoding.
+- The more obvious example is encoding binary data to text. Base 64 (`64r`, `64u`, `64jc1`) is the most efficient way to encode binary to UTF-8 text.
+
+	- But even higher bases are available for niche cases - e.g. base-2048 `2048twitter`, specifically designed by qntm for Twitter; or base-65536 `65536qntm` for optimal UTF-32 binary-to-text encoding.
 
 At larger non-standard bases that this project created (e.g. `base-256jc1`), careful effort was made to:
 
@@ -111,23 +113,17 @@ At larger non-standard bases that this project created (e.g. `base-256jc1`), car
 
 - Keep the character selection consistent across bases.
 
-_Note: The command `convert-base-v2` has a version number on the end, to distinguish it from v1, which as predicted in that project, this v2 has a necessary minor break from in output, in one narrow edge case. And like v1, in the future there may be good reasons for the output to change again in a v3. For example, there are no "official standards" for large bases above 94 as of time of writing, but that could change. So to avoid overwriting an old script on a running system that may rely on it and its predictable output, a new suffix number will be given to future programs if the output changes, and the two will coexist. That the existing version has a number, indicates that expected inevitability now._
+### Also why the -v2?
 
-## Screenshots
+As you've probably noticed, the command `convert-base-v2` has a version number on the end - to distinguish it from v1. As predicted in that project, this v2 has a necessary minor break in output from v1, in one narrow edge case. And like v1, in the future there may be good reasons for the output to change again in some future v3.
 
-Click any image for the full-size version.
-
-<p align="center">
-	<a href="assets/screenshots/large/01-everyday.png"><img src="assets/screenshots/01-everyday.png" width="48%" alt="Everyday conversions"></a>
-	<a href="assets/screenshots/large/02-bignum.png"><img src="assets/screenshots/02-bignum.png" width="48%" alt="Arbitrary size, exotic bases"></a>
-	<a href="assets/screenshots/large/03-custom.png"><img src="assets/screenshots/03-custom.png" width="48%" alt="Custom alphabets and markers"></a>
-	<a href="assets/screenshots/large/04-binary.png"><img src="assets/screenshots/04-binary.png" width="48%" alt="Binary streaming round-trip"></a>
-	<a href="assets/screenshots/large/05-settings.png"><img src="assets/screenshots/05-settings.png" width="48%" alt="Configuration and base list"></a>
-</p>
+For example, there are no "official standards" for large bases above 94 as of time of writing, but that could change. So to avoid overwriting an old script on a running system that may rely on it and its predictable output, a new suffix number will be given to future programs if the output changes, and the two will coexist. "-v2" is both to coexist with "-v1" (and "-v1b"), and also leaves room for the possibility of now name collisions in the future.
 
 ## Speed
 
-The binary/text streaming path is very fast. Here are benchmarked throughput results against the standard tools, one table per format:
+The binary/text streaming path is very fast. Here are benchmarked throughput results against the standard tools, one table per format.
+
+(You can see that this program smokes the competition on decoding. On encoding, it's only fractionally slower - not magnitudes.)
 
 **Base-64**
 
@@ -155,51 +151,105 @@ The binary/text streaming path is very fast. Here are benchmarked throughput res
 
 Numbers are MiB/s. Mean of 10 runs, one process each, all I/O in a tmpfs (RAM) so disk speed doesn't enter into it. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and each format's own canonical text to decode. Each tool is single-threaded. Reproducible with `github/utility/bench-encoders.bash` (it auto-skips tools you don't have). Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
 
-`convert-base-v2` leads every decode column, but slightly trails the fastest encoders. (The standard tools have decade-plus head starts, so landing in the same range at all is notable.)
+FYI: Base-64 is statistically the most compact way to store binary data as UTF-8 text. (Which makes sense when you understand how UTF-8 encoding works.)
+	- All modern OSes use UTF-8 by default.
+	- But some APIs use UTF-16 internally (best is a Base 32768)
+	- Other APIs use UTF-32 (best is a Base 65536).
 
-Base-64 is statistically the most compact way to store binary data as UTF-8 text. (Which makes sense when you understand how UTF-8 encoding works.) All modern OSes use UTF-8 by default.
+For embedding binary data in Twitter/𝕏 posts, qntm's base-2048 is allegedly optimal.
 
-For embedding binary data in Twitter/𝕏 posts, qntm's base-2048 is allegedly optimal, which this program faithfully reproduces (and tests) as a named setting.
+## Complex third-party encoding algorithms
+
+This program faithfully recreates four complex (or at least non-direct and non-trivial) binary-to-text encoding algorithms - that ordinarily require custom implementation in JS, Rust, and/or Python:
+
+- [Base 2048](https://github.com/qntm/base2048) - [qntm](https://github.com/qntm/)'s original JS version. Allegedly the most dense possible radix specifically for encoding binary data in a Twitter/𝕏 post. Not an official standard, but "published".
+
+- [Base 2048](https://github.com/LLFourn/rust-base2048) - [LLFourn](https://github.com/LLFourn/)'s version written in Rust. Not an official standard, but published.
+
+- [Base 32768](https://github.com/qntm/base32768) by [qntm](https://github.com/qntm/). You normally have to run the JS just to get this base's alphabet. This radix is the most optimal binary-to-text encoding for UTF-16. Not an official standard, but "published".
+
+- [Base 65536](https://github.com/qntm/base65536) by [qntm](https://github.com/qntm/), "Unicode's answer to Base64". (Most optimal radix for binary-to-text encoding for UTF-32. Not an official standard, but "published".)
+
+Note: This program doesn't use any of their published open-source code - it implements them "clean-room" style directly from their specs. (Only due to - well, code the incompatibility issue.)
 
 ## Example output
 
-The chart below shows a big random base 10 number '0000000000000001' in various bases.
+The table below shows one base-10 number, 2023090613425900000000000000001, represented in every displayable base. It is regenerated from the program with `github/utility/gen-example-table.bash` whenever the set of bases changes.
 
-<!--
 Note that some of the larger bases appear to have longer output - but that's only due to being rendered with proportional fonts, combined with some of the wider Unicode characters. Look at the "Chars" column to see the actual # of characters in the output.
 
-This is a partial list carried over from `convert-base-v1`. This new version has at least double just that are hard-coded.
+| Base | Chars | Number representation
+| :-- | --: | :--
+| 2 | 101 | 11001100010001111010101010101001101101001000111010011010010010010001000110101111111100000000000000001
+| 3 | 64 | 1202201120001110000211111111000012020020211210201212121022221002
+| 4 | 51 | 121202033111111031221013103102102020311333200000001
+| 5 | 44 | 13422100331010142033403004300000000000000001
+| 6 | 39 | 524050351143055143115550221055402541345
+| 7 | 36 | 522454125411321305156044543040553134
+| 8 | 34 | 3142172525155107232222106577400001
+| 9 | 32 | 52646043024444005206753655538832
+| 10 | 31 | 2023090613425900000000000000001
+| Kanji | 31 | 二〇二三〇九〇六一三四二五九〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇一
+| Hanzi | 31 | 二零二三零九零六一三四二五九零零零零零零零零零零零零零零零零一
+| Hindi | 31 | २०२३०९०६१३४२५९००००००००००००००००१
+| ArabicIndic | 31 | ٢٠٢٣٠٩٠٦١٣٤٢٥٩٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠١
+| Rods | 31 | 𝍡〇𝍡𝍢〇𝍨〇𝍥𝍠𝍢𝍣𝍡𝍤𝍨〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇𝍠
+| 12 | 29 | 12888834200A750490B5219507855
+| 16 | 26 | 1988F5553691D3492235FE0001
+| 20 | 24 | 284DDI4C93BCC6HA00000001
+| 20ws | 24 | 4C6MMW6JF5HJJ8VG22222223
+| Mayan | 24 | 𝋢𝋨𝋤𝋭𝋭𝋲𝋤𝋬𝋩𝋣𝋫𝋬𝋬𝋦𝋱𝋪𝋠𝋠𝋠𝋠𝋠𝋠𝋠𝋡
+| 24 | 22 | KN64BEC5EL1B0FA7K0IN2H
+| 26 | 22 | DXNNAGDDUWPNKQIDYGEAMJ
+| 30rock | 21 | 5O1SFD937J0RIKG5HR13B
+| 32 | 21 | BTCHVKU3JDU2JEI274AAB
+| 32h | 21 | 1J27LAKR93KQ948QVS001
+| 32c | 21 | 1K27NAMV93MT948TZW001
+| 32ws | 21 | 3X49fGcqF5cpF6Cpxr223
+| 32z | 21 | bun8ikw5jdw4jre49hyyb
+| 32bip | 21 | pnz8425mfr56fyg6luqqp
+| 36 | 20 | 5G53VAIZAJBZ2D5Y2Y9T
+| hostname | 20 | 1-4f69y3fbk6p3ra3373
+| username | 20 | 17g.tz4pd-v96vag5kgz
+| 42 | 19 | C9WWELMBNbCYNbYf1XB
+| 45 | 19 | 3O042V/4:O66ETECKMB
+| email | 19 | 3o042v[4]o66eteckmb
+| 48 | 19 | 153ZUblDieUcgfg2HbH
+| 48ws | 19 | 375ᛎwᛘ🜥Mᚬᛦwᛯᚠᛨᚠ4VᛘV
+| 48v1compat | 19 | 153ᚼᛦ🜥⁑h҂▵ᛦ🜿▿▸▿2q🜥q
+| 52 | 18 | NftxKBqjrhTdQKHAGJ
+| 58btc | 18 | 38MmRfXd5dKbYUdnVe
+| 60jc | 18 | 1BhkGcLkiywKrfTclg
+| 60tc | 18 | 1BhkGcMkizxLsfVcmg
+| 62 | 17 | gR7BplOIkweh9aKht
+| 64 | 17 | ZiPVVNpHTSSI1/gAB
+| 64u | 17 | ZiPVVNpHTSSI1_gAB
+| 64h | 17 | PYFLLDf7JII8r_W01
+| 64jc1 | 17 | PYFLLDf7JII8rλW01
+| 64w | 17 | mμQffMᛨ9XWWC◂Ʊʞ23
+| 64v1compat | 17 | hʞMXXHᛝ7VRR8▸≠w01
+| 64emoji | 17 | 😙😢😏😕😕😍😩😇😓😒😒😈😵😿😠😀😁
+| 69prsh | 17 | Ht2KiYhQQD8K*hSqv
+| 85ps | 16 | <X:34$)?'/f+&+qV
+| 85z | 16 | ndMmoZum[KT@d01F
+| 85ipv6 | 16 | NDmMOzUM@kt{D01f
+| 91hk | 16 | Id1{DPXs1>wM2:=:
+| keyboard | 16 | 2'hT;7pK%*rS\\YyP
+| 128jc1 | 15 | 6nFg҂ɤH£▿aZlĜ01
+| 128w | 15 | 8🝅Qᚠ⍋ûVî⍩ᛏᛎ🜥ã23
+| 128v1compat | 15 | 6🜥Mᛦ⍩ÑQŵʬμλᚼä01
+| 256jc1 | 13 | Pĵㅍ‡sĨǍᚧYrぇ01
+| 288jc1 | 13 | 6zф⅖ẄÃЋゲㅎぇúkᛎ
+| 2048twitter | 10 | BМཔટਲੴफɱྈ9
+| 2048rust | 10 | ÀɈႎஈଦଽਆƗႫµ
+| 32768qntm | 7 | ⇢䓪秉㓚䫈鉜ҡ
+| 65536 | 7 | 㐙𠻵訶𡟓縢櫾㐁
 
-|Base        | Chars | Number representation
-|:--         | --:   | :--
-|   2        |   101 | 11001100010001111010101010101001101101001000111010011010010010010001000110101111111100000000000000001
-|   8        |    34 | 3142172525155107232222106577400001
-|  10        |    31 | __2023090613425900000000000000001__
-|  16        |    26 | 1988F5553691D3492235FE0001
-|  26        |    22 | DXNNAGDDUWPNKQIDYGEAMJ
-|  32[r]     |    21 | BTCHVKU3JDU2JEI274AAB
-|  32h       |    21 | 1J27LAKR93KQ948QVS001
-|  32c       |    21 | 1K27NAMV93MT948TZW001
-|  32w       |    21 | 3X49fGcqF5cpF6Cpxr223
-|  36        |    20 | 5G53VAIZAJBZ2D5Y2Y9T
-|  48jc1     |    19 | 153ᚼᛦ🜥⁑h҂▵ᛦ🜿▿▸▿2q🜥q
-|  52        |    18 | NftxKBqjrhTdQKHAGJ
-|  62        |    17 | gR7BplOIkweh9aKht
-|  64[r]     |    17 | PYFLLDf7JII8r/W01
-|  64u       |    17 | PYFLLDf7JII8r_W01
-|  64jc1u    |    17 | PYFLLDf7JII8rʞW01
-|  64jc1ws   |    17 | hλMXXHᛝ7VRR8▸≠w01
-|  94[ascii] |    16 | %+(A}'O^UwzN_{sS
-| 128jc1     |    15 | 6🜥Mᛦ⍩ÑQŵʬμʞᚼä01
-| 256jc1     |    13 | Pĵㅍ‡sĨǍᚧYrぇ01
-| 288jc1     |    13 | 6zф⅖ẄÃЋゲㅎぇúkᛎ
--->
-
-## List of supported bases and their positional notation symbols
+## List of predefined bases and their positional notation symbols
 
 Any number of any size can be converted to and from any of these bases. Most support negative numbers and decimals, if the intention makes sense.
 
-(_About missing the base symbol alphabets: they exist in the program, just not in this doc yet._)
+You can define your own arbitrary base of any size >1. These are just all of the common, standard, and/or published ones - plus a number of [well-thought-through](how_to_design_a_numeric_base.md) custom bases (of debatable varying utility).
 
 | Base  | Name [arg]           | Aliases                                               | Description                      | Specification | Symbol alphabet [or at least first and last 64 tokens]
 | --:   | :--                  | :--                                                   | :--                             | :--           | :---
@@ -257,7 +307,7 @@ Any number of any size can be converted to and from any of these bases. Most sup
 | 85    | postscript           | 85adobe, 85postscript, 85ps                           |                                  |               | !"#$%&'()*+,-./0123456789:;<=>?@ABCDEFGHIJKLMNOPQRSTUVWXYZ[\]^_\`abcdefghijklmnopqrstu
 | 85    | 85ipv6               | 85rfc1924, 85aprilfools, 85fools, 85elz               |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz!#$%&()*+-;<=>?@^_\`{\|}~
 | 91    | 91hk                 | 91bas                                                 |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!#$%&()*+,./:;<=>?@[]^_\`{\|}~"
-| 98    | keyboard             | 98, text, ascii, kbd                                  | Any plain-text document is valid input as-is. |      | 0-9 A-Z a-z, then space and the ASCII punctuation, plus tab, newline, return
+| 98    | keyboard             | 98, text, ascii, kbd                                  | Any plain-text document is valid input as-is. |      | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz\t\n\r !"#$%&'()*+,-./:;<=>?@[\\]^_\`{\|}~
 | 128   | 128jc                | 128p                                                  |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱΞψϠδϟЋЖЯѢф¢£¥§¿ɤʬ⍤⍩⌲⍋⍒⍢ÂĈÊĜĤÎĴÔŜÛŴ
 | 128   | 128v1compat          | 128j1                                                 |                                  |               | 0123456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱΞψϠδϟЋЖЯѢф¢£¥§¿ɤʬ⍤⍩⌲⍋⍒⍢ÂĈÊĜĤĴŜŴŶâĉêĝĥĵŝŵŷÃẼÑỸãẽñỹÄËẄẌŸäëẅẍÿÁĆÉ
 | 256   | 256jc                | 256p, 256j1                                           |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ ...to... óŕśúẃýźĀĒĪŌŪȲāēīōūȳǍČĎĚǦȞǨŇǑŘŠǓǎčďěǧȟǩňǒřšǔǝɹʇʌ₸᛬웃유ㅈㅊㅍㅎㅱㅸㅠソッゞぅぇォ
@@ -266,7 +316,19 @@ Any number of any size can be converted to and from any of these bases. Most sup
 | 2048  | 2048twitter          | 2048x, 2048qntm                                       |                                  |               | 89ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÆÐØÞßæðøþĐ ...to... ྈྉྊྋྌကခဂဃငစဆဇဈဉညဋဌဍဎဏတထဒဓနပဖဗဘမယရလဝသဟဠအဢဣဤဥဧဨဩဪဿ၀၁၂၃၄၅၆၇၈၉ၐၑၒၓၔၕ
 | 2048  | 2048rust             | 2048llfourn                                           | Tightest binary-to-text encoding for Twitter. |               | ØµºÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ ...to... ႫႬႭႮႯႰႱႲႳႴႵႶႷႸႹႺႻႼႽႾႿჀჁჂჃჄჅაბგდევზთიკლმნოპჟრსტუფქღყშჩცძწჭხჯჰჱჲჳ྾
 | 32768 | 32768qntm            | 32768utf16                                            | Tightest binary-to-text encoding for UTF-16.  |               | ҠҡҢңҤҥҦҧҨҩҪҫҬҭҮүҰұҲҳҴҵҶҷҸҹҺһҼҽҾҿԀԁԂԃԄԅԆԇԈԉԊԋԌԍԎԏԐԑԒԓԔԕԖԗԘԙԚԛԜԝԞԟ ...to... ꞀꞁꞂꞃꞄꞅꞆꞇꞈ꞉꞊ꞋꞌꞍꞎꞏꞐꞑꞒꞓꞔꞕꞖꞗꞘꞙꞚꞛꞜꞝꞞꞟꡀꡁꡂꡃꡄꡅꡆꡇꡈꡉꡊꡋꡌꡍꡎꡏꡐꡑꡒꡓꡔꡕꡖꡗꡘꡙꡚꡛꡜꡝꡞꡟ
-| 65536 | 65536                | 65536qntm, 65536utf32                                 | Tightest binary-to-text encoding for UTF-32.  |               | 㐀㐁㐂㐃㐄㐅㐆㐇㐈㐉㐊㐋㐌㐍㐎㐏㐐㐑㐒㐓㐔㐕㐖㐗㐘㐙㐚㐛㐜㐝㐞㐟㐠㐡㐢㐣㐤㐥㐦㐧㐨㐩㐪㐫㐬㐭㐮㐯㐰㐱㐲㐳㐴㐵㐶㐷㐸㐹㐺㐻㐼㐽㐾㐿 ...to... 𨗀𨗁𨗂𨗃𨗄𨗅𨗆𨗇𨗈𨗉𨗊𨗋𨗌𨗍𨗎𨗏𨗐𨗑𨗒𨗓𨗔𨗕𨗖𨗗𨗘𨗙𨗚𨗛𨗜𨗝𨗞𨗟𨗠𨗡𨗢𨗣𨗤𨗥𨗦𨗧𨗨𨗩𨗪𨗫𨗬𨗭𨗮𨗯𨗰𨗱𨗲𨗳𨗴𨗵𨗶𨗷𨗸𨗹𨗺𨗻𨗼𨗽𨗾𨗿
+| 65536 | 65536                | 65536qntm, 65536utf32                                 | Tightest binary-to-text encoding for UTF-32.  |               | 㐀㐁㐂㐃㐄㐅㐆㐇㐈㐉㐊㐋㐌㐍㐎㐏㐐㐑㐒㐓㐔㐕㐖㐗㐘㐙㐚㐛㐜㐝㐞㐟㐠㐡㐢㐣㐤㐥㐦㐧㐨㐩㐪㐫㐬㐭㐮㐯㐰㐱㐲㐳㐴㐵㐶㐷㐸㐹㐺㐻㐼㐽㐾㐿 ...to... [encoded but not printable by non-dedicated fonts]
+
+## Screenshots
+
+Click any image for the full-size version.
+
+<p align="center">
+	<a href="assets/screenshots/large/01-everyday.png"><img src="assets/screenshots/01-everyday.png" width="48%" alt="Everyday conversions"></a>
+	<a href="assets/screenshots/large/02-bignum.png"><img src="assets/screenshots/02-bignum.png" width="48%" alt="Arbitrary size, exotic bases"></a>
+	<a href="assets/screenshots/large/03-custom.png"><img src="assets/screenshots/03-custom.png" width="48%" alt="Custom alphabets and markers"></a>
+	<a href="assets/screenshots/large/04-binary.png"><img src="assets/screenshots/04-binary.png" width="48%" alt="Binary streaming round-trip"></a>
+	<a href="assets/screenshots/large/05-settings.png"><img src="assets/screenshots/05-settings.png" width="48%" alt="Configuration and base list"></a>
+</p>
 
 ## Supporting work
 
