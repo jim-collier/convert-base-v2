@@ -22,6 +22,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Other work
 -->
 
+## NEXT VERSION
+
+### Added
+
+- Raw binary conversion now works with any base, not just powers of two. A non-power-of-2 base treats the byte stream as one big-endian integer, with leading zero bytes carried as leading zero digits, so it round-trips at any length. The power-of-2 bit-packing path is unchanged.  [20260706]
+
+### Changed
+
+- The README no longer includes screenshots, and the pipeline no longer regenerates them by default. The generator is kept for on-demand use.  [20260706]
+
+### Other work
+
+- Broadened the test harness: raw round-trips now cover every base (not just powers of two) at lengths that force padding, with fixed vectors pinning the base-x leading-zero convention. Added a resource profile (peak memory and wall time) and a base-x timing guard, both skipped by `--quick`.  [20260706]
+
 ## v1.1.0 - 2026-07-06
 
 ### Added

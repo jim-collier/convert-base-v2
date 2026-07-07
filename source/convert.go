@@ -31,11 +31,16 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		kIn := powerOfTwoBits(len(from.Symbols))
 		kOut := powerOfTwoBits(len(to.Symbols))
 		if kIn == 0 || kOut == 0 {
-			other := from
+			// Non-power-of-2 base: bit-packing doesn't apply, so treat the whole
+			// byte stream as one big-endian integer and convert it, base-x style.
+			// Leading zero bytes carry no weight in the integer, so each maps to a
+			// leading zero digit (the base58 convention); the reverse restores
+			// them. Lossless and round-trips at any length. It rides the O(N^2)
+			// big.Int path, so it's for the odd non-2^N base, not bulk files.
 			if from.Binary {
-				other = to
+				return encodeBytesAnyBase(input, to), nil
 			}
-			return "", fmt.Errorf("binary mode requires a power-of-2 counterpart (2, 4, 8, 16, 32, 64, 128, 256); base %q has %d digits", other.Name(), len(other.Symbols))
+			return decodeBytesAnyBase(input, from)
 		}
 		// The non-binary side's bit width decides the tail handling. Up to 8
 		// bits per digit, the plain bit-packed path already round-trips every
@@ -706,6 +711,59 @@ func decodeBinaryPrefixed(input string, from *Base, k int) (string, error) {
 		return "", fmt.Errorf("cannot decode to binary: input is not a valid %s binary encoding", from.Name())
 	}
 	return string(buf[m : m+int(n)]), nil
+}
+
+// encodeBytesAnyBase encodes raw bytes into an arbitrary base (any radix, not
+// just a power of two) by reading the whole stream as one big-endian integer and
+// converting it. Leading zero bytes have no place in the integer, so each is
+// emitted as a leading zero digit, base58-style, and decodeBytesAnyBase turns
+// them back into zero bytes. Lossless and round-trips at any length.
+func encodeBytesAnyBase(data string, to *Base) string {
+	zeros := 0
+	for zeros < len(data) && data[zeros] == 0 {
+		zeros++
+	}
+	radix := big.NewInt(int64(len(to.Symbols)))
+	n := new(big.Int).SetBytes([]byte(data))
+	mod := new(big.Int)
+	var rev []int // digit values, least significant first
+	for n.Sign() > 0 {
+		n.DivMod(n, radix, mod)
+		rev = append(rev, int(mod.Int64()))
+	}
+
+	var sb strings.Builder
+	for i := 0; i < zeros; i++ {
+		sb.WriteString(to.Symbols[0])
+	}
+	for i := len(rev) - 1; i >= 0; i-- {
+		sb.WriteString(to.Symbols[rev[i]])
+	}
+	return sb.String()
+}
+
+// decodeBytesAnyBase reverses encodeBytesAnyBase: read the digits back into a
+// big-endian integer, and turn each leading zero digit into a leading zero byte.
+func decodeBytesAnyBase(input string, from *Base) (string, error) {
+	digits, err := from.Tokenize(input)
+	if err != nil {
+		return "", err
+	}
+	zeros := 0
+	for zeros < len(digits) && from.value[digits[zeros]] == 0 {
+		zeros++
+	}
+	radix := big.NewInt(int64(len(from.Symbols)))
+	n := new(big.Int)
+	tmp := new(big.Int)
+	for _, d := range digits {
+		n.Mul(n, radix)
+		n.Add(n, tmp.SetInt64(int64(from.value[d])))
+	}
+	body := n.Bytes()
+	out := make([]byte, zeros+len(body))
+	copy(out[zeros:], body)
+	return string(out), nil
 }
 
 // rfcPad appends the base's padding character to bring the encoded output up to
