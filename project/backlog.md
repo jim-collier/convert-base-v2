@@ -43,25 +43,27 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 Screenshots: Put blank lines in between test runs.
+- 🔘 Allow any base to be used in raw binary conversion, not just aligned on 2^N. (Research: Are there technical reason blocking? I can't think of any.)
+
+- 🔘 No screenshots. Don't need them in README.md for this project. Don't delete the functionality of making them, just comment it out in the CICD pipeline.
 
 - 🔘 CICD testing: Rigorous regression testing, performance testing, profiling (if `--quick` not passed), and include round-tripping all bases in raw mode with random length, random binary blobs, more than long enough in every base to trigger padding requirements.
-
-- 🔘 Create a new base that covers all possible printable keyboard characters in a plain text document. (Including programming code, regular human writing, email addresses, newline, return, tab, etc.) Without worrying about higher unicode alternatives (e.g. curly-quotes, mdash, etc.) - those would have to go through some separate conversion preprocessing in order to work with this base. I believe this should also covers Rich-Text format (which I believe has no special characters), MD, HTML, XML, JSON, embedded base64, etc., as-is.
-
-- 🔘 Create a base64 that's all emojis
-	- Only emojis noted/suggested by unicode to print graphically.
-	- Symbols in LANG=C order.
-	- Use generic yellow emojis for skintone-based ones, not skin-tone variants.
-	- Skip emojis that look too similar; use only the first one.
-
-- 🔘 Improve the performance of streaming binary-to-text conversion and vice-versa, to better approach existing linux utilities. Go should be able to get close.
 
 ### Done
 
 #### Done - Bugs
 
 #### Done - New features and enhancements
+
+- ✅ Create a new base that covers all possible printable keyboard characters in a plain text document. (Including programming code, regular human writing, email addresses, newline, return, tab, etc.) Without worrying about higher unicode alternatives (e.g. curly-quotes, mdash, etc.) - those would have to go through some separate conversion preprocessing in order to work with this base. I believe this should also covers Rich-Text format (which I believe has no special characters), MD, HTML, XML, JSON, embedded base64, etc., as-is.
+
+- ✅ Create a base64 that's all emojis
+	- Only emojis noted/suggested by unicode to print graphically.
+	- Symbols in LANG=C order.
+	- Use generic yellow emojis for skintone-based ones, not skin-tone variants.
+	- Skip emojis that look too similar; use only the first one.
+
+- ✅ Improve the performance of streaming binary-to-text conversion and vice-versa, to better approach existing linux utilities. Go should be able to get close.
 
 - ✅ An optional padding scheme for custom bases (not necessarily `===`). The published big bases and the RFC base32/base64 bases already pad correctly; this is about letting user-defined bases opt into padding too.
 
