@@ -156,9 +156,9 @@ check eq  "fractional 1.5 -> 16"    1.8       -- 1.5 16
 check eq  "precision clamp"         1.11      -- --precision 2 1.5 3
 check eq  "--lower on hex"          ff        -- --lower 255 16
 check errmsg "--lower on mixed-case" "--lower is invalid for mixed-case" -- --lower 9 62
-## --raw: exact bytes, no trailing newline.
-_run --raw 255 16
-{ ((_rc == 0)) && [[ "$(wc -c <"${CBT_OUT}")" == "2" ]]; } && _pass "--raw has no trailing newline" || _fail "--raw has no trailing newline" "bytes=$(wc -c <"${CBT_OUT}")"
+## --no-newline: exact bytes, no trailing newline.
+_run --no-newline 255 16
+{ ((_rc == 0)) && [[ "$(wc -c <"${CBT_OUT}")" == "2" ]]; } && _pass "--no-newline has no trailing newline" || _fail "--no-newline has no trailing newline" "bytes=$(wc -c <"${CBT_OUT}")"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -243,7 +243,7 @@ done
 ## RAW column of --list): power-of-2 bases via bit-packing, plus base45, ascii85,
 ## z85, and base91 via their own schemes. Blob lengths force partial final chunks
 ## so padding/tail handling is exercised; Z85 requires 4-aligned input, so its
-## lengths are rounded down. --raw both ways stays byte-exact for bases that carry
+## lengths are rounded down. --no-newline both ways stays byte-exact for bases that carry
 ## newline as a digit. Codec bases are read from --list, so a new one is covered
 ## with no edit here.
 declare -a RAW_BASES=()
@@ -258,8 +258,8 @@ for base in "${RAW_BASES[@]}"; do
 		src="${CBT_TMP}/ra_src"; mid="${CBT_TMP}/ra_mid"; out="${CBT_TMP}/ra_out"
 		head -c "$len" /dev/urandom >"$src"
 		rc1=0; rc2=0
-		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" --raw <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
-		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary --raw <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
+		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" --no-newline <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary --no-newline <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
 		raw_all_n=$((raw_all_n + 1))
 		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail "raw round-trip ${base} n=${len}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"; }
 	done
@@ -282,7 +282,7 @@ cvec(){ # LABEL BASE INPUT_HEX EXPECTED_TEXT
 	local label="$1" base="$2" hex="$3" want="$4" src got
 	src="${CBT_TMP}/cv_src"
 	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
-	got=$("${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" --raw <"$src" 2>"${CBT_ERR}")
+	got=$("${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" --no-newline <"$src" 2>"${CBT_ERR}")
 	[[ "$got" == "$want" ]] && _pass "codec vector ${label}" || _fail "codec vector ${label}" "want=[$want] got=[$got]"
 }
 cvec "base45 AB"       45   4142             "BB8"
@@ -357,7 +357,7 @@ check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Every printable keyboard character plus tab/newline/return is a digit, so
 ## source code, prose, JSON, and the like convert with no escaping. Like binary
-## it holds newline as a digit, so it needs --raw output and file-based checks.
+## it holds newline as a digit, so it needs --no-newline output and file-based checks.
 ## Round-trips are exact except a leading zero-digit (tab), which vanishes like
 ## any leading zero, so the samples start on a non-tab byte.
 section "Keyboard (text) base"
@@ -366,7 +366,7 @@ printf 'def f(x):\n\treturn {"k": [1, 2], "s": "a+b/c=d"}  # note\n' >"$ksrc"
 kfail=0
 for tb in 16 10; do
 	if "${TIMEOUT[@]}" "${EXE}" --from keyboard --to "$tb" <"$ksrc" >"$kmid" 2>"${CBT_ERR}" \
-		&& "${TIMEOUT[@]}" "${EXE}" --from "$tb" --to keyboard --raw <"$kmid" >"$kout" 2>"${CBT_ERR}" \
+		&& "${TIMEOUT[@]}" "${EXE}" --from "$tb" --to keyboard --no-newline <"$kmid" >"$kout" 2>"${CBT_ERR}" \
 		&& cmp -s "$ksrc" "$kout"; then :; else kfail=$((kfail+1)); fi
 done
 ((kfail == 0)) && _pass "keyboard sample round-trips (base 16 and 10)" || _fail "keyboard sample round-trips" "${kfail} of 2 failed"
@@ -376,7 +376,7 @@ krand_fail=0
 for len in 1 2 5 33 200 1500; do
 	{ printf '#'; head -c "$((len * 8 + 64))" /dev/urandom | LC_ALL=C tr -cd '\11\12\15\40-\176' | head -c "$len"; } >"$ksrc" || true
 	if "${TIMEOUT[@]}" "${EXE}" --from keyboard --to 16 <"$ksrc" >"$kmid" 2>"${CBT_ERR}" \
-		&& "${TIMEOUT[@]}" "${EXE}" --from 16 --to keyboard --raw <"$kmid" >"$kout" 2>"${CBT_ERR}" \
+		&& "${TIMEOUT[@]}" "${EXE}" --from 16 --to keyboard --no-newline <"$kmid" >"$kout" 2>"${CBT_ERR}" \
 		&& cmp -s "$ksrc" "$kout"; then :; else krand_fail=$((krand_fail+1)); fi
 done
 ((krand_fail == 0)) && _pass "keyboard random text round-trips (6 blobs)" || _fail "keyboard random text round-trips" "${krand_fail} lengths mismatched"
@@ -390,7 +390,7 @@ mapfile -t BASE_NAMES < <("${EXE}" --list 2>/dev/null | tail -n +2 | awk '{print
 declare -a FUZZ_BASES=()
 ## binary and keyboard both carry newline as a digit, so their output can't
 ## survive $(...) capture (it strips trailing newlines). Both get their own
-## file-based, --raw round-trip sections instead.
+## file-based, --no-newline round-trip sections instead.
 for n in "${BASE_NAMES[@]}"; do
 	case "$n" in binary|keyboard) continue ;; esac
 	FUZZ_BASES+=("$n")
@@ -565,8 +565,8 @@ if ((doPerf)); then
 	cx_mib=1; ((doLong)) && cx_mib=4
 	head -c "$((cx_mib * 1024 * 1024))" /dev/urandom >"$cxsrc"
 	t0=$(date +%s.%N)
-	"${TIMEOUT[@]}" "${EXE}" --from binary --to 91hk --raw <"$cxsrc" >"$cxmid" 2>/dev/null
-	"${TIMEOUT[@]}" "${EXE}" --from 91hk --to binary --raw <"$cxmid" >"$cxout" 2>/dev/null
+	"${TIMEOUT[@]}" "${EXE}" --from binary --to 91hk --no-newline <"$cxsrc" >"$cxmid" 2>/dev/null
+	"${TIMEOUT[@]}" "${EXE}" --from 91hk --to binary --no-newline <"$cxmid" >"$cxout" 2>/dev/null
 	t1=$(date +%s.%N)
 	if cmp -s "$cxsrc" "$cxout"; then
 		cxbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$cx_mib/d; else print \"inf\"}")
