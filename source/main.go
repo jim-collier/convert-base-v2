@@ -38,7 +38,8 @@ func run() error {
 		toSymbols     = flag.String("to-symbols", "", `custom output base (spec form: "SYMS [neg=X] [dec=Y] [pad=Z]")`)
 		precision     = flag.Int("precision", 50, "max fractional digits in output")
 		lower         = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
-		raw           = flag.Bool("raw", false, "write output as raw bytes with no trailing newline (for binary output)")
+		noNewline     = flag.Bool("no-newline", false, "do not append a trailing newline to text output (like echo -n)")
+		nFlag         = flag.Bool("n", false, "alias for -no-newline")
 		list          = flag.Bool("list", false, "list all known bases and exit")
 		getIndexCount = flag.Bool("get-index-count", false, "print how many bases are defined, then exit; valid --by-index values run 0 to count-1")
 		getBaseName   = flag.Bool("get-base-name", false, "print a base's canonical name, then exit; pick the base with a name/alias argument or --by-index")
@@ -199,8 +200,8 @@ func run() error {
 		}
 		if handled {
 			// Text output normally ends in a newline (as the buffered path's
-			// Println does); raw and binary output stay byte-exact.
-			if !to.Binary && !*raw {
+			// Println does); no-newline and binary output stay byte-exact.
+			if !to.Binary && !(*noNewline || *nFlag) {
 				fmt.Println()
 			}
 			return nil
@@ -226,7 +227,7 @@ func run() error {
 		result = strings.ToLower(result)
 	}
 
-	if *raw || to.Binary {
+	if *noNewline || *nFlag || to.Binary {
 		_, err := os.Stdout.WriteString(result)
 		return err
 	}

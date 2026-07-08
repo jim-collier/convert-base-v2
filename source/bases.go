@@ -778,8 +778,8 @@ func mkSpec(opts SpecOpts) *Base {
 // character to spend on them, and they are meaningless for whole-text values.
 // Since 98 is not a power of two, conversion goes through the number path, so a
 // leading "0" (the zero digit) drops off like any leading zero; the payload is
-// otherwise exact. Output needs --raw, since newline is a digit and an appended
-// newline would be ambiguous.
+// otherwise exact. Output needs --no-newline, since newline is a digit and an
+// appended newline would be ambiguous.
 func keyboardBase() *Base {
 	syms := make([]string, 0, 98)
 	add := func(lo, hi byte) {
