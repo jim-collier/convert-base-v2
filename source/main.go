@@ -41,7 +41,7 @@ func run() error {
 		upper         = flag.Bool("upper", false, "uppercase output (errors if output base has mixed-case digits)")
 		noNewline     = flag.Bool("no-newline", false, "do not append a trailing newline to text output (like echo -n)")
 		nFlag         = flag.Bool("n", false, "alias for -no-newline")
-		binaryMode    = flag.Bool("binary", false, "treat both sides as raw byte data (byte encode/decode, like basenc); both bases must be powers of two")
+		binaryMode    = flag.Bool("binary", false, "treat both sides as raw byte data (byte encode/decode, like basenc); an omitted --from/--to defaults to bytes")
 		binFlag       = flag.Bool("bin", false, "alias for -binary")
 		bFlag         = flag.Bool("b", false, "alias for -binary")
 		numberMode    = flag.Bool("number", false, "treat input as a positional number value (the default); silences the byte-vs-number note")
@@ -146,10 +146,22 @@ func run() error {
 		return w.Flush()
 	}
 
-	// Defaults: both input and output default to base 10.
+	// Mode flags up front: an omitted base defaults to bytes under --binary
+	// (so `--from hex --binary` implies `--to bytes`), else to base 10.
+	byteMode := *binaryMode || *binFlag || *bFlag
+	numMode := *numberMode || *numFlag || *nCapFlag
+	if byteMode && numMode {
+		return fmt.Errorf("choose either --binary or --number, not both")
+	}
+	defaultBase := "10"
+	if byteMode {
+		defaultBase = "bytes"
+	}
+
+	// Defaults: an unspecified side falls back to defaultBase.
 	inBaseName := *fromName
 	if inBaseName == "" && *fromSymbols == "" {
-		inBaseName = "10"
+		inBaseName = defaultBase
 	}
 	from, err := resolveBase(reg, inBaseName, *fromSymbols)
 	if err != nil {
@@ -171,7 +183,7 @@ func run() error {
 		outBaseName = posOut
 	}
 	if outBaseName == "" && *toSymbols == "" {
-		outBaseName = "10"
+		outBaseName = defaultBase
 	}
 
 	// Extra positional guard.
@@ -215,12 +227,6 @@ func run() error {
 	if len(args) == 0 && !fromStdin {
 		printHelp(reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
 		os.Exit(2)
-	}
-
-	byteMode := *binaryMode || *binFlag || *bFlag
-	numMode := *numberMode || *numFlag || *nCapFlag
-	if byteMode && numMode {
-		return fmt.Errorf("choose either --binary or --number, not both")
 	}
 
 	// --binary is meaningful only between two text bases; if either side is
@@ -609,6 +615,9 @@ func printExamples() {
   # Re-encode between two text bases as BYTE DATA (like basenc), not as a number.
   # Without --binary the value converts numerically and leading zeros are lost.
   echo -n deadbeef | convert-base-v2 --binary --from 16 --to 64          # 3q2+7w==
+
+  # With --binary an omitted side means bytes, so these pipe raw through:
+  convert-base-v2 --binary --from 16 0B195901 | convert-base-v2 --binary --to 16
 
 	`)
 }
