@@ -448,31 +448,40 @@ Usage:
 If --from is unset, input base defaults to 10. If neither --to nor OUTBASE is
 given, output base also defaults to 10.
 
-Flags:
 `)
 
-	// This replaces flag.PrintDefaults(), so that flags are printed more clearly with leading '--', instead of just '-'.
-	flag.VisitAll(func(f *flag.Flag) {
-		// Don't show help for some stuff
-		switch f.Name {
-		case "h":
-			return
-		}
-		typeName, _ := flag.UnquoteUsage(f)
-		if typeName != "" {
-			//fmt.Fprintf(out, "  --%s %s\n", f.Name, typeName)
-			fmt.Fprintf(out, "  --%s VAL\n", f.Name)
-		} else {
-			fmt.Fprintf(out, "  --%s\n", f.Name)
-		}
-		fmt.Fprintf(out, "        %s", f.Usage)
-		if f.DefValue != "" && f.DefValue != "false" && f.DefValue != "0" {
-			fmt.Fprintf(out, " (default %q)", f.DefValue)
-		}
-		fmt.Fprintln(out)
-	})
+	// Grouped by function, aliases combined, one line each. Handwritten instead
+	// of flag.VisitAll so related flags sit together and the six aliases don't
+	// each spawn a stub entry.
+	fmt.Fprintf(out, `Base selection:
+  --from NAME          input base name/alias (e.g. 10, hex, 64u)  [default 10]
+  --to NAME            output base; also accepted as a positional OUTBASE arg
+  --from-symbols SPEC  custom input base: "SYMS [neg=X] [dec=Y] [pad=Z]"
+  --to-symbols SPEC    custom output base (same spec form)
 
-	fmt.Fprintln(out)
+Conversion mode:
+  --binary, --bin, -b  treat both sides as raw bytes (encode/decode like basenc)
+  --number, --num, -N  treat input as a positional number value (default)
+  --precision N        max fractional digits in output  [default 50]
+  --lower / --upper    force output case (errors on mixed-case digit bases)
+  --no-newline, -n     omit trailing newline on text output (like echo -n)
+
+Base info (each prints one value, then exits):
+  --list               list all known bases
+  --get-index-count    print how many bases are defined
+  --get-base-name      print a base's canonical name
+  --show-symbols       print a base's symbols, concatenated
+  --show-symbols-0     like --show-symbols but NUL-separated (machine-readable)
+  --by-index N         select the base by --list position (0-based)
+
+Other:
+  --config FILE        user YAML config; /etc is always tried too
+                       [default %s]
+  --examples           show usage examples and exit
+  --version            print version and exit
+  --help, -h           show this help
+
+`, userConfigPath())
 
 	// Config file status.
 	fmt.Fprintln(out, "Config files (applied in order; later entries override earlier ones):")
