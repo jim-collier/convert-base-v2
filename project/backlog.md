@@ -15,6 +15,7 @@ This is a product backlog just for pre-v1.0.0 release. After that, bugs, feature
 
 - [Conventions](#conventions)
 - [Backlog](#backlog)
+	- [Todo](#todo)
 	- [Bugs](#bugs)
 	- [New features and enhancements](#new-features-and-enhancements)
 	- [Done](#done)
@@ -38,6 +39,19 @@ In each section, items are listed approximately from newest to oldest.
 | 🚫   | Canceled
 
 ## Backlog
+
+### Todo
+
+- 🔘 Add this to README.md:
+	- To avoid confusion when working with binary data, you can add these aliases to your shell startup script:
+
+		~~~bash
+		## Streaming binary/text codec
+		alias convert-base-v2-bin="convert-base-v2 --binary"
+
+		## Positional notation base conversion
+		alias convert-base-v2-num="convert-base-v2 --number"
+		~~~
 
 ### Bugs
 
