@@ -31,6 +31,16 @@ type SymbolSpec struct {
 	Pad      *string
 }
 
+// Internal placeholders standing in for whitespace characters that were escaped
+// in a spec, so they survive strings.Fields and are restored afterward. They are
+// Unicode noncharacters, never legal in real text; a raw spec that already
+// contains one is rejected up front (see ParseSymbolSpec).
+const (
+	phSpace   = '\uFFFE'
+	phTab     = '\uFFFF'
+	phNewline = '\uFDD0'
+)
+
 // ParseSymbolSpec parses a whitespace-delimited spec string.
 //
 //	Rules:
@@ -56,13 +66,16 @@ type SymbolSpec struct {
 //	\n        -> newline
 //	\"        -> double quote
 func ParseSymbolSpec(s string) (SymbolSpec, error) {
+	if strings.ContainsAny(s, string([]rune{phSpace, phTab, phNewline})) {
+		return SymbolSpec{}, fmt.Errorf("symbol spec contains a reserved noncharacter (U+FFFE/U+FFFF/U+FDD0)")
+	}
 	s = unescapeSpec(s)
 
 	var out SymbolSpec
 	tokens := strings.Fields(s)
 	var digitTokens []string
 	for _, t := range tokens {
-		t = restoreSpaces(t)
+		t = restorePlaceholders(t)
 		switch {
 		case strings.HasPrefix(t, "neg="):
 			v := t[len("neg="):]
@@ -90,15 +103,26 @@ func ParseSymbolSpec(s string) (SymbolSpec, error) {
 			}
 		}
 	} else {
-		out.Symbols = append(out.Symbols, digitTokens...)
+		// Multiple tokens: each is one symbol, but a token may still carry a
+		// comma-delimited group (the doc's "0,1 2 3" -> four digits). Only split
+		// when it yields two or more symbols, so a bare "," token stays the
+		// literal comma digit - some builtin alphabets (e.g. 85ps) rely on that.
+		for _, t := range digitTokens {
+			if parts := splitCommas(t); strings.Contains(t, ",") && len(parts) >= 2 {
+				out.Symbols = append(out.Symbols, parts...)
+			} else {
+				out.Symbols = append(out.Symbols, t)
+			}
+		}
 	}
 	return out, nil
 }
 
-// unescapeSpec processes escape sequences in a spec string. Escaped spaces
-// are replaced with a Unicode non-character (U+FFFE) so they survive the
-// subsequent strings.Fields split, then restored to real spaces in the
-// resulting tokens.
+// unescapeSpec processes escape sequences in a spec string. Escaped whitespace
+// (space, tab, newline) is replaced with a Unicode noncharacter placeholder so
+// it survives the subsequent strings.Fields split, then restored to the real
+// character in the resulting tokens. Without this, an escaped tab/newline would
+// be split on by Fields and the symbol would silently vanish.
 func unescapeSpec(s string) string {
 	if !strings.Contains(s, `\`) {
 		return s
@@ -109,16 +133,16 @@ func unescapeSpec(s string) string {
 		if s[i] == '\\' && i+1 < len(s) {
 			switch s[i+1] {
 			case ' ':
-				b.WriteRune('\uFFFE') // placeholder for literal space
+				b.WriteRune(phSpace)
 				i++
 			case '\\':
 				b.WriteByte('\\')
 				i++
 			case 't':
-				b.WriteByte('\t')
+				b.WriteRune(phTab)
 				i++
 			case 'n':
-				b.WriteByte('\n')
+				b.WriteRune(phNewline)
 				i++
 			case '"':
 				b.WriteByte('"')
@@ -133,10 +157,19 @@ func unescapeSpec(s string) string {
 	return b.String()
 }
 
-// restoreSpaces replaces the U+FFFE placeholder (inserted by unescapeSpec for
-// escaped spaces) back to real spaces, after whitespace splitting is done.
-func restoreSpaces(s string) string {
-	return strings.ReplaceAll(s, "\uFFFE", " ")
+// restorePlaceholders rewrites the noncharacter placeholders (inserted by
+// unescapeSpec for escaped whitespace) back to the real characters, after the
+// whitespace split is done.
+func restorePlaceholders(s string) string {
+	if !strings.ContainsAny(s, string([]rune{phSpace, phTab, phNewline})) {
+		return s
+	}
+	r := strings.NewReplacer(
+		string(phSpace), " ",
+		string(phTab), "\t",
+		string(phNewline), "\n",
+	)
+	return r.Replace(s)
 }
 
 func splitCommas(s string) []string {

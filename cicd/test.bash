@@ -160,7 +160,8 @@ check eq  "base_ prefix on alias"   255       -- --from base_hex FF
 section "Negatives, fractionals, precision, lower, raw"
 check eq  "negative -- guard"       -1E240    -- -- -123456 16
 check eq  "fractional 1.5 -> 16"    1.8       -- 1.5 16
-check eq  "precision clamp"         1.11      -- --precision 2 1.5 3
+## 1.5 -> base3 is 1.1111...; at precision 2 it rounds half-up (0.111.. -> "12"3), not truncates.
+check eq  "fractional rounding"     1.12      -- --precision 2 1.5 3
 check eq  "--lower on hex"          ff        -- --lower 255 16
 check errmsg "--lower on mixed-case" "--lower is invalid for mixed-case" -- --lower 9 62
 ## --no-newline: exact bytes, no trailing newline.

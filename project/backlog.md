@@ -55,68 +55,12 @@ In each section, items are listed approximately from newest to oldest.
 
 ### Bugs
 
-- 🔘 Backwards compatible base '128v1compat' has a subtly incorrect alphabet difinition. (github #1)
+- ✋ Backwards compatible base '128v1compat' has a subtly incorrect alphabet difinition. (github #1)
 	- The base definition for '128j1' in v1 is - annoyingly - a "word-safe" version.
 		- (I can't remember if that was intentional. It shouldn't have been, because base 256 and 288 aren't. Base 128 should have been a subset of 256.)
 	- When writing the alphabets for v2, rather than copying the v1 alphabets verbatim, I made an incorrect assumptions about 128's logical structure. The difference can be very subtle - especially since 128 is an even power of 2. Which means some binary encodings might be off by only a single character.
 	- Step 1: Carefully compare the alphabet strings for v1, v1b, and v2. (Just paste all three on three lines in a doc, do `eyeball diff`.)
-
-- 🔘 Piped stdin is silently ignored when a positional argument is given. (code review BxZNl-1)
-	- `echo 255 | convert-base-v2 16` treats 16 as the number, never reads the pipe, and prints 16 with exit 0.
-	- The help synopsis shows `something | convert-base-v2 [flags] [OUTBASE]`, so the documented form gives plausible wrong output silently.
-	- Either treat a lone positional as OUTBASE when stdin is a pipe, or error on the ambiguity, and fix the synopsis.
-
-- 🔘 Custom alphabets that are not prefix-free decode to the wrong value. (code review BxZNl-2)
-	- A base-12 defined the obvious way, with digits "10" and "11", round-trips 12 back as 10 with no error.
-	- Symbol validation never checks decodability, and tokenizing is greedy longest-match.
-	- Reject prefix-ambiguous symbol sets at definition time, naming the two conflicting symbols.
-
-- 🔘 A marker character inside a multi-char digit symbol breaks parsing. (code review BxZNl-3)
-	- A digit like "a.b" with the default "." marker gets split into integer and fraction parts, so its value silently changes and round trips corrupt.
-	- A digit like "a-b" with the "-" marker errors out entirely, so the base cannot read its own output.
-	- Same root cause both ways: markers are found in the raw string before tokenization, and the collision check only catches exact digit matches.
-
-- 🔘 A read error during streaming encode is treated as end of input: truncated output, exit 0. (code review BxZNl-4)
-	- Streaming decode already handles this correctly; encode just stops on any error and finishes the tail as if the stream ended.
-
-- 🔘 The documented \t and \n escapes in symbol specs do not work. (code review BxZNl-5)
-	- The escape becomes real whitespace before the spec splits on whitespace, so the symbol silently vanishes and the base is one digit smaller than intended.
-	- `neg=\t` collapses to a bare `neg=`, silently disabling the sign marker.
-
-- 🔘 Decode strictness depends on the input channel. (code review BxZNl-6)
-	- Piped decode accepts "=" padding anywhere in the input; the same string as an argument is correctly rejected.
-	- Line-wrapped base64 decodes fine from a pipe but errors as an argument.
-	- base91 decode skips every unknown byte, so corrupt input decodes to garbage with exit 0, while every other codec errors.
-
-- 🔘 Fractional output truncates instead of rounding. (code review BxZNl-7)
-	- 0.1 to hex and back comes out 0.0999...9. Rounding the last emitted digit would make simple round trips stable.
-	- Separate from the already-planned precision clamp, and worth doing in the same pass.
-
-- 🔘 A fraction smaller than the output precision prints as "0.000", or worse "-0.000". (code review BxZNl-8)
-
-- 🔘 Version stamping is broken twice over. (code review BxZNl-9)
-	- The Makefile's version injection does nothing because `version` is a const, and the linker only patches vars. Silent no-op, every build reports the hardcoded string.
-	- Meanwhile the const still says v1.1.0-beta5 and no v1.1.0 tag exists, so nothing anywhere reports the released version.
-
-- 🔘 Config bases that override a builtin leave the registry misleading. (code review BxZNl-10)
-	- The shadowed builtin keeps its `--list` row, still advertising aliases that now resolve to the new base.
-	- `--get-index-count` grows, and `--by-index` can return a name that resolves to a different base than the index it came from.
-
-- 🔘 A typo'd `--config` path is silently ignored. (code review BxZNl-11)
-	- Missing-is-OK is right for the default /etc and XDG paths, wrong when the user typed the path: their custom bases silently vanish and later errors blame the base name.
-
-- 🔘 The integer-alias sanity check is easy to bypass. (code review BxZNl-12)
-	- Only the first integer alias is checked, so aliases ["3", "99"] on a 3-symbol base register "99" as a working name.
-	- The check runs on the raw alias but registration uses the normalized name, so "b99" sneaks through too.
-
-- 🔘 Documented comma-split in multi-token symbol specs is not implemented. (code review BxZNl-13)
-	- The doc's own example "0,1 2 3" is described as 4 digits but parses as 3, one of them the literal symbol "0,1".
-
-- 🔘 A YAML `pad: ""` cannot disable a pad set in the symbols trailer, though the docs say explicit fields win. (code review BxZNl-14)
-	- Also, config-defined pads are always emit-mode; there is no way to define accept-but-do-not-emit padding like the builtin URL variants have.
-
-- 🔘 A literal U+FFFE in a symbol spec silently becomes a space digit. (code review BxZNl-15)
-	- It collides with the internal escape placeholder. Rejecting it up front with a clear error is enough.
+	- Deferred: compared v2 against the bundled v1b for all 128 values. v2 `128v1compat` and `128jc1` are byte-for-byte identical to v1b's, and the test.bash v1 cross-check passes. Cannot substantiate a discrepancy without the original v1 (not v1b) alphabet, and altering the alphabet now would break the verified v1b compatibility. Needs the original v1 reference to proceed.
 
 ### New features and enhancements
 
@@ -162,6 +106,7 @@ In each section, items are listed approximately from newest to oldest.
 
 - 🔘 Fold the buffered and streaming binary paths together, or pin them with equivalence tests. (code review BxZNl-25)
 	- Two hand-tuned implementations of the same encodings must agree byte-for-byte, and every encoding change is a two-place fix today. BxZNl-6 is this debt already biting.
+	- NOTE: Merging these together is probably a really bad idea. It took a lot of effort and optimization to get the streaming path fast. They are two totally different concepts, that make no sense (in my mind) to merge. Positional notation base conversion is it's own concept, done all at once in quadradic time and variable memory. Streaming binary/text encoding is a TOTALLY different concept, done with constant memory and linear time.
 
 - 🔘 Docs accuracy sweep. (code review BxZNl-26)
 	- README bases table is stale: the "32"/"32h" alphabets are swapped, and about two dozen listed aliases do not resolve. Regenerate it from --list. (The old "binary" row that misdocumented the raw-bytes base is fixed - it is now the `bytes` row.)
@@ -174,6 +119,36 @@ In each section, items are listed approximately from newest to oldest.
 ### Done
 
 #### Done - Bugs
+
+- ✅ Piped stdin silently ignored when a positional is given. (BxZNl-1) Kept argv-wins semantics (changing it would break `prog NUMBER` in scripts whose stdin is an inherited pipe, and could consume a pipe it should not touch). Instead: a real pipe with data plus one positional that names a known base now prints a stderr note pointing at `-`, and the synopsis is corrected to require `-` for the pipe form.
+
+- ✅ Non-prefix-free custom alphabets decoded wrong. (BxZNl-2) finalize() now rejects a symbol set where one symbol is a byte-prefix of another (only possible with multi-byte symbols; builtins are single code points and unaffected).
+
+- ✅ A marker inside a multi-char digit symbol corrupted parsing. (BxZNl-3) finalize() rejects a base whose negative/decimal marker appears inside any digit symbol (the "a.b" case is also caught by the new prefix-free check).
+
+- ✅ Streaming encode swallowed read errors as EOF. (BxZNl-4) streamEncode now returns a real read error instead of finishing the tail on it; only io.EOF / io.ErrUnexpectedEOF end the stream.
+
+- ✅ `\t` / `\n` escapes in symbol specs did nothing. (BxZNl-5) They now route through noncharacter placeholders like escaped space, so they survive the whitespace split; `neg=\t` sets a tab marker.
+
+- ✅ Decode strictness depended on the channel. (BxZNl-6) Buffered decode now tolerates line breaks; streaming decode now rejects a digit after padding (matching the buffered interior-pad error); base91 decode errors on junk and only skips whitespace.
+
+- ✅ Fractional output truncated instead of rounding. (BxZNl-7) Fractional part is rounded half-up to precision (carry propagates into the integer part); 0.1 -> hex -> back is now stable.
+
+- ✅ Tiny fractions printed "0.000" / "-0.000". (BxZNl-8) A value below one output digit now rounds to nothing, so no spurious zero fraction or sign (fixed by the same rounding rewrite).
+
+- ✅ Version stamping was a no-op. (BxZNl-9) `version` is now a var, so the `-X main.version` ldflag actually patches it. (Tagging v1.1.0 remains a separate repo action.)
+
+- ✅ Config override left the registry misleading. (BxZNl-10) A fully-shadowed builtin is dropped from the index/count, and --list shows only aliases that still resolve to each base (using the first live one as the name).
+
+- ✅ A typo'd explicit `--config` path was silently ignored. (BxZNl-11) An explicitly-passed missing/unreadable config now errors; the default /etc and XDG paths stay missing-is-OK.
+
+- ✅ Integer-alias check was easy to bypass. (BxZNl-12) Every alias is checked (not just the first), against its normalized form, so ["3","99"] and "b99" are both rejected.
+
+- ✅ Comma-split in multi-token specs was unimplemented. (BxZNl-13) Each token in a multi-token spec is now comma-split, so "0,1 2 3" is four digits.
+
+- ✅ YAML `pad: ""` could not disable a trailer pad. (BxZNl-14) An explicit empty `pad:` clears it, and a new `pademit:` field allows a strip-only (accept-but-not-emit) pad.
+
+- ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
 
