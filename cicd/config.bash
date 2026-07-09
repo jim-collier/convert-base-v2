@@ -65,7 +65,7 @@ STAGED_BIN="${SRC_DIR}/bin/${EXE_NAME}"
 ##   go install honnef.co/go/tools/cmd/staticcheck@latest
 VET_CMD=(go vet ./...)
 LINT_PROBE=(golangci-lint version)
-LINT_CMD=(golangci-lint run ./...)
+LINT_CMD=(golangci-lint run --concurrency="${CPU_CAP:-1}" ./...)
 STATICCHECK_PROBE=(staticcheck -version)
 STATICCHECK_CMD=(staticcheck ./...)
 

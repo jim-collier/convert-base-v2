@@ -65,6 +65,14 @@ set -Eeuo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "${here}/.." && pwd)"   ## the git repo root (cicd/..)
 export PATH="${HOME}/.go/bin:${HOME}/go/bin:${PATH}"   ## `go install`ed tools (golangci-lint, staticcheck, govulncheck) win
+
+## Cap every stage at 50% of cores. build/test/lint all default to all cores;
+## GOMAXPROCS bounds go build -p, go test, staticcheck and govulncheck, and
+## CPU_CAP feeds golangci-lint's own --concurrency (it ignores GOMAXPROCS).
+_cores="$(nproc 2>/dev/null || echo 2)"
+CPU_CAP=$(( _cores / 2 )); (( CPU_CAP < 1 )) && CPU_CAP=1
+export GOMAXPROCS="${CPU_CAP}"
+
 source "${here}/config.bash"
 source "${here}/utility/include/gfs-rotate.bash"       ## gfs_rotate() for the artifact dirs
 cd "${root}"

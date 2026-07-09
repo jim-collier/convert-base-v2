@@ -4,6 +4,11 @@ LDFLAGS := -s -w -X main.version=$(VERSION)
 
 DIST := dist
 
+# Cap parallelism at 50% of cores (go build -p and go test both default to all
+# cores). cicd exports its own GOMAXPROCS, which ?= leaves untouched.
+GOMAXPROCS ?= $(shell n=$$(nproc 2>/dev/null || echo 2); c=$$((n/2)); [ $$c -lt 1 ] && c=1; echo $$c)
+export GOMAXPROCS
+
 # platform/arch pairs you want to ship
 PLATFORMS := \
 	linux/amd64 \
