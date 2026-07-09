@@ -40,7 +40,7 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 				codec = from
 			}
 			if codec.BinaryScheme == "" {
-				return "", fmt.Errorf("binary mode requires a power-of-2 base (2, 4, 8, ... 256) or a defined binary-to-text codec (base45, ascii85, z85, base91); base %q has %d digits and is neither", codec.Name(), len(codec.Symbols))
+				return "", fmt.Errorf("byte mode requires a power-of-2 base (2, 4, 8, ... 256) or a defined binary-to-text codec (base45, ascii85, z85, base91); base %q has %d digits and is neither", codec.Name(), len(codec.Symbols))
 			}
 			if from.Binary {
 				return encodeCodec(input, codec)
@@ -423,6 +423,42 @@ func streamConvert(r io.Reader, w io.Writer, from, to *Base) (bool, error) {
 		return true, streamDecode(r, w, from, kIn)
 	}
 	return false, nil
+}
+
+// streamBytesRoute is the streaming core of --binary for two text bases: decode
+// from-digits into raw bytes, then encode those bytes into to-digits, chaining
+// the two optimized single-byte streaming stages through an in-process pipe so
+// nothing buffers the whole input. Returns handled=false (caller falls back to
+// the buffered route) if either leg isn't a streamable single-byte power-of-2
+// base - e.g. a big native base or a multi-byte pad symbol.
+func streamBytesRoute(r io.Reader, w io.Writer, from, to, bytes *Base) (bool, error) {
+	if !streamableByteLeg(from) || !streamableByteLeg(to) {
+		return false, nil
+	}
+	pr, pw := io.Pipe()
+	errc := make(chan error, 1)
+	go func() {
+		_, err := streamConvert(r, pw, from, bytes) // digits -> raw bytes
+		pw.CloseWithError(err)
+		errc <- err
+	}()
+	_, encErr := streamConvert(pr, w, bytes, to) // raw bytes -> digits
+	if encErr != nil {
+		pr.CloseWithError(encErr) // unblock a decoder still writing
+	}
+	decErr := <-errc
+	if decErr != nil {
+		return true, decErr
+	}
+	return true, encErr
+}
+
+// streamableByteLeg reports whether a text base can carry one leg of the
+// streamBytesRoute pipe: a single-byte-per-digit power-of-2 base (k in 1..8),
+// with no multi-byte pad symbol.
+func streamableByteLeg(b *Base) bool {
+	k := powerOfTwoBits(len(b.Symbols))
+	return k >= 1 && k <= 8 && b.allOneByte && len(b.PadSymbol) <= 1
 }
 
 // streamEncode packs raw bytes from r into single-byte digits on w. It works a

@@ -42,7 +42,7 @@ func benchConvert(b *testing.B, fromName, toName, input string) {
 	}
 	// Bytes moved is measured on whichever side is the raw binary.
 	raw := len(input)
-	if toName == "binary" {
+	if toName == "bytes" {
 		if out, err := Convert(input, from, to, 0); err == nil {
 			raw = len(out)
 		}
@@ -57,28 +57,28 @@ func benchConvert(b *testing.B, fromName, toName, input string) {
 	}
 }
 
-func BenchmarkEncode16(b *testing.B) { benchConvert(b, "binary", "16", benchBytes()) }
-func BenchmarkEncode64(b *testing.B) { benchConvert(b, "binary", "64u", benchBytes()) }
-func BenchmarkEncode32(b *testing.B) { benchConvert(b, "binary", "32", benchBytes()) }
+func BenchmarkEncode16(b *testing.B) { benchConvert(b, "bytes", "16", benchBytes()) }
+func BenchmarkEncode64(b *testing.B) { benchConvert(b, "bytes", "64u", benchBytes()) }
+func BenchmarkEncode32(b *testing.B) { benchConvert(b, "bytes", "32", benchBytes()) }
 
 func BenchmarkDecode16(b *testing.B) {
 	reg, _ := NewRegistry()
-	from, _ := reg.Lookup("binary")
+	from, _ := reg.Lookup("bytes")
 	to, _ := reg.Lookup("16")
 	enc, _ := Convert(benchBytes(), from, to, 0)
-	benchConvert(b, "16", "binary", enc)
+	benchConvert(b, "16", "bytes", enc)
 }
 
 func BenchmarkDecode64(b *testing.B) {
 	reg, _ := NewRegistry()
-	from, _ := reg.Lookup("binary")
+	from, _ := reg.Lookup("bytes")
 	to, _ := reg.Lookup("64u")
 	enc, _ := Convert(benchBytes(), from, to, 0)
-	benchConvert(b, "64u", "binary", enc)
+	benchConvert(b, "64u", "bytes", enc)
 }
 
 // The big native base goes through a separate encoder (multi-byte symbols).
-func BenchmarkEncode65536(b *testing.B) { benchConvert(b, "binary", "65536", benchBytes()) }
+func BenchmarkEncode65536(b *testing.B) { benchConvert(b, "bytes", "65536", benchBytes()) }
 
 // Streaming benchmarks exercise the CLI's actual pipe path (streamConvert) with
 // no real I/O: a bytes.Reader in, io.Discard out. This is what a `cat file | ...`
@@ -97,14 +97,14 @@ func benchStream(b *testing.B, fromName, toName, input string) {
 	}
 }
 
-func BenchmarkStreamEncode64(b *testing.B) { benchStream(b, "binary", "64u", benchBytes()) }
-func BenchmarkStreamEncode16(b *testing.B) { benchStream(b, "binary", "16", benchBytes()) }
-func BenchmarkStreamEncode32(b *testing.B) { benchStream(b, "binary", "32", benchBytes()) }
+func BenchmarkStreamEncode64(b *testing.B) { benchStream(b, "bytes", "64u", benchBytes()) }
+func BenchmarkStreamEncode16(b *testing.B) { benchStream(b, "bytes", "16", benchBytes()) }
+func BenchmarkStreamEncode32(b *testing.B) { benchStream(b, "bytes", "32", benchBytes()) }
 
 func BenchmarkStreamDecode64(b *testing.B) {
 	reg, _ := NewRegistry()
-	from, _ := reg.Lookup("binary")
+	from, _ := reg.Lookup("bytes")
 	to, _ := reg.Lookup("64u")
 	enc, _ := Convert(benchBytes(), from, to, 0)
-	benchStream(b, "64u", "binary", enc)
+	benchStream(b, "64u", "bytes", enc)
 }

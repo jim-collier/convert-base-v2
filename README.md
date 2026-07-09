@@ -7,7 +7,7 @@
 
 ![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)
 ![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)
-![Lifecycle: Stable](https://img.shields.io/badge/Lifecycle-Stable-brightgreen)
+![Lifecycle: RC](https://img.shields.io/badge/Lifecycle-RC-blue)
 ![Support](https://img.shields.io/badge/Support-Maintained-brightgreen)
 ![Status: Passing](https://img.shields.io/badge/Status-Passing-brightgreen)
 
@@ -84,6 +84,8 @@ A universal cross-platform CLI number conversion program, written in Go, that:
 - Encodes and decodes binary data to and from text, for every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. Other bases have no byte-exact mapping, so binary mode reports which bases qualify (the RAW column of `--list`) and refuses the rest.
 
 	- In other words, it can do what `basenc` can do, also in O(N) linear time, at roughly the same speed - plus bases `basenc` never heard of, like base-2048 and base-65536.
+
+	- To re-encode directly between two text bases as byte data (e.g. hex to base-64, the way `basenc` does), add `--binary`. Without it, two power-of-two text bases convert as a positional number instead, which drops leading zeros; a note on stderr points this out. Use `--number` to assert the numeric reading and silence the note.
 
 		- *Regular finite positional base conversion, however, necessarily works in O(N^2) quadratic time*.
 
@@ -319,7 +321,7 @@ You can define your own arbitrary base of any size >1. These are just all of the
 | 128   | 128jc                | 128p                                                  |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱΞψϠδϟЋЖЯѢф¢£¥§¿ɤʬ⍤⍩⌲⍋⍒⍢ÂĈÊĜĤÎĴÔŜÛŴ
 | 128   | 128v1compat          | 128j1                                                 |                                  |               | 0123456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱΞψϠδϟЋЖЯѢф¢£¥§¿ɤʬ⍤⍩⌲⍋⍒⍢ÂĈÊĜĤĴŜŴŶâĉêĝĥĵŝŵŷÃẼÑỸãẽñỹÄËẄẌŸäëẅẍÿÁĆÉ
 | 256   | 256jc                | 256p, 256j1                                           |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ ...to... óŕśúẃýźĀĒĪŌŪȲāēīōūȳǍČĎĚǦȞǨŇǑŘŠǓǎčďěǧȟǩňǒřšǔǝɹʇʌ₸᛬웃유ㅈㅊㅍㅎㅱㅸㅠソッゞぅぇォ
-| 256   | binary               | bin, bytes, raw                                       |                                  |               | (256 raw bytes, 0x00–0xFF)
+| 256   | bytes                |                                                       |                                  |               | (256 raw bytes, 0x00–0xFF)
 | 288   | 288jc                | 288p, 288j1                                           |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ ...to... čďěǧȟǩňǒřšǔǝɹʇʌ₸᛬웃유ㅈㅊㅍㅎㅱㅸㅠソッゞぅぇォゲサじすスせちづでネビべぺまモゟヲ½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞
 | 2048  | 2048twitter          | 2048x, 2048qntm                                       |                                  |               | 89ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÆÐØÞßæðøþĐ ...to... ྈྉྊྋྌကခဂဃငစဆဇဈဉညဋဌဍဎဏတထဒဓနပဖဗဘမယရလဝသဟဠအဢဣဤဥဧဨဩဪဿ၀၁၂၃၄၅၆၇၈၉ၐၑၒၓၔၕ
 | 2048  | 2048rust             | 2048llfourn                                           | Tightest binary-to-text encoding for Twitter. |               | ØµºÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ ...to... ႫႬႭႮႯႰႱႲႳႴႵႶႷႸႹႺႻႼႽႾႿჀჁჂჃჄჅაბგდევზთიკლმნოპჟრსტუფქღყშჩცძწჭხჯჰჱჲჳ྾

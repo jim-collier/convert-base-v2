@@ -40,6 +40,12 @@ func run() error {
 		lower         = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
 		noNewline     = flag.Bool("no-newline", false, "do not append a trailing newline to text output (like echo -n)")
 		nFlag         = flag.Bool("n", false, "alias for -no-newline")
+		binaryMode    = flag.Bool("binary", false, "treat both sides as raw byte data (byte encode/decode, like basenc); both bases must be powers of two")
+		binFlag       = flag.Bool("bin", false, "alias for -binary")
+		bFlag         = flag.Bool("b", false, "alias for -binary")
+		numberMode    = flag.Bool("number", false, "treat input as a positional number value (the default); silences the byte-vs-number note")
+		numFlag       = flag.Bool("num", false, "alias for -number")
+		nCapFlag      = flag.Bool("N", false, "alias for -number")
 		list          = flag.Bool("list", false, "list all known bases and exit")
 		getIndexCount = flag.Bool("get-index-count", false, "print how many bases are defined, then exit; valid --by-index values run 0 to count-1")
 		getBaseName   = flag.Bool("get-base-name", false, "print a base's canonical name, then exit; pick the base with a name/alias argument or --by-index")
@@ -190,11 +196,42 @@ func run() error {
 		os.Exit(2)
 	}
 
-	// Streaming fast path: for the binary bit-packed conversions, pipe stdin
-	// straight to stdout with no whole-file buffering. --lower would need
-	// per-chunk rewriting, so it falls through to the buffered path.
+	byteMode := *binaryMode || *binFlag || *bFlag
+	numMode := *numberMode || *numFlag || *nCapFlag
+	if byteMode && numMode {
+		return fmt.Errorf("choose either --binary or --number, not both")
+	}
+
+	// --binary is meaningful only between two text bases; if either side is
+	// already the bytes base the conversion is byte-exact anyway, so ignore it.
+	routeBytes := byteMode && !from.Binary && !to.Binary
+	var bytes *Base
+	if routeBytes {
+		bytes, err = reg.Lookup("bytes")
+		if err != nil {
+			return err
+		}
+	}
+
+	// Loud note for the silent-ambiguous case: two power-of-2 text bases with no
+	// mode given. The value is converted as a number (leading zeros dropped),
+	// which differs from a byte re-encoding. Goes to stderr so pipes stay clean.
+	if !byteMode && !numMode && !from.Binary && !to.Binary &&
+		powerOfTwoBits(len(from.Symbols)) > 0 && powerOfTwoBits(len(to.Symbols)) > 0 {
+		fmt.Fprintln(os.Stderr, "FYI: Converted as a positional notation number (assumed '--number' flag). If you meant to do binary encode/decode, add the --binary flag.")
+	}
+
+	// Streaming fast path: for the bit-packed conversions, pipe stdin straight to
+	// stdout with no whole-file buffering. --lower would need per-chunk
+	// rewriting, so it falls through to the buffered path.
 	if fromStdin && !*lower {
-		handled, serr := streamConvert(os.Stdin, os.Stdout, from, to)
+		var handled bool
+		var serr error
+		if routeBytes {
+			handled, serr = streamBytesRoute(os.Stdin, os.Stdout, from, to, bytes)
+		} else {
+			handled, serr = streamConvert(os.Stdin, os.Stdout, from, to)
+		}
 		if serr != nil {
 			return serr
 		}
@@ -219,7 +256,18 @@ func run() error {
 		number = args[0]
 	}
 
-	result, err := Convert(number, from, to, *precision)
+	var result string
+	if routeBytes {
+		// from-digits -> raw bytes -> to-digits, matching the streaming route and
+		// basenc byte-for-byte (whole-byte checks and RFC padding included).
+		mid, cerr := Convert(number, from, bytes, *precision)
+		if cerr != nil {
+			return cerr
+		}
+		result, err = Convert(mid, bytes, to, *precision)
+	} else {
+		result, err = Convert(number, from, to, *precision)
+	}
 	if err != nil {
 		return err
 	}
@@ -512,9 +560,13 @@ func printExamples() {
   # Convert a binary file to any 2^N base (i.e. 4, 8, 16, 32, 64 ... 65536)
   # Streams in linear time at speeds competitive with basenc/base64. The draw is
   # the bases nothing else has: 2048, 65536, or your own 2^N alphabet.
-  cat file.bin | convert-base-v2 --from binary --to 64u > out.b64
+  cat file.bin | convert-base-v2 --from bytes --to 64u > out.b64
 
-  cat out.b64  | convert-base-v2 --from 64u --to binary > file2.bin       # base64url -> File (bit-perfect)
+  cat out.b64  | convert-base-v2 --from 64u --to bytes > file2.bin        # base64url -> File (bit-perfect)
+
+  # Re-encode between two text bases as BYTE DATA (like basenc), not as a number.
+  # Without --binary the value converts numerically and leading zeros are lost.
+  echo -n deadbeef | convert-base-v2 --binary --from 16 --to 64          # 3q2+7w==
 
 	`)
 }

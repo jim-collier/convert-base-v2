@@ -27,10 +27,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Raw binary encode and decode for four more bases, each per its official spec: base45 (RFC 9285), Ascii85 (Adobe/PostScript), Z85 (ZeroMQ RFC 32), and base91 (basE91). These are chunked binary-to-text codecs, so they carry bytes exactly and round-trip at any length (Z85 requires 4-byte-aligned input, per its spec). Powers of two still use the fast bit-packing path. Any other base has no byte-exact mapping and is refused in binary mode.  [20260707]
+- `--binary` (aliases `--bin`, `-b`): re-encode directly between two power-of-two text bases as byte data, the way `basenc` does (e.g. hex to base-64), instead of converting the value as a number. Both bases must be powers of two. Piped input streams.  [20260708]
+- `--number` (aliases `--num`, `-N`): assert the numeric reading of a conversion and silence the byte-vs-number note.  [20260708]
 
 ### Changed
 
 - `--list` gains a RAW column showing which bases can carry a raw binary stream (the power-of-two bases plus the codecs above).  [20260707]
+- The 256-value raw-byte base is now named `bytes`. Its former names `binary`, `bin`, and `raw` are removed - use `--from bytes` / `--to bytes`, or `--binary` for text-to-text byte re-encoding.  [20260708]
+- Converting between two power-of-two text bases with no mode flag now prints a note on stderr: the value is read as a number (leading zeros dropped), not re-encoded as bytes. Add `--binary` or `--number` to pick a reading.  [20260708]
+- The `--raw` output flag is renamed `--no-newline` (`-n`), matching `echo -n`.  [20260708]
 - The README no longer includes screenshots, and the pipeline no longer regenerates them by default. The generator is kept for on-demand use.  [20260706]
 
 ### Fixed
@@ -41,7 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Broadened the test harness: raw round-trips now cover every base the RAW column advertises, with fixed spec vectors for each codec and a check that non-codec bases refuse raw binary. Added a resource profile (peak memory and wall time) and a codec throughput guard, both skipped by `--quick`.  [20260707]
 
-## v1.1.0 - 2026-07-06
+## v1.1.0-beta6 - 2026-07-06
 
 ### Added
 
