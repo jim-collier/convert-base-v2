@@ -197,6 +197,24 @@ func (b *Base) finalize() error {
 		}
 	}
 
+	// Prefix-free check (only possible with multi-byte symbols; single-byte
+	// symbol sets are trivially prefix-free). Tokenizing is greedy longest-match,
+	// which decodes correctly iff no symbol is a prefix of another - otherwise a
+	// string like "10" (digits "1","0") is misread as a single digit "10".
+	if !b.allOneByte {
+		symSet := make(map[string]struct{}, len(b.Symbols))
+		for _, s := range b.Symbols {
+			symSet[s] = struct{}{}
+		}
+		for _, s := range b.Symbols {
+			for l := 1; l < len(s); l++ {
+				if _, ok := symSet[s[:l]]; ok {
+					return fmt.Errorf("base %q: symbol %q begins with another symbol %q, so a run of digits can't be split unambiguously; make the symbol set prefix-free", b.Name(), s, s[:l])
+				}
+			}
+		}
+	}
+
 	// Resolve effective negative/decimal markers.
 	//
 	//   nil         -> use global default; collision with a digit is an error
@@ -214,6 +232,20 @@ func (b *Base) finalize() error {
 	}
 	if b.negative != "" && b.decimal != "" && b.negative == b.decimal {
 		return fmt.Errorf("base %q: negative and decimal markers are both %q", b.Name(), b.negative)
+	}
+
+	// A marker that appears *inside* a digit symbol breaks parsing: Convert scans
+	// the raw string for the marker before tokenizing, so a symbol like "a.b" or
+	// "a-b" gets split at the marker and its value silently changes. Reject it.
+	for _, mk := range []struct{ kind, mark string }{{"negative", b.negative}, {"decimal", b.decimal}} {
+		if mk.mark == "" {
+			continue
+		}
+		for _, s := range b.Symbols {
+			if s != mk.mark && strings.Contains(s, mk.mark) {
+				return fmt.Errorf("base %q: %s marker %q appears inside digit symbol %q; pick a marker that is not part of any digit (e.g. \"%s=X\")", b.Name(), mk.kind, mk.mark, s, mk.kind[:3])
+			}
+		}
 	}
 
 	// A padding symbol must not also be a digit: binary decode strips a trailing
@@ -327,14 +359,14 @@ func (r *Registry) Register(b *Base) error {
 	if err := b.finalize(); err != nil {
 		return err
 	}
-	// Sanity: if any alias is a pure integer, it must equal the symbol count.
+	// Sanity: every pure-integer alias must equal the symbol count. Check the
+	// normalized form (so "b99" is caught too, not just "99") and every alias,
+	// not only the first - otherwise ["3","99"] would register "99" as a working
+	// name for a 3-symbol base.
 	for _, a := range b.Aliases {
-		if n, err := strconv.Atoi(a); err == nil {
-			if n != len(b.Symbols) {
-				return fmt.Errorf("base %q: alias %q implies size %d but has %d symbols",
-					b.Name(), a, n, len(b.Symbols))
-			}
-			break
+		if n, err := strconv.Atoi(normalizeBaseName(a)); err == nil && n != len(b.Symbols) {
+			return fmt.Errorf("base %q: alias %q implies size %d but has %d symbols",
+				b.Name(), a, n, len(b.Symbols))
 		}
 	}
 	seen := make(map[string]bool)
@@ -388,12 +420,32 @@ func stripBasePrefix(s string) (string, bool) {
 	return rest, true
 }
 
+// liveAliases returns the aliases of b that still resolve to b - i.e. those a
+// later-registered base (a config override) hasn't taken over. A base whose
+// aliases were all stolen is fully shadowed and returns nothing.
+func (r *Registry) liveAliases(b *Base) []string {
+	var live []string
+	for _, a := range b.Aliases {
+		k := normalizeBaseName(a)
+		if k != "" && r.byAlias[k] == b {
+			live = append(live, a)
+		}
+	}
+	return live
+}
+
 // orderedBases returns all registered bases sorted by radix (stable). This is
 // the canonical index order: the same order --list prints, so --by-index=N
-// addresses the same base as the N-th --list row.
+// addresses the same base as the N-th --list row. Fully-shadowed bases (every
+// alias overridden by a later config base) are dropped, so the count and the
+// index don't include a base no name can reach.
 func (r *Registry) orderedBases() []*Base {
-	bases := make([]*Base, len(r.ordered))
-	copy(bases, r.ordered)
+	bases := make([]*Base, 0, len(r.ordered))
+	for _, b := range r.ordered {
+		if len(r.liveAliases(b)) > 0 {
+			bases = append(bases, b)
+		}
+	}
 	sort.SliceStable(bases, func(i, j int) bool {
 		return len(bases[i].Symbols) < len(bases[j].Symbols)
 	})
@@ -418,13 +470,18 @@ func (r *Registry) Print(w io.Writer) {
 		if b.RawCodec() {
 			raw = "yes"
 		}
-		// NAME is the first alias, so list only the remaining aliases here.
+		// Show only aliases that still resolve to this base (a config override
+		// may have taken some), and use the first live one as the display name so
+		// a stolen canonical name isn't advertised here.
+		live := r.liveAliases(b)
+		name := b.Name()
 		otherAliases := ""
-		if len(b.Aliases) > 1 {
-			otherAliases = strings.Join(b.Aliases[1:], ", ")
+		if len(live) > 0 {
+			name = live[0]
+			otherAliases = strings.Join(live[1:], ", ")
 		}
 		fmt.Fprintf(w, "%-16s  %-6d  %-5s  %-5s  %-5s  %s\n",
-			b.Name(), len(b.Symbols), neg, dec, raw, otherAliases)
+			name, len(b.Symbols), neg, dec, raw, otherAliases)
 	}
 }
 
@@ -477,6 +534,10 @@ type configBase struct {
 	Negative *string   `yaml:"negative,omitempty"`
 	Decimal  *string   `yaml:"decimal,omitempty"`
 	Pad      *string   `yaml:"pad,omitempty"`
+	// PadEmit, if present, overrides the emit-on-encode default. Set it false for
+	// a strip-only pad (accepted on decode but not written), like the builtin
+	// URL/hex variants. Absent means emit when a pad is set.
+	PadEmit *bool `yaml:"pademit,omitempty"`
 }
 
 // LoadConfig reads the YAML config at path and registers each base it defines.
@@ -543,8 +604,19 @@ func (cb configBase) toBase() (*Base, error) {
 	if cb.Decimal != nil {
 		b.Decimal = cb.Decimal
 	}
+	// An explicit "pad:" wins over a trailer pad, including "" to disable it.
 	if cb.Pad != nil {
-		applyPad(b, cb.Pad)
+		if *cb.Pad == "" {
+			b.PadSymbol = ""
+			b.PadEmit = false
+		} else {
+			b.PadSymbol = *cb.Pad
+			b.PadEmit = true
+		}
+	}
+	// pademit lets a config define a strip-only pad (accepted but not emitted).
+	if cb.PadEmit != nil {
+		b.PadEmit = *cb.PadEmit
 	}
 	return b, nil
 }

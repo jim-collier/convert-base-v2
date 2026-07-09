@@ -14,6 +14,8 @@ import (
 	"unicode/utf8"
 )
 
+var bigOne = big.NewInt(1)
+
 // Convert converts a number string from 'from' base to 'to' base.
 // Supports arbitrary-precision integers, fractional parts, and negative numbers.
 // 'precision' is the maximum number of fractional digits emitted in the output.
@@ -166,6 +168,41 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		fracDen.Mul(fracDen, fromRadix)
 	}
 
+	// Fractional part -> output base, rounded (half up) to at most `precision`
+	// digits. Rounding can carry into the integer part, so it is done before the
+	// integer is rendered. Truncating instead let simple round trips drift, e.g.
+	// 0.1 -> hex -> back came out 0.0999...9. A value smaller than one output
+	// digit rounds to nothing (no spurious "0.000" / "-0.000").
+	var fracOut []string
+	if fracNum.Sign() > 0 && precision > 0 {
+		scale := new(big.Int).Exp(toRadix, big.NewInt(int64(precision)), nil)
+		q := new(big.Int).Mul(fracNum, scale)
+		rem := new(big.Int)
+		q.QuoRem(q, fracDen, rem)
+		if new(big.Int).Lsh(rem, 1).Cmp(fracDen) >= 0 {
+			q.Add(q, bigOne)
+		}
+		if q.Cmp(scale) >= 0 {
+			intVal.Add(intVal, bigOne) // carried out of the fractional range
+			q.SetInt64(0)
+		}
+		if q.Sign() > 0 {
+			digits := make([]string, precision)
+			mod := new(big.Int)
+			for i := precision - 1; i >= 0; i-- {
+				q.DivMod(q, toRadix, mod)
+				digits[i] = to.Symbols[mod.Int64()]
+			}
+			// Keep leading zero digits (0.05 needs them), trim trailing ones.
+			end := precision
+			zero := to.Symbols[0]
+			for end > 0 && digits[end-1] == zero {
+				end--
+			}
+			fracOut = digits[:end]
+		}
+	}
+
 	// Integer part -> output base (repeated division).
 	var intOut []string
 	if intVal.Sign() == 0 {
@@ -176,17 +213,6 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		for n.Sign() > 0 {
 			n.DivMod(n, toRadix, mod)
 			intOut = append([]string{to.Symbols[mod.Int64()]}, intOut...)
-		}
-	}
-
-	// Fractional part -> output base (repeated multiplication).
-	var fracOut []string
-	if fracNum.Sign() > 0 {
-		digit := new(big.Int)
-		for i := 0; i < precision && fracNum.Sign() > 0; i++ {
-			fracNum.Mul(fracNum, toRadix)
-			digit.QuoRem(fracNum, fracDen, fracNum)
-			fracOut = append(fracOut, to.Symbols[digit.Int64()])
 		}
 	}
 
@@ -376,6 +402,11 @@ func decodeDigitsToBytes(input string, from *Base, kIn int) (string, error) {
 	for i := 0; i < len(input); i++ {
 		v := from.byteValue[input[i]]
 		if v < 0 {
+			// Tolerate line breaks the way the streaming decoder does, so wrapped
+			// base32/base64 decodes the same whether it arrives via argv or a pipe.
+			if input[i] == '\n' || input[i] == '\r' {
+				continue
+			}
 			return "", fmt.Errorf("byte %#02x (%q) not in base %q", input[i], string(input[i]), from.Name())
 		}
 		acc = (acc << kIn) | uint64(v)
@@ -548,8 +579,14 @@ func streamEncode(r io.Reader, w io.Writer, to *Base, kOut int) error {
 		if carry > 0 {
 			copy(inbuf[:carry], inbuf[groups*groupBytes:total])
 		}
-		if err != nil { // io.EOF / io.ErrUnexpectedEOF: end of stream
-			break
+		if err != nil {
+			// io.EOF / io.ErrUnexpectedEOF mean end of stream; anything else is a
+			// real read error and must not be silently treated as a clean end
+			// (which would emit a truncated encoding with exit 0).
+			if err == io.EOF || err == io.ErrUnexpectedEOF {
+				break
+			}
+			return err
 		}
 	}
 	// Final partial group + any RFC padding, assembled and written in one go.
@@ -612,13 +649,14 @@ func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
 
 	var acc uint64
 	var accBits int
+	padSeen := false
 	for {
 		nn, err := r.Read(inbuf)
 		out = out[:0]
 		i := 0
 		for i < nn {
-			// Unrolled group path, only while byte-aligned (accBits == 0).
-			if accBits == 0 {
+			// Unrolled group path, only while byte-aligned and before any pad.
+			if accBits == 0 && !padSeen {
 				switch kIn {
 				case 6: // base64: 4 digits -> 3 bytes
 					for i+4 <= nn {
@@ -663,6 +701,11 @@ func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
 			i++
 			v := dec[c]
 			if v >= 0 {
+				// A digit after padding means the pad wasn't a trailing run - the
+				// buffered path rejects this too (interior pad), so match it.
+				if padSeen {
+					return fmt.Errorf("cannot decode from %s: data after padding %q", from.Name(), from.PadSymbol)
+				}
 				acc = acc<<kIn | uint64(v)
 				accBits += kIn
 				if accBits >= 8 {
@@ -672,7 +715,11 @@ func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
 				}
 				continue
 			}
-			if c == '\n' || c == '\r' || (hasPad && c == padByte) {
+			if hasPad && c == padByte {
+				padSeen = true
+				continue
+			}
+			if c == '\n' || c == '\r' {
 				continue
 			}
 			return fmt.Errorf("byte %#02x (%q) not in base %q", c, string(c), from.Name())
@@ -1030,9 +1077,16 @@ func decodeBase91(input string, b *Base) (string, error) {
 	var acc uint32
 	var nbits uint
 	for i := 0; i < len(input); i++ {
-		d := b.byteValue[input[i]]
+		c := input[i]
+		d := b.byteValue[c]
 		if d < 0 {
-			continue // reference basE91 ignores characters outside the alphabet
+			// The reference basE91 silently drops any non-alphabet byte, which
+			// lets corrupt input decode to garbage with exit 0. Every other codec
+			// here errors on junk; only whitespace (line wrapping) is skipped.
+			if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f' {
+				continue
+			}
+			return "", fmt.Errorf("cannot decode from %s: byte %#02x (%q) is not a base-91 symbol", b.Name(), c, string(c))
 		}
 		if v < 0 {
 			v = d

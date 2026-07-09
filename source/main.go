@@ -15,7 +15,11 @@ import (
 	"strings"
 )
 
-const version = "v1.1.0-beta5"
+// version is overwritten at build time via -ldflags "-X main.version=...". It
+// must be a var, not a const: the linker can only patch a var, so a const here
+// made the Makefile's version injection a silent no-op.
+var version = "v1.1.0-beta5"
+
 const (
 	copyrightYear = "2023-2026"
 	author        = "Jim Collier (ID: 1cv◂‡Vᛦ)"
@@ -84,6 +88,20 @@ func run() error {
 	// if user explicitly set -config=/etc/...).
 	userPath := *configFile
 	if userPath != "" && userPath != etcConfigPath {
+		// A missing default config path is fine, but if the user explicitly typed
+		// --config, a missing/unreadable file is almost certainly a typo - error
+		// instead of silently dropping their custom bases.
+		configExplicit := false
+		flag.Visit(func(f *flag.Flag) {
+			if f.Name == "config" {
+				configExplicit = true
+			}
+		})
+		if configExplicit {
+			if _, statErr := os.Stat(userPath); statErr != nil {
+				return fmt.Errorf("config %s: %w", userPath, statErr)
+			}
+		}
 		if err := reg.LoadConfig(userPath); err != nil {
 			return fmt.Errorf("config %s: %w", userPath, err)
 		}
@@ -170,10 +188,17 @@ func run() error {
 
 	args := flag.Args()
 
-	// OUTBASE: --to flag wins over positional. Positional is args[1] when
-	// args[0] is the number (or "-"). Default to "10" if neither set. Resolved
-	// up front (it doesn't depend on the number) so the streaming path below can
-	// be chosen before a byte is read.
+	// NUMBER comes from stdin only for an explicit "-", or a pipe with no
+	// positional. When a positional NUMBER is given it always wins - changing
+	// that would break the common `prog NUMBER` form in scripts whose stdin is an
+	// inherited pipe (a read-loop, this being run under another pipe, etc.), and
+	// would make the tool consume a pipe it was never meant to touch.
+	fromStdin := (len(args) >= 1 && args[0] == "-") || (len(args) == 0 && !isTerminal(os.Stdin))
+
+	// OUTBASE: --to flag wins over positional (args[1], after NUMBER or "-").
+	// Default to defaultBase if neither set. Resolved up front (it doesn't depend
+	// on the number) so the streaming path below can be chosen before a byte is
+	// read.
 	outBaseName := *toName
 	posOut := ""
 	if len(args) >= 2 {
@@ -198,6 +223,18 @@ func run() error {
 		return fmt.Errorf("unexpected extra positional argument: %q", args[expectedPositionals])
 	}
 
+	// Kill the silent-wrong-output trap: `echo 255 | prog 16` reads "16" as the
+	// NUMBER and never touches the pipe, so it prints "16" with exit 0. Detect the
+	// telltale shape - a real pipe with data, one positional, and that positional
+	// naming a known base - and point the user at "-". A bare number positional
+	// (the ordinary read-loop case) does not trip this.
+	if !fromStdin && len(args) == 1 && isNamedPipe(os.Stdin) {
+		if _, lerr := reg.Lookup(args[0]); lerr == nil {
+			fmt.Fprintf(os.Stderr, "note: reading %q as the NUMBER, not the output base; stdin (piped) was ignored. To convert piped input, use: something | %s - %s\n",
+				args[0], filepath.Base(os.Args[0]), args[0])
+		}
+	}
+
 	to, err := resolveBase(reg, outBaseName, *toSymbols)
 	if err != nil {
 		return fmt.Errorf("output base: %w", err)
@@ -219,9 +256,6 @@ func run() error {
 	if *upper && !canUppercase(to) {
 		return fmt.Errorf("--upper is invalid for mixed-case output base %q: uppercasing its digits would change their meaning", to.Name())
 	}
-
-	// Is the number coming from stdin (explicit "-", or piped with no arg)?
-	fromStdin := (len(args) >= 1 && args[0] == "-") || (len(args) == 0 && !isTerminal(os.Stdin))
 
 	// No number and stdin is a terminal - nothing to do. Show help.
 	if len(args) == 0 && !fromStdin {
@@ -421,6 +455,17 @@ func isTerminal(f *os.File) bool {
 	return (fi.Mode() & os.ModeCharDevice) != 0
 }
 
+// isNamedPipe reports whether f is an actual pipe (the `|` case), as opposed to
+// a terminal, a regular-file redirect, or /dev/null. Used only to decide whether
+// a likely piped-input mistake is worth a diagnostic.
+func isNamedPipe(f *os.File) bool {
+	fi, err := f.Stat()
+	if err != nil {
+		return false
+	}
+	return (fi.Mode() & os.ModeNamedPipe) != 0
+}
+
 // userConfigPath returns the default path for the user-level config file.
 func userConfigPath() string {
 	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
@@ -443,7 +488,9 @@ func printHelp(reg *Registry, etcPath, userPath, fromName, toName, fromSyms, toS
 Usage:
   convert-base-v2 [flags] NUMBER [OUTBASE]
   convert-base-v2 [flags] - [OUTBASE]              # read NUMBER from stdin
-  something | convert-base-v2 [flags] [OUTBASE]    # read NUMBER from stdin if no arg
+  something | convert-base-v2 [flags] - [OUTBASE]  # read NUMBER from stdin (a
+                                                   # positional NUMBER always wins,
+                                                   # so use - to read the pipe)
 
 If --from is unset, input base defaults to 10. If neither --to nor OUTBASE is
 given, output base also defaults to 10.
