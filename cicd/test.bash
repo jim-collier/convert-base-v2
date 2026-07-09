@@ -128,7 +128,7 @@ check eq     "--get-base-name alias hex"    16              -- --get-base-name h
 check errmsg "--by-index out of range"      'out of range'  -- --get-base-name --by-index=999999
 check errmsg "query needs a selector"       'select a base' -- --get-base-name
 _run --show-symbols 16
-{ ((_rc == 0)) && [[ "$(wc -l <"${CBT_OUT}")" -eq 16 ]]; } && _pass "--show-symbols 16 lists 16 symbols" || _fail "--show-symbols 16 lists 16 symbols" "rc=$_rc lines=$(wc -l <"${CBT_OUT}")"
+{ ((_rc == 0)) && [[ "$_out" == "0123456789ABCDEF" ]]; } && _pass "--show-symbols 16 concatenates 16 symbols" || _fail "--show-symbols 16 concatenates 16 symbols" "rc=$_rc out=[$_out]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -479,7 +479,7 @@ done
 ## Full-coverage symbol round-trip: for every base (not just a handful), build a
 ## random-length string from its own randomly chosen symbols, carry it through a
 ## random target base, and bring it back. Bases, names, and symbol alphabets all
-## come from the binary itself (--get-index-count, --get-base-name, --show-symbols),
+## come from the binary itself (--get-index-count, --get-base-name, --show-symbols-0),
 ## so every defined base is exercised with no hand-maintained tables. The first
 ## symbol is kept off the zero digit so the source string is already canonical and
 ## a clean string compare is a valid round-trip check. The bytes base (raw bytes)
@@ -498,7 +498,7 @@ declare -A SYM_LOADED=()
 _load_syms(){
 	local idx="$1"
 	[[ -n "${SYM_LOADED[$idx]:-}" ]] && return
-	mapfile -t "SYMS_${idx}" < <("${EXE}" --show-symbols --by-index="$idx")
+	mapfile -d '' -t "SYMS_${idx}" < <("${EXE}" --show-symbols-0 --by-index="$idx")
 	SYM_LOADED[$idx]=1
 }
 
