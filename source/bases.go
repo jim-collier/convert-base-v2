@@ -681,7 +681,7 @@ func predefinedBases() []*Base {
 		// Each digit is one of the 256 byte values. See Base.Binary and
 		// convertBitPacked in convert.go. Distinct from base "2" - base 2
 		// is the text characters "0" / "1".
-		binaryBase(),
+		bytesBase(),
 	}
 }
 
@@ -807,14 +807,16 @@ func keyboardBase() *Base {
 	}
 }
 
-// binaryBase returns the raw-binary mode (256 byte values as base_10, Binary=true).
-func binaryBase() *Base {
+// bytesBase returns the raw-byte mode (256 byte values as base_256, Binary=true).
+// It has no aliases: "binary"/"bin" are now the --binary mode flag, and byte
+// re-encoding between text bases routes through this base internally.
+func bytesBase() *Base {
 	syms := make([]string, 256)
 	for i := 0; i < 256; i++ {
 		syms[i] = string([]byte{byte(i)})
 	}
 	return &Base{
-		Aliases:  []string{"binary", "bin", "bytes", "raw"},
+		Aliases:  []string{"bytes"},
 		Symbols:  syms,
 		Negative: strPtr(""), // explicitly disabled (0x2D "-" is a digit)
 		Decimal:  strPtr(""), // explicitly disabled (0x2E "." is a digit)

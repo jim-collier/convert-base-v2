@@ -41,6 +41,12 @@ In each section, items are listed approximately from newest to oldest.
 
 ### Bugs
 
+- 🔘 Backwards compatible base '128v1compat' has a subtly incorrect alphabet difinition. (github #1)
+	- The base definition for '128j1' in v1 is - annoyingly - a "word-safe" version.
+		- (I can't remember if that was intentional. It shouldn't have been, because base 256 and 288 aren't. Base 128 should have been a subset of 256.)
+	- When writing the alphabets for v2, rather than copying the v1 alphabets verbatim, I made an incorrect assumptions about 128's logical structure. The difference can be very subtle - especially since 128 is an even power of 2. Which means some binary encodings might be off by only a single character.
+	- Step 1: Carefully compare the alphabet strings for v1, v1b, and v2. (Just paste all three on three lines in a doc, do `eyeball diff`.)
+
 - 🔘 Piped stdin is silently ignored when a positional argument is given. (code review BxZNl-1)
 	- `echo 255 | convert-base-v2 16` treats 16 as the number, never reads the pipe, and prints 16 with exit 0.
 	- The help synopsis shows `something | convert-base-v2 [flags] [OUTBASE]`, so the documented form gives plausible wrong output silently.
@@ -100,6 +106,12 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
+- 🔘 `--show-symbols` should list with no delimiters. (Currently lists with newline in between each.) #1n4xq9d
+
+- 🔘 Add Crockford's decode aliases (O reads as 0, I and L as 1) to 32c, or note the limitation. (code review BxZNl-21)
+
+- 🔘 Allow any base to be prefaced with "base", "base-", or "base_", and still work. (github #8)
+
 - 🔘 Better error messages for the four most common stumbles. (code review BxZNl-16)
 	- Flags after the number: "unexpected extra positional argument: --lower" should say flags come first.
 	- Negative numbers without `--`: a bare "flag provided but not defined: -123" with no hint about the `--` separator, on a headline feature.
@@ -119,8 +131,6 @@ In each section, items are listed approximately from newest to oldest.
 	- RFC 4648 defaults to mandatory padding for those sections too, and Go's stdlib decoders reject the current unpadded output.
 	- Options: flip them to padded, add padded sibling aliases, or document the deviation. The output-stability policy argues against a silent flip.
 
-- 🔘 Add Crockford's decode aliases (O reads as 0, I and L as 1) to 32c, or note the limitation. (code review BxZNl-21)
-
 - 🔘 Real Go tests, so `make test` stops being a vacuous green. (code review BxZNl-22)
 	- There are zero Test functions, benchmarks only, so `go test` gates nothing for ~3300 lines of conversion logic.
 	- Port the codec and big-base vectors already in test.bash, add table-driven cases for sign, fractions, markers, multi-char symbols, and the spec parser.
@@ -139,7 +149,7 @@ In each section, items are listed approximately from newest to oldest.
 	- Two hand-tuned implementations of the same encodings must agree byte-for-byte, and every encoding change is a two-place fix today. BxZNl-6 is this debt already biting.
 
 - 🔘 Docs accuracy sweep. (code review BxZNl-26)
-	- README bases table is stale: "binary" documented as a base-2 alias (it is the raw-bytes base), the "32"/"32h" alphabets are swapped, and about two dozen listed aliases do not resolve. Regenerate it from --list.
+	- README bases table is stale: the "32"/"32h" alphabets are swapped, and about two dozen listed aliases do not resolve. Regenerate it from --list. (The old "binary" row that misdocumented the raw-bytes base is fixed - it is now the `bytes` row.)
 	- --examples ships a command that errors: bare "2048" is not a base name.
 	- The README serial-number example labels 64h output as 64u and never does the divide-by-60 it describes.
 	- The 85ps row of the example-output table predates the alphabet fix; every other row still matches.
@@ -151,6 +161,12 @@ In each section, items are listed approximately from newest to oldest.
 #### Done - Bugs
 
 #### Done - New features and enhancements
+
+- ✅ Byte-mode re-encoding between text bases. Two power-of-2 text bases (e.g. hex and base-64) used to convert only as a positional number, which silently drops leading zeros and is not a byte re-encoding. Now `--binary` (`--bin`, `-b`) re-encodes them as byte data the way `basenc` does, by routing through the raw-byte base; piped input streams. `--number` (`--num`, `-N`) asserts the numeric reading. With neither flag, a power-of-2 text-to-text conversion prints a note on stderr so the ambiguity is no longer silent.
+
+- ✅ Renamed the 256-value raw-byte base to `bytes` and dropped its `binary`/`bin`/`raw` aliases, so the base name no longer collides with the new `--binary` mode flag (and "binary" no longer misleadingly names the byte base rather than base-2).
+
+- ✅ Renamed the `--raw` output flag to `--no-newline` (`-n`), matching `echo -n`; its old name was unclear and overlapped the raw-byte base.
 
 - ✅ Raw binary conversion now covers, besides the powers of two, the defined streaming binary-to-text codecs: base45, Ascii85, Z85, and base91, each implemented per its official spec. Any other non-2^N base has no byte-exact mapping and is refused in binary mode. `--list` shows which bases qualify (RAW column). (An earlier attempt to make every base work via whole-value base-x was reverted in favor of this, since a positional whole-value encoding isn't what a streaming codec means.)
 

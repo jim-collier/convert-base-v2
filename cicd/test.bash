@@ -216,8 +216,8 @@ for pair in "16" "64u" "32h" "64"; do
 	src="${CBT_TMP}/bin_src"; mid="${CBT_TMP}/bin_mid"; out="${CBT_TMP}/bin_out"
 	mkbin 777 "$src"
 	rc1=0; rc2=0
-	"${TIMEOUT[@]}" "${EXE}" --from binary --to "$pair" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
-	"${TIMEOUT[@]}" "${EXE}" --from "$pair" --to binary <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
+	"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$pair" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
+	"${TIMEOUT[@]}" "${EXE}" --from "$pair" --to bytes <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
 	if ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; then
 		_pass "binary round-trip via ${pair} (bit-perfect)"
 	else
@@ -233,8 +233,8 @@ for pair in "2048twitter" "2048rust" "32768qntm" "65536"; do
 		src="${CBT_TMP}/bp_src"; mid="${CBT_TMP}/bp_mid"; out="${CBT_TMP}/bp_out"
 		head -c "$n" /dev/urandom >"$src"
 		rc1=0; rc2=0
-		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$pair" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
-		"${TIMEOUT[@]}" "${EXE}" --from "$pair" --to binary <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
+		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$pair" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
+		"${TIMEOUT[@]}" "${EXE}" --from "$pair" --to bytes <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
 		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || bigfail=$((bigfail+1))
 	done
 	((bigfail == 0)) && _pass "binary round-trip via ${pair} (all lengths)" || _fail "binary round-trip via ${pair}" "${bigfail} lengths mismatched"
@@ -248,7 +248,7 @@ done
 ## with no edit here.
 declare -a RAW_BASES=()
 while read -r bname _ _ _ rawcol _; do
-	[[ "$rawcol" == "yes" && "$bname" != "binary" ]] && RAW_BASES+=("$bname")
+	[[ "$rawcol" == "yes" && "$bname" != "bytes" ]] && RAW_BASES+=("$bname")
 done < <("${EXE}" --list 2>/dev/null | tail -n +2)
 raw_all_fail=0; raw_all_n=0
 for base in "${RAW_BASES[@]}"; do
@@ -258,8 +258,8 @@ for base in "${RAW_BASES[@]}"; do
 		src="${CBT_TMP}/ra_src"; mid="${CBT_TMP}/ra_mid"; out="${CBT_TMP}/ra_out"
 		head -c "$len" /dev/urandom >"$src"
 		rc1=0; rc2=0
-		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" --no-newline <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
-		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary --no-newline <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
+		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" --no-newline <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes --no-newline <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
 		raw_all_n=$((raw_all_n + 1))
 		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail "raw round-trip ${base} n=${len}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"; }
 	done
@@ -271,7 +271,7 @@ done
 ## whole-value base-N encodings (base58btc, base85-RFC1924) that deliberately
 ## don't stream.
 for base in 10 62 keyboard 58btc 85ipv6 26 36; do
-	rc=0; printf 'hi' | "${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" >/dev/null 2>"${CBT_ERR}" || rc=$?
+	rc=0; printf 'hi' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" >/dev/null 2>"${CBT_ERR}" || rc=$?
 	((rc != 0)) && _pass "non-codec base ${base} refuses raw binary" || _fail "non-codec base ${base} refuses raw binary" "expected error, got rc=0"
 done
 
@@ -282,7 +282,7 @@ cvec(){ # LABEL BASE INPUT_HEX EXPECTED_TEXT
 	local label="$1" base="$2" hex="$3" want="$4" src got
 	src="${CBT_TMP}/cv_src"
 	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
-	got=$("${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" --no-newline <"$src" 2>"${CBT_ERR}")
+	got=$("${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" --no-newline <"$src" 2>"${CBT_ERR}")
 	[[ "$got" == "$want" ]] && _pass "codec vector ${label}" || _fail "codec vector ${label}" "want=[$want] got=[$got]"
 }
 cvec "base45 AB"       45   4142             "BB8"
@@ -300,7 +300,7 @@ nvec(){ # LABEL BASE INPUT_HEX EXPECTED_CODEPOINTS(space-separated hex)
 	src="${CBT_TMP}/nv_src"
 	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
 	for cp in $cps; do exp+=$(printf "\\U$(printf '%08x' "0x${cp}")"); done
-	got=$("${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" <"$src" 2>"${CBT_ERR}")
+	got=$("${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" <"$src" 2>"${CBT_ERR}")
 	[[ "$got" == "$exp" ]] && _pass "native vector ${label}" \
 		|| _fail "native vector ${label}" "want=[$cps] got=[$(printf '%s' "$got" | od -An -tx1 | tr -d '\n')]"
 }
@@ -327,29 +327,83 @@ pipecheck(){ # LABEL FROM TO INPUT EXPECTED
 	got=$(printf '%s' "$in" | "${TIMEOUT[@]}" "${EXE}" --from "$f" --to "$t" 2>"${CBT_ERR}")
 	[[ "$got" == "$want" ]] && _pass "$label" || _fail "$label" "in='$in' want='$want' got='$got'"
 }
-pipecheck "rfc64 pad f"        raw 64  "f"        "Zg=="
-pipecheck "rfc64 pad fo"       raw 64  "fo"       "Zm8="
-pipecheck "rfc64 pad foobar"   raw 64  "foobar"   "Zm9vYmFy"
-pipecheck "rfc32 pad f"        raw 32  "f"        "MY======"
-pipecheck "rfc32 pad foob"     raw 32  "foob"     "MZXW6YQ="
-pipecheck "rfc32 pad foobar"   raw 32  "foobar"   "MZXW6YTBOI======"
-pipecheck "base64url unpadded" raw 64u "foob"     "Zm9vYg"
-pipecheck "base64 strips pad"  64  raw "Zm9vYmFy" "foobar"
-pipecheck "base64url takes pad" 64u raw "Zm9vYg==" "foob"
+pipecheck "rfc64 pad f"        bytes 64  "f"        "Zg=="
+pipecheck "rfc64 pad fo"       bytes 64  "fo"       "Zm8="
+pipecheck "rfc64 pad foobar"   bytes 64  "foobar"   "Zm9vYmFy"
+pipecheck "rfc32 pad f"        bytes 32  "f"        "MY======"
+pipecheck "rfc32 pad foob"     bytes 32  "foob"     "MZXW6YQ="
+pipecheck "rfc32 pad foobar"   bytes 32  "foobar"   "MZXW6YTBOI======"
+pipecheck "base64url unpadded" bytes 64u "foob"     "Zm9vYg"
+pipecheck "base64 strips pad"  64  bytes "Zm9vYmFy" "foobar"
+pipecheck "base64url takes pad" 64u bytes "Zm9vYg==" "foob"
 
 ## Custom (user-defined) bases can opt into the same padding with a pad= token.
 ## This custom alphabet mirrors RFC 4648 base32, so its padded output must match.
 B32C="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567 pad=="
-padgot=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from binary --to-symbols "$B32C" 2>"${CBT_ERR}")
+padgot=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" 2>"${CBT_ERR}")
 [[ "$padgot" == "IE======" ]] && _pass "custom base32 emits pad" || _fail "custom base32 emits pad" "got='$padgot'"
-padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from binary --to-symbols "$B32C" 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --to binary 2>"${CBT_ERR}")
+padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --to bytes 2>"${CBT_ERR}")
 [[ "$padrt" == "A" ]] && _pass "custom pad round-trips" || _fail "custom pad round-trips" "got='$padrt'"
-padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --to binary 2>"${CBT_ERR}")
+padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --to bytes 2>"${CBT_ERR}")
 [[ "$padun" == "A" ]] && _pass "custom pad decode takes unpadded" || _fail "custom pad decode takes unpadded" "got='$padun'"
 check errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF pad=A" --to 10 5
 
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
-check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to binary ABC
+check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to bytes ABC
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## --binary: byte re-encoding between two text bases (like basenc)
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Without a mode flag, two power-of-2 text bases convert numerically (leading
+## zeros dropped) and a note goes to stderr. --binary routes through the bytes
+## base so the result matches the two-stage pipe and basenc byte-for-byte.
+section "--binary byte mode"
+
+## Known vector: the four bytes 0xDE 0xAD 0xBE 0xEF as base64.
+bm=$("${TIMEOUT[@]}" "${EXE}" --binary --from 16 --to 64 deadbeef 2>/dev/null)
+[[ "$bm" == "3q2+7w==" ]] && _pass "--binary hex->64 (argv)" || _fail "--binary hex->64 (argv)" "got='$bm'"
+
+## Streaming (stdin) must match the argv result.
+bms=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --binary --from 16 --to 64 2>/dev/null)
+[[ "$bms" == "3q2+7w==" ]] && _pass "--binary hex->64 (stream)" || _fail "--binary hex->64 (stream)" "got='$bms'"
+
+## --binary must equal the explicit two-stage route through the bytes base.
+bmp=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --from 16 --to bytes 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from bytes --to 32 2>/dev/null)
+bm32=$("${TIMEOUT[@]}" "${EXE}" --binary --from 16 --to 32 deadbeef 2>/dev/null)
+[[ "$bm32" == "$bmp" ]] && _pass "--binary == pipe-through-bytes (hex->32)" || _fail "--binary == pipe-through-bytes" "flag='$bm32' pipe='$bmp'"
+
+## Aliases -b and --bin behave the same.
+bmb=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" -b --from 16 --to 64 2>/dev/null)
+bmbin=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --bin --from 16 --to 64 2>/dev/null)
+{ [[ "$bmb" == "3q2+7w==" ]] && [[ "$bmbin" == "3q2+7w==" ]]; } && _pass "--binary aliases -b/--bin" || _fail "--binary aliases -b/--bin" "b='$bmb' bin='$bmbin'"
+
+## Round-trip through byte mode restores the bytes (case normalizes to base-16 canonical).
+bmrt=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" -b --from 16 --to 64 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" -b --from 64 --to 16 2>/dev/null)
+[[ "$bmrt" == "DEADBEEF" ]] && _pass "--binary round-trip 16<->64" || _fail "--binary round-trip 16<->64" "got='$bmrt'"
+
+## A non-power-of-2 base has no byte encoding: --binary must error.
+check errmsg "--binary rejects non-pow2" 'byte mode requires a power-of-2' -- --binary --from 10 --to 64 255
+
+## --binary and --number are mutually exclusive.
+check errmsg "--binary + --number conflict" 'not both' -- --binary --number --from 16 --to 64 dead
+
+## The ambiguity note: fires on pow2->pow2 with no mode flag, on stderr only, and
+## stdout still carries the numeric result.
+_run --from 16 --to 64 deadbeef
+{ ((_rc == 0)) && [[ "$_out" == "Derb7v" ]] && [[ "$_err" == *"--binary"* ]]; } && _pass "pow2->pow2 note on stderr" || _fail "pow2->pow2 note on stderr" "out='$_out' err='$_err'"
+
+## --number asserts numeric intent and silences the note.
+_run --number --from 16 --to 64 deadbeef
+{ ((_rc == 0)) && [[ "$_out" == "Derb7v" ]] && [[ -z "$_err" ]]; } && _pass "--number silences note" || _fail "--number silences note" "out='$_out' err='$_err'"
+
+## -N alias silences too.
+_run -N --from 16 --to 64 deadbeef
+[[ -z "$_err" ]] && _pass "-N alias silences note" || _fail "-N alias silences note" "err='$_err'"
+
+## No note when a non-power-of-2 base is involved (no byte ambiguity).
+_run --from 10 --to 16 255
+[[ -z "$_err" ]] && _pass "no note for non-pow2 conversion" || _fail "no note for non-pow2 conversion" "err='$_err'"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -388,11 +442,11 @@ done
 section "Fuzz round-trips (all bases)"
 mapfile -t BASE_NAMES < <("${EXE}" --list 2>/dev/null | tail -n +2 | awk '{print $1}')
 declare -a FUZZ_BASES=()
-## binary and keyboard both carry newline as a digit, so their output can't
+## bytes and keyboard both carry newline as a digit, so their output can't
 ## survive $(...) capture (it strips trailing newlines). Both get their own
 ## file-based, --no-newline round-trip sections instead.
 for n in "${BASE_NAMES[@]}"; do
-	case "$n" in binary|keyboard) continue ;; esac
+	case "$n" in bytes|keyboard) continue ;; esac
 	FUZZ_BASES+=("$n")
 done
 printf '  %s%d bases under fuzz%s\n' "${dim}" "${#FUZZ_BASES[@]}" "${rst}"
@@ -428,14 +482,14 @@ done
 ## come from the binary itself (--get-index-count, --get-base-name, --show-symbols),
 ## so every defined base is exercised with no hand-maintained tables. The first
 ## symbol is kept off the zero digit so the source string is already canonical and
-## a clean string compare is a valid round-trip check. Binary (raw bytes) is the
-## one base left out; it is covered bit-perfectly in its own section above.
+## a clean string compare is a valid round-trip check. The bytes base (raw bytes)
+## is the one left out; it is covered bit-perfectly in its own section above.
 n_bases="$("${EXE}" --get-index-count)"
 declare -a IDX_NAME=()
 for ((i=0; i<n_bases; i++)); do IDX_NAME[i]="$("${EXE}" --get-base-name --by-index="$i")"; done
 declare -a ELIGIBLE=()
 for ((i=0; i<n_bases; i++)); do
-	case "${IDX_NAME[i]}" in binary|keyboard) continue ;; esac
+	case "${IDX_NAME[i]}" in bytes|keyboard) continue ;; esac
 	ELIGIBLE+=("$i")
 done
 
@@ -531,8 +585,8 @@ if ((doPerf)); then
 	head -c "$((perf_mib * 1024 * 1024))" /dev/urandom >"$perfsrc"
 	for base in 16 64u; do
 		t0=$(date +%s.%N)
-		"${TIMEOUT[@]}" "${EXE}" --from binary --to "$base" <"$perfsrc" >"$perfmid" 2>/dev/null
-		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to binary <"$perfmid" >"$perfout" 2>/dev/null
+		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" <"$perfsrc" >"$perfmid" 2>/dev/null
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes <"$perfmid" >"$perfout" 2>/dev/null
 		t1=$(date +%s.%N)
 		if cmp -s "$perfsrc" "$perfout"; then
 			mbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$perf_mib/d; else print \"inf\"}")
@@ -552,7 +606,7 @@ if ((doPerf)); then
 	## regression the throughput number alone would miss.
 	if [[ -x /usr/bin/time ]]; then
 		prof="${CBT_TMP}/prof"
-		/usr/bin/time -v "${EXE}" --from binary --to 64u <"$perfsrc" >"$perfmid" 2>"$prof" || true
+		/usr/bin/time -v "${EXE}" --from bytes --to 64u <"$perfsrc" >"$perfmid" 2>"$prof" || true
 		peak=$(awk -F': ' '/Maximum resident set size/{print $2}' "$prof")
 		wall=$(awk -F': ' '/wall clock/{print $NF}' "$prof")
 		printf '  %sprofile: base64url encode of %s MiB - peak RSS %s KiB, wall %s%s\n' "${dim}" "$perf_mib" "${peak:-?}" "${wall:-?}" "${rst}"
@@ -565,8 +619,8 @@ if ((doPerf)); then
 	cx_mib=1; ((doLong)) && cx_mib=4
 	head -c "$((cx_mib * 1024 * 1024))" /dev/urandom >"$cxsrc"
 	t0=$(date +%s.%N)
-	"${TIMEOUT[@]}" "${EXE}" --from binary --to 91hk --no-newline <"$cxsrc" >"$cxmid" 2>/dev/null
-	"${TIMEOUT[@]}" "${EXE}" --from 91hk --to binary --no-newline <"$cxmid" >"$cxout" 2>/dev/null
+	"${TIMEOUT[@]}" "${EXE}" --from bytes --to 91hk --no-newline <"$cxsrc" >"$cxmid" 2>/dev/null
+	"${TIMEOUT[@]}" "${EXE}" --from 91hk --to bytes --no-newline <"$cxmid" >"$cxout" 2>/dev/null
 	t1=$(date +%s.%N)
 	if cmp -s "$cxsrc" "$cxout"; then
 		cxbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$cx_mib/d; else print \"inf\"}")
