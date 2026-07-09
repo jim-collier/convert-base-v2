@@ -1,0 +1,18 @@
+# golangci-lint config (v2). The "standard" set - govet, errcheck, ineffassign,
+# staticcheck, unused - is a good baseline for a small single-package CLI. Add
+# linters here as the code grows; keep it clean so the cicd lint stage stays green.
+version: "2"
+
+linters:
+  default: standard
+  settings:
+    errcheck:
+      # Diagnostic/help/usage output goes to os.Stderr via the fmt.Fprint family,
+      # where a write error is not actionable (if stderr is broken we cannot report
+      # it anyway). Where the write target matters (the buffered --show-symbols
+      # writer) the real error is caught at the checked w.Flush(). So skip errcheck
+      # on this family rather than wrapping every diagnostic print in a dead check.
+      exclude-functions:
+        - fmt.Fprint
+        - fmt.Fprintf
+        - fmt.Fprintln

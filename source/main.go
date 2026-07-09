@@ -265,7 +265,7 @@ func run() error {
 		if handled {
 			// Text output normally ends in a newline (as the buffered path's
 			// Println does); no-newline and binary output stay byte-exact.
-			if !to.Binary && !(*noNewline || *nFlag) {
+			if !to.Binary && !*noNewline && !*nFlag {
 				fmt.Println()
 			}
 			return nil
@@ -524,9 +524,6 @@ Other:
 		fmt.Fprintln(out, "Base resolution for this invocation:")
 		reportSide(out, "Input  (--from)", reg, fromName, fromSyms, "--from-symbols")
 		reportSide(out, "Output (--to)  ", reg, toName, toSyms, "--to-symbols")
-	} else {
-		//	fmt.Fprintln(out)
-		// fmt.Fprintln(out, "(Pass --from / --to / --from-symbols / --to-symbols to see where each base would resolve from.)")
 	}
 	fmt.Fprintln(out)
 }

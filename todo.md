@@ -55,3 +55,4 @@ This is an easier way to brainstorm and prioritize tasks, before creating issues
 | :------  | :--- | --: |--:|--:|--:|--:| :------  |:---| :-------- | :---------- | :----
 | 20260420 |      | 2.7 | 3 | 3 | 2 |   |          | JC | 20260422  | Add known issues to Github.
 | 20260703 |      | 2.5 | 3 | 3 | 2 | 2 | 20260703 | JC | 20260703  | Add base query flags (count, name, symbols) and full-coverage self round-trip tests | Every base is now fuzzed with its own random symbols, source to target and back.
+| 20260709 |      | 2.5 | 3 | 3 | 3 | 3 | 20260709 | JC | 20260709  | cicd: quiet/message flags, sister-project output style, lint + fuzz + security + profiler stages | -q/-m + Ctrl+C message prompt; go vet/golangci/staticcheck; go fuzz; govulncheck; flamegraph SVG + report, all rotated under cicd/artifacts
