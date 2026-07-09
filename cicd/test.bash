@@ -145,6 +145,13 @@ check eq  "alias octal out"         377       -- 255 octal
 check eq  "alias decimal in"        2A        -- --from decimal 42 16
 check eq  "leading zeros ignored"   FF        -- 000255 16
 check eq  "--to flag beats posn"    FF        -- --to 16 255 10
+## "base"/"base-"/"base_"/"base " prefix on any name or alias.
+check eq  "base16 prefix"           FF        -- 255 base16
+check eq  "base-16 prefix"          FF        -- 255 base-16
+check eq  "base_16 prefix"          FF        -- 255 base_16
+check eq  "base hex prefix"         FF        -- 255 "base hex"
+check eq  "base-hex prefix in"      255       -- --from base-hex FF
+check eq  "base_ prefix on alias"   255       -- --from base_hex FF
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

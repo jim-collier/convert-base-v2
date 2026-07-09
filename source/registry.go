@@ -352,6 +352,8 @@ func (r *Registry) Register(b *Base) error {
 
 // Lookup resolves a base name or alias. Case-insensitive; accepts an optional
 // "base" or "b" prefix before a digit ("16", "b16", "Base16", "Hex" all work).
+// As a fallback, a leading "base" plus one optional "-", "_" or space is
+// stripped and retried, so "base-hex", "base_62hex", "base 16" resolve too.
 func (r *Registry) Lookup(name string) (*Base, error) {
 	k := normalizeBaseName(name)
 	if k == "" {
@@ -360,7 +362,30 @@ func (r *Registry) Lookup(name string) (*Base, error) {
 	if b, ok := r.byAlias[k]; ok {
 		return b, nil
 	}
+	// Exact match above wins, so this can't shadow a real name.
+	if rest, ok := stripBasePrefix(k); ok {
+		if b, ok := r.byAlias[normalizeBaseName(rest)]; ok {
+			return b, nil
+		}
+	}
 	return nil, fmt.Errorf("unknown base %q", name)
+}
+
+// stripBasePrefix removes a leading "base" plus one optional separator
+// (-, _ or space), returning the remainder. Reports false if there is no
+// such prefix or nothing is left after it. Input is already lowercased.
+func stripBasePrefix(s string) (string, bool) {
+	if !strings.HasPrefix(s, "base") {
+		return "", false
+	}
+	rest := s[4:]
+	if rest != "" && (rest[0] == '-' || rest[0] == '_' || rest[0] == ' ') {
+		rest = rest[1:]
+	}
+	if rest == "" {
+		return "", false
+	}
+	return rest, true
 }
 
 // orderedBases returns all registered bases sorted by radix (stable). This is
