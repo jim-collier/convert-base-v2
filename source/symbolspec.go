@@ -90,9 +90,7 @@ func ParseSymbolSpec(s string) (SymbolSpec, error) {
 			}
 		}
 	} else {
-		for _, t := range digitTokens {
-			out.Symbols = append(out.Symbols, t)
-		}
+		out.Symbols = append(out.Symbols, digitTokens...)
 	}
 	return out, nil
 }

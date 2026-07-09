@@ -22,8 +22,9 @@
 ##		- Project-specific CI/CD settings for convert-base-v2.
 ##		- The engine (cicd.bash) stays generic; everything project-specific lives here.
 ##		- To reuse the pipeline elsewhere, copy the cicd/ directory and edit this file.
-##		- All command arrays run from the repo root (the cicd/.. directory). This is a Go
-##		  project, so the build targets live under source/ and are reached with 'make -C source'.
+##		- All command arrays run from the repo root. Go tool stages (vet, lint, unit
+##		  tests, fuzz, vuln, profile) run inside SRC_DIR - the engine does the cd.
+##		  The engine prepends ~/.go/bin to PATH so `go install`ed tools win.
 ##	History: At bottom of script.
 
 ##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
@@ -45,7 +46,8 @@ EXE_NAME="convert-base-v2"
 SRC_DIR="source"
 
 ## Stage 1: format the source in place before anything is compiled. Empty it
-## (FMT_CMD=()) to skip. gofmt is a no-op on already-clean source.
+## (FMT_CMD=()) to skip. gofmt is a no-op on already-clean source. Never a Bash
+## formatter here - bash is hand-formatted on purpose.
 FMT_CMD=(make -C "${SRC_DIR}" fmt)
 
 ## Stage 2: native build. Produces NATIVE_BUILD_OUT, which the engine then copies
@@ -55,37 +57,86 @@ NATIVE_BUILD_CMD=(make -C "${SRC_DIR}" local)
 NATIVE_BUILD_OUT="${SRC_DIR}/${EXE_NAME}"
 STAGED_BIN="${SRC_DIR}/bin/${EXE_NAME}"
 
-## Stage 3: tests. The harness takes the binary under test via CICDTEST_EXE (the
-## engine sets it to the absolute STAGED_BIN). Set CICDTEST_DO_LONGTEST=1 for the
-## exhaustive run.
+## Stage 3: lint the first-party Go. Each is run inside SRC_DIR. VET is always
+## available (part of the toolchain) and gating. golangci-lint and staticcheck are
+## optional: a failed PROBE skips that one with a warning instead of aborting, so
+## the pipeline still runs on a bare machine. Install them with:
+##   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
+##   go install honnef.co/go/tools/cmd/staticcheck@latest
+VET_CMD=(go vet ./...)
+LINT_PROBE=(golangci-lint version)
+LINT_CMD=(golangci-lint run ./...)
+STATICCHECK_PROBE=(staticcheck -version)
+STATICCHECK_CMD=(staticcheck ./...)
+
+## Stage 4a: unit tests (Go, run inside SRC_DIR) plus the integration harness
+## (cicd/test.bash, run from root against the staged binary via CICDTEST_EXE).
+UNIT_TEST_CMD=(go test ./...)
 TEST_CMD=(cicd/test.bash)
 
-## Stage 4: cross-compile every shipping platform into source/dist as tgz/zip.
+## Stage 4b: fuzz. Go runs one -fuzz target per invocation, so the engine discovers
+## the Fuzz* funcs and runs each for FUZZ_TIME (FUZZ_TIME_QUICK under --quick). Set
+## FUZZ_ENABLE=0 to skip. Corpus finds are written under source/testdata (committed).
+FUZZ_ENABLE=1
+FUZZ_TIME="20s"
+FUZZ_TIME_QUICK="4s"
+
+## Stage 4c: security. govulncheck scans this module AND its dependencies (library
+## code) against the Go vulnerability database. Optional (PROBE-gated). Install with:
+##   go install golang.org/x/vuln/cmd/govulncheck@latest
+VULN_PROBE=(govulncheck -version)
+VULN_CMD=(govulncheck ./...)
+
+## Stage 5: profiler (non-gating artifact, not a pass/fail test). Runs the
+## BenchmarkProfile workload (big-int math/big path + streaming codec path) under
+## the Go CPU sampler for PROFILE_TIME, then pprof2flame.py folds cpu.prof into an
+## inferno-style flamegraph SVG (no external flamegraph tool needed). Skipped by
+## --quick / --no-profile. See cicd.bash for the skip-vs-abort failure policy.
+PROFILE_ENABLE=1
+PROFILE_BENCH="BenchmarkProfile"
+PROFILE_TIME="8s"
+PROFILE_OUT_DIR="cicd/artifacts/profiling"  # relative to repo root; created if missing (gitignored)
+PROFILE_STRICT=0                            # 1 = any profiler failure aborts the pipeline
+
+## Full run output is tee'd here (gitignored) so warnings from any stage (vet,
+## lint, staticcheck, vuln) can be reviewed after the fact with lint-report.bash.
+## Kept rotated like the flamegraphs.
+LINT_LOG_DIR="cicd/artifacts/lint"          # relative to repo root; created if missing (gitignored)
+
+## Both artifact dirs are pruned by gfs_rotate (cicd/utility/include/gfs-rotate.bash):
+## keeps ~30 - first + newest-per-hour/day/week/month/year + last 10. Tune with the
+## GFS_KEEP_* env vars (GFS_KEEP_FREQUENT, GFS_KEEP_DAILY, ...) if needed.
+
+## Stage 6: cross-compile every shipping platform into source/dist as tgz/zip.
 ## This doubles as a build-sanity gate. Set BUILD_CROSS=0 (or --no-cross/--quick) to skip.
 BUILD_CROSS=1
 RELEASE_CMD=(make -C "${SRC_DIR}" release)
 RELEASE_ARTIFACT_DIR="${SRC_DIR}/dist"
 
-## Stage 5: dogfood. Overwrite EXE_NAME in the first existing dir below (the stable
+## Stage 7: dogfood. Overwrite EXE_NAME in the first existing dir below (the stable
 ## path you launch by hand). Empty the list to skip. No rotating copy for this project.
 DOGFOOD_FIXED_DESTS=(
 	"${HOME}/synced/0-0/common/exec/util/linux/bin"
 	"/usr/local/sbin"
 )
 
-## Stage 6: screenshots. The README no longer shows them, so this is off by
-## default. The generator (utility/gen-screenshots.bash) is kept, so flip this to
-## 1 to regenerate on demand. The utility is called with the repo root and the
-## tested binary; a failure is a warning, not a stop.
+## Stage 7 (after dogfood): screenshots. The README no longer shows them, so this is
+## off by default. The generator (utility/gen-screenshots.bash) is kept, so flip this
+## to 1 to regenerate on demand. Called with the repo root and the tested binary; a
+## failure is a warning, not a stop. Also skipped by --quick.
 DO_SCREENSHOTS=0
 SCREENSHOT_CMD=(utility/gen-screenshots.bash)
 
-## Stage 7: backup + publish to git (runs from repo root). Quiet mode keeps it
-## non-interactive so the whole pipeline can finish unattended. The helper reads
-## this from the environment, not a flag.
-export GIT_BACKUP_AND_PUBLISH_QUIET=1
+## Stage 8: backup + publish to git (runs from repo root). The engine always passes
+## --quiet (it already gave the message prompt) and, when it has one, -m MESSAGE.
 GIT_PUBLISH=(cicd/utility/n8git_backup-and-publish)
+
+## Set a non-empty commit message to publish hands-off (suppresses the prompt and
+## supplies the message so `git commit` won't open an editor). Left empty, publish
+## prompts once at preflight unless -m/--message or -q is given (see cicd.bash).
+PUBLISH_AUTO_MESSAGE=""
 
 
 ##	History:
 ##		- 2026-07-03 JC: Created (converted from the monolithic cicd.bash to the generic engine + config split).
+##		- 2026-07-09 JC: Added lint (vet/golangci/staticcheck), fuzz, vuln, and profiler stages; artifact dirs; quiet/message publish.

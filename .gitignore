@@ -4,3 +4,8 @@
 **/.vscode/bookmarks.json
 **/unicode_visual_debug.png
 **/__pycache__
+
+# cicd generated artifacts (run logs, flamegraphs, stray profiles/test binaries)
+**/cicd/artifacts
+**/*.prof
+**/*.test
