@@ -38,6 +38,7 @@ func run() error {
 		toSymbols     = flag.String("to-symbols", "", `custom output base (spec form: "SYMS [neg=X] [dec=Y] [pad=Z]")`)
 		precision     = flag.Int("precision", 50, "max fractional digits in output")
 		lower         = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
+		upper         = flag.Bool("upper", false, "uppercase output (errors if output base has mixed-case digits)")
 		noNewline     = flag.Bool("no-newline", false, "do not append a trailing newline to text output (like echo -n)")
 		nFlag         = flag.Bool("n", false, "alias for -no-newline")
 		binaryMode    = flag.Bool("binary", false, "treat both sides as raw byte data (byte encode/decode, like basenc); both bases must be powers of two")
@@ -181,10 +182,17 @@ func run() error {
 		return fmt.Errorf("precision must be >= 0")
 	}
 
-	// --lower: error out if the output base has mixed-case digits (previously
-	// silently ignored; now strict, per user preference).
+	if *lower && *upper {
+		return fmt.Errorf("choose either --lower or --upper, not both")
+	}
+
+	// --lower/--upper: error out if the output base has mixed-case digits
+	// (previously silently ignored; now strict, per user preference).
 	if *lower && !canLowercase(to) {
 		return fmt.Errorf("--lower is invalid for mixed-case output base %q: lowercasing its digits would change their meaning", to.Name())
+	}
+	if *upper && !canUppercase(to) {
+		return fmt.Errorf("--upper is invalid for mixed-case output base %q: uppercasing its digits would change their meaning", to.Name())
 	}
 
 	// Is the number coming from stdin (explicit "-", or piped with no arg)?
@@ -222,9 +230,9 @@ func run() error {
 	}
 
 	// Streaming fast path: for the bit-packed conversions, pipe stdin straight to
-	// stdout with no whole-file buffering. --lower would need per-chunk
-	// rewriting, so it falls through to the buffered path.
-	if fromStdin && !*lower {
+	// stdout with no whole-file buffering. --lower/--upper would need per-chunk
+	// rewriting, so they fall through to the buffered path.
+	if fromStdin && !*lower && !*upper {
 		var handled bool
 		var serr error
 		if routeBytes {
@@ -273,6 +281,9 @@ func run() error {
 	}
 	if *lower {
 		result = strings.ToLower(result)
+	}
+	if *upper {
+		result = strings.ToUpper(result)
 	}
 
 	if *noNewline || *nFlag || to.Binary {
@@ -357,6 +368,24 @@ func canLowercase(b *Base) bool {
 		l := strings.ToLower(s)
 		if l != s {
 			if _, both := seen[l]; both {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// canUppercase is the --upper counterpart of canLowercase: false when the base
+// carries both cases of the same letter, since uppercasing would collide them.
+func canUppercase(b *Base) bool {
+	seen := make(map[string]struct{}, len(b.Symbols))
+	for _, s := range b.Symbols {
+		seen[s] = struct{}{}
+	}
+	for _, s := range b.Symbols {
+		u := strings.ToUpper(s)
+		if u != s {
+			if _, both := seen[u]; both {
 				return false
 			}
 		}
