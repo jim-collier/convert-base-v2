@@ -454,32 +454,32 @@ given, output base also defaults to 10.
 	// of flag.VisitAll so related flags sit together and the six aliases don't
 	// each spawn a stub entry.
 	fmt.Fprintf(out, `Base selection:
-  --from NAME          input base name/alias (e.g. 10, hex, 64u)  [default 10]
-  --to NAME            output base; also accepted as a positional OUTBASE arg
-  --from-symbols SPEC  custom input base: "SYMS [neg=X] [dec=Y] [pad=Z]"
-  --to-symbols SPEC    custom output base (same spec form)
+  --from NAME          Input base name/alias (e.g. 10, hex, 64u)  [default 10]
+  --to NAME            Output base; also accepted as a positional OUTBASE arg
+  --from-symbols SPEC  Custom input base: "SYMS [neg=X] [dec=Y] [pad=Z]"
+  --to-symbols SPEC    Custom output base (same spec form)
 
 Conversion mode:
-  --binary, --bin, -b  treat both sides as raw bytes (encode/decode like basenc)
-  --number, --num, -N  treat input as a positional number value (default)
-  --precision N        max fractional digits in output  [default 50]
-  --lower / --upper    force output case (errors on mixed-case digit bases)
-  --no-newline, -n     omit trailing newline on text output (like echo -n)
+  --binary, --bin, -b  Treat both sides as raw bytes (encode/decode like basenc)
+  --number, --num, -N  Treat input as a positional notation number (default)
+  --precision N        Max fractional digits in output  [default 50]
+  --lower / --upper    Force output case (errors on mixed-case digit bases)
+  --no-newline, -n     Omit trailing newline on text output (like echo -n)
 
 Base info (each prints one value, then exits):
-  --list               list all known bases
-  --get-index-count    print how many bases are defined
-  --get-base-name      print a base's canonical name
-  --show-symbols       print a base's symbols, concatenated
-  --show-symbols-0     like --show-symbols but NUL-separated (machine-readable)
-  --by-index N         select the base by --list position (0-based)
+  --list               List all known bases
+  --get-index-count    Print how many bases are defined
+  --get-base-name      Print a base's canonical name
+  --show-symbols       Print a base's symbols, concatenated
+  --show-symbols-0     Like --show-symbols but NUL-separated (machine-readable)
+  --by-index N         Select the base by --list position (0-based)
 
 Other:
-  --config FILE        user YAML config; /etc is always tried too
+  --config FILE        User YAML config; /etc is always tried too
                        [default %s]
-  --examples           show usage examples and exit
-  --version            print version and exit
-  --help, -h           show this help
+  --examples           Show usage examples and exit
+  --version            Print version and exit
+  --help, -h           Show this help
 
 `, userConfigPath())
 
