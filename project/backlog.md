@@ -106,7 +106,8 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 `--show-symbols` should list with no delimiters. (Currently lists with newline in between each.) #1n4xq9d
+- ✅ `--show-symbols` should list with no delimiters. (Currently lists with newline in between each.) #1n4xq9d
+	- Now concatenated with a single trailing newline. Added `--show-symbols-0` (NUL-separated) so scripts can still split multi-char symbols; fuzz harness uses it.
 
 - 🔘 Add Crockford's decode aliases (O reads as 0, I and L as 1) to 32c, or note the limitation. (code review BxZNl-21)
 

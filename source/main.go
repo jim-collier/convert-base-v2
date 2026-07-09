@@ -50,7 +50,8 @@ func run() error {
 		list          = flag.Bool("list", false, "list all known bases and exit")
 		getIndexCount = flag.Bool("get-index-count", false, "print how many bases are defined, then exit; valid --by-index values run 0 to count-1")
 		getBaseName   = flag.Bool("get-base-name", false, "print a base's canonical name, then exit; pick the base with a name/alias argument or --by-index")
-		showSymbols   = flag.Bool("show-symbols", false, "print a base's symbols one per line, then exit; pick the base with a name/alias argument or --by-index")
+		showSymbols   = flag.Bool("show-symbols", false, "print a base's symbols concatenated with no delimiters, then exit; pick the base with a name/alias argument or --by-index")
+		showSymbols0  = flag.Bool("show-symbols-0", false, "like --show-symbols but NUL-separated, for machine parsing of multi-char symbols")
 		byIndex       = flag.Int("by-index", -1, "pick a base by its position in the --list order (0-based); used with the query flags above")
 		configFile    = flag.String("config", userConfigPath(), "user-level YAML config file; /etc is always tried too (missing file is OK)\n        ")
 		showVersion   = flag.Bool("version", false, "print version and exit")
@@ -112,7 +113,7 @@ func run() error {
 		fmt.Println(len(reg.orderedBases()))
 		return nil
 	}
-	if *getBaseName || *showSymbols {
+	if *getBaseName || *showSymbols || *showSymbols0 {
 		posName := ""
 		if a := flag.Args(); len(a) >= 1 {
 			posName = a[0]
@@ -125,10 +126,22 @@ func run() error {
 			fmt.Println(b.Name())
 			return nil
 		}
-		// --show-symbols: one per line. Buffered for the big bases (up to 65536).
+		// --show-symbols: all symbols concatenated, no delimiters, one trailing
+		// newline. --show-symbols-0 NUL-separates them so scripts can still split
+		// multi-char symbols. Buffered for the big bases (up to 65536).
 		w := bufio.NewWriter(os.Stdout)
-		for _, s := range b.Symbols {
-			fmt.Fprintln(w, s)
+		if *showSymbols0 {
+			for i, s := range b.Symbols {
+				if i > 0 {
+					fmt.Fprint(w, "\x00")
+				}
+				fmt.Fprint(w, s)
+			}
+		} else {
+			for _, s := range b.Symbols {
+				fmt.Fprint(w, s)
+			}
+			fmt.Fprintln(w)
 		}
 		return w.Flush()
 	}
