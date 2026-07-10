@@ -57,11 +57,6 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 Real Go tests, so `make test` stops being a vacuous green. (code review BxZNl-22)
-	- There are zero Test functions, benchmarks only, so `go test` gates nothing for ~3300 lines of conversion logic.
-	- Port the codec and big-base vectors already in test.bash, add table-driven cases for sign, fractions, markers, multi-char symbols, and the spec parser.
-	- Highest value: a streaming-vs-buffered equivalence test over random blobs, since the two paths must match byte-for-byte and are only ever tested against themselves.
-
 - 🔘 Close the test.bash blind spots. (code review BxZNl-23)
 	- Round-trip fuzz cannot catch a bug mirrored in encode and decode; one pinned known-value vector per base closes that hole cheaply.
 	- No fractional, config-file, or symbol-spec coverage; the fixed 85ps escape bug has no regression pin.
@@ -118,6 +113,8 @@ In each section, items are listed approximately from newest to oldest.
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ Real Go tests, so `make test` gates the conversion logic instead of running only benchmarks. (BxZNl-22) New `conversions_test.go`: number vectors (sign, fractions, leading zeros, rounding), the codec and native big-base vectors (same reference values as test.bash), RFC padding, Crockford asymmetry, custom symbols and markers, spec-parser and finalize rejections, random round-trips, and the key streaming-vs-buffered equivalence test (171 comparisons across power-of-2 bases and many lengths, byte-for-byte).
 
 - ✅ Padding story settled: it depends on mode, not on the base. (BxZNl-20) Positional/number output is never padded; the binary-to-text codec path now pads every RFC 4648 variant (64u/64h/32h flipped to emit `=` to the group boundary, matching the strict s4/s6 variants and the stdlib decoders). Decode stays lenient (padded or unpadded input both accepted).
 
