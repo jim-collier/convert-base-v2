@@ -57,12 +57,6 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 Better error messages for the four most common stumbles. (code review BxZNl-16)
-	- Flags after the number: "unexpected extra positional argument: --lower" should say flags come first.
-	- Negative numbers without `--`: a bare "flag provided but not defined: -123" with no hint about the `--` separator, on a headline feature.
-	- Unknown flag: no pointer to --help.
-	- Unknown base: no pointer to --list and no near-match suggestion, with 66 bases behind non-obvious naming rules.
-
 - 🔘 Error or warn when inputs conflict instead of silently picking one. (code review BxZNl-17)
 	- `--to` beats a positional OUTBASE, and `--from-symbols` beats `--from`, both silently. Classic script-mistake masking.
 
@@ -137,6 +131,8 @@ In each section, items are listed approximately from newest to oldest.
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ Friendlier messages for the four common stumbles. (BxZNl-16) Flags after the NUMBER now say flags come first; a bare `-123` points at the `--` separator; an unknown flag points at `--help`; an unknown base points at `--list` and suggests near matches (prefix or small edit distance, closest tier only). Flag parsing moved to ContinueOnError so these can be caught.
 
 - ✅ Crockford base32 (32c) now decodes O as 0 and I/L as 1, case-insensitive, per the spec's asymmetric rule. It still emits only the strict alphabet. Added a `DecodeAliases` mechanism on Base for input-only symbol aliases; README and test.bash updated. (BxZNl-21)
 
