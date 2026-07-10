@@ -188,6 +188,11 @@ func run() error {
 	if inBaseName == "" && *fromSymbols == "" {
 		inBaseName = defaultBase
 	}
+	// Conflicting input selectors: --from-symbols silently wins over --from. Say
+	// so, so a script mistake isn't masked (note to stderr; stdout stays clean).
+	if *fromSymbols != "" && *fromName != "" {
+		fmt.Fprintf(os.Stderr, "note: --from-symbols overrides --from %q\n", *fromName)
+	}
 	from, err := resolveBase(reg, inBaseName, *fromSymbols)
 	if err != nil {
 		return fmt.Errorf("input base: %w", err)
@@ -216,6 +221,21 @@ func run() error {
 	}
 	if outBaseName == "" && *toSymbols == "" {
 		outBaseName = defaultBase
+	}
+
+	// Conflicting output selectors: --to-symbols wins over any name, and --to
+	// wins over a positional OUTBASE. Both are silent today; warn (stderr) when
+	// two selectors disagree so a mistake isn't masked. A --to and positional that
+	// name the same base is not a conflict and stays quiet.
+	switch {
+	case *toSymbols != "" && (*toName != "" || posOut != ""):
+		other := *toName
+		if other == "" {
+			other = posOut
+		}
+		fmt.Fprintf(os.Stderr, "note: --to-symbols overrides output base %q\n", other)
+	case *toName != "" && posOut != "" && !sameBase(reg, *toName, posOut):
+		fmt.Fprintf(os.Stderr, "note: --to %q overrides positional output base %q\n", *toName, posOut)
 	}
 
 	// Extra positional guard.
@@ -424,6 +444,15 @@ func selectBase(reg *Registry, byIndex int, name string) (*Base, error) {
 		return nil, fmt.Errorf("select a base by name/alias argument or --by-index=N")
 	}
 	return reg.Lookup(name)
+}
+
+// sameBase reports whether two base names/aliases resolve to the same base. An
+// unresolvable name counts as different (so a genuine conflict still warns). Used
+// only to suppress a redundant conflict note when --to and the positional agree.
+func sameBase(reg *Registry, a, b string) bool {
+	ba, ea := reg.Lookup(a)
+	bb, eb := reg.Lookup(b)
+	return ea == nil && eb == nil && ba == bb
 }
 
 // resolveBase returns a Base either from the registry (by name) or from a

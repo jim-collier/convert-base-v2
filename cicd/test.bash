@@ -205,6 +205,14 @@ check errmsg "empty input"          'empty input'                        -- "" 1
 check err   "multiple decimals"     -                                     -- --from 10 1.2.3 16
 check err   "double negative"       -                                     -- -- --5 16
 
+## Conflicting base selectors: still convert, but emit a stderr note (BxZNl-17).
+_run --to 16 255 8
+{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"overrides positional output base"* ]]; } && _pass "conflict note: --to over positional" || _fail "conflict note: --to over positional" "rc=$_rc out=[$_out] err=[$_err]"
+_run --from 16 --from-symbols 01 10 10
+{ ((_rc == 0)) && [[ "$_out" == 2 ]] && [[ "$_err" == *"--from-symbols overrides --from"* ]]; } && _pass "conflict note: --from-symbols over --from" || _fail "conflict note: --from-symbols over --from" "rc=$_rc out=[$_out] err=[$_err]"
+_run --to 16 255 hex
+{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ -z "$_err" ]]; } && _pass "no conflict note when --to and positional agree" || _fail "no conflict note when --to and positional agree" "rc=$_rc out=[$_out] err=[$_err]"
+
 ## Shell-metachar / injection strings are just invalid digits: must error, never execute.
 sentinel="${CBT_TMP}/PWNED"
 check err "injection: command sub"  -   -- '$(touch '"${sentinel}"')' 16
