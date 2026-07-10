@@ -152,6 +152,14 @@ check eq  "base_16 prefix"          FF        -- 255 base_16
 check eq  "base hex prefix"         FF        -- 255 "base hex"
 check eq  "base-hex prefix in"      255       -- --from base-hex FF
 check eq  "base_ prefix on alias"   255       -- --from base_hex FF
+## Crockford base32 is asymmetric: reads O as 0, I/L as 1 (case-insensitive),
+## but never emits them. O1=1, I1=L1=33, LO=32; output for 24 stays R (no O/I/L).
+check eq  "32c decode O->0"          1         -- --from 32c --to 10 -- O1
+check eq  "32c decode o->0"          1         -- --from 32c --to 10 -- o1
+check eq  "32c decode I->1"          33        -- --from 32c --to 10 -- I1
+check eq  "32c decode L->1"          33        -- --from 32c --to 10 -- L1
+check eq  "32c decode l->1"          33        -- --from 32c --to 10 -- l1
+check eq  "32c encode stays strict"  R         -- --from 10 --to 32c -- 24
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

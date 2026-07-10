@@ -69,6 +69,13 @@ type Base struct {
 	PadSymbol string
 	PadEmit   bool
 
+	// DecodeAliases maps extra input-only symbols to an existing digit symbol,
+	// for asymmetric codecs. Crockford base32 is the case: it emits the strict
+	// alphabet but reads O as 0 and I/L as 1. These aliases affect decoding only;
+	// they are never emitted. For single-case bases the case-flipped form is
+	// added too, so "o"/"i"/"l" work as well.
+	DecodeAliases map[string]string
+
 	// derived
 	tailValue  map[string]int // tail symbol -> index (native binary decode)
 	value      map[string]int // symbol -> digit value (plus case-flipped ASCII letters for input leniency)
@@ -193,6 +200,39 @@ func (b *Base) finalize() error {
 			b.value[e.s] = e.v
 			if b.allOneByte {
 				b.byteValue[e.b] = e.v
+			}
+		}
+	}
+
+	// Decode-only aliases for asymmetric codecs (Crockford: O->0, I/L->1). Input
+	// leniency only, never emitted. Applies the same case-flip as digits for
+	// single-case bases, so "o"/"i"/"l" resolve too. Won't clobber a real digit.
+	for alias, target := range b.DecodeAliases {
+		tv, ok := b.value[target]
+		if !ok {
+			return fmt.Errorf("base %q: decode alias %q targets %q, which is not a digit", b.Name(), alias, target)
+		}
+		forms := []string{alias}
+		if !bothCase && len(alias) == 1 {
+			c := alias[0]
+			var flipped byte
+			switch {
+			case c >= 'A' && c <= 'Z':
+				flipped = c + 32
+			case c >= 'a' && c <= 'z':
+				flipped = c - 32
+			}
+			if flipped != 0 {
+				forms = append(forms, string(flipped))
+			}
+		}
+		for _, f := range forms {
+			if _, exists := b.value[f]; exists {
+				continue // never override a genuine digit
+			}
+			b.value[f] = tv
+			if b.allOneByte && len(f) == 1 {
+				b.byteValue[f[0]] = tv
 			}
 		}
 	}

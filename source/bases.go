@@ -246,10 +246,13 @@ func predefinedBases() []*Base {
 		// Crockford's base-32; designed for less human-read ambiguity, no I, L, O, U
 		// Not a standard, but published by the legendary programmer, and widely-used.
 		// Alias "32c" is backwards-compatable with convert-base-v1, don't remove.
+		// Asymmetric: emits the strict alphabet but reads O as 0 and I/L as 1
+		// (case-insensitive), per the spec's decode rules.
 		// https://www.crockford.com/base32.html
 		mkSpec(SpecOpts{
-			BaseSymbols: base_10 + " A B C D E F G H J K M N P Q R S T V W X Y Z ",
-			Aliases:     []string{"32c", "32crock", "32crockford", "Crockford"},
+			BaseSymbols:   base_10 + " A B C D E F G H J K M N P Q R S T V W X Y Z ",
+			Aliases:       []string{"32c", "32crock", "32crockford", "Crockford"},
+			DecodeAliases: map[string]string{"O": "0", "I": "1", "L": "1"},
 		}),
 
 		// Word-safe base-32. Not a standard, but published.
@@ -712,6 +715,8 @@ type SpecOpts struct {
 
 	Pad     string // RFC padding char (e.g. "="); enables lenient decode stripping
 	PadEmit bool   // also emit padding on encode (strict RFC base32 s6 / base64 s4)
+
+	DecodeAliases map[string]string // input-only symbol -> digit it reads as (Crockford O->0, I/L->1)
 }
 
 // mkSpec builds a *Base from a SpecOpts. It panics on errors because this is
@@ -738,12 +743,13 @@ func mkSpec(opts SpecOpts) *Base {
 	}
 
 	b := &Base{
-		Aliases:      opts.Aliases,
-		Symbols:      sp.Symbols,
-		TailSymbols:  opts.TailSymbols,
-		BinaryScheme: opts.BinaryScheme,
-		PadSymbol:    opts.Pad,
-		PadEmit:      opts.PadEmit,
+		Aliases:       opts.Aliases,
+		Symbols:       sp.Symbols,
+		TailSymbols:   opts.TailSymbols,
+		BinaryScheme:  opts.BinaryScheme,
+		PadSymbol:     opts.Pad,
+		PadEmit:       opts.PadEmit,
+		DecodeAliases: opts.DecodeAliases,
 	}
 
 	switch {

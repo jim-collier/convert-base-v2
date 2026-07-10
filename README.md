@@ -287,7 +287,7 @@ You can define your own arbitrary base of any size >1. These are just all of the
 | 30    | 30rock               | 30hex, 30h, 30                                        |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRST
 | 32    | 32                   | 32hex, 32h, triacontakaidecimal, theonetrue32         |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUV
 | 32    | 32rfc                | 32r                                                   |                                  |               | ABCDEFGHIJKLMNOPQRSTUVWXYZ234567
-| 32    | crockford            | 32crockford, 32crock, 32c                             |                                  |               | 0123456789ABCDEFGHJKMNPQRSTVWXYZ
+| 32    | crockford            | 32crockford, 32crock, 32c                             | Decodes O as 0, I/L as 1         |               | 0123456789ABCDEFGHJKMNPQRSTVWXYZ
 | 32    | 32wordsafe           | 32ws, 32w, 32google, 32g, 32nofks                     |                                  |               | 23456789CFGHJMPQRVWXcfghjmpqrvwx
 | 32    | zbase32              | 32zbase, 32z                                          |                                  |               | ybndrfg8ejkmcpqxot1uwisza345h769
 | 32    | 32bip                | 32bitcoin, 32btc, 32segwit, bech32, bech32m           |                                  |               | qpzry9x8gf2tvdw0s3jn54khce6mua7l
