@@ -55,21 +55,7 @@ In each section, items are listed approximately from newest to oldest.
 
 ### Bugs
 
-- ✋ Backwards compatible base '128v1compat' has a subtly incorrect alphabet difinition. (github #1)
-	- The base definition for '128j1' in v1 is - annoyingly - a "word-safe" version.
-		- (I can't remember if that was intentional. It shouldn't have been, because base 256 and 288 aren't. Base 128 should have been a subset of 256.)
-	- When writing the alphabets for v2, rather than copying the v1 alphabets verbatim, I made an incorrect assumptions about 128's logical structure. The difference can be very subtle - especially since 128 is an even power of 2. Which means some binary encodings might be off by only a single character.
-	- Step 1: Carefully compare the alphabet strings for v1, v1b, and v2. (Just paste all three on three lines in a doc, do `eyeball diff`.)
-	- Deferred: compared v2 against the bundled v1b for all 128 values. v2 `128v1compat` and `128jc1` are byte-for-byte identical to v1b's, and the test.bash v1 cross-check passes. Cannot substantiate a discrepancy without the original v1 (not v1b) alphabet, and altering the alphabet now would break the verified v1b compatibility. Needs the original v1 reference to proceed.
-
 ### New features and enhancements
-
-- ✅ `--show-symbols` should list with no delimiters. (Currently lists with newline in between each.) #1n4xq9d
-	- Now concatenated with a single trailing newline. Added `--show-symbols-0` (NUL-separated) so scripts can still split multi-char symbols; fuzz harness uses it.
-
-- 🔘 Add Crockford's decode aliases (O reads as 0, I and L as 1) to 32c, or note the limitation. (code review BxZNl-21)
-
-- 🔘 Allow any base to be prefaced with "base", "base-", or "base_", and still work. (github #8)
 
 - 🔘 Better error messages for the four most common stumbles. (code review BxZNl-16)
 	- Flags after the number: "unexpected extra positional argument: --lower" should say flags come first.
@@ -152,6 +138,13 @@ In each section, items are listed approximately from newest to oldest.
 
 #### Done - New features and enhancements
 
+- ✅ Crockford base32 (32c) now decodes O as 0 and I/L as 1, case-insensitive, per the spec's asymmetric rule. It still emits only the strict alphabet. Added a `DecodeAliases` mechanism on Base for input-only symbol aliases; README and test.bash updated. (BxZNl-21)
+
+- ✅ Allow any base to be prefaced with "base", "base-", or "base_", and still work. (github #8)
+
+- ✅ `--show-symbols` should list with no delimiters. (Currently lists with newline in between each.) #1n4xq9d
+	- Now concatenated with a single trailing newline. Added `--show-symbols-0` (NUL-separated) so scripts can still split multi-char symbols; fuzz harness uses it.
+
 - ✅ Added a `--upper` flag, the opposite of `--lower`. Uppercases text output, and like `--lower` errors on a mixed-case output base (where changing case would collide two distinct digits). The two flags reject each other.
 
 - ✅ Byte-mode re-encoding between text bases. Two power-of-2 text bases (e.g. hex and base-64) used to convert only as a positional number, which silently drops leading zeros and is not a byte re-encoding.
@@ -199,3 +192,10 @@ In each section, items are listed approximately from newest to oldest.
 ### Deferred
 
 ### Canceled
+
+- 🚫 Backwards compatible base '128v1compat' has a subtly incorrect alphabet difinition. (github #1)
+	- The base definition for '128j1' in v1 is - annoyingly - a "word-safe" version.
+		- (I can't remember if that was intentional. It shouldn't have been, because base 256 and 288 aren't. Base 128 should have been a subset of 256.)
+	- When writing the alphabets for v2, rather than copying the v1 alphabets verbatim, I made an incorrect assumptions about 128's logical structure. The difference can be very subtle - especially since 128 is an even power of 2. Which means some binary encodings might be off by only a single character.
+	- Step 1: Carefully compare the alphabet strings for v1, v1b, and v2. (Just paste all three on three lines in a doc, do `eyeball diff`.)
+	- Result: compared v2 against the bundled v1b for all 128 values. v2 `128v1compat` and `128jc1` are byte-for-byte identical to v1b's, and the test.bash v1 cross-check passes. Cannot substantiate a discrepancy without the original v1 (not v1b) alphabet, and altering the alphabet now would break the verified v1b compatibility. Needs the original v1 reference to proceed.
