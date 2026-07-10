@@ -57,19 +57,6 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 Close the test.bash blind spots. (code review BxZNl-23)
-	- Round-trip fuzz cannot catch a bug mirrored in encode and decode; one pinned known-value vector per base closes that hole cheaply.
-	- No fractional, config-file, or symbol-spec coverage; the fixed 85ps escape bug has no regression pin.
-	- The --list scrape passes vacuously if the table format ever changes; assert minimum counts after scraping.
-	- The v1 cross-check silently skips when the v1 binary is missing; say SKIPPED loudly.
-
-- 🔘 Some hosted or hook-based CI gate. (code review BxZNl-24)
-	- Known and deliberate gap, but worth restating: nothing runs unless cicd.bash is run by hand, and bare `go test` proves nothing until BxZNl-22 lands.
-
-- 🔘 Fold the buffered and streaming binary paths together, or pin them with equivalence tests. (code review BxZNl-25)
-	- Two hand-tuned implementations of the same encodings must agree byte-for-byte, and every encoding change is a two-place fix today. BxZNl-6 is this debt already biting.
-	- NOTE: Merging these together is probably a really bad idea. It took a lot of effort and optimization to get the streaming path fast. They are two totally different concepts, that make no sense (in my mind) to merge. Positional notation base conversion is it's own concept, done all at once in quadradic time and variable memory. Streaming binary/text encoding is a TOTALLY different concept, done with constant memory and linear time.
-
 - 🔘 Docs accuracy sweep. (code review BxZNl-26)
 	- README bases table is stale: the "32"/"32h" alphabets are swapped, and about two dozen listed aliases do not resolve. Regenerate it from --list. (The old "binary" row that misdocumented the raw-bytes base is fixed - it is now the `bytes` row.)
 	- --examples ships a command that errors: bare "2048" is not a base name.
@@ -113,6 +100,10 @@ In each section, items are listed approximately from newest to oldest.
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ Closed the test.bash blind spots. (BxZNl-23) Added independent known-value pins for bases that only had self-round-trip fuzz (58btc, 62hex, 36, 85ipv6), more fixed fractional vectors (signed, mixed, imprecise tail), a config-file load test (custom base via `--config`, plus the absent and missing-file cases), spec-parser edge cases (comma-split alphabet, escaped-space digit, marker-in-digit rejection), an 85ps 85-symbol count pin, minimum-count floors on both `--list` scrapes, and a loud SKIPPED when the v1 binary is absent.
+
+- ✅ Two binary paths kept separate but pinned, not merged. (BxZNl-25) Merging the streaming (constant-memory, linear) and buffered (positional, quadratic) paths was judged the wrong move; they are different concepts and the fast streaming path was hard-won. The debt is instead covered by the streaming-vs-buffered equivalence test from BxZNl-22, which fails if the two ever diverge.
 
 - ✅ Real Go tests, so `make test` gates the conversion logic instead of running only benchmarks. (BxZNl-22) New `conversions_test.go`: number vectors (sign, fractions, leading zeros, rounding), the codec and native big-base vectors (same reference values as test.bash), RFC padding, Crockford asymmetry, custom symbols and markers, spec-parser and finalize rejections, random round-trips, and the key streaming-vs-buffered equivalence test (171 comparisons across power-of-2 bases and many lengths, byte-for-byte).
 
@@ -178,6 +169,8 @@ In each section, items are listed approximately from newest to oldest.
 - ✅ `--list`: the NAME is no longer repeated in the ALIASES column.
 
 ### Deferred
+
+- ✋ Some hosted or hook-based CI gate. (BxZNl-24) Deferred. Nothing runs unless cicd.bash is invoked by hand, but `make test` now gates real logic locally (BxZNl-22), and the equivalence tests add genuine value. A hosted workflow or pre-push hook can be added later if wanted; left as documented deliberate debt for now.
 
 ### Canceled
 
