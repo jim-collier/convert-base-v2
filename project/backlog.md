@@ -57,14 +57,6 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 Docs accuracy sweep. (code review BxZNl-26)
-	- README bases table is stale: the "32"/"32h" alphabets are swapped, and about two dozen listed aliases do not resolve. Regenerate it from --list. (The old "binary" row that misdocumented the raw-bytes base is fixed - it is now the `bytes` row.)
-	- --examples ships a command that errors: bare "2048" is not a base name.
-	- The README serial-number example labels 64h output as 64u and never does the divide-by-60 it describes.
-	- The 85ps row of the example-output table predates the alphabet fix; every other row still matches.
-	- example.conf says a colliding default marker is "silently disabled"; the program deliberately errors. The pad: field is undocumented there.
-	- The UTF byte-count table in how_to_design_a_numeric_base.md has wrong UTF-8/UTF-16 columns, in both copies; the changelog has 2025/2026 year typos.
-
 ### Done
 
 #### Done - Bugs
@@ -100,6 +92,8 @@ In each section, items are listed approximately from newest to oldest.
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ Docs accuracy sweep. (BxZNl-26) Regenerated the README bases table's Name and Aliases columns from the program (matching rows by alphabet so the swapped 32/32h rows self-corrected and the jc->jc1 renames applied; every alias now resolves). Fixed the serial-number example (1fLcL4 is 64h not 64u, whole-seconds value, softened the /60 prose), the stale 85ps example-output row, the `--examples` bare `2048` (now `2048x`), the UTF byte-count table and prose in both copies of how_to_design_a_numeric_base.md (3-byte UTF-16 is 2, 4-byte is 4/4), the example.conf silent-disable claim and undocumented `pad:` field, and the changelog 2025->2026 year typos. Added NEXT VERSION changelog entries for this batch of enhancements.
 
 - ✅ Closed the test.bash blind spots. (BxZNl-23) Added independent known-value pins for bases that only had self-round-trip fuzz (58btc, 62hex, 36, 85ipv6), more fixed fractional vectors (signed, mixed, imprecise tail), a config-file load test (custom base via `--config`, plus the absent and missing-file cases), spec-parser edge cases (comma-split alphabet, escaped-space digit, marker-in-digit rejection), an 85ps 85-symbol count pin, minimum-count floors on both `--list` scrapes, and a loud SKIPPED when the v1 binary is absent.
 

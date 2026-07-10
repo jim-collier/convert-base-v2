@@ -75,14 +75,14 @@ When creating a new base from scratch, you start by answering a few questions - 
 
 Especially for binary-to-text encoding/decoding schemes, the idea is usually to be as efficient as possible for a given Unicode encoding scheme. For UTF-8 and UTF-16, that means packing as many <= 2-byte symbols into the base alphabet as possible. (But for positional notation number systems, the UTF-8 character byte count is usually irrelevant.)
 
-You only have 95 printable 1-byte characters, and 33 are potentially problematic symbols that are "reserved" in various contexts (e.g. filesystem name delimiter "/", ":", or "\"). So for anything over about base-64 more-or-less, you have to accept that eventually you'll have to start eating into the 2-byte UTF-8 range. (And 1-byte symbols save you nothing in UTF-16, other than a tiny % more headroom for more 2-byte symbols before eating into the 3-byte range for very large bases.)
+You only have 95 printable 1-byte characters, and 33 are potentially problematic symbols that are "reserved" in various contexts (e.g. filesystem name delimiter "/", ":", or "\"). So for anything over about base-64 more-or-less, you have to accept that eventually you'll have to start eating into the 2-byte UTF-8 range. (And 1-byte symbols save you nothing in UTF-16, other than a tiny % more headroom for more 2-byte symbols before eating into the 4-byte (surrogate-pair) range for very large bases.)
 
 | Byte count | UTF-8 bitmask                       | Mathly max count | Actual usable character count <sup>1</sup> | UTF-8 bytes | UTF-16 bytes | Comments
 | --:        | :--                                  | --:              | --:                                        | --:         | --:          | :--
 | 1          | 0xxxxxxx                             | 128              | 95                                         | 1           | 2            | 62 printable if you subtract all "keyboard" symbols used as reserved symbols in various contexts.
 | 2          | 110xxxxx-10xxxxxx                    | 2,048            | 1,166                                      | 2           | 2            |
-| 3          | 1110xxxx-10xxxxxx-10xxxxxx           | 65,536           | 51,600                                     | 3           | 3            |
-| 4          | 11110xxx-10xxxxxx-10xxxxxx-10xxxxxx  | 2,097,152        | 90,764                                     | 3           | 3            | Unicode caps at U+10FFFF for UTF-16 surrogate pair scheme compatibility, so the mathly max is actually 1,114,112.
+| 3          | 1110xxxx-10xxxxxx-10xxxxxx           | 65,536           | 51,600                                     | 3           | 2            |
+| 4          | 11110xxx-10xxxxxx-10xxxxxx-10xxxxxx  | 2,097,152        | 90,764                                     | 4           | 4            | Unicode caps at U+10FFFF for UTF-16 surrogate pair scheme compatibility, so the mathly max is actually 1,114,112.
 
 <sup>*</sup> _Footnote: "Actual usable character count" excludes non-printing control characters, ranges reserved for private use, combining marks, and RTL or "right-to-left" symbols. And the U+10FFFF cap._
 
@@ -290,14 +290,14 @@ Bases 32 and 64 are already exhaustively solved problems. There's room at higher
 
 The idea is usually to be as efficient as possible for a given Unicode encoding scheme. For UTF-8 and UTF-16, that means packing as many <= 2-byte symbols into the base alphabet as possible.
 
-But you only have 95 printable 1-byte characters, and 33 are potentially problematic symbols that are "reserved" in various contexts (e.g. filesystem name delimiter "/", ":", or "\"). So for anything over about base-64 more-or-less, you have to accept that eventually you'll have to start eating into the 2-byte UTF-8 range. (And 1-byte symbols save you nothing in UTF-16, other than a tiny % more headroom for more 2-byte symbols before eating into the 3-byte range for very large bases.)
+But you only have 95 printable 1-byte characters, and 33 are potentially problematic symbols that are "reserved" in various contexts (e.g. filesystem name delimiter "/", ":", or "\"). So for anything over about base-64 more-or-less, you have to accept that eventually you'll have to start eating into the 2-byte UTF-8 range. (And 1-byte symbols save you nothing in UTF-16, other than a tiny % more headroom for more 2-byte symbols before eating into the 4-byte (surrogate-pair) range for very large bases.)
 
 | Byte count | UTF-8 bitmask                       | Mathly max count | Actual usable character count <sup>1</sup> | UTF-8 bytes | UTF-16 bytes | Comments
 | --:        | :--                                  | --:              | --:                                        | --:         | --:          | :--
 | 1          | 0xxxxxxx                             | 128              | 95                                         | 1           | 2            | 62 printable if you subtract all "keyboard" symbols used as reserved symbols in various contexts.
 | 2          | 110xxxxx-10xxxxxx                    | 2,048            | 1,166                                      | 2           | 2            |
-| 3          | 1110xxxx-10xxxxxx-10xxxxxx           | 65,536           | 51,600                                     | 3           | 3            |
-| 4          | 11110xxx-10xxxxxx-10xxxxxx-10xxxxxx  | 2,097,152        | 90,764                                     | 3           | 3            | Unicode caps at U+10FFFF for UTF-16 surrogate pair scheme compatibility, so the mathly max is actually 1,114,112.
+| 3          | 1110xxxx-10xxxxxx-10xxxxxx           | 65,536           | 51,600                                     | 3           | 2            |
+| 4          | 11110xxx-10xxxxxx-10xxxxxx-10xxxxxx  | 2,097,152        | 90,764                                     | 4           | 4            | Unicode caps at U+10FFFF for UTF-16 surrogate pair scheme compatibility, so the mathly max is actually 1,114,112.
 
 <sup>*</sup> _Footnote: "Actual usable character count" excludes non-printing control characters, ranges reserved for private use, combining marks, and RTL or "right-to-left" symbols. And the U+10FFFF cap._
 
