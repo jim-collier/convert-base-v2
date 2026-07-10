@@ -597,8 +597,9 @@ func (r *Registry) orderedBases() []*Base {
 // Print writes a human-readable listing to w.
 func (r *Registry) Print(w io.Writer) {
 	bases := r.orderedBases()
-	fmt.Fprintf(w, "%-16s  %-6s  %-5s  %-5s  %-5s  %s\n", "NAME", "SIZE", "NEG", "DEC", "RAW", "ALIASES")
-	for _, b := range bases {
+	// The leading INDEX is the value --by-index takes (position in this order).
+	fmt.Fprintf(w, "%-5s  %-16s  %-6s  %-5s  %-5s  %-5s  %s\n", "INDEX", "NAME", "SIZE", "NEG", "DEC", "RAW", "ALIASES")
+	for i, b := range bases {
 		neg := b.negative
 		if neg == "" {
 			neg = "(off)"
@@ -622,8 +623,8 @@ func (r *Registry) Print(w io.Writer) {
 			name = live[0]
 			otherAliases = strings.Join(live[1:], ", ")
 		}
-		fmt.Fprintf(w, "%-16s  %-6d  %-5s  %-5s  %-5s  %s\n",
-			name, len(b.Symbols), neg, dec, raw, otherAliases)
+		fmt.Fprintf(w, "%-5d  %-16s  %-6d  %-5s  %-5s  %-5s  %s\n",
+			i, name, len(b.Symbols), neg, dec, raw, otherAliases)
 	}
 }
 

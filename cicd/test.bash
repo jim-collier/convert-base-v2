@@ -127,6 +127,16 @@ _run
 { ((_rc == 2)) && [[ -z "$_out" ]] && [[ -n "$_err" ]]; } && _pass "no-args help stays on stderr" || _fail "no-args help stays on stderr" "rc=$_rc outlen=${#_out} errlen=${#_err}"
 _run --list
 { ((_rc == 0)) && [[ "$_out" == *NAME* ]]; } && _pass "--list lists bases" || _fail "--list lists bases" "rc=$_rc"
+## --list has an INDEX column, and row 0's name matches --by-index=0 (BxZNl-19).
+_run --list
+{ ((_rc == 0)) && [[ "$_out" == *INDEX* ]]; } && _pass "--list has an INDEX column" || _fail "--list has an INDEX column" "rc=$_rc"
+## awk consumes the whole stream (NR==2 is the first data row) to avoid a SIGPIPE.
+list_idx0="$("${EXE}" --list 2>/dev/null | awk 'NR==2{print $2}')"
+byidx0="$("${EXE}" --get-base-name --by-index=0 2>/dev/null)"
+[[ "$list_idx0" == "$byidx0" && -n "$byidx0" ]] && _pass "--list INDEX 0 matches --by-index=0" || _fail "--list INDEX 0 matches --by-index=0" "list=[$list_idx0] byidx=[$byidx0]"
+## --by-index outside a query mode is ignored, with a stderr note.
+_run --by-index 3 255 16
+{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"--by-index is ignored"* ]]; } && _pass "--by-index note in conversion mode" || _fail "--by-index note in conversion mode" "rc=$_rc out=[$_out] err=[$_err]"
 
 ## Base-introspection query flags (used by the full-coverage fuzz below).
 _run --get-index-count
@@ -285,7 +295,8 @@ done
 ## newline as a digit. Codec bases are read from --list, so a new one is covered
 ## with no edit here.
 declare -a RAW_BASES=()
-while read -r bname _ _ _ rawcol _; do
+## Columns: INDEX NAME SIZE NEG DEC RAW ALIASES
+while read -r _ bname _ _ _ rawcol _; do
 	[[ "$rawcol" == "yes" && "$bname" != "bytes" ]] && RAW_BASES+=("$bname")
 done < <("${EXE}" --list 2>/dev/null | tail -n +2)
 raw_all_fail=0; raw_all_n=0
@@ -478,7 +489,8 @@ done
 ## Fuzz: random values round-tripped through every defined base
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Fuzz round-trips (all bases)"
-mapfile -t BASE_NAMES < <("${EXE}" --list 2>/dev/null | tail -n +2 | awk '{print $1}')
+## Column 2 is NAME (column 1 is the INDEX).
+mapfile -t BASE_NAMES < <("${EXE}" --list 2>/dev/null | tail -n +2 | awk '{print $2}')
 declare -a FUZZ_BASES=()
 ## bytes and keyboard both carry newline as a digit, so their output can't
 ## survive $(...) capture (it strips trailing newlines). Both get their own
