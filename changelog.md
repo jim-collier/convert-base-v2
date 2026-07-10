@@ -30,10 +30,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `--binary` (aliases `--bin`, `-b`): re-encode directly between two power-of-two text bases as byte data, the way `basenc` does (e.g. hex to base-64), instead of converting the value as a number. Both bases must be powers of two. Piped input streams.  [20260708]
 - `--number` (aliases `--num`, `-N`): assert the numeric reading of a conversion and silence the byte-vs-number note.  [20260708]
 - `--show-symbols-0`: like `--show-symbols` but separates symbols with a NUL byte, so scripts can split bases whose symbols are more than one character.  [20260708]
+- Near-match suggestions on an unknown base, and clearer messages for the common stumbles: flags placed after the number, a negative number typed without the `--` separator, and a mistyped flag.  [20260709]
 
 ### Changed
 
 - `--list` gains a RAW column showing which bases can carry a raw binary stream (the power-of-two bases plus the codecs above).  [20260707]
+- `--list` gains a leading INDEX column (the value `--by-index` takes). `--by-index` outside a query flag now notes on stderr that it is ignored.  [20260709]
+- Crockford base32 (`32c`) now decodes `O` as 0 and `I`/`L` as 1 (case-insensitive), per the spec, while still emitting only the strict alphabet.  [20260709]
+- The URL and hex RFC 4648 variants (`64u`, `64h`, `32h`) now pad their binary/codec output to the group boundary like the strict `64`/`32` variants; number-mode output is still never padded, and decode accepts padded or unpadded input.  [20260709]
+- Conflicting base selectors (`--from-symbols` vs `--from`, `--to-symbols` or `--to` vs a positional output base) now print a stderr note instead of silently choosing one.  [20260709]
+- `--help` and `--examples` write to stdout when explicitly requested, so they can be piped; the no-argument help stays on stderr.  [20260709]
 - The 256-value raw-byte base is now named `bytes`. Its former names `binary`, `bin`, and `raw` are removed - use `--from bytes` / `--to bytes`, or `--binary` for text-to-text byte re-encoding.  [20260708]
 - Converting between two power-of-two text bases with no mode flag now prints a note on stderr: the value is read as a number (leading zeros dropped), not re-encoded as bytes. Add `--binary` or `--number` to pick a reading.  [20260708]
 - The `--raw` output flag is renamed `--no-newline` (`-n`), matching `echo -n`.  [20260708]
@@ -47,6 +53,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Other work
 
 - Broadened the test harness: raw round-trips now cover every base the RAW column advertises, with fixed spec vectors for each codec and a check that non-codec bases refuse raw binary. Added a resource profile (peak memory and wall time) and a codec throughput guard, both skipped by `--quick`.  [20260707]
+- Added real Go unit tests (number, codec, native-base, padding, marker, and spec-parser vectors, plus a streaming-vs-buffered equivalence test), so `make test` gates the conversion logic instead of running only benchmarks. Filled several test-harness gaps and pinned known-value vectors for bases that previously had only self-round-trip coverage.  [20260709]
+- Documentation accuracy sweep: regenerated the README bases table from the program (fixing stale aliases and the swapped 32/32h alphabets), corrected the serial-number and 85ps examples, and fixed the UTF byte-count table and changelog dates.  [20260709]
 
 ## v1.1.0-beta6 - 2026-07-06
 
@@ -83,7 +91,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 	- Added byte-for-byte back-compat checks against v1b every shared base, in both directions. (Copy included in the repo.)
 	- Moved old scripts to `legacy/`.
 
-- Updated to CI/CD scripts [20250519]:
+- Updated to CI/CD scripts [20260519]:
 	- Updated for less boilerplate.
 	- Changed license (of CI/CD scripts) from GPL2 to MIT.
 	- Moved from ./utility to ./cicd/utility to be more logical, and consistent with other projects.
@@ -135,13 +143,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Added CI/CD scripts. [20260428]
 
-- Minor tweaks to `cicd.sh` to make paths more explicit and hopefully less prone to future errors. [20250503]
+- Minor tweaks to `cicd.sh` to make paths more explicit and hopefully less prone to future errors. [20260503]
 
-- Minor updates to this file be more "changelog idiomatic". [20250503]
+- Minor updates to this file be more "changelog idiomatic". [20260503]
 
-- Minor corrections to README.md, including lifecycle and status badges. [20250503]
+- Minor corrections to README.md, including lifecycle and status badges. [20260503]
 
-## v1.0.0-rc3 - 2025-04-19
+## v1.0.0-rc3 - 2026-04-19
 
 ### Added
 

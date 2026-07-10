@@ -750,7 +750,7 @@ func printExamples(out io.Writer) {
   convert-base-v2  --  -123456  16
 
   # Big base-10 value to qntm's base-2048; = ɼధശಳপݷટථރŦၓƨ൝
-  convert-base-v2  1234567899999999999999999999999999987654321  2048
+  convert-base-v2  1234567899999999999999999999999999987654321  2048x
 
   # Custom base and input value, to base-10; = 148.25
   convert-base-v2 --from-symbols ABCD  --to 10  CBBA.B
