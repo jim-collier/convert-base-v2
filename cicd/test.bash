@@ -188,6 +188,21 @@ check eq  "negative -- guard"       -1E240    -- -- -123456 16
 check eq  "fractional 1.5 -> 16"    1.8       -- 1.5 16
 ## 1.5 -> base3 is 1.1111...; at precision 2 it rounds half-up (0.111.. -> "12"3), not truncates.
 check eq  "fractional rounding"     1.12      -- --precision 2 1.5 3
+## More fixed fractional pins (fuzz only does integers, so the frac path needs
+## its own coverage): signed fractions, a clean power-of-two fraction, and the
+## imprecise 0.1 tail rounded to precision.
+check eq  "fraction 0.5 -> 16"       0.8       -- --number 0.5 16
+check eq  "neg fraction -0.5 -> 2"   -0.1      -- --number --precision 6 -- -0.5 2
+check eq  "neg mixed -255.5 -> 16"   -FF.8     -- --number -- -255.5 16
+check eq  "fraction 255.5 -> 16"     FF.8      -- --number 255.5 16
+check eq  "fraction 0.1 -> 16 p6"     0.19999A -- --number --precision 6 0.1 16
+## Independent (non-round-trip) known-value pins for bases that otherwise only
+## get self-round-trip fuzz, so a bug mirrored in encode+decode can't hide.
+check eq  "pin 1000000 -> 58btc"     68GP      -- --number 1000000 58btc
+check eq  "pin 1000000 -> 62hex"     4C92      -- --number 1000000 62hex
+check eq  "pin 1000000 -> 36"        LFLS      -- --number 1000000 36
+check eq  "pin 1000000 -> 85ipv6"    1rYy      -- --number 1000000 85ipv6
+check eq  "pin 65535 -> 62hex"       H31       -- --number 65535 62hex
 check eq  "--lower on hex"          ff        -- --lower 255 16
 check errmsg "--lower on mixed-case" "--lower is invalid for mixed-case" -- --lower 9 62
 ## --no-newline: exact bytes, no trailing newline.
@@ -203,6 +218,27 @@ check eq  "custom in, fractional"   148.25    -- --from-symbols ABCD --to 10 CBB
 check eq  "custom out, neg+dec"     -9FCC.8M6 -- --from-symbols "aeiouy.-_0 neg=~ dec=/" --to 20w "~y0-._/ooo"
 check ok  "custom both sides"       -         -- --from-symbols ABCD --to-symbols 0123 CBBA
 check errmsg "one-symbol spec fails" 'at least 2 symbols' -- --from-symbols A 5 16
+## Spec parser edge cases: multi-token comma split makes a base-4 alphabet
+## (decimal 3 stays a single digit "3"; the old bug made it base-3); escaped
+## space is a literal-space digit; a digit that contains a marker is rejected.
+check eq  "spec comma-split -> base4"  3        -- --number --from 10 --to-symbols "0,1 2 3" 3
+check eq  "spec escaped-space digit"   2        -- --from-symbols 'a\ b' --to 10 -- b
+check err "spec marker-in-digit"       -        -- --from-symbols "a b a.b" --to 10 -- a.b
+## 85ps carries a literal comma and backslash as their own digits; its alphabet
+## must stay exactly 85 symbols (regression pin for the escape/comma-split bug).
+sym85=$("${EXE}" --show-symbols-0 85ps 2>/dev/null | tr '\0' '\n' | grep -c .)
+[[ "$sym85" == 85 ]] && _pass "85ps has exactly 85 symbols" || _fail "85ps has exactly 85 symbols" "got=$sym85"
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Config file loading (a user-defined base via --config)
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+section "Config file"
+cfg="${CBT_TMP}/bases.conf"
+printf -- '- aliases: ["myb"]\n  symbols: "z y x w"\n' >"$cfg"
+## The custom 4-symbol base "myb" resolves only when the config is loaded.
+check eq  "config base loads"        yx        -- --config "$cfg" --from 10 --to myb 6
+check errmsg "config base absent otherwise" 'unknown base' -- --from 10 --to myb 6
+check errmsg "explicit missing config errors" 'no such file' -- --config "${CBT_TMP}/nope.conf" 255 16
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -299,6 +335,9 @@ declare -a RAW_BASES=()
 while read -r _ bname _ _ _ rawcol _; do
 	[[ "$rawcol" == "yes" && "$bname" != "bytes" ]] && RAW_BASES+=("$bname")
 done < <("${EXE}" --list 2>/dev/null | tail -n +2)
+## Guard the scrape itself: if the --list format ever shifts and this parses
+## nothing, the round-trip loop below would pass vacuously. Assert a floor.
+(( ${#RAW_BASES[@]} >= 8 )) && _pass "raw-base scrape found bases (${#RAW_BASES[@]})" || _fail "raw-base scrape found bases" "only ${#RAW_BASES[@]} scraped (--list format changed?)"
 raw_all_fail=0; raw_all_n=0
 for base in "${RAW_BASES[@]}"; do
 	for n in 1 2 3 4 5 7 8 11 13 16 17 31 63 100 255 257 $(( 1 + $(_rand16) % 512 )); do
@@ -498,6 +537,8 @@ done
 section "Fuzz round-trips (all bases)"
 ## Column 2 is NAME (column 1 is the INDEX).
 mapfile -t BASE_NAMES < <("${EXE}" --list 2>/dev/null | tail -n +2 | awk '{print $2}')
+## Floor check so a --list format change can't silently empty the fuzz set.
+(( ${#BASE_NAMES[@]} >= 50 )) && _pass "base-name scrape found bases (${#BASE_NAMES[@]})" || _fail "base-name scrape found bases" "only ${#BASE_NAMES[@]} scraped (--list format changed?)"
 declare -a FUZZ_BASES=()
 ## bytes and keyboard both carry newline as a digit, so their output can't
 ## survive $(...) capture (it strips trailing newlines). Both get their own
@@ -626,6 +667,11 @@ if [[ -x "${EXE_V1B}" ]]; then
 		((enc_fail == 0)) && _pass "v2==v1 encode: ${v2n} (== v1 ${v1n})" || _fail "v2==v1 encode: ${v2n} (== v1 ${v1n})" "$detail"
 		((rt_fail == 0))  && _pass "v1->v2 round-trip: ${v2n} (from v1 ${v1n})" || _fail "v1->v2 round-trip: ${v2n} (from v1 ${v1n})" "$detail"
 	done
+else
+	## Don't skip silently: a missing v1 binary means the back-compat suite did
+	## not run, which is easy to mistake for "passed".
+	section "Back-compat vs v1"
+	printf '%s  SKIPPED  v1 back-compat: bundled binary not found at %s%s\n' "${ylw}" "${EXE_V1B}" "${rst}"
 fi
 
 
