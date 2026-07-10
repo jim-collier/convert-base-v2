@@ -57,10 +57,6 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 Decide the padding story for the 32hex and 64url variants. (code review BxZNl-20)
-	- RFC 4648 defaults to mandatory padding for those sections too, and Go's stdlib decoders reject the current unpadded output.
-	- Options: flip them to padded, add padded sibling aliases, or document the deviation. The output-stability policy argues against a silent flip.
-
 - 🔘 Real Go tests, so `make test` stops being a vacuous green. (code review BxZNl-22)
 	- There are zero Test functions, benchmarks only, so `go test` gates nothing for ~3300 lines of conversion logic.
 	- Port the codec and big-base vectors already in test.bash, add table-driven cases for sign, fractions, markers, multi-char symbols, and the spec parser.
@@ -122,6 +118,8 @@ In each section, items are listed approximately from newest to oldest.
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ Padding story settled: it depends on mode, not on the base. (BxZNl-20) Positional/number output is never padded; the binary-to-text codec path now pads every RFC 4648 variant (64u/64h/32h flipped to emit `=` to the group boundary, matching the strict s4/s6 variants and the stdlib decoders). Decode stays lenient (padded or unpadded input both accepted).
 
 - ✅ `--list` now has a leading INDEX column (the value `--by-index` takes), and `--by-index` outside a query prints a stderr note that it is ignored. (BxZNl-19) Help wording for `--by-index` now points at the INDEX column instead of a fragile "above".
 
