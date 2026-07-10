@@ -56,7 +56,7 @@ func run() error {
 		getBaseName   = flag.Bool("get-base-name", false, "print a base's canonical name, then exit; pick the base with a name/alias argument or --by-index")
 		showSymbols   = flag.Bool("show-symbols", false, "print a base's symbols concatenated with no delimiters, then exit; pick the base with a name/alias argument or --by-index")
 		showSymbols0  = flag.Bool("show-symbols-0", false, "like --show-symbols but NUL-separated, for machine parsing of multi-char symbols")
-		byIndex       = flag.Int("by-index", -1, "pick a base by its position in the --list order (0-based); used with the query flags above")
+		byIndex       = flag.Int("by-index", -1, "pick a base by its INDEX column in --list (0-based); used with --get-base-name / --show-symbols")
 		configFile    = flag.String("config", userConfigPath(), "user-level YAML config file; /etc is always tried too (missing file is OK)\n        ")
 		showVersion   = flag.Bool("version", false, "print version and exit")
 		helpFlag      = flag.Bool("help", false, "show help and exit")
@@ -170,6 +170,13 @@ func run() error {
 			fmt.Fprintln(w)
 		}
 		return w.Flush()
+	}
+
+	// --by-index only selects a base for the query flags above. Reaching here with
+	// it set means a normal conversion, where it does nothing - say so rather than
+	// silently ignoring it.
+	if *byIndex >= 0 {
+		fmt.Fprintf(os.Stderr, "note: --by-index is ignored here; it only picks a base for --get-base-name / --show-symbols\n")
 	}
 
 	// Mode flags up front: an omitted base defaults to bytes under --binary
@@ -612,7 +619,7 @@ Base info (each prints one value, then exits):
   --get-base-name      Print a base's canonical name
   --show-symbols       Print a base's symbols, concatenated
   --show-symbols-0     Like --show-symbols but NUL-separated (machine-readable)
-  --by-index N         Select the base by --list position (0-based)
+  --by-index N         Select the base by its INDEX column in --list (0-based)
 
 Other:
   --config FILE        User YAML config; /etc is always tried too

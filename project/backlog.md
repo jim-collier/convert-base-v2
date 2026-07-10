@@ -57,9 +57,6 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 Give --list an index column, and warn when --by-index is passed outside query mode. (code review BxZNl-19)
-	- --by-index is defined as "position in the --list order", but --list never shows indexes; and during a normal conversion --by-index is silently ignored.
-
 - 🔘 Decide the padding story for the 32hex and 64url variants. (code review BxZNl-20)
 	- RFC 4648 defaults to mandatory padding for those sections too, and Go's stdlib decoders reject the current unpadded output.
 	- Options: flip them to padded, add padded sibling aliases, or document the deviation. The output-stability policy argues against a silent flip.
@@ -125,6 +122,8 @@ In each section, items are listed approximately from newest to oldest.
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ `--list` now has a leading INDEX column (the value `--by-index` takes), and `--by-index` outside a query prints a stderr note that it is ignored. (BxZNl-19) Help wording for `--by-index` now points at the INDEX column instead of a fragile "above".
 
 - ✅ `--help` and `--examples` now write to stdout when explicitly requested, so `--help | less` works. (BxZNl-18) The no-args error path keeps help on stderr (exit 2, clean stdout). Threaded a writer through printHelp/printExamples/printCopyright.
 
