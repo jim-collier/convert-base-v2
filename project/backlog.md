@@ -57,9 +57,6 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 Send --help and --examples to stdout when explicitly requested. (code review BxZNl-18)
-	- `--help | less` currently shows nothing. Keep stderr for the no-args error path.
-
 - 🔘 Give --list an index column, and warn when --by-index is passed outside query mode. (code review BxZNl-19)
 	- --by-index is defined as "position in the --list order", but --list never shows indexes; and during a normal conversion --by-index is silently ignored.
 
@@ -128,6 +125,8 @@ In each section, items are listed approximately from newest to oldest.
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ `--help` and `--examples` now write to stdout when explicitly requested, so `--help | less` works. (BxZNl-18) The no-args error path keeps help on stderr (exit 2, clean stdout). Threaded a writer through printHelp/printExamples/printCopyright.
 
 - ✅ Conflicting base selectors now emit a stderr note instead of silently picking one. (BxZNl-17) `--from-symbols` over `--from`, `--to-symbols` over any output name, and `--to` over a positional OUTBASE. A `--to` and positional that name the same base stay quiet. Behavior unchanged (note only), matching the BxZNl-1 approach.
 

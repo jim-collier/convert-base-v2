@@ -114,15 +114,16 @@ func run() error {
 		}
 	}
 
-	// --help (with or without accompanying flags).
+	// --help (with or without accompanying flags). Explicitly requested, so it
+	// goes to stdout (pipeable); the no-args error path below keeps stderr.
 	if *helpFlag || *hFlag {
-		printHelp(reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
+		printHelp(os.Stdout, reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
 		return nil
 	}
 
-	// --examples
+	// --examples (explicitly requested -> stdout).
 	if *examplesFlag {
-		printExamples()
+		printExamples(os.Stdout)
 		return nil
 	}
 
@@ -290,9 +291,10 @@ func run() error {
 		return fmt.Errorf("--upper is invalid for mixed-case output base %q: uppercasing its digits would change their meaning", to.Name())
 	}
 
-	// No number and stdin is a terminal - nothing to do. Show help.
+	// No number and stdin is a terminal - nothing to do. This is the error path
+	// (exit 2), so help goes to stderr, leaving stdout clean.
 	if len(args) == 0 && !fromStdin {
-		printHelp(reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
+		printHelp(os.Stderr, reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
 		os.Exit(2)
 	}
 
@@ -572,9 +574,8 @@ func userConfigPath() string {
 // printHelp prints the program's help text plus a contextual report on config
 // file visibility and, if the user passed any --from/--to/-*-symbols flags,
 // where each base would be resolved from in a real run.
-func printHelp(reg *Registry, etcPath, userPath, fromName, toName, fromSyms, toSyms string) {
-	out := os.Stderr
-	printCopyright()
+func printHelp(out io.Writer, reg *Registry, etcPath, userPath, fromName, toName, fromSyms, toSyms string) {
+	printCopyright(out)
 	fmt.Fprint(out, `Convert an arbitrarily large number to/from arbitrary bases.
 
 Usage:
@@ -720,8 +721,8 @@ func fmtMarker(p *string) string {
 	return fmt.Sprintf("%q", *p)
 }
 
-func printCopyright() {
-	fmt.Fprintf(os.Stderr, `convert-base-v2 %s
+func printCopyright(out io.Writer) {
+	fmt.Fprintf(out, `convert-base-v2 %s
 Copyright (c) %s %s.
 Licensed under the GNU General Public License v2.0 or later. Full text at:
   https://spdx.org/licenses/GPL-2.0-or-later.html
@@ -730,8 +731,8 @@ There is no warranty, to the extent permitted by law.
 `, version, copyrightYear, author)
 }
 
-func printExamples() {
-	fmt.Fprint(os.Stderr, `Examples:
+func printExamples(out io.Writer) {
+	fmt.Fprint(out, `Examples:
   # Convert 255 (in default base-10) to hex output; = FF
   convert-base-v2  255  16
 

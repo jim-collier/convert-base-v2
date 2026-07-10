@@ -117,6 +117,14 @@ _run --version
 check ok  "--help exits 0"          -   --help
 check ok  "-h exits 0"              -   -h
 check ok  "--examples exits 0"      -   --examples
+## Explicit --help/--examples go to stdout so they can be piped (BxZNl-18).
+_run --help
+{ ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Usage* ]]; } && _pass "--help writes to stdout" || _fail "--help writes to stdout" "rc=$_rc outlen=${#_out}"
+_run --examples
+{ ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Examples* ]]; } && _pass "--examples writes to stdout" || _fail "--examples writes to stdout" "rc=$_rc outlen=${#_out}"
+## No-args error path keeps help on stderr, exit 2, stdout empty.
+_run
+{ ((_rc == 2)) && [[ -z "$_out" ]] && [[ -n "$_err" ]]; } && _pass "no-args help stays on stderr" || _fail "no-args help stays on stderr" "rc=$_rc outlen=${#_out} errlen=${#_err}"
 _run --list
 { ((_rc == 0)) && [[ "$_out" == *NAME* ]]; } && _pass "--list lists bases" || _fail "--list lists bases" "rc=$_rc"
 
