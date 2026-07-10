@@ -75,7 +75,7 @@ Recommendations from the 20260708 code review. Numbers match the backlog items; 
 - BxZNl-11: track whether --config was explicitly set (flag.Visit); explicit and missing is an error, the implicit /etc and XDG paths stay lenient.
 - BxZNl-12: check every integer alias, not just the first, and run the check on the normalized name so "b99" style aliases cannot bypass it.
 - BxZNl-14: make `pad: ""` clear the pad to honor the documented explicit-fields-win rule, matching the tri-state behavior negative and decimal already have. A separate emit flag would let config bases express accept-but-do-not-emit pads.
-- BxZNl-20: for the 32hex/64url padding question, prefer padded sibling aliases or a documented deviation over flipping the existing bases, given the output-stability policy.
+- BxZNl-20: the padding rule is by mode, not by base. Positional (number) conversion is never padded; the binary-to-text codec path pads to the group boundary. Among the options (document the deviation, add padded siblings, or flip), it was decided to flip 32hex/64url/64hex to emit padding in codec mode, so all RFC 4648 variants behave alike and match the strict stdlib decoders. Decode stays lenient, accepting padded or unpadded input, so no valid input is rejected; only the codec-mode output of those three bases changes.
 - BxZNl-21: a small optional decode-alias map on Base (extra input bytes mapping to existing digit values) covers Crockford's O/I/L rule without touching encoding.
 
 ### Versioning

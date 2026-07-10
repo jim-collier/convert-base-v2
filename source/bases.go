@@ -240,7 +240,8 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 32),
 			Aliases:     []string{"32h", "32hex", "32rfc4648s7", "RFC4648s7", "TheOneTrue32"},
-			Pad:         "=", // accept padding on input, but the hex variant is left unpadded
+			Pad:         "=",  // RFC 4648 s3.2 mandates padding by default
+			PadEmit:     true, // codec/binary output is padded; number output never is
 		}),
 
 		// Crockford's base-32; designed for less human-read ambiguity, no I, L, O, U
@@ -401,8 +402,9 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " - _",
 			Aliases:     []string{"64u", "64url", "64ru", "64rfc4648s5", "rfc4648s5"},
-			NegSymbol:   "~", // tilde; '-' is a base symbol here
-			Pad:         "=", // accept padding on input; URL-safe output is left unpadded
+			NegSymbol:   "~",  // tilde; '-' is a base symbol here
+			Pad:         "=",  // RFC 4648 s3.2 mandates padding by default
+			PadEmit:     true, // codec/binary output is padded; number output never is
 		}),
 
 		// Base 64, hex-style (with RFC URL-style extensions)
@@ -413,8 +415,9 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: base_62hex + " - _",
 			Aliases:     []string{"64h", "64hex", "64hexurl", "64hu"},
-			NegSymbol:   "~", // tilde; '-' is a base symbol here
-			Pad:         "=", // accept padding on input; hex-style output is left unpadded
+			NegSymbol:   "~",  // tilde; '-' is a base symbol here
+			Pad:         "=",  // RFC 4648 s3.2 mandates padding by default
+			PadEmit:     true, // codec/binary output is padded; number output never is
 		}),
 
 		// Base 64p: Programmer-friendly base-64.
