@@ -65,9 +65,16 @@ func run() error {
 	)
 
 	// Suppress Go's default auto-exit on -h/-help; we handle help ourselves
-	// so we can show config-file status and base-resolution info.
-	flag.CommandLine.Usage = func() {} // no-op; we print help manually
-	flag.Parse()
+	// so we can show config-file status and base-resolution info. ContinueOnError
+	// (instead of the default ExitOnError) lets us turn flag's terse errors into
+	// hints about the two most common stumbles: a negative number typed without a
+	// "--" separator, and a mistyped flag.
+	flag.CommandLine.Init(os.Args[0], flag.ContinueOnError)
+	flag.CommandLine.SetOutput(io.Discard) // we print our own message
+	flag.CommandLine.Usage = func() {}     // no-op; we print help manually
+	if perr := flag.CommandLine.Parse(os.Args[1:]); perr != nil {
+		return improveFlagError(perr)
+	}
 
 	if *showVersion {
 		fmt.Println(version)
@@ -220,7 +227,13 @@ func run() error {
 		expectedPositionals++
 	}
 	if len(args) > expectedPositionals {
-		return fmt.Errorf("unexpected extra positional argument: %q", args[expectedPositionals])
+		extra := args[expectedPositionals]
+		// A leftover that looks like a flag means the user put flags after the
+		// NUMBER; flag parsing stops at the first non-flag, so they were never seen.
+		if strings.HasPrefix(extra, "-") && extra != "-" {
+			return fmt.Errorf("flags must come before the NUMBER: move %q ahead of it, e.g. %s %s NUMBER BASE (see --help)", extra, filepath.Base(os.Args[0]), extra)
+		}
+		return fmt.Errorf("unexpected extra positional argument: %q (see --help for usage)", extra)
 	}
 
 	// Kill the silent-wrong-output trap: `echo 255 | prog 16` reads "16" as the
@@ -345,6 +358,56 @@ func run() error {
 	}
 	fmt.Println(result)
 	return nil
+}
+
+// improveFlagError turns flag's terse parse errors into a hint for the two
+// common stumbles. A "-123"-style undefined flag is almost always a negative
+// number that needs a "--" separator; any other undefined/bad flag gets a
+// pointer to --help.
+func improveFlagError(err error) error {
+	prog := filepath.Base(os.Args[0])
+	msg := err.Error()
+	const undef = "flag provided but not defined: "
+	if strings.HasPrefix(msg, undef) {
+		tok := strings.TrimPrefix(msg, undef) // e.g. "-123" or "-lowr"
+		bare := strings.TrimLeft(tok, "-")
+		if looksLikeNumber(bare) {
+			return fmt.Errorf("to pass a negative number, put it after a \"--\" separator, e.g.: %s -- %s BASE", prog, tok)
+		}
+		return fmt.Errorf("unknown flag %q; flags must come before the NUMBER (see --help for the flag list)", tok)
+	}
+	return fmt.Errorf("%s (see --help for usage)", msg)
+}
+
+// looksLikeNumber reports whether s is a bare (unsigned) number in some base:
+// digits with an optional single fractional dot. Used only to guess that a
+// "-123"-style undefined flag was meant as a negative number.
+func looksLikeNumber(s string) bool {
+	if s == "" {
+		return false
+	}
+	dots := 0
+	for _, c := range s {
+		switch {
+		case c >= '0' && c <= '9':
+		case c >= 'a' && c <= 'z', c >= 'A' && c <= 'Z':
+			// allow hex-ish / higher-base digits
+		case c == '.':
+			dots++
+		default:
+			return false
+		}
+	}
+	// require at least one actual digit and at most one dot
+	if dots > 1 {
+		return false
+	}
+	for _, c := range s {
+		if c >= '0' && c <= '9' {
+			return true
+		}
+	}
+	return false
 }
 
 // selectBase picks a base for the query flags: by --list index if byIndex >= 0,

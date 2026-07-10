@@ -440,7 +440,109 @@ func (r *Registry) Lookup(name string) (*Base, error) {
 			return b, nil
 		}
 	}
-	return nil, fmt.Errorf("unknown base %q", name)
+	// Point the user at --list, and offer near matches when we have any. With 60+
+	// bases behind non-obvious naming rules, a bare "unknown base" is unhelpful.
+	q := k
+	if rest, ok := stripBasePrefix(k); ok {
+		q = normalizeBaseName(rest)
+	}
+	if sugg := r.suggestBases(q); len(sugg) > 0 {
+		for i := range sugg {
+			sugg[i] = fmt.Sprintf("%q", sugg[i])
+		}
+		return nil, fmt.Errorf("unknown base %q; did you mean %s? (see --list for all bases)", name, strings.Join(sugg, ", "))
+	}
+	return nil, fmt.Errorf("unknown base %q (see --list for all bases)", name)
+}
+
+// suggestBases returns up to four base aliases near the normalized query k:
+// aliases that start with k (a partial like "2048" -> the 2048* names), else the
+// closest by edit distance for a small typo. It reports the alias the user nearly
+// typed (so "hexx" suggests "hex", not the canonical "16"), and keeps only the
+// closest tier so a good match isn't buried under weaker ones. Empty when nothing
+// is close.
+func (r *Registry) suggestBases(k string) []string {
+	if k == "" {
+		return nil
+	}
+	type best struct {
+		alias string
+		d     int
+	}
+	bb := make(map[*Base]best)
+	for a, b := range r.byAlias {
+		d := levenshtein(a, k)
+		if len(k) >= 2 && strings.HasPrefix(a, k) {
+			d = 0
+		}
+		// Deterministic pick: at equal distance keep the lexically smaller alias,
+		// so the suggestion doesn't shift with map iteration order.
+		if cur, ok := bb[b]; !ok || d < cur.d || (d == cur.d && a < cur.alias) {
+			bb[b] = best{a, d}
+		}
+	}
+	minD := 1 << 30
+	for _, v := range bb {
+		if (v.d == 0 || (v.d <= 2 && v.d < len(k))) && v.d < minD {
+			minD = v.d
+		}
+	}
+	if minD == 1<<30 {
+		return nil
+	}
+	var out []string
+	for _, v := range bb {
+		if v.d == minD {
+			out = append(out, v.alias)
+		}
+	}
+	sort.Strings(out)
+	if len(out) > 4 {
+		out = out[:4]
+	}
+	return out
+}
+
+// levenshtein is the plain edit distance between two short strings, used only for
+// "did you mean" base suggestions.
+func levenshtein(a, b string) int {
+	if a == b {
+		return 0
+	}
+	la, lb := len(a), len(b)
+	if la == 0 {
+		return lb
+	}
+	if lb == 0 {
+		return la
+	}
+	prev := make([]int, lb+1)
+	cur := make([]int, lb+1)
+	for j := 0; j <= lb; j++ {
+		prev[j] = j
+	}
+	for i := 1; i <= la; i++ {
+		cur[0] = i
+		for j := 1; j <= lb; j++ {
+			cost := 1
+			if a[i-1] == b[j-1] {
+				cost = 0
+			}
+			cur[j] = min3(prev[j]+1, cur[j-1]+1, prev[j-1]+cost)
+		}
+		prev, cur = cur, prev
+	}
+	return prev[lb]
+}
+
+func min3(a, b, c int) int {
+	if b < a {
+		a = b
+	}
+	if c < a {
+		a = c
+	}
+	return a
 }
 
 // stripBasePrefix removes a leading "base" plus one optional separator

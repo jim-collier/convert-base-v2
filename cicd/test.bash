@@ -192,6 +192,12 @@ check errmsg "one-symbol spec fails" 'at least 2 symbols' -- --from-symbols A 5 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Errors and robustness"
 check errmsg "unknown base"         'unknown base'                       -- 10 nope
+## Friendlier stumble messages (BxZNl-16).
+check errmsg "unknown base near-match" 'did you mean "hex"'              -- 255 hexx
+check errmsg "unknown base to --list"  'see --list'                      -- 255 nope
+check errmsg "flags after number"      'flags must come before'          -- 255 16 --lower
+check errmsg "neg number without --"   'a "--" separator'                -- -123 16
+check errmsg "unknown flag hint"       'unknown flag'                    -- --lowr 255 16
 check errmsg "bad digit for base"   'not in base'                        -- --from 2 9
 check errmsg "extra positional"     'unexpected extra positional'        -- 1 2 3
 check errmsg "precision < 0"        'precision must be >= 0'             -- --precision -1 1
