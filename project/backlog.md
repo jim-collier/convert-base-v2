@@ -57,9 +57,6 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 Error or warn when inputs conflict instead of silently picking one. (code review BxZNl-17)
-	- `--to` beats a positional OUTBASE, and `--from-symbols` beats `--from`, both silently. Classic script-mistake masking.
-
 - 🔘 Send --help and --examples to stdout when explicitly requested. (code review BxZNl-18)
 	- `--help | less` currently shows nothing. Keep stderr for the no-args error path.
 
@@ -131,6 +128,8 @@ In each section, items are listed approximately from newest to oldest.
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ Conflicting base selectors now emit a stderr note instead of silently picking one. (BxZNl-17) `--from-symbols` over `--from`, `--to-symbols` over any output name, and `--to` over a positional OUTBASE. A `--to` and positional that name the same base stay quiet. Behavior unchanged (note only), matching the BxZNl-1 approach.
 
 - ✅ Friendlier messages for the four common stumbles. (BxZNl-16) Flags after the NUMBER now say flags come first; a bare `-123` points at the `--` separator; an unknown flag points at `--help`; an unknown base points at `--list` and suggests near matches (prefix or small edit distance, closest tier only). Flag parsing moved to ContinueOnError so these can be caught.
 
