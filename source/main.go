@@ -18,7 +18,7 @@ import (
 // version is overwritten at build time via -ldflags "-X main.version=...". It
 // must be a var, not a const: the linker can only patch a var, so a const here
 // made the Makefile's version injection a silent no-op.
-var version = "v1.1.0-beta5"
+var version = "v1.1.0-beta7"
 
 const (
 	copyrightYear = "2023-2026"

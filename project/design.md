@@ -25,6 +25,7 @@
 	- [Versioning](#versioning)
 	- [Testing](#testing)
 	- [Docs](#docs)
+- [CI/CD and release flow](#cicd-and-release-flow)
 
 <!-- /TOC -->
 
@@ -91,3 +92,12 @@ Recommendations from the 20260708 code review. Numbers match the backlog items; 
 ### Docs
 
 - BxZNl-26: regenerate the README bases table from --list and --show-symbols output rather than hand-fixing rows; the example-output table earlier in the README already matches the binary, so only the bases table drifted. Fix --examples to use 2048x or register a bare "2048" alias. Correct the serial-number example (the string shown is 64h of undivided seconds), the example.conf marker-collision comment, the UTF byte columns, and the changelog year typos.
+
+## CI/CD and release flow
+
+- Branching: dev is the integration branch. Feature branches merge to dev; main is release-only.
+- Hosted CI is a bare safety net (vet, test, build on push and PR, via GitHub Actions). The full pipeline (fuzz, profiling, dogfood, publish) stays local in cicd/.
+- Releases are automatic on a merge to main. The version var in source/main.go is the source of truth: the workflow tags it if the tag doesn't exist yet, then goreleaser publishes the release. A merge without a version bump is a no-op. This also keeps the var's fallback value exact by definition.
+- Release prep on dev is two edits: rename the changelog's NEXT VERSION heading to the version and date (the workflow lifts that section as the release notes), and bump the version var to match.
+- Release packaging is goreleaser, mirroring the old Makefile scheme exactly (same six platforms, archive names, and bare-binary layout) plus a checksums file. Day-to-day builds still use the Makefile; make release remains for local cross-compile sanity.
+- Tool versions (golangci-lint, staticcheck, govulncheck, goreleaser) are pinned in cicd/tool-versions.env, one place read by both the local pipeline and the workflows. Dependabot files grouped weekly update PRs against dev.

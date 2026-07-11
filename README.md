@@ -5,11 +5,12 @@
 <!-- markdownlint-disable MD041 -- First line in a file should be a top-level heading -->
 <div align="center">
 
-![Go](https://img.shields.io/badge/Go-00ADD8?logo=go&logoColor=white)
+![Go](https://img.shields.io/github/go-mod/go-version/jim-collier/convert-base-v2?filename=source%2Fgo.mod&logo=go&logoColor=white&label=Go)
 ![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)
 ![Lifecycle: RC](https://img.shields.io/badge/Lifecycle-RC-blue)
 ![Support](https://img.shields.io/badge/Support-Maintained-brightgreen)
-![Status: Passing](https://img.shields.io/badge/Status-Passing-brightgreen)
+![CI](https://img.shields.io/github/actions/workflow/status/jim-collier/convert-base-v2/ci.yml?branch=main&label=CI)
+![Release](https://img.shields.io/github/v/release/jim-collier/convert-base-v2?include_prereleases&label=Release)
 
 </div>
 <!--
