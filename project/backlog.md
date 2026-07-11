@@ -57,31 +57,6 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
-- 🔘 CI/CD improvements
-	- 🔘 Minimal hosted CI
-		- Add a bare-bones GitHub Actions workflow: vet, test, build on push and PR.
-		- This is the safety net only - the full local pipeline (fuzz, profiling, dogfood, publish) stays local and unchanged.
-		- Keep it to one small YAML file. No matrix beyond what's needed to prove it builds off this machine (linux, current Go).
-		- Run against both dev and main.
-	- 🔘 Dev branch + release on main
-		- Adopt a dev branch as the integration target. Feature branches merge to dev; main becomes release-only.
-		- Merging dev to main automatically cuts a release: a workflow on main tags the merge and publishes the release with built artifacts.
-		- Decide the version source up front (version var in source vs manual tag before merge) and make the workflow and build stamping agree on it.
-		- Document the flow in a line or two wherever branch conventions live, so day-to-day work knows the merge-back target changed.
-	- 🔘 goreleaser for release packaging
-		- Replace the hand-rolled cross-compile and tgz/zip packaging with a goreleaser config: same targets, same archive layout and naming as now, plus checksums.
-		- Wire it into the release workflow above so a merge to main produces the GitHub Release with all platform artifacts attached.
-		- Keep the local build path (native make target) untouched for day-to-day work; goreleaser is for releases only.
-		- Verify artifact names and archive contents match the old scheme before switching over, so existing download links and scripts keep working.
-	- 🔘 Pin tool versions
-		- Lint and audit tools currently run at whatever version is installed, so results drift across machines and over time. Pin them.
-		- Pin golangci-lint, staticcheck, govulncheck (and any others the pipeline probes for) to explicit versions, in one place, used by both the local pipeline and CI.
-		- Add a dependabot config so dependency and toolchain bumps arrive as PRs against dev. Group minor/patch bumps to keep the noise down.
-	- 🔘 README badges
-		- Add badges for the parts that now exist: CI status, latest release, Go version. Keep it to the few that carry signal.
-		- Point the CI badge at the new workflow on main, the release badge at the latest tag.
-		- Place them at the top of the README in one line, matching the existing README style.
-
 ### Done
 
 #### Done - Bugs
@@ -118,6 +93,12 @@ In each section, items are listed approximately from newest to oldest.
 
 #### Done - New features and enhancements
 
+- ✅ CI/CD improvements (batch landed 20260711; the v1.1.0-beta7 release was cut by the new flow itself)
+	- ✅ Minimal hosted CI: `.github/workflows/ci.yml` vets, tests, and builds on every push and PR to dev and main. The full local pipeline is unchanged.
+	- ✅ Dev branch + release on main: `dev` is now the integration branch and `main` is release-only. Merging dev to main tags the version from `source/main.go` (if that tag doesn't exist yet) and publishes the release automatically; a merge without a version bump is a no-op. Flow documented in `design.md`.
+	- ✅ goreleaser packaging: `.goreleaser.yaml` produces the same six archives with the same names and bare-binary layout as `make release`, plus a checksums file. Local builds still use the Makefile.
+	- ✅ Pinned tool versions + dependabot: pins live in `cicd/tool-versions.env` (the pipeline installs anything missing or drifted before stage 1); dependabot files grouped weekly update PRs against dev.
+	- ✅ README badges: dynamic Go version, CI status, and latest release, replacing the static Go and Status badges.
 - ✅ Docs accuracy sweep. (BxZNl-26) Regenerated the README bases table's Name and Aliases columns from the program (matching rows by alphabet so the swapped 32/32h rows self-corrected and the jc->jc1 renames applied; every alias now resolves). Fixed the serial-number example (1fLcL4 is 64h not 64u, whole-seconds value, softened the /60 prose), the stale 85ps example-output row, the `--examples` bare `2048` (now `2048x`), the UTF byte-count table and prose in both copies of how_to_design_a_numeric_base.md (3-byte UTF-16 is 2, 4-byte is 4/4), the example.conf silent-disable claim and undocumented `pad:` field, and the changelog 2025->2026 year typos. Added NEXT VERSION changelog entries for this batch of enhancements.
 
 - ✅ Closed the test.bash blind spots. (BxZNl-23) Added independent known-value pins for bases that only had self-round-trip fuzz (58btc, 62hex, 36, 85ipv6), more fixed fractional vectors (signed, mixed, imprecise tail), a config-file load test (custom base via `--config`, plus the absent and missing-file cases), spec-parser edge cases (comma-split alphabet, escaped-space digit, marker-in-digit rejection), an 85ps 85-symbol count pin, minimum-count floors on both `--list` scrapes, and a loud SKIPPED when the v1 binary is absent.
