@@ -22,7 +22,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Other work
 -->
 
-## NEXT VERSION
+## v1.1.0-beta7 - 2026-07-11
+
+### Notes
+
+- This release also carries the v1.1.0-beta6 changes below, which were never published as a release.
 
 ### Added
 
@@ -55,6 +59,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Broadened the test harness: raw round-trips now cover every base the RAW column advertises, with fixed spec vectors for each codec and a check that non-codec bases refuse raw binary. Added a resource profile (peak memory and wall time) and a codec throughput guard, both skipped by `--quick`.  [20260707]
 - Added real Go unit tests (number, codec, native-base, padding, marker, and spec-parser vectors, plus a streaming-vs-buffered equivalence test), so `make test` gates the conversion logic instead of running only benchmarks. Filled several test-harness gaps and pinned known-value vectors for bases that previously had only self-round-trip coverage.  [20260709]
 - Documentation accuracy sweep: regenerated the README bases table from the program (fixing stale aliases and the swapped 32/32h alphabets), corrected the serial-number and 85ps examples, and fixed the UTF byte-count table and changelog dates.  [20260709]
+- Hosted CI: every push and pull request now builds, vets, and tests on GitHub Actions. The full local pipeline is unchanged.  [20260711]
+- Releases are now cut automatically when dev merges to main: the workflow tags the version from the source and publishes the release with all six platform archives plus a checksums file, notes taken from this changelog.  [20260711]
+- Release packaging moved to goreleaser, keeping the same archive names and layout as before.  [20260711]
+- The pipeline's lint and audit tools are pinned to fixed versions, and dependency and workflow updates now arrive as grouped pull requests against dev.  [20260711]
 
 ## v1.1.0-beta6 - 2026-07-06
 

@@ -57,12 +57,16 @@ NATIVE_BUILD_CMD=(make -C "${SRC_DIR}" local)
 NATIVE_BUILD_OUT="${SRC_DIR}/${EXE_NAME}"
 STAGED_BIN="${SRC_DIR}/bin/${EXE_NAME}"
 
+## Pinned tool versions live in cicd/tool-versions.env; the engine runs this
+## before stage 1 to go-install anything missing or drifted (warn-only, so the
+## pipeline still runs offline or on a bare machine). Empty it to disable.
+PIN_TOOLS_CMD=(bash cicd/utility/pin-tools.bash)
+
 ## Stage 3: lint the first-party Go. Each is run inside SRC_DIR. VET is always
 ## available (part of the toolchain) and gating. golangci-lint and staticcheck are
 ## optional: a failed PROBE skips that one with a warning instead of aborting, so
-## the pipeline still runs on a bare machine. Install them with:
-##   go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest
-##   go install honnef.co/go/tools/cmd/staticcheck@latest
+## the pipeline still runs on a bare machine. Versions come from
+## cicd/tool-versions.env via the pin step above.
 VET_CMD=(go vet ./...)
 LINT_PROBE=(golangci-lint version)
 LINT_CMD=(golangci-lint run --concurrency="${CPU_CAP:-1}" ./...)
@@ -82,8 +86,8 @@ FUZZ_TIME="20s"
 FUZZ_TIME_QUICK="4s"
 
 ## Stage 4c: security. govulncheck scans this module AND its dependencies (library
-## code) against the Go vulnerability database. Optional (PROBE-gated). Install with:
-##   go install golang.org/x/vuln/cmd/govulncheck@latest
+## code) against the Go vulnerability database. Optional (PROBE-gated); its version
+## comes from cicd/tool-versions.env via the pin step.
 VULN_PROBE=(govulncheck -version)
 VULN_CMD=(govulncheck ./...)
 

@@ -192,6 +192,12 @@ if [[ -n "${LINT_LOG_DIR:-}" ]] && mkdir -p "${root}/${LINT_LOG_DIR}" 2>/dev/nul
 	exec > >(tee "${root}/${LINT_LOG_DIR}/run_${stamp}.log") 2>&1
 fi
 
+## Pinned tools: bring any go-installed tool that drifted from tool-versions.env
+## back in line (warn-only; probe-gated stages still skip anything missing).
+if [[ -n "${PIN_TOOLS_CMD[*]:-}" ]]; then
+	"${PIN_TOOLS_CMD[@]}"
+fi
+
 ## Stage 1: format.
 fSection "1/8  Format"
 if ((${#FMT_CMD[@]} == 0)); then
