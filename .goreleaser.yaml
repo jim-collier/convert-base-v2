@@ -33,9 +33,10 @@ archives:
 checksum:
   name_template: checksums.txt
 
-# Release notes come from changelog.md via the workflow, not from commits.
-changelog:
-  disable: true
+# Release notes come from changelog.md via the workflow's --release-notes
+# file, which replaces goreleaser's generated changelog. Don't set
+# changelog.disable here: that also makes goreleaser ignore the notes file
+# (found the hard way - it published an empty release body).
 
 release:
   prerelease: auto
