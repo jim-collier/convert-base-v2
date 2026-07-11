@@ -57,6 +57,31 @@ In each section, items are listed approximately from newest to oldest.
 
 ### New features and enhancements
 
+- 🔘 CI/CD improvements
+	- 🔘 Minimal hosted CI
+		- Add a bare-bones GitHub Actions workflow: vet, test, build on push and PR.
+		- This is the safety net only - the full local pipeline (fuzz, profiling, dogfood, publish) stays local and unchanged.
+		- Keep it to one small YAML file. No matrix beyond what's needed to prove it builds off this machine (linux, current Go).
+		- Run against both dev and main.
+	- 🔘 Dev branch + release on main
+		- Adopt a dev branch as the integration target. Feature branches merge to dev; main becomes release-only.
+		- Merging dev to main automatically cuts a release: a workflow on main tags the merge and publishes the release with built artifacts.
+		- Decide the version source up front (version var in source vs manual tag before merge) and make the workflow and build stamping agree on it.
+		- Document the flow in a line or two wherever branch conventions live, so day-to-day work knows the merge-back target changed.
+	- 🔘 goreleaser for release packaging
+		- Replace the hand-rolled cross-compile and tgz/zip packaging with a goreleaser config: same targets, same archive layout and naming as now, plus checksums.
+		- Wire it into the release workflow above so a merge to main produces the GitHub Release with all platform artifacts attached.
+		- Keep the local build path (native make target) untouched for day-to-day work; goreleaser is for releases only.
+		- Verify artifact names and archive contents match the old scheme before switching over, so existing download links and scripts keep working.
+	- 🔘 Pin tool versions
+		- Lint and audit tools currently run at whatever version is installed, so results drift across machines and over time. Pin them.
+		- Pin golangci-lint, staticcheck, govulncheck (and any others the pipeline probes for) to explicit versions, in one place, used by both the local pipeline and CI.
+		- Add a dependabot config so dependency and toolchain bumps arrive as PRs against dev. Group minor/patch bumps to keep the noise down.
+	- 🔘 README badges
+		- Add badges for the parts that now exist: CI status, latest release, Go version. Keep it to the few that carry signal.
+		- Point the CI badge at the new workflow on main, the release badge at the latest tag.
+		- Place them at the top of the README in one line, matching the existing README style.
+
 ### Done
 
 #### Done - Bugs
