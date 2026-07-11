@@ -1,0 +1,60 @@
+# Cut a release on every merge to main. The version var in source/main.go is
+# the source of truth: if its tag doesn't exist yet, tag it and publish via
+# goreleaser, with notes pulled from that version's changelog section. A merge
+# that doesn't bump the version is a no-op.
+name: release
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+concurrency: release
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: resolve version
+        id: ver
+        run: |
+          ver="$(sed -n 's/^var version = "\(v[0-9][^"]*\)".*/\1/p' source/main.go)"
+          [ -n "$ver" ] || { echo "no version var in source/main.go" >&2; exit 1; }
+          new=1
+          git rev-parse -q --verify "refs/tags/$ver" >/dev/null && new=0
+          [ "$new" = 1 ] || echo "tag $ver already exists; nothing to release"
+          echo "ver=$ver" >> "$GITHUB_OUTPUT"
+          echo "new=$new" >> "$GITHUB_OUTPUT"
+          echo "goreleaser=$(sed -n 's/^GORELEASER_VERSION=//p' cicd/tool-versions.env)" >> "$GITHUB_OUTPUT"
+      - name: release notes
+        if: steps.ver.outputs.new == '1'
+        run: |
+          awk -v ver="${{ steps.ver.outputs.ver }}" '
+            index($0, "## " ver) == 1 { on = 1; next }
+            /^## / { on = 0 }
+            on { print }
+          ' changelog.md > "$RUNNER_TEMP/notes.md"
+          [ -s "$RUNNER_TEMP/notes.md" ] || echo "See changelog.md." > "$RUNNER_TEMP/notes.md"
+      - name: tag
+        if: steps.ver.outputs.new == '1'
+        run: |
+          git tag "${{ steps.ver.outputs.ver }}"
+          git push origin "refs/tags/${{ steps.ver.outputs.ver }}"
+      - uses: actions/setup-go@v6
+        if: steps.ver.outputs.new == '1'
+        with:
+          go-version-file: .go-version
+          cache-dependency-path: source/go.sum
+      - uses: goreleaser/goreleaser-action@v7
+        if: steps.ver.outputs.new == '1'
+        with:
+          version: ${{ steps.ver.outputs.goreleaser }}
+          args: release --clean --release-notes ${{ runner.temp }}/notes.md
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GORELEASER_CURRENT_TAG: ${{ steps.ver.outputs.ver }}
