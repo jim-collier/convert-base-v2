@@ -1,0 +1,43 @@
+# Demo scenario for gen-demo-gif.py. Each [[step]] types its show= line into the
+# fake terminal, runs run= (default: show) for real, and shows the output. {prog}
+# renders as the program name; {bin} runs as the tested binary path. pause= is the
+# read time in seconds. overflow= is "truncate" (default) or "wrap".
+
+title = "convert-base-v2"
+prog  = "convert-base-v2"
+seed  = 11
+font  = ["Monaspace Argon SemiBold"]
+
+[[step]]
+note  = "any number, any base"
+show  = "{prog} 255 16"
+pause = 2.0
+
+[[step]]
+note  = "arbitrary size"
+show  = "{prog} 18446744073709551615 62"
+pause = 2.2
+
+[[step]]
+note  = "negatives and fractions too"
+show  = "{prog} --precision 8 -- -3.14159 16"
+pause = 2.4
+
+[[step]]
+note  = "bring your own alphabet"
+show  = "{prog} --from-symbols ABCD --to 10 CBBA.B"
+pause = 2.4
+
+[[step]]
+note  = "dozens of named bases built in"
+show  = "{prog} --list | head -12"
+pause = 3.6
+
+[[step]]
+note  = "or encode raw bytes, like basenc"
+show  = "echo -n 'Hello, world!' | {prog} --from bytes --to 64u"
+pause = 2.2
+
+[[step]]
+show  = "echo -n SGVsbG8sIHdvcmxkIQ | {prog} --from 64u --to bytes"
+pause = 3.0

@@ -131,6 +131,13 @@ DOGFOOD_FIXED_DESTS=(
 DO_SCREENSHOTS=0
 SCREENSHOT_CMD=(utility/gen-screenshots.bash)
 
+## Stage 7 (after screenshots): demo gif. Types the scenario's commands into a fake
+## terminal, runs each against the tested binary, and renders the animated loop to
+## assets/. Seeded, so an unchanged binary + scenario reproduces the same file. A
+## failure is a warning, not a stop. Skipped by --quick / --no-demogif.
+DO_DEMOGIF=1
+DEMOGIF_CMD=(cicd/utility/gen-demo-gif.py --scenario cicd/demo-scenario.toml --out assets/demo.gif)
+
 ## Stage 8: backup + publish to git (runs from repo root). The engine always passes
 ## --quiet (it already gave the message prompt) and, when it has one, -m MESSAGE.
 GIT_PUBLISH=(cicd/utility/n8git_backup-and-publish)

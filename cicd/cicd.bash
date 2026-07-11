@@ -28,7 +28,7 @@
 ##	   4. tests (unit + integration harness + fuzz + govulncheck security)
 ##	   5. profiler (flamegraph SVG; non-gating artifact - see failure policy)
 ##	   6. cross-compile every shipping platform (build sanity + release archives)
-##	   7. dogfood (install the native build locally, fixed name) + screenshots
+##	   7. dogfood (install the native build locally, fixed name) + screenshots + demo gif
 ##	   8. backup + publish to git (runs from repo root)
 ##	- Syntax:
 ##	  cicd/cicd.bash [options]
@@ -43,9 +43,10 @@
 ##	   --no-profile        skip the profiler stage
 ##	   --no-dogfood        skip installing the native build locally
 ##	   --no-screenshots    skip regenerating README screenshots
+##	   --no-demogif        skip regenerating the demo gif
 ##	   --no-publish        skip the git backup + publish stage
 ##	   --long              exhaustive test run (sets CICDTEST_DO_LONGTEST=1)
-##	   --quick             skip the slow stages (cross-compile, profiler, screenshots) and shorten fuzz
+##	   --quick             skip the slow stages (cross-compile, profiler, screenshots, demo gif) and shorten fuzz
 ##	   -h, --help          show this help
 ##	- If neither -q/-y nor -m is given, the run prompts once for a commit message
 ##	  (blank = git editor; Ctrl+C aborts the whole run), then finishes unattended.
@@ -89,9 +90,10 @@ while (($#)); do case "$1" in
 	--no-profile)             PROFILE_ENABLE=0; shift ;;
 	--no-dogfood)             DOGFOOD_FIXED_DESTS=(); shift ;;
 	--no-screenshots)         DO_SCREENSHOTS=0; shift ;;
+	--no-demogif)             DO_DEMOGIF=0; shift ;;
 	--no-publish)             GIT_PUBLISH=(); shift ;;
 	--long)                   do_long=1; shift ;;
-	--quick)                  quick=1; BUILD_CROSS=0; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; shift ;;
+	--quick)                  quick=1; BUILD_CROSS=0; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; shift ;;
 	--message=*|--msg=*|-m=*) cli_message="${1#*=}"; shift ;;
 	-m|--message|--msg)       cli_message="${2-}"; shift; (($#)) && shift ;;
 	-h|--help)                sed -n '/^##	- Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##	\{0,1\}//'; exit 0 ;;
@@ -163,6 +165,7 @@ else
 	fEcho_Clean "Dogfood, fixed name .: (disabled)"
 fi
 fEcho_Clean "Screenshots .........: $( ((DO_SCREENSHOTS)) && echo "${SCREENSHOT_CMD[*]}" || echo '(skipped)')"
+fEcho_Clean "Demo gif ............: $( ((DO_DEMOGIF)) && echo "${DEMOGIF_CMD[*]}" || echo '(skipped)')"
 if ((${#GIT_PUBLISH[@]} == 0)); then
 	fEcho_Clean "Publish (last) ......: (disabled)"
 elif [[ -n "$publish_msg" ]]; then
@@ -359,6 +362,18 @@ elif [[ -f "${screenshot_util}" ]]; then
 	else fEcho "WARNING: screenshot generation failed (continuing)"; fi
 else
 	fEcho_Clean "no screenshot utility at ${screenshot_util}; skipping"
+fi
+
+## Demo gif: types the scenario into a fake terminal, runs each command against the
+## tested binary, renders the animated loop. A failure is a warning, never a stop.
+demogif_util="${root}/${DEMOGIF_CMD[0]}"
+if ((! DO_DEMOGIF)); then
+	fEcho_Clean "demo gif skipped"
+elif [[ -f "${demogif_util}" ]]; then
+	if (cd "${root}" && python3 "${DEMOGIF_CMD[@]}" --bin "${root}/${STAGED_BIN}"); then fEcho "OK: demo gif regenerated"
+	else fEcho "WARNING: demo gif generation failed (continuing)"; fi
+else
+	fEcho_Clean "no demo gif utility at ${demogif_util}; skipping"
 fi
 
 ## Stage 8: backup + publish.
