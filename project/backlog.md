@@ -55,6 +55,8 @@ In each section, items are listed approximately from newest to oldest.
 
 ### Bugs
 
+- 🔘 Come up with better animated gif examples. And save '--list' for the end.
+
 ### New features and enhancements
 
 ### Done
