@@ -28,7 +28,7 @@
 ##	SPDX-License-Identifier: MIT
 
 
-import argparse, os, random, re, shlex, subprocess, sys
+import argparse, os, random, re, shlex, subprocess, sys, unicodedata
 
 try:
 	import tomllib
@@ -73,20 +73,49 @@ IDENT_USERS = ["mika", "joss", "arlo", "remy", "kai", "nova", "wren", "finn"]
 IDENT_HOSTS = ["basalt", "kestrel", "onyx", "lyra", "quartz", "mesa", "flint", "juno"]
 
 ##	Typing model. WPM -> ms/char at the usual 5 chars/word.
-WPM_LETTERS   = (90, 122)    # per-command draw, then per-char jitter
-WPM_DIGITS    = 42           # default; scenario wpm_digits overrides
-WPM_NOTES     = (155, 175)   # "# comment" lines fly by
+WPM_LETTERS   = (135, 183)   # per-command draw, then per-char jitter
+WPM_DIGITS    = 63           # default; scenario wpm_digits overrides
+WPM_NOTES     = (233, 263)   # "# comment" lines fly by
 FLAG_PAUSE_MS = (200, 380)   # a beat of thought before a -flag token
 TYPO_RATE     = 0.018        # per letter; capped at 2 fixes per command
 BLINK_MS      = 530
 FADE_STEPS    = 7
 FADE_STEP_MS  = 70
-SCROLL_MS     = 120          # frame interval while scrolling / cursor-gliding
-SCROLL_RATE   = 260          # px/s smooth scroll; per-step scrollrate overrides
+SCROLL_MS     = 80           # frame interval while scrolling / cursor-gliding
+SCROLL_RATE   = 325          # px/s smooth scroll; per-step scrollrate overrides
 
 QWERTY_ROWS = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"]
 
 ANSI_RE = re.compile(r"\x1b(\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\)|.)")
+
+
+def fEmojiInit():
+	##	Color emoji are beyond FreeType-via-Pillow now (Noto ships COLRv1), so
+	##	glyph tiles come from Pango+cairo instead. Everything here is optional:
+	##	if any piece is missing the chars just draw through the monochrome
+	##	fallback like before.
+	try:
+		import gi, cairo
+		gi.require_version("Pango", "1.0")
+		gi.require_version("PangoCairo", "1.0")
+		from gi.repository import Pango, PangoCairo
+		from fontTools.ttLib import TTFont
+	except (ImportError, ValueError):
+		return None
+	try:
+		out = subprocess.run(["fc-match", "-f", "%{file}\t%{family}", "emoji"],
+		                     capture_output=True, text=True, timeout=10).stdout
+		path, family = (out.split("\t") + [""])[:2]
+		if "emoji" not in family.lower():
+			return None
+		cmap = set(TTFont(path, lazy=True).getBestCmap())
+	except Exception:
+		return None
+	return {"Pango": Pango, "PangoCairo": PangoCairo, "cairo": cairo,
+	        "family": family, "cmap": cmap}
+
+
+EMOJI = fEmojiInit()
 
 
 def fSkip(msg):
@@ -201,17 +230,39 @@ def fNeighborKey(ch, rng):
 	return ch
 
 
-##	Palette: every color the renderer can touch - 16 entries flat. Text renders
-##	aliased (fontmode "1"), so there are no edge shades to carry; frames get
-##	4-bit LZW codes and 48-byte color tables, which is what keeps a long
-##	smooth-scroll affordable. Fades darken this table per frame (local
-##	palettes), leaving pixel indexes untouched.
-def fBuildPalette(userTint, hostTint):
+##	Palette: one shared 256-entry table for every frame. The text colors carry
+##	short blend ramps toward their background so antialiased edges quantize
+##	cleanly instead of dithering, and the leftover entries are median-cut from
+##	the emoji tiles the scenario actually produces. One global table means no
+##	per-frame palette cost; fades darken it per frame (local palettes), leaving
+##	pixel indexes untouched.
+def fBuildPalette(userTint, hostTint, emojiTiles):
+	def blend(a, b, k):
+		return tuple(round(a[i] + (b[i] - a[i]) * k) for i in range(3))
 	t = THEME
 	colors = [(0, 0, 0), t["outer"], t["shadow"], t["border"], t["titlebar"],
 	          t["titletxt"], t["bg"], t["fg"], t["gray"], t["dim"],
 	          userTint, hostTint] + t["dots"]
-	colors = (list(dict.fromkeys(colors)) + [(0, 0, 0)] * 16)[:16]
+	for c in (t["fg"], t["gray"], t["dim"], userTint, hostTint):
+		for k in (0.22, 0.45, 0.68, 0.86):
+			colors.append(blend(t["bg"], c, k))
+	for k in (0.35, 0.7):
+		colors.append(blend(t["titlebar"], t["titletxt"], k))
+	colors = list(dict.fromkeys(colors))
+	if emojiTiles:
+		w = sum(tile.width for tile in emojiTiles)
+		h = max(tile.height for tile in emojiTiles)
+		strip = Image.new("RGB", (max(w, 1), max(h, 1)), t["bg"])
+		x = 0
+		for tile in emojiTiles:
+			strip.paste(tile, (x, 0), tile)
+			x += tile.width
+		room = min(256 - len(colors), 220)
+		q = strip.quantize(colors=room, method=Image.Quantize.MEDIANCUT)
+		qp = q.getpalette()
+		got = [tuple(qp[i:i + 3]) for i in range(0, room * 3, 3)]
+		colors = list(dict.fromkeys(colors + got))
+	colors = (colors + [(0, 0, 0)] * 256)[:256]
 	pal = Image.new("P", (1, 1))
 	pal.putpalette([v for c in colors for v in c])
 	return pal
@@ -224,8 +275,10 @@ class Screen:
 	def __init__(self, font, fontName, title, prompt, palImg, fontSize):
 		self.font, self.title, self.prompt, self.pal = font, title, prompt, palImg
 		self.fontSize = fontSize
+		self.showPrompt = True   # hidden while a command's output is scrolling in
 		self._glyphFont = {}     # ch -> font that can draw it
 		self._fbFonts = {}       # font file -> ImageFont
+		self._emojiTiles = {}    # ch -> RGBA tile (or None if it would not render)
 		self._notdef = self._mask(font, "\U000FFFFD")
 		ascent, descent = font.getmetrics()
 		self.cw = font.getlength("0")
@@ -278,44 +331,113 @@ class Screen:
 		self._glyphFont[ch] = use
 		return use
 
-	def fDrawText(self, d, x, y, text, fill):
-		##	Draw in runs of a single font, so fallback glyphs slot inline.
+	def fIsEmoji(self, ch):
+		##	Only chars the emoji face covers, and only from the emoji blocks -
+		##	CJK and friends stay on the monochrome fallback fonts.
+		return EMOJI is not None and ord(ch) >= 0x2600 and ord(ch) in EMOJI["cmap"]
+
+	def fEmojiTile(self, ch):
+		##	Rasterize one emoji via Pango+cairo at 4x, then shrink into the cell
+		##	box (two columns wide, like a terminal). Cached; None = unrenderable.
+		if ch in self._emojiTiles:
+			return self._emojiTiles[ch]
+		e = EMOJI
+		px = self.lh * 4
+		surf = e["cairo"].ImageSurface(e["cairo"].FORMAT_ARGB32, px * 2, px * 2)
+		ctx = e["cairo"].Context(surf)
+		layout = e["PangoCairo"].create_layout(ctx)
+		desc = e["Pango"].FontDescription(e["family"])
+		desc.set_absolute_size(px * e["Pango"].SCALE)
+		layout.set_font_description(desc)
+		layout.set_text(ch, -1)
+		e["PangoCairo"].show_layout(ctx, layout)
+		surf.flush()
+		img = Image.frombuffer("RGBA", (px * 2, px * 2), bytes(surf.get_data()),
+		                       "raw", "BGRa", surf.get_stride())
+		box = img.getbbox()
+		tile = None
+		if box:
+			glyph = img.crop(box)
+			s = min((2 * self.cw - 1) / glyph.width, (self.lh - 2) / glyph.height)
+			tile = glyph.resize((max(1, round(glyph.width * s)),
+			                     max(1, round(glyph.height * s))), Image.LANCZOS)
+		self._emojiTiles[ch] = tile
+		return tile
+
+	def fDrawText(self, d, img, x, y, text, fill):
+		##	Draw in runs of a single font, so fallback glyphs slot inline. Emoji
+		##	go down as color tiles pasted on two terminal cells.
 		i = 0
 		while i < len(text):
-			f = self.fFontFor(text[i])
+			ch = text[i]
+			if self.fIsEmoji(ch):
+				tile = self.fEmojiTile(ch)
+				if tile:
+					img.paste(tile, (round(x + (2 * self.cw - tile.width) / 2),
+					                 round(y + (self.lh - 2 - tile.height) / 2) + 1), tile)
+					x += 2 * self.cw
+					i += 1
+					continue
+			f = self.fFontFor(ch)
 			j = i + 1
-			while j < len(text) and self.fFontFor(text[j]) is f:
+			##	Combining marks ride the run of their base char, else shaping
+			##	splits and a Devanagari matra draws as dotted-circle + box.
+			while j < len(text) and not self.fIsEmoji(text[j]) \
+					and (unicodedata.category(text[j]).startswith("M")
+					     or self.fFontFor(text[j]) is f):
 				j += 1
 			d.text((x, y), text[i:j], font=f, fill=fill)
 			x += d.textlength(text[i:j], font=f)
 			i = j
 		return x
 
+	def fCells(self, ch):
+		##	Terminal cell count: emoji and East-Asian wide chars take two.
+		if self.fIsEmoji(ch) or unicodedata.east_asian_width(ch) in ("W", "F"):
+			return 2
+		return 1
+
 	def fPutText(self, text, colorkey="fg", overflow="truncate"):
-		if overflow == "truncate" and len(text) > self.cols:
-			self.fPut([(text[: self.cols - 1], colorkey), ("…", "dim")])
-			return
-		while True:                      # wrap: hard-split at column width
-			self.fPut([(text[: self.cols], colorkey)])
-			text = text[self.cols:]
+		##	Split on terminal cell widths, not char counts, so wide glyphs
+		##	(emoji, CJK) don't push a line past the window edge.
+		while True:
+			used, cut = 0, len(text)
+			for i, ch in enumerate(text):
+				used += self.fCells(ch)
+				if used > self.cols:
+					cut = i
+					break
+			if overflow == "truncate" and cut < len(text):
+				self.fPut([(text[: max(0, cut - 1)], colorkey), ("…", "dim")])
+				return
+			self.fPut([(text[:cut], colorkey)])
+			text = text[cut:]
 			if not text:
 				break
 
 	def fTextW(self, text):
-		##	Pixel width with the same font-fallback runs fDrawText uses.
+		##	Pixel width with the same runs fDrawText uses.
 		w, i = 0.0, 0
 		while i < len(text):
+			if self.fIsEmoji(text[i]) and self.fEmojiTile(text[i]):
+				w += 2 * self.cw
+				i += 1
+				continue
 			f = self.fFontFor(text[i])
 			j = i + 1
-			while j < len(text) and self.fFontFor(text[j]) is f:
+			while j < len(text) and not self.fIsEmoji(text[j]) \
+					and (unicodedata.category(text[j]).startswith("M")
+					     or self.fFontFor(text[j]) is f):
 				j += 1
 			w += f.getlength(text[i:j])
 			i = j
 		return w
 
 	def fRestScroll(self):
-		##	Where the view settles: content bottom (incl. live line) on the grid.
-		return max(0.0, (len(self.lines) + 1) * self.lh - self.viewH)
+		##	Where the view settles: content bottom (incl. the live line when the
+		##	prompt is showing) on the grid.
+		rows = len(self.lines) + (1 if self.showPrompt else 0)
+		return max(0.0, rows * self.lh - self.viewH)
 
 	def fCursorTarget(self):
 		##	Cursor cell on the live line, in view (layer) px at current scroll.
@@ -326,7 +448,6 @@ class Screen:
 		##	cursor: None = hidden, else (x, y) view px of the block's top-left.
 		img = Image.new("RGB", (CANVAS_W, CANVAS_H), THEME["outer"])
 		d = ImageDraw.Draw(img)
-		d.fontmode = "1"         # aliased text: 16-color frames, cheap LZW
 		x0, y0 = MARGIN, MARGIN
 		d.rounded_rectangle([x0 + 5, y0 + 7, x0 + self.winW + 5, y0 + self.winH + 7],
 		                    RADIUS, fill=THEME["shadow"])
@@ -340,22 +461,22 @@ class Screen:
 			cx = x0 + 18 + i * 20
 			d.ellipse([cx, y0 + 12, cx + 11, y0 + 23], fill=c)
 		tw = d.textlength(self.title, font=self.font)
-		self.fDrawText(d, x0 + (self.winW - tw) / 2, y0 + (TITLE_H - self.lh) / 2 + 1,
-		               self.title, THEME["titletxt"])
+		self.fDrawText(d, img, x0 + (self.winW - tw) / 2,
+		               y0 + (TITLE_H - self.lh) / 2 + 1, self.title, THEME["titletxt"])
 
 		##	Text: content lines at their scrolled offsets, drawn on a layer the
 		##	size of the view so partial lines clip cleanly at the edges.
 		colors = dict(THEME, **identColors)
 		layer = Image.new("RGB", (self.textW, self.viewH), THEME["bg"])
 		ld = ImageDraw.Draw(layer)
-		ld.fontmode = "1"
-		content = self.lines + [self.prompt + [(self.typed, "fg")]]
+		content = self.lines + ([self.prompt + [(self.typed, "fg")]]
+		                        if self.showPrompt else [])
 		first = max(0, int(self.scroll // self.lh))
 		last = min(len(content), int((self.scroll + self.viewH) // self.lh) + 2)
 		for i in range(first, last):
 			x, y = 0, round(i * self.lh - self.scroll)
 			for text, key in content[i]:
-				x = self.fDrawText(ld, x, y, text, colors[key])
+				x = self.fDrawText(ld, layer, x, y, text, colors[key])
 		if cursor is not None:
 			cx, cy = cursor
 			ld.rectangle([cx + 1, cy + 1, cx + self.cw, cy + self.lh - 3],
@@ -409,8 +530,16 @@ def fMain():
 	          ("~", "gray"), ("$ ", "gray")]
 	identColors = {"user": userTint, "host": hostTint}
 
-	pal = fBuildPalette(userTint, hostTint)
-	scr = Screen(font, fontName, sc.get("title", prog), prompt, pal, sc.get("fontsize", 15))
+	scr = Screen(font, fontName, sc.get("title", prog), prompt, None, sc.get("fontsize", 15))
+
+	##	Run every command up front: the outputs feed the demo AND tell the
+	##	palette which emoji it must carry before the first frame renders.
+	stepOut = [fRunStep(step, prog, binpath) for step in sc["step"]]
+	emojiSet = sorted({ch for lines in stepOut for ln in lines for ch in ln
+	                   if scr.fIsEmoji(ch)})
+	tiles = [t for t in (scr.fEmojiTile(ch) for ch in emojiSet) if t]
+	scr.pal = fBuildPalette(userTint, hostTint, tiles)
+
 	mov = Movie()
 	wpmDigits = sc.get("wpm_digits", WPM_DIGITS)
 	shown = list(scr.fCursorTarget())    # displayed cursor; glides toward its cell
@@ -449,7 +578,7 @@ def fMain():
 			left -= step
 
 	snap(700)                                        # opening frame = loop-in target
-	for step in sc["step"]:
+	for stepIdx, step in enumerate(sc["step"]):
 		rate = float(step.get("scrollrate", SCROLL_RATE))
 		lineMs = float(step.get("linems", 26))
 		for noteOrCmd, key, wpm, typos in (
@@ -466,14 +595,19 @@ def fMain():
 			snap(rng.uniform(260, 480) if key == "fg" else 130)   # beat before Enter
 			scr.fPut(list(scr.prompt) + [(scr.typed, key)])
 			scr.typed = ""
-			if scr.fRestScroll() > scr.scroll + 0.5:
-				settle(rate)
-			else:
-				glideCursor(130)                     # cursor hop onto the new line
-			if key == "dim":
-				snap(140)                            # notes: no output to run
+			if key == "dim":                         # notes: no output to run
+				if scr.fRestScroll() > scr.scroll + 0.5:
+					settle(rate)
+				else:
+					glideCursor(130)                 # cursor hop onto the new line
+				snap(140)
 				continue
-			outLines = fRunStep(step, prog, binpath)
+			##	Prompt stays hidden until the command's output is fully in, the
+			##	way a real shell does it.
+			scr.showPrompt = False
+			if scr.fRestScroll() > scr.scroll + 0.5:
+				settle(rate, cursor=False)
+			outLines = stepOut[stepIdx]
 			for ln in outLines:
 				scr.fPutText(ln, "fg", step.get("overflow", "truncate"))
 				if scr.fRestScroll() > scr.scroll + 0.5:
@@ -483,6 +617,10 @@ def fMain():
 			if outLines and outLines[-1].strip():
 				scr.fPut([("", "fg")])               # breathe before the next prompt
 				settle(rate, cursor=False)
+			scr.showPrompt = True
+			shown[:] = scr.fCursorTarget()
+			if scr.fRestScroll() > scr.scroll + 0.5:
+				settle(rate)
 			snap(60)
 			blinkPause(1000 * float(step.get("pause", 2.6)))
 
@@ -520,6 +658,9 @@ if __name__ == "__main__":
 
 
 ##	History:
+##		- 20260711 JC: v1.2. Antialiased text again (ramped 256 palette), color
+##			emoji tiles, prompt hidden until output lands, faster typing and
+##			scrolling, cell-width wrap.
 ##		- 20260711 JC: v1.1. Pixel-smooth scrolling and cursor glide; scenario
 ##			knobs wpm_digits, scrollrate, linems.
 ##		- 20260711 JC: v1.0. Scenario-driven typing/render/fade engine.
