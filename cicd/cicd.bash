@@ -78,6 +78,7 @@ source "${here}/config.bash"
 source "${here}/utility/include/gfs-rotate.bash"       ## gfs_rotate() for the artifact dirs
 cd "${root}"
 stamp="$(date +%Y%m%d-%H%M%S)"
+export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the Entering/Leaving dir noise
 
 ## Parse options.
 assume_yes=0; quiet=0; quick=0; do_long=0; cli_message=""
@@ -100,6 +101,10 @@ while (($#)); do case "$1" in
 	*) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
 esac; done
 
+## Brief beat after each stage header so the cheap fast stages stay readable.
+## Off for unattended runs (-q/-y) where nobody is watching.
+stage_pause=0.4; ((assume_yes)) && stage_pause=0
+
 ## Publish commit message: -m wins, then config, then a default when unattended.
 ## Empty -> publish interactively (git commit opens an editor); when interactive
 ## we offer to capture a message at the preflight prompt below.
@@ -119,7 +124,7 @@ fEcho_Clean(){ if [[ -n "${1:-}" ]]; then echo -e "$*"; _wasLastEchoBlank=0; eli
 fEcho(){       if [[ -n "$*"     ]]; then fEcho_Clean "[ $* ]"; else fEcho_Clean ""; fi; }
 fEcho_Force(){ fEcho_ResetBlankCounter; fEcho "$*"; }
 _letterbox="••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"
-fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fEcho "$*"; }
+fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fEcho "$*"; [[ "${stage_pause:-0}" == 0 ]] || sleep "${stage_pause}"; }
 fDie(){ { fEcho_Force "FAILED: $*"; } >&2; exit 1; }
 ## Run a command array inside the Go module dir (SRC_DIR). Go tool stages need it.
 in_src(){ ( cd "${root}/${SRC_DIR}" && "$@" ); }
@@ -193,6 +198,10 @@ fi
 if [[ -n "${LINT_LOG_DIR:-}" ]] && mkdir -p "${root}/${LINT_LOG_DIR}" 2>/dev/null; then
 	gfs_rotate "${root}/${LINT_LOG_DIR}" run log >/dev/null 2>&1 || true
 	exec > >(tee "${root}/${LINT_LOG_DIR}/run_${stamp}.log") 2>&1
+	## Wait for tee to drain on exit, else the shell prompt returns mid-flush and
+	## the last output lands after it (looks like the prompt "came back").
+	tee_pid=$!
+	trap 'exec 1>&- 2>&-; wait "${tee_pid}" 2>/dev/null' EXIT
 fi
 
 ## Pinned tools: bring any go-installed tool that drifted from tool-versions.env
