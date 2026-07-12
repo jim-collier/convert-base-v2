@@ -253,7 +253,7 @@ Note that some of the larger bases appear to have longer output - but that's onl
 | 2048twitter | 10 | BМཔટਲੴफɱྈ9
 | 2048rust | 10 | ÀɈႎஈଦଽਆƗႫµ
 | 32768qntm | 7 | ⇢䓪秉㓚䫈鉜ҡ
-| 65536 | 7 | 㐙𠻵訶𡟓縢櫾㐁
+| 65536qntm | 7 | 㐙𠻵訶𡟓縢櫾㐁
 
 ## List of predefined bases and their positional notation symbols
 
