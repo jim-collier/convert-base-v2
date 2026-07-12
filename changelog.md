@@ -12,6 +12,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- `--precision` now defaults to `auto`, which sizes the output fraction to the input's own precision instead of always padding to 50 digits. Converting a short value like `0.1` no longer grows a long, imprecise tail in the target base. Pass `--precision N` for a fixed number of fractional digits (needed for lossless round-tripping, since auto keeps only the digits the input justified at each step).  [20260711]
 - The base-65536 encoding is now named `65536qntm` (alias `65536utf32`), matching the `32768qntm` and `2048*` naming. The bare `65536` name is gone, so it can't collide with a future base of that size.  [20260711]
 
 ## v1.1.0-beta7 - 2026-07-11

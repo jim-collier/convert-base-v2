@@ -67,7 +67,8 @@ Recommendations from the 20260708 code review. Numbers match the backlog items; 
 
 ### Fractions
 
-- BxZNl-7: after the emit loop, round the final digit to nearest (compare twice the remaining numerator against the denominator, carry into the integer part on overflow). Combine with the planned input-precision clamp; clamping makes truncation drift proportionally larger, so do both together.
+- BxZNl-7: after the emit loop, round the final digit to nearest (compare twice the remaining numerator against the denominator, carry into the integer part on overflow). Combine with the input-precision clamp; clamping makes truncation drift proportionally larger, so do both together.
+- Input-precision clamp (done): `--precision` defaults to `auto`. Rather than always emitting the fixed maximum, auto sizes the output fraction to the input's information content - the input's fractional digit count scaled by the base-size ratio `log(fromBase)/log(toBase)`, plus one guard digit, then trailing zeros trimmed. This stops a short decimal like `0.1` from implying 50 digits of precision it never had. It is bounded by the input length so it cannot run away, and an explicit `--precision N` remains available when a fixed or lossless-round-trip width is wanted. The tradeoff, accepted deliberately: auto round-trips lose precision at each hop, since every hop keeps only the digits the prior value justified.
 - BxZNl-8: treat an all-zero emitted fraction as no fraction before the zero and sign logic, so tiny values print "0" instead of "0.000" or "-0.000".
 
 ### Registry and config

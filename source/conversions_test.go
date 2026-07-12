@@ -91,6 +91,37 @@ func TestNumberVectors(t *testing.T) {
 	}
 }
 
+// prec = -1 asks Convert for auto precision: output frac length tracks the
+// input's, scaled by base size, so no invented tail. These pin the odd corners.
+func TestAutoPrecision(t *testing.T) {
+	reg := newReg(t)
+	cases := []struct{ from, to, in, want string }{
+		{"10", "16", "0.1", "0.1A"},          // 1 dec digit -> 2 hex, honest tail not 50
+		{"10", "2", "0.1", "0.00011"},        // widens: 1 dec -> 5 binary
+		{"10", "3", "0.1", "0.0022"},         // odd base ratio
+		{"10", "2", "0.5", "0.1"},            // terminates, trailing zeros trimmed
+		{"16", "10", "FF.8", "255.5"},        // narrows: exact half trims to one digit
+		{"10", "16", "1.5", "1.8"},           // exact, integer part carries through
+		{"16", "2", "0.8", "0.1"},            // power-of-2 both sides, positional path
+		{"10", "10", "3.14", "3.14"},         // identity base ratio, nothing invented
+		{"10", "2", "0.9", "0.11101"},        // guard digit forces a round-up at the edge
+		{"10", "16", "255", "FF"},            // no fraction -> auto precision is zero
+		{"288j1", "10", "0.1", "0.0035"},     // big base -> small base
+		{"10", "16", "0.000001", "0.000011"}, // tiny value, still no spurious 0
+	}
+	for _, c := range cases {
+		from, to := base(t, reg, c.from), base(t, reg, c.to)
+		got, err := Convert(c.in, from, to, -1)
+		if err != nil {
+			t.Errorf("Convert(%q, %s->%s, auto): %v", c.in, c.from, c.to, err)
+			continue
+		}
+		if got != c.want {
+			t.Errorf("Convert(%q, %s->%s, auto) = %q, want %q", c.in, c.from, c.to, got, c.want)
+		}
+	}
+}
+
 func TestCodecVectors(t *testing.T) {
 	reg := newReg(t)
 	bytesB := base(t, reg, "bytes")

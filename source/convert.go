@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"io"
+	"math"
 	"math/big"
 	"strings"
 	"unicode/utf8"
@@ -19,6 +20,8 @@ var bigOne = big.NewInt(1)
 // Convert converts a number string from 'from' base to 'to' base.
 // Supports arbitrary-precision integers, fractional parts, and negative numbers.
 // 'precision' is the maximum number of fractional digits emitted in the output.
+// A negative 'precision' means auto: scale the input's fractional digit count by
+// the base-size ratio so the output does not invent precision the input lacked.
 //
 // The negative and decimal markers are taken from each base's definition.
 // The input is validated:
@@ -173,9 +176,23 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	// integer is rendered. Truncating instead let simple round trips drift, e.g.
 	// 0.1 -> hex -> back came out 0.0999...9. A value smaller than one output
 	// digit rounds to nothing (no spurious "0.000" / "-0.000").
+	// Auto precision: one input frac digit carries log(fromBase) bits, one output
+	// digit holds log(toBase), so scale the input length by their ratio. The +1 is
+	// a rounding guard; trailing zeros are trimmed below. Bounded by input length,
+	// so no runaway - a short decimal input stays short in any base.
+	prec := precision
+	if prec < 0 {
+		if n := len(fracDigits); n == 0 {
+			prec = 0
+		} else {
+			ratio := math.Log(float64(len(from.Symbols))) / math.Log(float64(len(to.Symbols)))
+			prec = int(math.Ceil(float64(n)*ratio)) + 1
+		}
+	}
+
 	var fracOut []string
-	if fracNum.Sign() > 0 && precision > 0 {
-		scale := new(big.Int).Exp(toRadix, big.NewInt(int64(precision)), nil)
+	if fracNum.Sign() > 0 && prec > 0 {
+		scale := new(big.Int).Exp(toRadix, big.NewInt(int64(prec)), nil)
 		q := new(big.Int).Mul(fracNum, scale)
 		rem := new(big.Int)
 		q.QuoRem(q, fracDen, rem)
@@ -187,14 +204,14 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 			q.SetInt64(0)
 		}
 		if q.Sign() > 0 {
-			digits := make([]string, precision)
+			digits := make([]string, prec)
 			mod := new(big.Int)
-			for i := precision - 1; i >= 0; i-- {
+			for i := prec - 1; i >= 0; i-- {
 				q.DivMod(q, toRadix, mod)
 				digits[i] = to.Symbols[mod.Int64()]
 			}
 			// Keep leading zero digits (0.05 needs them), trim trailing ones.
-			end := precision
+			end := prec
 			zero := to.Symbols[0]
 			for end > 0 && digits[end-1] == zero {
 				end--
