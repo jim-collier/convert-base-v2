@@ -8,11 +8,11 @@ title = "convert-base-v2"
 prog  = "convert-base-v2"
 seed  = 11
 font  = ["Monaspace Argon SemiBold"]
-wpm_digits = 170
+wpm_digits = 255
 
 [[step]]
-note  = "positional notation conversion - any size, any base"
-show  = "{prog} --from 10 --to 32c 31415926535897932384626433832795028841971"
+note  = "Positional notation conversion - any size, any base"
+show  = "{prog} --from 10 --to 32wordsafe 31415926535897932384626433832795028841971"
 pause = 2.4
 
 [[step]]
@@ -20,20 +20,25 @@ show  = "{prog} --from 10 --to emoji64 271828182845904523536028747135266249"
 pause = 2.6
 
 [[step]]
-note  = "bring your own alphabet"
+note  = "Bring your own alphabet"
 show  = "{prog} --from-symbols 'A B C D' --to 10 CBBA.B"
 pause = 2.4
 
 [[step]]
-note  = "dozens of named bases built in"
+note  = "Dozens of named bases built in"
 show  = "{prog} --list"
 pause = 3.0
-scrollrate = 62
-linems = 340
+scrollrate = 78
+linems = 255
 
 [[step]]
-note  = "binary/text encoding and decoding - faster than basenc"
+note  = "Binary/text encoding and decoding - faster than basenc"
 show  = "head -c 120 /bin/true | {prog} --binary --to 64u"
+overflow = "wrap"
+pause = 2.6
+
+[[step]]
+show  = "head -c 120 /bin/true | {prog} --binary --to 2048twitter"
 overflow = "wrap"
 pause = 2.6
 
