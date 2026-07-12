@@ -138,6 +138,12 @@ SCREENSHOT_CMD=(utility/gen-screenshots.bash)
 DO_DEMOGIF=1
 DEMOGIF_CMD=(cicd/utility/gen-demo-gif.py --scenario cicd/demo-scenario.toml --out assets/demo.gif)
 
+## Stage 8 (before publish): optional local pre-publish hook. Points at an
+## out-of-tree script kept under ../private, so it never ships with the repo.
+## Runs if present + executable; a missing dir/file is skipped, not an error.
+## A non-zero exit aborts before anything is published, so the hook can gate.
+PREPUBLISH_HOOK="../private/hooks/pre-publish.bash"
+
 ## Stage 8: backup + publish to git (runs from repo root). The engine always passes
 ## --quiet (it already gave the message prompt) and, when it has one, -m MESSAGE.
 GIT_PUBLISH=(cicd/utility/n8git_backup-and-publish)
