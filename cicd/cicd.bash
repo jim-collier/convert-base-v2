@@ -387,6 +387,13 @@ fi
 
 ## Stage 8: backup + publish.
 fSection "8/8  Backup + publish"
+## Optional out-of-tree pre-publish hook (kept under ../private so it never ships
+## in the repo). Run it if present + executable; a missing dir/file is skipped,
+## not an error. Non-zero exit aborts before anything is published.
+if [[ -n "${PREPUBLISH_HOOK:-}" && -x "${PREPUBLISH_HOOK}" ]]; then
+	fEcho_Clean "pre-publish hook: ${PREPUBLISH_HOOK}"
+	"${PREPUBLISH_HOOK}" "${root}" || fDie "pre-publish hook rejected the tree"
+fi
 ## Always run the publisher quiet: cicd already gave the initial prompt, so skip
 ## its redundant continue-prompt. With no message it still lets git open the editor.
 pub_flags=(--quiet)
