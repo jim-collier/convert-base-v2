@@ -5,7 +5,9 @@
 ##		scenario file scripts the session; each command is "typed" into a fake
 ##		terminal window with human timing (slower digits, a beat before flags,
 ##		the occasional corrected typo), then actually executed so the captured
-##		output can never go stale. The loop boundary fades to black and back in
+##		output can never go stale. Scrolling is pixel-smooth (content settles
+##		back onto the line grid at rest) and the cursor glides between cells
+##		rather than teleporting. The loop boundary fades to black and back in
 ##		to the first frame. Frames share one exact master palette; fade frames
 ##		reuse the same pixel indexes with a darkened local palette, so nothing
 ##		is ever re-dithered. Project-agnostic - point it at any scenario.
@@ -72,13 +74,15 @@ IDENT_HOSTS = ["basalt", "kestrel", "onyx", "lyra", "quartz", "mesa", "flint", "
 
 ##	Typing model. WPM -> ms/char at the usual 5 chars/word.
 WPM_LETTERS   = (90, 122)    # per-command draw, then per-char jitter
-WPM_DIGITS    = 42
+WPM_DIGITS    = 42           # default; scenario wpm_digits overrides
 WPM_NOTES     = (155, 175)   # "# comment" lines fly by
 FLAG_PAUSE_MS = (200, 380)   # a beat of thought before a -flag token
 TYPO_RATE     = 0.018        # per letter; capped at 2 fixes per command
 BLINK_MS      = 530
 FADE_STEPS    = 7
 FADE_STEP_MS  = 70
+SCROLL_MS     = 120          # frame interval while scrolling / cursor-gliding
+SCROLL_RATE   = 260          # px/s smooth scroll; per-step scrollrate overrides
 
 QWERTY_ROWS = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"]
 
@@ -118,12 +122,15 @@ def fLoadScenario(path):
 	##	Scenario format (TOML):
 	##	  title = "window title"        prog = "name shown in typed commands"
 	##	  font = ["pref1", "pref2"]     seed = 11
+	##	  wpm_digits = 42               digit typing speed (numbers-heavy demos: raise it)
 	##	  [[step]]
 	##	  note = "shown as a typed # comment first"     (optional)
 	##	  show = "{prog} 255 16"        the command line as typed
 	##	  run  = "echo hi | {bin} ..."  what actually executes (default: show)
 	##	  pause = 2.6                   read time after the output, seconds
 	##	  overflow = "truncate"         or "wrap" for real feature output
+	##	  scrollrate = 260              px/s smooth scroll during this step's output
+	##	  linems = 26                   ms per output line before scrolling kicks in
 	try:
 		with open(path, "rb") as f:
 			sc = tomllib.load(f)
@@ -148,17 +155,18 @@ def fRunStep(step, prog, binpath):
 	return [ln.expandtabs(8).rstrip() for ln in out.rstrip("\n").split("\n")]
 
 
-def fTypeEvents(text, rng, wpm_range, typos=True):
+def fTypeEvents(text, rng, wpm_range, typos=True, wpmDigits=WPM_DIGITS):
 	##	Turn a command string into ((action, char), delay_ms) keystroke events.
-	##	Letters ride the per-command WPM draw with per-char jitter, digits slow
-	##	to ~40 WPM, a -flag token gets a small hesitation, and a couple of
-	##	seeded typos get noticed and backspaced away.
+	##	Letters ride the per-command WPM draw with per-char jitter, digits get
+	##	their own WPM (slow by default, fast for numbers-heavy demos), a -flag
+	##	token gets a small hesitation, and a couple of seeded typos get noticed
+	##	and backspaced away.
 	wpm = rng.uniform(*wpm_range)
 	events, fixes = [], 0
 	firstSpace = text.find(" ")
 	for i, ch in enumerate(text):
 		if ch.isdigit():
-			delay = 60000.0 / (WPM_DIGITS * 5) * rng.uniform(0.82, 1.22)
+			delay = 60000.0 / (wpmDigits * 5) * rng.uniform(0.82, 1.22)
 		else:
 			delay = 60000.0 / (wpm * 5) * rng.uniform(0.70, 1.34)
 			if i < firstSpace:
@@ -193,34 +201,26 @@ def fNeighborKey(ch, rng):
 	return ch
 
 
-##	Palette: every color the renderer can touch, plus anti-alias ramps between
-##	each foreground and the surface it sits on. Text stays crisp (no dither) and
-##	the whole movie shares one exact global table; fades then just darken that
-##	table per frame (local palettes), leaving pixel indexes untouched.
+##	Palette: every color the renderer can touch - 16 entries flat. Text renders
+##	aliased (fontmode "1"), so there are no edge shades to carry; frames get
+##	4-bit LZW codes and 48-byte color tables, which is what keeps a long
+##	smooth-scroll affordable. Fades darken this table per frame (local
+##	palettes), leaving pixel indexes untouched.
 def fBuildPalette(userTint, hostTint):
 	t = THEME
 	colors = [(0, 0, 0), t["outer"], t["shadow"], t["border"], t["titlebar"],
 	          t["titletxt"], t["bg"], t["fg"], t["gray"], t["dim"],
 	          userTint, hostTint] + t["dots"]
-	pairs = [(t["fg"], t["bg"]), (t["gray"], t["bg"]), (t["dim"], t["bg"]),
-	         (userTint, t["bg"]), (hostTint, t["bg"]), (t["bg"], t["fg"]),
-	         (t["titletxt"], t["titlebar"]), (t["border"], t["outer"]),
-	         (t["titlebar"], t["outer"]), (t["bg"], t["outer"]),
-	         (t["shadow"], t["outer"]), (t["fg"], t["shadow"])] + \
-	        [(d, t["titlebar"]) for d in t["dots"]]
-	for a, b in pairs:
-		for k in range(1, 7):
-			colors.append(tuple(round(a[c] + (b[c] - a[c]) * k / 7) for c in range(3)))
-	colors = list(dict.fromkeys(colors))[:256]
+	colors = (list(dict.fromkeys(colors)) + [(0, 0, 0)] * 16)[:16]
 	pal = Image.new("P", (1, 1))
-	pal.putpalette([v for c in colors for v in c] + [0] * (768 - 3 * len(colors)))
+	pal.putpalette([v for c in colors for v in c])
 	return pal
 
 
 class Screen:
 	##	The fake terminal: a scrollback of styled lines plus an in-progress
-	##	prompt line. render() draws the full window chrome each time and
-	##	quantizes straight to the master palette.
+	##	prompt line, viewed through a pixel-scrolled window. render() draws the
+	##	full chrome each time and quantizes straight to the master palette.
 	def __init__(self, font, fontName, title, prompt, palImg, fontSize):
 		self.font, self.title, self.prompt, self.pal = font, title, prompt, palImg
 		self.fontSize = fontSize
@@ -236,8 +236,11 @@ class Screen:
 		self.termY = MARGIN + TITLE_H + PAD
 		self.cols = int((self.winW - 2 * PAD) // self.cw)
 		self.rows = int((self.winH - TITLE_H - 2 * PAD) // self.lh)
+		self.textW = self.winW - 2 * PAD
+		self.viewH = self.rows * self.lh
 		self.lines = []          # committed scrollback: list of [(text, colorkey)]
 		self.typed = ""          # text after the prompt on the live line
+		self.scroll = 0.0        # view offset into the content, px
 		self.fontName = fontName
 
 	def fPut(self, spans):
@@ -252,7 +255,7 @@ class Screen:
 		##	The primary font, unless it draws ch as .notdef; then whatever
 		##	fontconfig says covers that codepoint (e.g. a CJK face for the
 		##	Kanji/Hanzi base aliases). Cached hard - fc-match is not cheap.
-		if ord(ch) < 0x2500:
+		if ord(ch) < 0x80:
 			return self.font
 		hit = self._glyphFont.get(ch)
 		if hit:
@@ -298,9 +301,32 @@ class Screen:
 			if not text:
 				break
 
+	def fTextW(self, text):
+		##	Pixel width with the same font-fallback runs fDrawText uses.
+		w, i = 0.0, 0
+		while i < len(text):
+			f = self.fFontFor(text[i])
+			j = i + 1
+			while j < len(text) and self.fFontFor(text[j]) is f:
+				j += 1
+			w += f.getlength(text[i:j])
+			i = j
+		return w
+
+	def fRestScroll(self):
+		##	Where the view settles: content bottom (incl. live line) on the grid.
+		return max(0.0, (len(self.lines) + 1) * self.lh - self.viewH)
+
+	def fCursorTarget(self):
+		##	Cursor cell on the live line, in view (layer) px at current scroll.
+		x = self.fTextW("".join(t for t, _ in self.prompt) + self.typed)
+		return x, len(self.lines) * self.lh - self.scroll
+
 	def render(self, cursor, identColors):
+		##	cursor: None = hidden, else (x, y) view px of the block's top-left.
 		img = Image.new("RGB", (CANVAS_W, CANVAS_H), THEME["outer"])
 		d = ImageDraw.Draw(img)
+		d.fontmode = "1"         # aliased text: 16-color frames, cheap LZW
 		x0, y0 = MARGIN, MARGIN
 		d.rounded_rectangle([x0 + 5, y0 + 7, x0 + self.winW + 5, y0 + self.winH + 7],
 		                    RADIUS, fill=THEME["shadow"])
@@ -317,20 +343,24 @@ class Screen:
 		self.fDrawText(d, x0 + (self.winW - tw) / 2, y0 + (TITLE_H - self.lh) / 2 + 1,
 		               self.title, THEME["titletxt"])
 
-		##	Text grid: last rows-1 committed lines, then the live prompt line.
+		##	Text: content lines at their scrolled offsets, drawn on a layer the
+		##	size of the view so partial lines clip cleanly at the edges.
 		colors = dict(THEME, **identColors)
-		visible = self.lines[-(self.rows - 1):]
-		y = self.termY
-		for spans in visible:
-			x = self.termX
-			for text, key in spans:
-				x = self.fDrawText(d, x, y, text, colors[key])
-			y += self.lh
-		x = self.termX
-		for text, key in self.prompt + [(self.typed, "fg")]:
-			x = self.fDrawText(d, x, y, text, colors[key])
-		if cursor:
-			d.rectangle([x + 1, y + 1, x + self.cw, y + self.lh - 3], fill=THEME["fg"])
+		layer = Image.new("RGB", (self.textW, self.viewH), THEME["bg"])
+		ld = ImageDraw.Draw(layer)
+		ld.fontmode = "1"
+		content = self.lines + [self.prompt + [(self.typed, "fg")]]
+		first = max(0, int(self.scroll // self.lh))
+		last = min(len(content), int((self.scroll + self.viewH) // self.lh) + 2)
+		for i in range(first, last):
+			x, y = 0, round(i * self.lh - self.scroll)
+			for text, key in content[i]:
+				x = self.fDrawText(ld, x, y, text, colors[key])
+		if cursor is not None:
+			cx, cy = cursor
+			ld.rectangle([cx + 1, cy + 1, cx + self.cw, cy + self.lh - 3],
+			             fill=THEME["fg"])
+		img.paste(layer, (self.termX, self.termY))
 		return img.quantize(palette=self.pal, dither=Image.Dither.NONE)
 
 
@@ -382,9 +412,31 @@ def fMain():
 	pal = fBuildPalette(userTint, hostTint)
 	scr = Screen(font, fontName, sc.get("title", prog), prompt, pal, sc.get("fontsize", 15))
 	mov = Movie()
+	wpmDigits = sc.get("wpm_digits", WPM_DIGITS)
+	shown = list(scr.fCursorTarget())    # displayed cursor; glides toward its cell
 
 	def snap(ms, cursor=True):
-		mov.add(scr.render(cursor, identColors), ms)
+		mov.add(scr.render(tuple(shown) if cursor else None, identColors), ms)
+
+	def glideCursor(ms):
+		##	Slide the shown cursor toward its cell across the keystroke's time.
+		tx, ty = scr.fCursorTarget()
+		steps = max(1, min(3, int(ms // 45)))
+		x0, y0 = shown
+		for s in range(1, steps + 1):
+			shown[0] = x0 + (tx - x0) * s / steps
+			shown[1] = y0 + (ty - y0) * s / steps
+			snap(ms / steps)
+
+	def settle(rate, cursor=True):
+		##	Smooth-scroll the view to rest; the cursor rides along on its line.
+		while abs(scr.fRestScroll() - scr.scroll) >= 0.5:
+			d = scr.fRestScroll() - scr.scroll
+			scr.scroll += (1 if d > 0 else -1) * min(abs(d), rate * SCROLL_MS / 1000.0)
+			shown[:] = scr.fCursorTarget()
+			snap(SCROLL_MS, cursor)
+		scr.scroll = scr.fRestScroll()
+		shown[:] = scr.fCursorTarget()
 
 	def blinkPause(totalMs):
 		##	Idle at the prompt: block cursor blinking at the usual cadence.
@@ -398,29 +450,39 @@ def fMain():
 
 	snap(700)                                        # opening frame = loop-in target
 	for step in sc["step"]:
+		rate = float(step.get("scrollrate", SCROLL_RATE))
+		lineMs = float(step.get("linems", 26))
 		for noteOrCmd, key, wpm, typos in (
 				(("# " + step["note"]) if step.get("note") else None, "dim", WPM_NOTES, False),
 				(step["show"].replace("{prog}", prog).replace("{bin}", prog), "fg", WPM_LETTERS, True)):
 			if noteOrCmd is None:
 				continue
-			for (action, ch), delay in fTypeEvents(noteOrCmd, rng, wpm, typos):
+			for (action, ch), delay in fTypeEvents(noteOrCmd, rng, wpm, typos, wpmDigits):
 				if action == "type":
 					scr.typed += ch
 				elif action == "bs":
 					scr.typed = scr.typed[:-1]
-				snap(delay)
+				glideCursor(delay)
 			snap(rng.uniform(260, 480) if key == "fg" else 130)   # beat before Enter
 			scr.fPut(list(scr.prompt) + [(scr.typed, key)])
 			scr.typed = ""
+			if scr.fRestScroll() > scr.scroll + 0.5:
+				settle(rate)
+			else:
+				glideCursor(130)                     # cursor hop onto the new line
 			if key == "dim":
 				snap(140)                            # notes: no output to run
 				continue
 			outLines = fRunStep(step, prog, binpath)
 			for ln in outLines:
 				scr.fPutText(ln, "fg", step.get("overflow", "truncate"))
-				snap(26, cursor=False)
+				if scr.fRestScroll() > scr.scroll + 0.5:
+					settle(rate, cursor=False)
+				else:
+					snap(lineMs, cursor=False)
 			if outLines and outLines[-1].strip():
 				scr.fPut([("", "fg")])               # breathe before the next prompt
+				settle(rate, cursor=False)
 			snap(60)
 			blinkPause(1000 * float(step.get("pause", 2.6)))
 
@@ -437,7 +499,7 @@ def fMain():
 			mov.durs.append(FADE_STEP_MS)
 	fadeRun(mov.frames[-1], [1 - (i + 1) / (FADE_STEPS + 1) for i in range(FADE_STEPS)])
 	black = mov.frames[0].copy()
-	black.putpalette([0] * 768)
+	black.putpalette([0] * len(mov.frames[0].getpalette()))
 	mov.frames.append(black)
 	mov.durs.append(380)
 	fadeRun(mov.frames[0], [(i + 1) / (FADE_STEPS + 1) for i in range(FADE_STEPS)])
@@ -458,4 +520,6 @@ if __name__ == "__main__":
 
 
 ##	History:
+##		- 20260711 JC: v1.1. Pixel-smooth scrolling and cursor glide; scenario
+##			knobs wpm_digits, scrollrate, linems.
 ##		- 20260711 JC: v1.0. Scenario-driven typing/render/fade engine.
