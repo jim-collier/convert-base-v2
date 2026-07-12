@@ -93,6 +93,7 @@ In each section, items are listed approximately from newest to oldest.
 
 #### Done - New features and enhancements
 
+- ✅ Auto fractional precision. `--precision` now defaults to `auto`, which sizes the output fraction to the input's own precision (input frac-digit count scaled by the base-size ratio, plus a rounding guard, trailing zeros trimmed) instead of always stretching to 50 digits. A short decimal input no longer grows an invented tail in another base. An explicit `--precision N` still forces a fixed count for anyone who wants padded or lossless round-trip output. Auto round-trips are lossy by design, since each hop keeps only the digits the input justified.
 - ✅ CI/CD improvements (batch landed 20260711; the v1.1.0-beta7 release was cut by the new flow itself)
 	- ✅ Minimal hosted CI: `.github/workflows/ci.yml` vets, tests, and builds on every push and PR to dev and main. The full local pipeline is unchanged.
 	- ✅ Dev branch + release on main: `dev` is now the integration branch and `main` is release-only. Merging dev to main tags the version from `source/main.go` (if that tag doesn't exist yet) and publishes the release automatically; a merge without a version bump is a no-op. Flow documented in `design.md`.

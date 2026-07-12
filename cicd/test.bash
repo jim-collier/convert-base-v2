@@ -196,6 +196,18 @@ check eq  "neg fraction -0.5 -> 2"   -0.1      -- --number --precision 6 -- -0.5
 check eq  "neg mixed -255.5 -> 16"   -FF.8     -- --number -- -255.5 16
 check eq  "fraction 255.5 -> 16"     FF.8      -- --number 255.5 16
 check eq  "fraction 0.1 -> 16 p6"     0.19999A -- --number --precision 6 0.1 16
+## Auto precision (the default): output frac length tracks the input's scaled by
+## base size, so a short decimal input does not grow an invented tail. Weird
+## corners: widening (dec->bin), narrowing (hex->dec), an odd base ratio, a
+## terminating value that trims, and a big base down to a small one.
+check eq  "auto 0.1 -> 16"            0.1A      -- --number 0.1 16
+check eq  "auto 0.1 -> 2"             0.00011   -- --number 0.1 2
+check eq  "auto 0.1 -> 3"             0.0022    -- --number 0.1 3
+check eq  "auto FF.8 -> 10"           255.5     -- --from 16 --to 10 FF.8
+check eq  "auto 0.5 -> 2 (trims)"     0.1       -- --number 0.5 2
+check eq  "auto 0.9 -> 2 (round up)"  0.11101   -- --number 0.9 2
+check eq  "auto 288 -> 10"            0.0035    -- --from 288j1 --to 10 0.1
+check eq  "auto tiny 0.000001 -> 16"  0.000011  -- --number 0.000001 16
 ## Independent (non-round-trip) known-value pins for bases that otherwise only
 ## get self-round-trip fuzz, so a bug mirrored in encode+decode can't hide.
 check eq  "pin 1000000 -> 58btc"     68GP      -- --number 1000000 58btc
@@ -254,7 +266,8 @@ check errmsg "neg number without --"   'a "--" separator'                -- -123
 check errmsg "unknown flag hint"       'unknown flag'                    -- --lowr 255 16
 check errmsg "bad digit for base"   'not in base'                        -- --from 2 9
 check errmsg "extra positional"     'unexpected extra positional'        -- 1 2 3
-check errmsg "precision < 0"        'precision must be >= 0'             -- --precision -1 1
+check errmsg "precision < 0"        'non-negative integer or'            -- --precision -1 1
+check errmsg "precision bad word"   'non-negative integer or'            -- --precision foo 1 16
 check errmsg "empty input"          'empty input'                        -- "" 16
 check err   "multiple decimals"     -                                     -- --from 10 1.2.3 16
 check err   "double negative"       -                                     -- -- --5 16
