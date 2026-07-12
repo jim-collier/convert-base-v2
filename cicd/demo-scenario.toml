@@ -1,43 +1,42 @@
 # Demo scenario for gen-demo-gif.py. Each [[step]] types its show= line into the
 # fake terminal, runs run= (default: show) for real, and shows the output. {prog}
 # renders as the program name; {bin} runs as the tested binary path. pause= is the
-# read time in seconds. overflow= is "truncate" (default) or "wrap".
+# read time in seconds. overflow= is "truncate" (default) or "wrap". scrollrate=
+# (px/s) and linems= pace a step's output; wpm_digits speeds up number typing.
 
 title = "convert-base-v2"
 prog  = "convert-base-v2"
 seed  = 11
 font  = ["Monaspace Argon SemiBold"]
+wpm_digits = 170
 
 [[step]]
-note  = "any number, any base"
-show  = "{prog} 255 16"
-pause = 2.0
-
-[[step]]
-note  = "arbitrary size"
-show  = "{prog} 18446744073709551615 62"
-pause = 2.2
-
-[[step]]
-note  = "negatives and fractions too"
-show  = "{prog} --precision 8 -- -3.14159 16"
+note  = "positional notation conversion - any size, any base"
+show  = "{prog} --from 10 --to 32c 31415926535897932384626433832795028841971"
 pause = 2.4
 
 [[step]]
+show  = "{prog} --from 10 --to emoji64 271828182845904523536028747135266249"
+pause = 2.6
+
+[[step]]
 note  = "bring your own alphabet"
-show  = "{prog} --from-symbols ABCD --to 10 CBBA.B"
+show  = "{prog} --from-symbols 'A B C D' --to 10 CBBA.B"
 pause = 2.4
 
 [[step]]
 note  = "dozens of named bases built in"
-show  = "{prog} --list | head -12"
-pause = 3.6
+show  = "{prog} --list"
+pause = 3.0
+scrollrate = 62
+linems = 340
 
 [[step]]
-note  = "or encode raw bytes, like basenc"
-show  = "echo -n 'Hello, world!' | {prog} --from bytes --to 64u"
-pause = 2.2
+note  = "binary/text encoding and decoding - faster than basenc"
+show  = "head -c 120 /bin/true | {prog} --binary --to 64u"
+overflow = "wrap"
+pause = 2.6
 
 [[step]]
 show  = "echo -n SGVsbG8sIHdvcmxkIQ | {prog} --from 64u --to bytes"
-pause = 3.0
+pause = 3.2
