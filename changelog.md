@@ -8,19 +8,11 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-<!--
 ## NEXT VERSION
-
-### Notes
-
-### Added
 
 ### Changed
 
-### Removed
-
-### Other work
--->
+- The base-65536 encoding is now named `65536qntm` (alias `65536utf32`), matching the `32768qntm` and `2048*` naming. The bare `65536` name is gone, so it can't collide with a future base of that size.  [20260711]
 
 ## v1.1.0-beta7 - 2026-07-11
 

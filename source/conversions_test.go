@@ -131,11 +131,11 @@ func TestNativeBaseVectors(t *testing.T) {
 	cases := []struct {
 		base, hexIn, want string
 	}{
-		{"65536", "00", runes(0x1500)},
-		{"65536", "0102", runes(0x3601)},
-		{"65536", "010203", runes(0x3601, 0x1503)},
-		{"65536", "ffff", runes(0x285FF)},
-		{"65536", "48656c6c6f", runes(0x9A48, 0xA36C, 0x156F)},
+		{"65536qntm", "00", runes(0x1500)},
+		{"65536qntm", "0102", runes(0x3601)},
+		{"65536qntm", "010203", runes(0x3601, 0x1503)},
+		{"65536qntm", "ffff", runes(0x285FF)},
+		{"65536qntm", "48656c6c6f", runes(0x9A48, 0xA36C, 0x156F)},
 		{"32768qntm", "00", runes(0x06BF)},
 		{"32768qntm", "0000", runes(0x04A0, 0x025F)},
 		{"32768qntm", "000000000000", runes(0x04A0, 0x04A0, 0x04A0, 0x018F)},

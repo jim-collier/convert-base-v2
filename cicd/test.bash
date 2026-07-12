@@ -311,7 +311,7 @@ done
 ## Big bases (more than 8 bits per char) round-trip at every input length,
 ## including the odd lengths a zero-padded tail used to corrupt. Sweep edge
 ## lengths for each.
-for pair in "2048twitter" "2048rust" "32768qntm" "65536"; do
+for pair in "2048twitter" "2048rust" "32768qntm" "65536qntm"; do
 	bigfail=0
 	for n in 0 1 2 3 4 5 7 8 15 16 17 31 32 33 64 333; do
 		src="${CBT_TMP}/bp_src"; mid="${CBT_TMP}/bp_mid"; out="${CBT_TMP}/bp_out"
@@ -392,11 +392,11 @@ nvec(){ # LABEL BASE INPUT_HEX EXPECTED_CODEPOINTS(space-separated hex)
 	[[ "$got" == "$exp" ]] && _pass "native vector ${label}" \
 		|| _fail "native vector ${label}" "want=[$cps] got=[$(printf '%s' "$got" | od -An -tx1 | tr -d '\n')]"
 }
-nvec "65536 lone byte"   65536       00         1500
-nvec "65536 byte order"  65536       0102       3601
-nvec "65536 pair+tail"   65536       010203     "3601 1503"
-nvec "65536 high block"  65536       ffff       285FF
-nvec "65536 Hello"       65536       48656c6c6f "9A48 A36C 156F"
+nvec "65536 lone byte"   65536qntm   00         1500
+nvec "65536 byte order"  65536qntm   0102       3601
+nvec "65536 pair+tail"   65536qntm   010203     "3601 1503"
+nvec "65536 high block"  65536qntm   ffff       285FF
+nvec "65536 Hello"       65536qntm   48656c6c6f "9A48 A36C 156F"
 nvec "32768 one byte"    32768qntm   00         06BF
 nvec "32768 two bytes"   32768qntm   0000       "04A0 025F"
 nvec "32768 short tail"  32768qntm   000000000000 "04A0 04A0 04A0 018F"
