@@ -33,15 +33,15 @@ linems = 255
 
 [[step]]
 note  = "Binary/text encoding and decoding - faster than basenc"
-show  = "head -c 120 /bin/true | {prog} --binary --to 64u"
-overflow = "wrap"
-pause = 2.6
-
-[[step]]
-show  = "head -c 120 /bin/true | {prog} --binary --to 2048twitter"
+show  = "head -c 120 /bin/cat | {prog} --binary --to 64u"
 overflow = "wrap"
 pause = 2.6
 
 [[step]]
 show  = "echo -n SGVsbG8sIHdvcmxkIQ | {prog} --from 64u --to bytes"
+pause = 2.6
+
+[[step]]
+show  = "head -c 120 /bin/cat | {prog} --binary --to 2048twitter"
+overflow = "wrap"
 pause = 3.2
