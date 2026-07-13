@@ -38,6 +38,7 @@
 <!-- TOC ignore:true -->
 # convert-base-v2
 
+<!--
 <table style="border: none; border-collapse: collapse;">
 	<tr style="border: none; border-collapse: collapse;">
 		<td style="border: none; border-collapse: collapse;"><img src="assets/mascot.png" alt="Logo" width="320"/></td>
@@ -46,10 +47,15 @@
 </table>
 
 <img src="assets/demo.gif" alt="Demo" width="800"/>
+-->
 
 </div>
 
-A single, fast, cross-platform command line tool for base conversion and binary-to-text encoding, written in Go. It converts arbitrarily large numbers between more than sixty predefined bases (or any alphabet you define yourself), handles negatives and fractions, and streams piped binary at hundreds of MiB per second. One static binary, nothing else to install.
+Convert any positional notation number, of any size, to and from any numeric base. (Even your own defined bases and alphabets.)
+
+You can also encode/decode streaming binary-to-text across far more bases than the standard tools like `base64` give you, and on average faster.
+
+It's a single, fast, cross-platform static binary written in Go.
 
 <!-- TOC ignore:true -->
 ## Table of contents
@@ -66,7 +72,6 @@ A single, fast, cross-platform command line tool for base conversion and binary-
 - [List of predefined bases and their positional notation symbols](#list-of-predefined-bases-and-their-positional-notation-symbols)
 - [How to design a numeric base](#how-to-design-a-numeric-base)
 - [Support](#support)
-- [Document history](#document-history)
 - [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
@@ -89,10 +94,12 @@ A single, fast, cross-platform command line tool for base conversion and binary-
 
 ## Install
 
-Grab a build for your platform from the [Releases page](https://github.com/jim-collier/convert-base-v2/releases). Every download is a single static binary with nothing else to install.
+Grab a build for your platform from the [Releases page](https://github.com/jim-collier/convert-base-v2/releases). Each release has the option of downloading a single static executable (per-platform).
 
 - **Linux:** a `.deb` or `.rpm` (amd64 or arm64), or a `.tgz` tarball.
+
 - **Windows:** a one-click installer `.exe` that adds the tool to your PATH, or a plain `.zip`.
+
 - **macOS and FreeBSD:** a `.tgz` tarball.
 
 Every release ships a `checksums.txt` to verify your download.
@@ -139,8 +146,11 @@ Plenty of everyday tasks are easier in a bigger base, and they usually mean chai
 The larger custom bases here (like `256jc1`) were designed with care to:
 
 - Avoid characters that look like an existing 0-9 or A-Z.
+
 - Avoid characters too wide to render cleanly in a fixed-width terminal.
+
 - Avoid characters reserved by operating systems and web standards, so the output stays usable in those places. (The published standards, like base 64, keep their own reserved characters.)
+
 - Stay consistent from one base to the next.
 
 ### Also why the -v2?
@@ -184,8 +194,11 @@ Numbers are MiB/s. Mean of 10 runs, one process each, all I/O in a tmpfs (RAM) s
 Base 64 is the most compact way to store binary as UTF-8 text, which is why it is the usual default:
 
 - Modern operating systems use UTF-8. Best base for it: base 64.
+
 - Some APIs use UTF-16 internally. Best base for it: base 32768.
+
 - Others use UTF-32. Best base for it: base 65536.
+
 - For binary tucked into a Twitter/X post, qntm's base 2048 is the reported optimum.
 
 ## Third-party binary codecs, built in
@@ -193,8 +206,11 @@ Base 64 is the most compact way to store binary as UTF-8 text, which is why it i
 Four well-known binary-to-text encodings normally live only in someone's JavaScript, Rust, or Python. This program includes all four:
 
 - [Base 2048](https://github.com/qntm/base2048), [qntm](https://github.com/qntm/)'s original JavaScript version, built for dense binary in a Twitter/X post.
+
 - [Base 2048](https://github.com/LLFourn/rust-base2048), [LLFourn](https://github.com/LLFourn/)'s Rust version.
+
 - [Base 32768](https://github.com/qntm/base32768) by [qntm](https://github.com/qntm/), the tightest fit for UTF-16. You would normally run the JavaScript just to recover its alphabet.
+
 - [Base 65536](https://github.com/qntm/base65536) by [qntm](https://github.com/qntm/), "Unicode's answer to Base64", the tightest fit for UTF-32.
 
 None are official standards, but all are published. This program uses none of their source code. Each was rebuilt from its spec.
@@ -354,18 +370,6 @@ These are the common, standard, and published bases, plus a set of [carefully de
 ## Support
 
 This tool is free and open source, and built and maintained in spare time. If it saves you some, you can [sponsor the project on GitHub](https://github.com/sponsors/jim-collier). It is genuinely appreciated, and never expected.
-
-## Document history
-
-- 2026-06-06:
-	- Updates to reflect program updates.
-	- Removed some unnecessary sections.
-	- Updated base lists.
-- 2026-05-03:
-	- Fixed incorrect lifecycle and status badges.
-	- Minor corrections.
-- 2026-04-22: Added list of unicode characters used.
-- 2026-04-17: First version.
 
 ## Copyright and license
 
