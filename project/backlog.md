@@ -64,9 +64,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - 🔘 Custom alphabet:
 	- Need flags to define negative, decimal, and pad - not all in one string.
 
-- 🔘 Design new bases:
+- 🔘 Design new bases (all just shorter versions of 1024tt, which starts with base 62h):
 	- 🔘 1024tt
-	- 🔘 1024tt
+		0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ¡ ¢ £ ¤ ¥ § © « ® ° ± µ · » ¿ Ø Þ ß æ ð ÷ ø þ ŋ ƅ Ɔ ƌ ƒ ƨ Ʊ ƶ ƹ ƾ ǂ ǝ ȸ ȹ ɀ Ʌ ɐ ɒ ɔ ɘ ə ɛ ɞ ɤ ɥ ɮ ɷ ɸ ɹ ʁ ʃ ʅ ʇ ʉ ʊ ʌ ʎ ʘ ʚ ʞ ʬ ʭ ͳ ͷ ͼ ͽ Δ Ω α δ ζ θ λ μ ξ π φ ψ ω ϑ ϕ ϖ ϝ ϟ Ϡ ϡ ϣ ϥ ϧ ϩ ϰ ϱ ϵ ϶ ϸ Ͻ Ͼ Ͽ ж л п я ѧ ѳ ҂ ҩ ԃ ԅ ԉ ԋ ԏ 
+	- 🔘 512tt
+	- 🔘 256tt
+	- 🔘 128tt
+	- 🔘 64tt
+	- 🔘 32tt
 
 - 🔘 Animated gif demo: Come up with better examples and reencode.
 	- Only one base-10 example
