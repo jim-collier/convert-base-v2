@@ -10,6 +10,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## NEXT VERSION
 
+### Added
+
+- Releases now ship more formats. Alongside the tarballs and Windows zip, each release carries a `.deb` and `.rpm` for Linux (amd64 and arm64), a single-file Windows installer `.exe` per architecture that adds the tool to your PATH and updates an existing install, and a FreeBSD build. Every download is a single static binary with nothing else to install.  [20260712]
+
 ### Changed
 
 - `--precision` now defaults to `auto`, which sizes the output fraction to the input's own precision instead of always padding to 50 digits. Converting a short value like `0.1` no longer grows a long, imprecise tail in the target base. Pass `--precision N` for a fixed number of fractional digits (needed for lossless round-tripping, since auto keeps only the digits the input justified at each step).  [20260711]
