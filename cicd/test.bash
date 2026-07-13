@@ -582,6 +582,9 @@ for ((i=0; i<iters; i++)); do
 	base="${FUZZ_BASES[idx]}"
 	val="$(_rand_int "$maxlen")"
 	_run --from 10 --to "$base" -- "$val"; enc="$_out"; ((_rc == 0)) || { fuzz_fail=$((fuzz_fail+1)); _fail "fuzz enc base=$base val-len=${#val}" "rc=$_rc err=[$_err]"; continue; }
+	## A lone "-" output (a base whose single digit is "-", e.g. hostname value 36)
+	## is the read-stdin sentinel as a positional, so it can't round-trip via argv.
+	[[ "$enc" == "-" ]] && continue
 	_run --from "$base" --to 10 -- "$enc"
 	{ ((_rc == 0)) && [[ "$_out" == "$val" ]]; } || { fuzz_fail=$((fuzz_fail+1)); _fail "fuzz round-trip base=$base" "val=[$val] enc=[$enc] got=[$_out] rc=$_rc"; }
 done
@@ -636,7 +639,13 @@ for ((i = 0; i < iters; i++)); do
 	_load_syms "$src_idx"
 	src_name="${IDX_NAME[src_idx]}"; tgt_name="${IDX_NAME[tgt_idx]}"
 	src_str="$(_rand_symbols "$src_idx")"
+	## A lone "-" as a positional value is the read-stdin sentinel, not a digit,
+	## so a base that carries "-" in its alphabet (hostname, username, ...) can't
+	## pass the single-digit "-" through argv. Skip just that one string on either
+	## side; any longer value that merely contains "-" is unambiguous and fine.
+	[[ "$src_str" == "-" ]] && continue
 	_run --from "$src_name" --to "$tgt_name" -- "$src_str"; encoded="$_out"; ((_rc == 0)) || { symfuzz_fail=$((symfuzz_fail+1)); _fail "symbol fuzz enc $src_name->$tgt_name" "src=[$src_str] rc=$_rc err=[$_err]"; continue; }
+	[[ "$encoded" == "-" ]] && continue
 	_run --from "$tgt_name" --to "$src_name" -- "$encoded"; symfuzz_n=$((symfuzz_n + 1))
 	{ ((_rc == 0)) && [[ "$_out" == "$src_str" ]]; } || { symfuzz_fail=$((symfuzz_fail+1)); _fail "symbol fuzz round-trip $src_name<->$tgt_name" "src=[$src_str] enc=[$encoded] got=[$_out] rc=$_rc"; }
 done
