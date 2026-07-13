@@ -1,0 +1,6 @@
+# Donation / support surfaces. Requiring the maintainer's review on these means a
+# pull request can't quietly change where support money goes, or where the "Support"
+# button sends people.
+/.github/CODEOWNERS                        @jim-collier
+/.github/FUNDING.yml                       @jim-collier
+/DONATE.md                                 @jim-collier

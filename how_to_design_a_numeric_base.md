@@ -55,7 +55,6 @@ Note: Although "character", "symbol", and "glyph" have subtly different meanings
 		- [UTF-16 and base-32768](#utf-16-and-base-32768)
 		- [UTF-32 and base-65536](#utf-32-and-base-65536)
 		- [General NON-concerns for binary-to-text encoding](#general-non-concerns-for-binary-to-text-encoding)
-	- [Printable character counts for each UTF byte range](#printable-character-counts-for-each-utf-byte-range)
 - [Guidelines on what to avoid during symbol selection](#guidelines-on-what-to-avoid-during-symbol-selection)
 	- [Class 1; things that break either system](#class-1-things-that-break-either-system)
 	- [Class 2; things that make a positional notation numbering system hard to read and use](#class-2-things-that-make-a-positional-notation-numbering-system-hard-to-read-and-use)
@@ -285,23 +284,6 @@ UTF-32 is rarely used for storage or interchange. It's used sometimes by code li
 1. __Symbol ambiguity__: The volume of data in a binary-to-text scheme is usually too high for manual transcription, so symbol disambiguation is usually irrelevant. As long as they are numerically distinct at the codepoint level.
 
 Bases 32 and 64 are already exhaustively solved problems. There's room at higher bases for innovation.
-
-### Printable character counts for each UTF byte range
-
-The idea is usually to be as efficient as possible for a given Unicode encoding scheme. For UTF-8 and UTF-16, that means packing as many <= 2-byte symbols into the base alphabet as possible.
-
-But you only have 95 printable 1-byte characters, and 33 are potentially problematic symbols that are "reserved" in various contexts (e.g. filesystem name delimiter "/", ":", or "\"). So for anything over about base-64 more-or-less, you have to accept that eventually you'll have to start eating into the 2-byte UTF-8 range. (And 1-byte symbols save you nothing in UTF-16, other than a tiny % more headroom for more 2-byte symbols before eating into the 4-byte (surrogate-pair) range for very large bases.)
-
-| Byte count | UTF-8 bitmask                       | Mathly max count | Actual usable character count <sup>1</sup> | UTF-8 bytes | UTF-16 bytes | Comments
-| --:        | :--                                  | --:              | --:                                        | --:         | --:          | :--
-| 1          | 0xxxxxxx                             | 128              | 95                                         | 1           | 2            | 62 printable if you subtract all "keyboard" symbols used as reserved symbols in various contexts.
-| 2          | 110xxxxx-10xxxxxx                    | 2,048            | 1,166                                      | 2           | 2            |
-| 3          | 1110xxxx-10xxxxxx-10xxxxxx           | 65,536           | 51,600                                     | 3           | 2            |
-| 4          | 11110xxx-10xxxxxx-10xxxxxx-10xxxxxx  | 2,097,152        | 90,764                                     | 4           | 4            | Unicode caps at U+10FFFF for UTF-16 surrogate pair scheme compatibility, so the mathly max is actually 1,114,112.
-
-<sup>1</sup> _Footnote: "Actual usable character count" excludes non-printing control characters, ranges reserved for private use, combining marks, and RTL or "right-to-left" symbols. And the U+10FFFF cap._
-
-Other modern encoding schemes are usually subsets or supersets of a UTF scheme. (E.g. GB18030, a Chinese standard, a UTF-8 superset.)
 
 ## Guidelines on what to avoid during symbol selection
 
