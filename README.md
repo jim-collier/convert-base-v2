@@ -33,29 +33,33 @@
 ![Status: Failing](https://img.shields.io/badge/Status-Failing-red)
 -->
 
+<div align="center">
+
+<img src="assets/mascot.png" alt="convert-base-v2 logo" width="256"/>
+
 <!-- TOC ignore:true -->
 # convert-base-v2
 
-<table style="border: none; border-collapse: collapse;">
-	<tr style="border: none; border-collapse: collapse;">
-		<td style="border: none; border-collapse: collapse;"><img src="https://github.com/jim-collier/convert-base-v2/blob/main/assets/mascot.png?raw=true" alt="Logo" width="320"/></td>
-		<td style="border: none;">A cross-platform CLI program written in Go, to convert any number of any size, to and from any arbitrary base. Dozens of predefined named bases, or specify your own. And all the standards like base-10, 16, RFC base-64, etc.<br /><br />Supports negatives and floating-point (even for bases originally designed for binary stream encoding), and piped binary data.<br /><br />Supports binary-to-text encoding and decoding for power-of-two bases and the standard chunked codecs (base45, Ascii85, Z85, base91).</td>
-	</tr style="border: none; border-collapse: collapse;">
-</table>
+**Convert any number, of any size, to and from any base.**<br />
+And encode or decode binary to text across far more bases than the standard tools give you.
 
-<!--
-<p align="center"><img src="assets/logo.png" alt="P" width="128"></p>
->
+<img src="assets/demo.gif" alt="Demo" width="800"/>
+
+</div>
+
+A single, fast, cross-platform command line tool for base conversion and binary-to-text encoding, written in Go. It converts arbitrarily large numbers between more than sixty predefined bases (or any alphabet you define yourself), handles negatives and fractions, and streams piped binary at hundreds of MiB per second. One static binary, nothing else to install.
 
 <!-- TOC ignore:true -->
 ## Table of contents
 <!-- TOC -->
 
 - [Features](#features)
+- [Install](#install)
+- [Usage](#usage)
 - [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
 	- [Also why the -v2?](#also-why-the--v2)
 - [Speed](#speed)
-- [Complex third-party binary encode/decode algorithms](#complex-third-party-binary-encodedecode-algorithms)
+- [Third-party binary codecs, built in](#third-party-binary-codecs-built-in)
 - [Example output](#example-output)
 - [List of predefined bases and their positional notation symbols](#list-of-predefined-bases-and-their-positional-notation-symbols)
 - [How to design a numeric base](#how-to-design-a-numeric-base)
@@ -66,73 +70,87 @@
 
 ## Features
 
-A universal cross-platform CLI number conversion program, written in Go, that:
+- **Any number, any base.** Convert a value of any size to or from any base. All the usual standards are built in (base 10, 16, RFC 4648 base 32 and 64, and more), plus more than sixty predefined named bases.
 
-- Converts any number of arbitrary size, to and from any arbitrary base.
+- **Bring your own alphabet.** Define a base on the spot by listing its symbols. For example, "`a 0 c X 🫪 だ`" is a perfectly good base 6.
 
-- The number can be arbitrarily large.
+- **Negatives and fractions.** Both work in nearly every base. Even bases meant only for binary encoding can be pressed into positional use. If the usual `-` and `.` markers clash with a base's own symbols, you can set your own.
 
-- Supports negative and floating-point numbers in most bases. (Except a few for which that makes no sense.) Even bases designed only for binary-to-text encoding (RFC 4648 §4), can usually be used "off-label" for positional notation - and thus negative and fractional numbers.
+- **Binary to text, in many more bases than usual.** Encode or decode raw binary in every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. That covers everything `basenc` does, at comparable speed, plus bases `basenc` never heard of. Bases with no byte-exact mapping are refused in binary mode, and `--list` shows which ones qualify.
 
-	- The program supports defining alternate symbols for "negative" and "decimal", if the regular ones clash with symbols already in the base.
+	- To re-encode straight between two text bases as bytes (hex to base 64, say), add `--binary`. Without it, two power-of-two text bases convert as a plain number, which drops leading zeros; a note on stderr points this out, and `--number` silences it.
 
-- There are dozens of predefined named bases to specify as input or output.
+- **Reads from anywhere.** Takes input from the command line or from `stdin`, so it drops into a pipe.
 
-- You can define your own arbitrary base and alphabet (the set of positional notation symbols), just by providing the alphabet.
+- **One portable binary.** Cross-platform Go, no runtime or dependencies to install.
 
-	- E.g.: "`a 0 c X 🫪 だ`" is a perfectly valid, functional base-6 (for some reason).
+## Install
 
-- Encodes and decodes binary data to and from text, for every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. Other bases have no byte-exact mapping, so binary mode reports which bases qualify (the RAW column of `--list`) and refuses the rest.
+Grab a build for your platform from the [Releases page](https://github.com/jim-collier/convert-base-v2/releases). Every download is a single static binary with nothing else to install.
 
-	- In other words, it can do what `basenc` can do, also in O(N) linear time, at roughly the same speed - plus bases `basenc` never heard of, like base-2048 and base-65536.
+- **Linux:** a `.deb` or `.rpm` (amd64 or arm64), or a `.tgz` tarball.
+- **Windows:** a one-click installer `.exe` that adds the tool to your PATH, or a plain `.zip`.
+- **macOS and FreeBSD:** a `.tgz` tarball.
 
-	- To re-encode directly between two text bases as byte data (e.g. hex to base-64, the way `basenc` does), add `--binary`. Without it, two power-of-two text bases convert as a positional number instead, which drops leading zeros; a note on stderr points this out. Use `--number` to assert the numeric reading and silence the note.
+Every release ships a `checksums.txt` to verify your download.
 
-		- *Regular finite positional base conversion, however, necessarily works in O(N^2) quadratic time*.
+To build from source instead, you need Go 1.21 or newer:
 
-	- Binary-to-text encoding and decoding is a separate concept - and code path - than positional base translation. Only the power-of-two bases and the defined codecs have a spec for carrying raw bytes; the rest are positional-only.
+~~~bash
+git clone https://github.com/jim-collier/convert-base-v2
+cd convert-base-v2/source
+make local        # builds ./convert-base-v2
+~~~
 
-- Accepts data from the command line, and/or from `stdin` (e.g. piped data).
+## Usage
+
+~~~bash
+# Hex to decimal
+convert-base-v2 --from hex FF                 # 255
+
+# Decimal to hex-style base 64
+convert-base-v2 1767269700 64h                # 1fLcL4
+
+# Decimal to a base you invent on the spot
+convert-base-v2 --to-symbols "a b c d e f" 42 # bba
+
+# Encode a file to base 64, and back
+some-command | convert-base-v2 --binary --to 64
+convert-base-v2 --binary --from 64 --to bytes < file.b64
+
+# See every base, or one base's alphabet
+convert-base-v2 --list
+convert-base-v2 --show-symbols emoji64
+~~~
+
+Run `convert-base-v2 --help` for the full flag list, or `--examples` for more.
 
 ## Why convert a number to a large base
 
-There are myriad useful technical reasons, that would otherwise require chaining together a series of standard tools. Or, that would require using a web-based tool in a way that can't be scripted.
+Plenty of everyday tasks are easier in a bigger base, and they usually mean chaining several tools together or reaching for a web page that can't be scripted.
 
-- As a trivial example, let's say you want to manually generate "serial numbers" now and then for physical, real-world use. You need, say, at most minute-level precision to ensure uniqueness. But you need short, human-readable, unambiguous characters rather than a long date or number.
+- **Short, readable IDs.** Say you want to hand-generate serial numbers now and then, unique to the minute, but short and unambiguous rather than a long date or number. Take POSIX time (seconds since 1970), optionally divide by 60 for minute precision, and convert it to a compact base. The value for "2026-01-01 12:15 PM" (1767269700) is `1fLcL4` in hex-style base 64 (`64h`), or `£±Яᛯ` in base 256 (`256jc1`).
 
-	You could use POSIX time (the number of seconds since 1970), optionally divided by 60 for shorter minute-level precision, then convert that integer to a compact readable base.
+- **Compact binary as text.** Base 64 (`64r`, `64u`, `64jc1`) is the tightest way to pack binary into UTF-8 text. Higher bases help in niche cases: `2048twitter`, qntm's base built for Twitter posts, or `65536qntm` for UTF-32.
 
-	As another example, the whole-seconds POSIX value for "2026-01-01 @ 12:15 PM" (1767269700) could be represented as "1fLcL4" in hex-style base-64 `64h`, or "£±Яᛯ" in base-256 `256jc1`.
+The larger custom bases here (like `256jc1`) were designed with care to:
 
-- The more obvious example is encoding binary data to text. Base 64 (`64r`, `64u`, `64jc1`) is the most efficient way to encode binary to UTF-8 text.
-
-	- But even higher bases are available for niche cases - e.g. base-2048 `2048twitter`, specifically designed by qntm for Twitter; or base-65536 `65536qntm` for optimal UTF-32 binary-to-text encoding.
-
-At larger non-standard bases that this project created (e.g. `base-256jc1`), careful effort was made to:
-
-- Avoid ambiguous characters that look like existing 0-9 A-Z ASCII characters and symbols.
-
-- Avoid characters that are too wide and render poorly on fixed-width terminals.
-
-- Avoid reserved characters across multiple operating systems and web standards, so that output can be used in those contexts. (Except for predefined standard base definitions that specify such characters, e.g. regular base-64.)
-
-- Keep the character selection consistent across bases.
+- Avoid characters that look like an existing 0-9 or A-Z.
+- Avoid characters too wide to render cleanly in a fixed-width terminal.
+- Avoid characters reserved by operating systems and web standards, so the output stays usable in those places. (The published standards, like base 64, keep their own reserved characters.)
+- Stay consistent from one base to the next.
 
 ### Also why the -v2?
 
-As you've probably noticed, the command `convert-base-v2` has a version number on the end - this is, possibly as a non-answer, to distinguish it from v1.
+The `-v2` marks this as the successor to the original v1.
 
-As predicted as an eventual possibility in the v1 project (also on github), this v2 has a necessary minor break in output from v1, in one narrow edge case. And like v1, in the future there may be good reasons for the output to change again in some future v3.
-
-- *For example, there are no "official standards" for large bases above 94 as of time of writing. But that could change. This program has dozens of large named base defitions, that could someday result in a "name collision" with some future official standard. Unlikely, but possible. So to avoid overwriting an old script on a running system that may rely on this program and its predictable, stable, fully deterministic output - a new suffix number will be given to future programs if the output changes, and the two can coexist. "-v2" is there to coexist with "-v1" (and "-v1b"), and also leaves room for the possibility of new name collisions in the future, e.g. with a "-v3"*.
+As v1 anticipated, v2 changes its output in one narrow edge case, and a future version may change it again. There are no official standards for bases above 94 yet. If one ever appears and collides with a name used here, a new suffix keeps the old and new tools installed side by side, so a script that relies on today's exact, deterministic output never breaks. That is what lets `-v2` sit alongside `-v1` and `-v1b`, and leaves room for a `-v3` later.
 
 ## Speed
 
-`convert-base-v2` is very fast.
+`convert-base-v2` is fast enough to sit in a pipe next to the coreutils tools without being the bottleneck.
 
-Binary/text stream encoding/decoding is the most easily benchmarked (and relevant in terms of raw speed), so here are benchmarked throughput results against the standard tools - one table per format.
-
-(You can see that `convert-base-v2` smokes the "competition" on decoding. On encoding, it's only fractionally slower - not magnitudes.)
+Binary and text stream encoding is the part that benchmarks cleanly, so here is measured throughput against the standard tools, one table per format. It decodes faster than the standard tools, and encodes in the same ballpark.
 
 **Base-64**
 
@@ -160,32 +178,29 @@ Binary/text stream encoding/decoding is the most easily benchmarked (and relevan
 
 Numbers are MiB/s. Mean of 10 runs, one process each, all I/O in a tmpfs (RAM) so disk speed doesn't enter into it. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and each format's own canonical text to decode. Each tool is single-threaded. Reproducible with `github/utility/bench-encoders.bash` (it auto-skips tools you don't have). Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
 
-FYI: Base-64 is statistically the most compact way to store binary data as UTF-8 text. (Which makes sense when you understand how UTF-8 encoding works.)
-	- All modern OSes use UTF-8 by default.
-	- But some APIs use UTF-16 internally (best is a Base 32768)
-	- Other APIs use UTF-32 (best is a Base 65536).
+Base 64 is the most compact way to store binary as UTF-8 text, which is why it is the usual default:
 
-For embedding binary data in Twitter/𝕏 posts, qntm's base-2048 is allegedly optimal.
+- Modern operating systems use UTF-8. Best base for it: base 64.
+- Some APIs use UTF-16 internally. Best base for it: base 32768.
+- Others use UTF-32. Best base for it: base 65536.
+- For binary tucked into a Twitter/X post, qntm's base 2048 is the reported optimum.
 
-## Complex third-party binary encode/decode algorithms
+## Third-party binary codecs, built in
 
-This program faithfully recreates four complex (or at least non-direct and non-trivial) binary-to-text encoding algorithms - that ordinarily require custom implementation in JS, Rust, and/or Python:
+Four well-known binary-to-text encodings normally live only in someone's JavaScript, Rust, or Python. This program includes all four:
 
-- [Base 2048](https://github.com/qntm/base2048) - [qntm](https://github.com/qntm/)'s original JS version. Allegedly the most dense possible radix specifically for encoding binary data in a Twitter/𝕏 post. Not an official standard, but "published".
+- [Base 2048](https://github.com/qntm/base2048), [qntm](https://github.com/qntm/)'s original JavaScript version, built for dense binary in a Twitter/X post.
+- [Base 2048](https://github.com/LLFourn/rust-base2048), [LLFourn](https://github.com/LLFourn/)'s Rust version.
+- [Base 32768](https://github.com/qntm/base32768) by [qntm](https://github.com/qntm/), the tightest fit for UTF-16. You would normally run the JavaScript just to recover its alphabet.
+- [Base 65536](https://github.com/qntm/base65536) by [qntm](https://github.com/qntm/), "Unicode's answer to Base64", the tightest fit for UTF-32.
 
-- [Base 2048](https://github.com/LLFourn/rust-base2048) - [LLFourn](https://github.com/LLFourn/)'s version written in Rust. Not an official standard, but published.
-
-- [Base 32768](https://github.com/qntm/base32768) by [qntm](https://github.com/qntm/). You normally have to run the JS just to get this base's alphabet. This radix is the most optimal binary-to-text encoding for UTF-16. Not an official standard, but "published".
-
-- [Base 65536](https://github.com/qntm/base65536) by [qntm](https://github.com/qntm/), "Unicode's answer to Base64". (Most optimal radix for binary-to-text encoding for UTF-32. Not an official standard, but "published".)
-
-Note: This program doesn't use any of their published open-source code - they were engineered "clean-room" style, directly from their specs. (Only because - well, Go isn't those other languages.)
+None are official standards, but all are published. This program uses none of their source code. Each was rebuilt from its spec.
 
 ## Example output
 
-The table below shows one base-10 number, `2023090613425900000000000000001`, represented in every displayable base.
+The table below shows one base-10 number, `2023090613425900000000000000001`, in every displayable base.
 
-Note that some of the larger bases appear to have longer output - but that's only due to being rendered with proportional fonts, combined with double-width Unicode characters. Look at the "Chars" column to see the actual # of characters in the output.
+Some of the larger bases look longer than they are. That is the proportional font here stretching double-width Unicode characters. The "Chars" column is the real character count.
 
 | Base | Chars | Number representation
 | :-- | --: | :--
@@ -257,9 +272,9 @@ Note that some of the larger bases appear to have longer output - but that's onl
 
 ## List of predefined bases and their positional notation symbols
 
-Any number of any size can be converted to and from any of these bases. Most support negative numbers and decimals, if the intention makes sense.
+Any number of any size converts to and from any of these bases, and most support negatives and decimals where that makes sense. You can also define your own base of any size above 1.
 
-You can define your own arbitrary base of any size >1. These are just all of the common, standard, and/or published ones - plus a number of [well-thought-through](how_to_design_a_numeric_base.md) custom bases (of debatable varying utility).
+These are the common, standard, and published bases, plus a set of [carefully designed](how_to_design_a_numeric_base.md) custom ones.
 
 | Base  | Name [arg]           | Aliases                                               | Description                      | Specification | Symbol alphabet [or at least first and last 64 tokens]
 | --:   | :--                  | :--                                                   | :--                             | :--           | :---
@@ -322,16 +337,16 @@ You can define your own arbitrary base of any size >1. These are just all of the
 | 128   | 128jc1               |                                                       |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱΞψϠδϟЋЖЯѢф¢£¥§¿ɤʬ⍤⍩⌲⍋⍒⍢ÂĈÊĜĤÎĴÔŜÛŴ
 | 128   | 128v1compat          | 128depr                                               |                                  |               | 0123456789CFGHJMPQRVWXcfghjmpqrvwxʞλμᛎᛏᛘᛯᛝᛦᛨᚠᚧᚬᚼ🜣🜥🜿🝅▵▸▿◂҂‡±⁑÷∞≈≠ΩƱΞψϠδϟЋЖЯѢф¢£¥§¿ɤʬ⍤⍩⌲⍋⍒⍢ÂĈÊĜĤĴŜŴŶâĉêĝĥĵŝŵŷÃẼÑỸãẽñỹÄËẄẌŸäëẅẍÿÁĆÉ
 | 256   | 256jc1               | 256j1                                                 |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ ...to... óŕśúẃýźĀĒĪŌŪȲāēīōūȳǍČĎĚǦȞǨŇǑŘŠǓǎčďěǧȟǩňǒřšǔǝɹʇʌ₸᛬웃유ㅈㅊㅍㅎㅱㅸㅠソッゞぅぇォ
-| 256   | bytes                |                                                       |                                  |               | (256 raw bytes, 0x00–0xFF)
+| 256   | bytes                |                                                       |                                  |               | (256 raw bytes, 0x00-0xFF)
 | 288   | 288jc1               | 288j1                                                 |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ ...to... čďěǧȟǩňǒřšǔǝɹʇʌ₸᛬웃유ㅈㅊㅍㅎㅱㅸㅠソッゞぅぇォゲサじすスせちづでネビべぺまモゟヲ½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞
 | 2048  | 2048twitter          | 2048x, 2048qntm                                       |                                  |               | 89ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÆÐØÞßæðøþĐ ...to... ྈྉྊྋྌကခဂဃငစဆဇဈဉညဋဌဍဎဏတထဒဓနပဖဗဘမယရလဝသဟဠအဢဣဤဥဧဨဩဪဿ၀၁၂၃၄၅၆၇၈၉ၐၑၒၓၔၕ
 | 2048  | 2048rust             | 2048llfourn                                           | Tightest binary-to-text encoding for Twitter. |               | ØµºÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ ...to... ႫႬႭႮႯႰႱႲႳႴႵႶႷႸႹႺႻႼႽႾႿჀჁჂჃჄჅაბგდევზთიკლმნოპჟრსტუფქღყშჩცძწჭხჯჰჱჲჳ྾
 | 32768 | 32768qntm            | 32768utf16                                            | Tightest binary-to-text encoding for UTF-16.  |               | ҠҡҢңҤҥҦҧҨҩҪҫҬҭҮүҰұҲҳҴҵҶҷҸҹҺһҼҽҾҿԀԁԂԃԄԅԆԇԈԉԊԋԌԍԎԏԐԑԒԓԔԕԖԗԘԙԚԛԜԝԞԟ ...to... ꞀꞁꞂꞃꞄꞅꞆꞇꞈ꞉꞊ꞋꞌꞍꞎꞏꞐꞑꞒꞓꞔꞕꞖꞗꞘꞙꞚꞛꞜꞝꞞꞟꡀꡁꡂꡃꡄꡅꡆꡇꡈꡉꡊꡋꡌꡍꡎꡏꡐꡑꡒꡓꡔꡕꡖꡗꡘꡙꡚꡛꡜꡝꡞꡟ
-| 65536 | 65536                | 65536qntm, 65536utf32                                 | Tightest binary-to-text encoding for UTF-32.  |               | 㐀㐁㐂㐃㐄㐅㐆㐇㐈㐉㐊㐋㐌㐍㐎㐏㐐㐑㐒㐓㐔㐕㐖㐗㐘㐙㐚㐛㐜㐝㐞㐟㐠㐡㐢㐣㐤㐥㐦㐧㐨㐩㐪㐫㐬㐭㐮㐯㐰㐱㐲㐳㐴㐵㐶㐷㐸㐹㐺㐻㐼㐽㐾㐿 ...to... [encoded but not printable by non-dedicated fonts]
+| 65536 | 65536qntm            | 65536utf32                                            | Tightest binary-to-text encoding for UTF-32.  |               | 㐀㐁㐂㐃㐄㐅㐆㐇㐈㐉㐊㐋㐌㐍㐎㐏㐐㐑㐒㐓㐔㐕㐖㐗㐘㐙㐚㐛㐜㐝㐞㐟㐠㐡㐢㐣㐤㐥㐦㐧㐨㐩㐪㐫㐬㐭㐮㐯㐰㐱㐲㐳㐴㐵㐶㐷㐸㐹㐺㐻㐼㐽㐾㐿 ...to... [encoded but not printable by non-dedicated fonts]
 
 ## How to design a numeric base
 
-[This document](how_to_design_a_numeric_base.md) (in this repo) describes how to design a good numeric base - either as a positional notation system, and/or as a binary-to-text codec. It's not as easy as you might think. (Hence all the whacky bases as "official standards".)
+[This companion document](how_to_design_a_numeric_base.md) walks through designing a good numeric base, whether as a positional notation system or a binary-to-text codec. It is harder than it looks, which is why so many of the "official" large bases are as quirky as they are.
 
 ## Document history
 

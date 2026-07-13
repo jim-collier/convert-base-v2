@@ -38,6 +38,8 @@ In each section, items are listed approximately from newest to oldest.
 | ✅   | Complete
 | 🚫   | Canceled
 
+Sub-bullets can be prefaced with a short tag so the note's role is clear at a glance: `Reproduced:`, `Cause:`, `Probable fix:`, `Fixed:`, `Done:`, `Verified:`, or `Note:`.
+
 ## Backlog
 
 ### Todo
@@ -55,7 +57,8 @@ In each section, items are listed approximately from newest to oldest.
 
 ### Bugs
 
-- 🔘 Come up with better animated gif examples. And save '--list' for the end.
+- 🔘 Come up with better animated gif examples.
+	- Note: save `--list` for the end of the demo.
 
 ### New features and enhancements
 
@@ -178,9 +181,7 @@ In each section, items are listed approximately from newest to oldest.
 
 ### Canceled
 
-- 🚫 Backwards compatible base '128v1compat' has a subtly incorrect alphabet difinition. (github #1)
-	- The base definition for '128j1' in v1 is - annoyingly - a "word-safe" version.
-		- (I can't remember if that was intentional. It shouldn't have been, because base 256 and 288 aren't. Base 128 should have been a subset of 256.)
-	- When writing the alphabets for v2, rather than copying the v1 alphabets verbatim, I made an incorrect assumptions about 128's logical structure. The difference can be very subtle - especially since 128 is an even power of 2. Which means some binary encodings might be off by only a single character.
-	- Step 1: Carefully compare the alphabet strings for v1, v1b, and v2. (Just paste all three on three lines in a doc, do `eyeball diff`.)
-	- Result: compared v2 against the bundled v1b for all 128 values. v2 `128v1compat` and `128jc1` are byte-for-byte identical to v1b's, and the test.bash v1 cross-check passes. Cannot substantiate a discrepancy without the original v1 (not v1b) alphabet, and altering the alphabet now would break the verified v1b compatibility. Needs the original v1 reference to proceed.
+- 🚫 Backwards compatible base '128v1compat' may have a subtly incorrect alphabet definition. (github #1)
+	- Cause: the v1 base-128 definition is a "word-safe" version, which base 256 and 288 are not. Base 128 should have been a subset of 256. When writing v2, an incorrect assumption was made about the base-128 structure instead of copying v1 verbatim. Because 128 is a power of two, the difference could be as small as a single character in some binary encodings.
+	- Verified: compared v2 against the bundled v1b for all 128 values. `128v1compat` and `128jc1` are byte-for-byte identical to v1b, and the v1 cross-check passes.
+	- Note: cannot confirm any discrepancy without the original v1 (not v1b) alphabet, and changing it now would break the verified v1b compatibility. Needs the original v1 reference to proceed.

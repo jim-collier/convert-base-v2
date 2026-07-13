@@ -8,7 +8,7 @@
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## NEXT VERSION
+## v2.0.0-beta8
 
 ### Added
 
@@ -58,7 +58,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Documentation accuracy sweep: regenerated the README bases table from the program (fixing stale aliases and the swapped 32/32h alphabets), corrected the serial-number and 85ps examples, and fixed the UTF byte-count table and changelog dates.  [20260709]
 - Hosted CI: every push and pull request now builds, vets, and tests on GitHub Actions. The full local pipeline is unchanged.  [20260711]
 - Releases are now cut automatically when dev merges to main: the workflow tags the version from the source and publishes the release with all six platform archives plus a checksums file, notes taken from this changelog.  [20260711]
-- Release packaging moved to goreleaser, keeping the same archive names and layout as before.  [20260711]
+- Release packaging is self-contained, building the tarballs, zips, `.deb`/`.rpm`, Windows installers, and checksums directly, with consistent archive names across platforms.  [20260711]
 - The pipeline's lint and audit tools are pinned to fixed versions, and dependency and workflow updates now arrive as grouped pull requests against dev.  [20260711]
 
 ## v1.1.0-beta6 - 2026-07-06
@@ -93,15 +93,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 	- Split the pipeline into a generic engine and a per-project config.
 	- The pipeline now formats, builds, tests, cross-compiles, dogfoods a fixed-name local copy, then (as before) backs up and publishes quietly.
 	- Replaced the old test harness with a self-contained, table-driven one. It covers the CLI, conversions, custom bases, errors, oversized and hostile input, binary round-trips, and fuzzing across every defined base. The base list is read from the program, so new bases are tested automatically.
-	- Added byte-for-byte back-compat checks against v1b every shared base, in both directions. (Copy included in the repo.)
+	- Added byte-for-byte back-compat checks against v1b for every shared base, in both directions. (A copy of v1b is included in the repo.)
 	- Moved old scripts to `legacy/`.
 
-- Updated to CI/CD scripts [20260519]:
-	- Updated for less boilerplate.
-	- Changed license (of CI/CD scripts) from GPL2 to MIT.
-	- Moved from ./utility to ./cicd/utility to be more logical, and consistent with other projects.
-	- Refreshed local copies of n8git_backup-and-publish and n8lib_test.
-	- Updated to side-step known potential edge-case unexpected behavior in `while...do...done`, by following all `done` with 'true'.
+- Updated the CI/CD scripts [20260519]:
+	- Less boilerplate.
+	- Changed the license of the CI/CD scripts from GPL2 to MIT.
+	- Moved from `./utility` to `./cicd/utility`, for consistency with other projects.
+	- Refreshed the local helper scripts.
 
 ## v1.1.0-beta5 - 2026-05-12
 
@@ -115,28 +114,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Other work
 
-- Renamed ci/cd scripts from `.sh` to `.bash` to make it clear they aren't POSIX scripts.
+- Renamed the CI/CD scripts from `.sh` to `.bash` to make clear they are not POSIX scripts.
 
-- Created helper utilities to help with base symbol selection
-	- Python scripts
-		- `filter_1_junk.py`
-		- `filter_2_messy.py`
-		- `filter_3_visual.py`
-		- `populate_unicode_spreadsheets_with_filtered_results.py`
-	- Bash wrappers:
-		- `test_filter_all_from_xclipboard_input.bash`
-		- `unicode_1_junk_alter_xclipboard_contents.bash`
-		- `unicode_2_messy_alter_xclipboard_contents.bash`
-		- `unicode_3_visual_alter_xclipboard_contents.bash`
+- Added tooling to help pick base symbols, and moved the symbol spreadsheet to LibreOffice (`.ods`) as the single source of truth.
 
-- Exported `unicode_good_base_symbols.gnumeric` to `unicode_good_base_symbols.ods`, as the new main spreadsheet and single-source of truth.
-	- Data from that trickles down to `unicode_good_base_symbols.gnumeric` and `unicode_good_base_symbols.xlsx`.
-	- Notes:
-		- The `.xlsx` is _way_ too slow and painful to be the main spreadsheet. And is the most likely to be out of sync. It's essentially unusable for actual editing.
-		- The `.gnumeric` sheet used to be the main, because Gnumeric seems to be the fastest by far with this much data, but...
-		- Once you use the `.ods` sheet for a while, it speeds up. Must be some memory caching or optimizing hapening. It starts out as slow as Excel (basically unusable), but slowly speeds up to rival Gnumeric. So given that, and the better features of LibreOffice sheets over Gnumeric, LibreOffice is the new main.
-
-- Not-trivial updates to `how_to_design_a_numeric_base.md`.
+- Substantial updates to `how_to_design_a_numeric_base.md`.
 
 ## v1.1.0-beta4 - 2026-05-03
 
@@ -150,7 +132,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Minor tweaks to `cicd.sh` to make paths more explicit and hopefully less prone to future errors. [20260503]
 
-- Minor updates to this file be more "changelog idiomatic". [20260503]
+- Minor updates to this file to be more "changelog idiomatic". [20260503]
 
 - Minor corrections to README.md, including lifecycle and status badges. [20260503]
 
@@ -163,14 +145,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Made word-safe bases all consistent, while maintaining backward-compatibility with `convert-base-v1`. [20260419]
-- Fixed an _eggregious_ bug where RFCs 4648 §4 and §5 were defined completely wrong. Like not even close.
-	- They were defined - totally rationally - as "hex-style".
-	- But the RFC standards define numbers as coming almost last, inexplicably.
-	- As a streaming binary-to-text encoder, that's fine.
-		- But it also means that as a base converter, 3→"C", and "12"→"M". Which is weird.
-		- For most bases ≥ 12, 3→"3", 12→"C".
-		- But, it's the published RFC standard. We say it's the RFC standard base, and not compute the RFC standard base.
-- Added a _new_ hex-style base-64, with a new name "64hex", which the old base-64-URL RFC was previously defined as..
+- Fixed an egregious bug where RFC 4648 section 4 and section 5 were defined completely wrong.
+	- They were defined, reasonably enough, as "hex-style".
+	- But the RFC standards put the digits almost last.
+	- As a streaming binary-to-text encoder, that is fine.
+		- As a base converter it means 3 -> "C" and "12" -> "M", which is odd.
+		- For most bases 12 and up, 3 -> "3" and 12 -> "C".
+		- But it is the published RFC standard, so the RFC base matches the RFC, not what feels natural.
+- Added a new hex-style base 64, named "64hex", which the old base-64-URL RFC had previously been defined as.
 
 ## v1.0.0-rc2 - 2026-04-19
 
