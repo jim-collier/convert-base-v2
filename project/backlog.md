@@ -57,10 +57,26 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### Bugs
 
-- 🔘 Come up with better animated gif examples.
-	- Note: save `--list` for the end of the demo.
-
 ### New features and enhancements
+
+- 🔘 For base "keyboard", allow encoding tab, newline, CR, etc. like "%NEWLINE%", "%DOUBLE_QOUTE%", etc. (Or some other way.)
+
+- 🔘 Custom alphabet:
+	- Need flags to define negative, decimal, and pad - not all in one string.
+
+- 🔘 Design new bases:
+	- 🔘 1024tt
+	- 🔘 1024tt
+
+- 🔘 Animated gif demo: Come up with better examples and reencode.
+	- Only one base-10 example
+	- emoji64: Not from base 10; from base 62 with negative and decimal
+	- Better custom alphabet.
+	- Don't demo --binary and --to bytes at the same time. (Don't even use bytes).
+	- Better program to binary cat, than /bin/cat.
+	- Convert a sentence from keyboard to some high radix, rune-heavy base.
+	- For twitter output, give more detail of the processing in leading comment.
+	- Note: save `--list` for the end of the demo.
 
 ### Done
 
@@ -184,4 +200,4 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - 🚫 Backwards compatible base '128v1compat' may have a subtly incorrect alphabet definition. (github #1)
 	- Cause: the v1 base-128 definition is a "word-safe" version, which base 256 and 288 are not. Base 128 should have been a subset of 256. When writing v2, an incorrect assumption was made about the base-128 structure instead of copying v1 verbatim. Because 128 is a power of two, the difference could be as small as a single character in some binary encodings.
 	- Verified: compared v2 against the bundled v1b for all 128 values. `128v1compat` and `128jc1` are byte-for-byte identical to v1b, and the v1 cross-check passes.
-	- Note: cannot confirm any discrepancy without the original v1 (not v1b) alphabet, and changing it now would break the verified v1b compatibility. Needs the original v1 reference to proceed.
+	- Note: cannot confirm any discrepancy without the original v1 (not v1b) alphabet, and changing it now would break the verified v1b compatibility.

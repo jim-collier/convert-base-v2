@@ -34,8 +34,6 @@ This is an easier way to brainstorm and prioritize tasks, before creating issues
 
 | Created  |Issue#|Score|Imp|Urg|Eff|Aff| Started  | by | Completed | Description | Notes
 | :------  | :--- | --: |--:|--:|--:|--:| :------  |:---| :-------- | :---------- | :----
-| 20260511 |      |     | 4 | 4 |   | 4 |          |    |           | Update "How to design a base" from detailed notes file
-| 20260711 |      |     | 4 | 4 | 1 |   |          |    |           | Decide whether README should embed assets/demo.gif | One image line; the gif already regenerates on each full cicd run
 <!--
 | 2026     |      |     |   |   |   |   |          |    |           |
 -->
@@ -65,3 +63,5 @@ This is an easier way to brainstorm and prioritize tasks, before creating issues
 | 20260711 |      | 2.0 | 2 | 2 | 1 | 3 | 20260711 | JC | 20260711  | Rename base 65536 to 65536qntm | Canonical name is now 65536qntm (alias 65536utf32), matching 32768qntm and 2048*; the bare 65536 name is dropped so it can't collide with a future base of that size
 | 20260712 |      | 3.5 | 3 | 3 | 4 | 4 | 20260712 | JC | 20260712  | cicd: full release packaging + debug/release build split + main guard | Self-contained package.bash builds deb/rpm (nfpm), Windows installer .exe (makensis), and freebsd/darwin/linux/windows tarballs+zips for amd64/arm64 plus checksums; goreleaser retired; two native builds (debug for test/profile, optimized for dogfood); check-release.bash fails a main merge that didn't bump the version or whose Lifecycle badge is stale
 | 20260712 |      | 2.5 | 3 | 3 | 2 | 2 | 20260713 | JC | 20260713  | Fix flaky integration fuzz tests in test.bash | A positional lone `-` is the read-stdin sentinel; the symbol-fuzz and randomized-fuzz loops occasionally generated it (a base whose digit is `-`, e.g. hostname value 36) and counted the correct "empty input" error as a failure. Both loops now skip that one value on input and on encoded output. The v1-compat 32c symptom was not a bug: v2 matched the legacy v1b in 10000+ samples, so that one-off was a transient in the legacy bash reference.
+| 20260511 |      |     | 4 | 4 |   | 4 |          |    |           | Update "How to design a base" from detailed notes file
+| 20260711 |      |     | 4 | 4 | 1 |   |          |    |           | Decide whether README should embed assets/demo.gif | One image line; the gif already regenerates on each full cicd run
