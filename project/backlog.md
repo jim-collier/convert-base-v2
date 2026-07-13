@@ -63,7 +63,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 - 🔘 Switch config engine from YAML to SHCL.
 
-- 🔘 Custom alphabet:
+- 🔘 User-defined alphabets:
 	- Need flags to define negative, decimal, and pad - not all in one string.
 	- Ditto for config definitions.
 
