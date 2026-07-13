@@ -630,7 +630,7 @@ def fMain():
 		mov.add(black, blackMs)
 
 	os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
-	mov.frames[0].save(args.out, save_all=True, append_images=mov.frames[1:],
+	mov.frames[0].save(args.out, format="GIF", save_all=True, append_images=mov.frames[1:],
 	                   duration=mov.durs, loop=0, optimize=False)
 	if not args.quiet:
 		secs = sum(mov.durs) / 1000.0
