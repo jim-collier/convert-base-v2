@@ -27,8 +27,8 @@
 ##	   3. lint (go vet gating; golangci-lint + staticcheck if installed)
 ##	   4. tests (unit + integration harness + fuzz + govulncheck security)
 ##	   5. profiler (flamegraph SVG; non-gating artifact - see failure policy)
-##	   6. cross-compile every shipping platform (build sanity + release archives)
-##	   7. dogfood (install the native build locally, fixed name) + screenshots + demo gif
+##	   6. cross-compile + package every shipping platform (archives, deb/rpm, Windows installers, checksums)
+##	   7. dogfood (install the optimized native build locally, fixed name) + screenshots + demo gif
 ##	   8. backup + publish to git (runs from repo root)
 ##	- Syntax:
 ##	  cicd/cicd.bash [options]
@@ -39,7 +39,7 @@
 ##	       --msg MSG       alias for --message
 ##	   --no-fmt            skip the formatter stage
 ##	   --no-lint           skip the lint stage
-##	   --no-cross          skip the cross-compile stage
+##	   --no-cross          skip the cross-compile + package stage
 ##	   --no-profile        skip the profiler stage
 ##	   --no-dogfood        skip installing the native build locally
 ##	   --no-screenshots    skip regenerating README screenshots
@@ -139,7 +139,9 @@ fEcho_Clean "${APP_NAME} local CI/CD"
 fEcho_Clean
 fEcho_Clean "Repo root ...........: ${root}"
 fEcho_Clean "Format ..............: ${FMT_CMD[*]:-(skipped)}"
-fEcho_Clean "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN}"
+fEcho_Clean "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debug)"
+((${#RELEASE_BUILD_CMD[@]})) && \
+fEcho_Clean "                       ${RELEASE_BUILD_CMD[*]} -> ${STAGED_RELEASE_BIN} (release, dogfooded)"
 if ((${#VET_CMD[@]})); then
 	fEcho_Clean "Lint ................: ${VET_CMD[*]}  (+ golangci-lint, staticcheck if installed)"
 else
@@ -159,9 +161,9 @@ else
 	fEcho_Clean "Profiler ............: (skipped)"
 fi
 if ((BUILD_CROSS)); then
-	fEcho_Clean "Cross-compile .......: ${RELEASE_CMD[*]} -> ${RELEASE_ARTIFACT_DIR}/"
+	fEcho_Clean "Cross + package .....: ${RELEASE_CMD[*]} -> ${RELEASE_ARTIFACT_DIR}/ (tgz/zip, deb/rpm, installers)"
 else
-	fEcho_Clean "Cross-compile .......: (skipped)"
+	fEcho_Clean "Cross + package .....: (skipped)"
 fi
 if ((${#DOGFOOD_FIXED_DESTS[@]})); then
 	if [[ -n "$fixed_dest" ]]; then fEcho_Clean "Dogfood, fixed name .: overwrite ${fixed_dest}/${EXE_NAME}"
@@ -219,13 +221,22 @@ else
 	fEcho "OK: formatted (${FMT_CMD[*]})"
 fi
 
-## Stage 2: native build, staged aside from what the cross stage cleans.
+## Stage 2: native builds, staged aside from what the cross stage cleans. The
+## debug build (symbols) is what the tests and profiler run against; the
+## optimized build is smoke-checked here and dogfooded in stage 7.
 fSection "2/8  Native build"
 "${NATIVE_BUILD_CMD[@]}"
-[[ -f "${NATIVE_BUILD_OUT}" ]] || fDie "native build produced no binary: ${NATIVE_BUILD_OUT}"
+[[ -f "${NATIVE_BUILD_OUT}" ]] || fDie "debug build produced no binary: ${NATIVE_BUILD_OUT}"
 mkdir -p "$(dirname "${STAGED_BIN}")"
 cp -f "${NATIVE_BUILD_OUT}" "${STAGED_BIN}"
-fEcho "OK: native build: ${STAGED_BIN} ($(du -h "${STAGED_BIN}" | cut -f1))  ($("${STAGED_BIN}" --version))"
+fEcho "OK: debug build: ${STAGED_BIN} ($(du -h "${STAGED_BIN}" | cut -f1))  ($("${STAGED_BIN}" --version))"
+if ((${#RELEASE_BUILD_CMD[@]})); then
+	"${RELEASE_BUILD_CMD[@]}"
+	[[ -f "${RELEASE_BUILD_OUT}" ]] || fDie "release build produced no binary: ${RELEASE_BUILD_OUT}"
+	cp -f "${RELEASE_BUILD_OUT}" "${STAGED_RELEASE_BIN}"
+	"${STAGED_RELEASE_BIN}" --version >/dev/null 2>&1 || fDie "release build smoke check failed"
+	fEcho "OK: release build: ${STAGED_RELEASE_BIN} ($(du -h "${STAGED_RELEASE_BIN}" | cut -f1))  ($("${STAGED_RELEASE_BIN}" --version))"
+fi
 
 ## Stage 3: lint. go vet is gating; golangci-lint / staticcheck run when installed
 ## (a failed probe skips that one with a warning). All output lands in the run log.
@@ -336,23 +347,26 @@ run_profiler(){
 fSection "5/8  Profiler"
 run_profiler
 
-## Stage 6: cross-compile (build sanity + release archives).
-fSection "6/8  Cross-compile"
+## Stage 6: cross-compile + package (build sanity + release artifacts).
+fSection "6/8  Cross + package"
 if ((BUILD_CROSS)); then
 	"${RELEASE_CMD[@]}"
-	count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' \) 2>/dev/null | wc -l)"
-	((count > 0)) || fDie "cross-compile produced no archives in ${RELEASE_ARTIFACT_DIR}/"
-	fEcho "OK: release archives: ${count} in ${RELEASE_ARTIFACT_DIR}/"
+	count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.exe' \) 2>/dev/null | wc -l)"
+	((count > 0)) || fDie "cross + package produced no artifacts in ${RELEASE_ARTIFACT_DIR}/"
+	fEcho "OK: release artifacts: ${count} in ${RELEASE_ARTIFACT_DIR}/"
 else
-	fEcho_Clean "cross-compile skipped"
+	fEcho_Clean "cross + package skipped"
 fi
 
-## Stage 7: dogfood (fixed name) + screenshots.
+## Stage 7: dogfood (fixed name) + screenshots. Dogfood the optimized release
+## build (the real thing), falling back to the debug build if it wasn't made.
 fSection "7/8  Dogfood"
+dogfood_bin="${STAGED_BIN}"
+[[ -n "${STAGED_RELEASE_BIN:-}" && -f "${STAGED_RELEASE_BIN}" ]] && dogfood_bin="${STAGED_RELEASE_BIN}"
 if ((${#DOGFOOD_FIXED_DESTS[@]})); then
 	if [[ -n "$fixed_dest" ]]; then
-		if ! cp -f "${STAGED_BIN}" "${fixed_dest}/${EXE_NAME}" && [[ "${fixed_dest}" != "${HOME}/"* ]]; then
-			sudo cp -f "${STAGED_BIN}" "${fixed_dest}/${EXE_NAME}"
+		if ! cp -f "${dogfood_bin}" "${fixed_dest}/${EXE_NAME}" && [[ "${fixed_dest}" != "${HOME}/"* ]]; then
+			sudo cp -f "${dogfood_bin}" "${fixed_dest}/${EXE_NAME}"
 		fi
 		fEcho "OK: installed -> ${fixed_dest}/${EXE_NAME}"
 	else
