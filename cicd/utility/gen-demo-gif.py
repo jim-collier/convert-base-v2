@@ -7,10 +7,9 @@
 ##		the occasional corrected typo), then actually executed so the captured
 ##		output can never go stale. Scrolling is pixel-smooth (content settles
 ##		back onto the line grid at rest) and the cursor glides between cells
-##		rather than teleporting. The loop boundary fades to black and back in
-##		to the first frame. Frames share one exact master palette; fade frames
-##		reuse the same pixel indexes with a darkened local palette, so nothing
-##		is ever re-dithered. Project-agnostic - point it at any scenario.
+##		rather than teleporting. The loop just repeats - no fade (fades bloat
+##		the file badly). Frames share one exact master palette, so nothing is
+##		ever re-dithered. Project-agnostic - point it at any scenario.
 ##	Syntax:
 ##		gen-demo-gif.py --scenario FILE --out FILE [--bin PATH] [--seed N]
 ##		  --scenario FILE  TOML scenario (see fLoadScenario for the format)
@@ -40,17 +39,15 @@ except ImportError:
 	sys.stderr.write("gen-demo-gif: Pillow not installed\n"); sys.exit(2)
 
 
-##	Canvas and window chrome. 960x540 total; the "window" floats on a near-black
-##	backdrop so the end-of-loop fade has somewhere honest to go.
+##	Canvas and window chrome. 960x540 total; the window fills the whole view
+##	except a thin black border. Square corners, no shadow.
 CANVAS_W, CANVAS_H = 960, 540
-MARGIN     = 22       # backdrop border around the window
+MARGIN     = 4        # thin black border around the window
 TITLE_H    = 34       # title bar height
 PAD        = 12       # text inset inside the terminal area
-RADIUS     = 10       # window corner radius
 
 THEME = {
-	"outer":    (14, 14, 16),      # backdrop behind the window
-	"shadow":   (8, 8, 9),         # drop shadow
+	"outer":    (0, 0, 0),         # thin border around the window
 	"border":   (58, 58, 62),      # 1px window outline
 	"titlebar": (44, 44, 48),
 	"titletxt": (150, 150, 152),
@@ -79,8 +76,6 @@ WPM_NOTES     = (233, 263)   # "# comment" lines fly by
 FLAG_PAUSE_MS = (200, 380)   # a beat of thought before a -flag token
 TYPO_RATE     = 0.018        # per letter; capped at 2 fixes per command
 BLINK_MS      = 530
-FADE_STEPS    = 7
-FADE_STEP_MS  = 70
 SCROLL_MS     = 80           # frame interval while scrolling / cursor-gliding
 SCROLL_RATE   = 325          # px/s smooth scroll; per-step scrollrate overrides
 
@@ -234,13 +229,12 @@ def fNeighborKey(ch, rng):
 ##	short blend ramps toward their background so antialiased edges quantize
 ##	cleanly instead of dithering, and the leftover entries are median-cut from
 ##	the emoji tiles the scenario actually produces. One global table means no
-##	per-frame palette cost; fades darken it per frame (local palettes), leaving
-##	pixel indexes untouched.
+##	per-frame palette cost.
 def fBuildPalette(userTint, hostTint, emojiTiles):
 	def blend(a, b, k):
 		return tuple(round(a[i] + (b[i] - a[i]) * k) for i in range(3))
 	t = THEME
-	colors = [(0, 0, 0), t["outer"], t["shadow"], t["border"], t["titlebar"],
+	colors = [(0, 0, 0), t["outer"], t["border"], t["titlebar"],
 	          t["titletxt"], t["bg"], t["fg"], t["gray"], t["dim"],
 	          userTint, hostTint] + t["dots"]
 	for c in (t["fg"], t["gray"], t["dim"], userTint, hostTint):
@@ -449,13 +443,9 @@ class Screen:
 		img = Image.new("RGB", (CANVAS_W, CANVAS_H), THEME["outer"])
 		d = ImageDraw.Draw(img)
 		x0, y0 = MARGIN, MARGIN
-		d.rounded_rectangle([x0 + 5, y0 + 7, x0 + self.winW + 5, y0 + self.winH + 7],
-		                    RADIUS, fill=THEME["shadow"])
-		d.rounded_rectangle([x0, y0, x0 + self.winW, y0 + self.winH],
-		                    RADIUS, fill=THEME["bg"], outline=THEME["border"])
-		d.rounded_rectangle([x0, y0, x0 + self.winW, y0 + TITLE_H],
-		                    RADIUS, fill=THEME["titlebar"])
-		d.rectangle([x0, y0 + TITLE_H - RADIUS, x0 + self.winW, y0 + TITLE_H],
+		d.rectangle([x0, y0, x0 + self.winW, y0 + self.winH],
+		            fill=THEME["bg"], outline=THEME["border"])
+		d.rectangle([x0, y0, x0 + self.winW, y0 + TITLE_H],
 		            fill=THEME["titlebar"])
 		for i, c in enumerate(THEME["dots"]):
 			cx = x0 + 18 + i * 20
@@ -624,23 +614,7 @@ def fMain():
 			snap(60)
 			blinkPause(1000 * float(step.get("pause", 2.6)))
 
-	blinkPause(1000)                                 # linger, then fade the loop seam
-
-	##	Fade: darken the last/first frames' palettes; indexes stay put, so the
-	##	fade costs almost nothing and the colors stay exact.
-	def fadeRun(baseImg, ks):
-		basePal = baseImg.getpalette()
-		for k in ks:
-			f = baseImg.copy()
-			f.putpalette([round(v * k) for v in basePal])
-			mov.frames.append(f)
-			mov.durs.append(FADE_STEP_MS)
-	fadeRun(mov.frames[-1], [1 - (i + 1) / (FADE_STEPS + 1) for i in range(FADE_STEPS)])
-	black = mov.frames[0].copy()
-	black.putpalette([0] * len(mov.frames[0].getpalette()))
-	mov.frames.append(black)
-	mov.durs.append(380)
-	fadeRun(mov.frames[0], [(i + 1) / (FADE_STEPS + 1) for i in range(FADE_STEPS)])
+	blinkPause(1400)                                 # linger before the loop repeats
 
 	os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
 	mov.frames[0].save(args.out, save_all=True, append_images=mov.frames[1:],
