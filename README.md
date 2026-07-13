@@ -40,7 +40,7 @@
 <!-- TOC ignore:true -->
 # convert-base-v2
 
-**Convert any number, of any size, to and from any base.**<br />
+**Convert any positional notation number, of any size, to and from any base.**<br />
 And encode or decode binary to text across far more bases than the standard tools give you.
 
 <img src="assets/demo.gif" alt="Demo" width="800"/>
