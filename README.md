@@ -63,6 +63,7 @@ A single, fast, cross-platform command line tool for base conversion and binary-
 - [Example output](#example-output)
 - [List of predefined bases and their positional notation symbols](#list-of-predefined-bases-and-their-positional-notation-symbols)
 - [How to design a numeric base](#how-to-design-a-numeric-base)
+- [Support](#support)
 - [Document history](#document-history)
 - [Copyright and license](#copyright-and-license)
 
@@ -347,6 +348,10 @@ These are the common, standard, and published bases, plus a set of [carefully de
 ## How to design a numeric base
 
 [This companion document](how_to_design_a_numeric_base.md) walks through designing a good numeric base, whether as a positional notation system or a binary-to-text codec. It is harder than it looks, which is why so many of the "official" large bases are as quirky as they are.
+
+## Support
+
+This tool is free and open source, and built and maintained in spare time. If it saves you some, you can [sponsor the project on GitHub](https://github.com/sponsors/jim-collier). It is genuinely appreciated, and never expected.
 
 ## Document history
 
