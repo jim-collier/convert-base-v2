@@ -7,6 +7,7 @@
 ##		- Self-contained release packager. Cross-builds every shipping platform
 ##		  and produces, into the output dir:
 ##		    - tarball (linux/darwin/freebsd) or zip (windows) of the bare binary
+##		    - the bare binary itself, per platform/arch (grab-and-run)
 ##		    - .deb and .rpm per Linux arch (nfpm - cross-arch, no native tooling)
 ##		    - single-file Windows installer .exe per arch (makensis / NSIS)
 ##		    - checksums.txt
@@ -99,6 +100,9 @@ for p in "${platforms[@]}"; do
 	else
 		tar -C "${bindir}" -czf "${OUT}/${PKG}-${os}-${label}.tgz" "${EXE}${ext}"
 	fi
+	# Also ship the bare binary alongside the archive (grab-and-run; unix
+	# loses the exec bit on browser download, hence the archives stay too).
+	cp "${binpath}" "${OUT}/${PKG}-${os}-${label}${ext}"
 	fEcho "built ${os}/${arch}"
 done
 
