@@ -35,13 +35,15 @@
 
 <div align="center">
 
-<img src="assets/mascot.png" alt="convert-base-v2 logo" width="256"/>
-
 <!-- TOC ignore:true -->
 # convert-base-v2
 
-**Convert any positional notation number, of any size, to and from any base.**<br />
-And encode or decode binary to text across far more bases than the standard tools give you.
+<table style="border: none; border-collapse: collapse;">
+	<tr style="border: none; border-collapse: collapse;">
+		<td style="border: none; border-collapse: collapse;"><img src="assets/mascot.png" alt="Logo" width="320"/></td>
+		<td style="border: none;"><b>Convert any positional notation number, of any size, to and from any numeric base</b><br /><br />Also, encode/decode binary-to-text across far more bases than the standard tools like `base64` give you.</td>
+	</tr>
+</table>
 
 <img src="assets/demo.gif" alt="Demo" width="800"/>
 
