@@ -140,11 +140,15 @@ DO_SCREENSHOTS=0
 SCREENSHOT_CMD=(utility/gen-screenshots.bash)
 
 ## Stage 7 (after screenshots): demo gif. Types the scenario's commands into a fake
-## terminal, runs each against the tested binary, and renders the animated loop to
-## assets/. Seeded, so an unchanged binary + scenario reproduces the same file. A
-## failure is a warning, not a stop. Skipped by --quick / --no-demogif.
+## terminal, runs each against the tested binary, and renders the animated loop.
+## Seeded, so an unchanged binary + scenario reproduces the same file. A failure is
+## a warning, not a stop. Skipped by --quick / --no-demogif. When the render differs
+## from the committed copy, a timestamped original is kept (GFS-pruned) out of tree
+## under DEMOGIF_ARCHIVE_DIR, then landed in the repo at DEMOGIF_OUT.
 DO_DEMOGIF=1
-DEMOGIF_CMD=(cicd/utility/gen-demo-gif.py --scenario cicd/demo-scenario.toml --out assets/demo.gif)
+DEMOGIF_CMD=(cicd/utility/gen-demo-gif.py --scenario cicd/demo-scenario.toml)
+DEMOGIF_OUT="assets/demo.gif"                 # in-repo copy the README embeds
+DEMOGIF_ARCHIVE_DIR="../private/demos/gif"    # out-of-tree originals, GFS-rotated
 
 ## Stage 8 (before publish): optional local pre-publish hook. Points at an
 ## out-of-tree script kept under ../private, so it never ships with the repo.

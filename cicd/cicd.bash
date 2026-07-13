@@ -393,8 +393,24 @@ demogif_util="${root}/${DEMOGIF_CMD[0]}"
 if ((! DO_DEMOGIF)); then
 	fEcho_Clean "demo gif skipped"
 elif [[ -f "${demogif_util}" ]]; then
-	if (cd "${root}" && python3 "${DEMOGIF_CMD[@]}" --bin "${root}/${STAGED_BIN}"); then fEcho "OK: demo gif regenerated"
-	else fEcho "WARNING: demo gif generation failed (continuing)"; fi
+	demogif_out="${root}/${DEMOGIF_OUT}"
+	demogif_tmp="${demogif_out}.new"
+	if (cd "${root}" && python3 "${DEMOGIF_CMD[@]}" --out "${demogif_tmp}" --bin "${root}/${STAGED_BIN}"); then
+		if [[ -f "${demogif_out}" ]] && cmp -s "${demogif_tmp}" "${demogif_out}"; then
+			rm -f "${demogif_tmp}"
+			fEcho "OK: demo gif unchanged"
+		else
+			## Keep the new original out of tree (GFS-pruned), then land it in the repo.
+			mkdir -p "${DEMOGIF_ARCHIVE_DIR}"
+			cp -f "${demogif_tmp}" "${DEMOGIF_ARCHIVE_DIR}/demo_$(date +%Y%m%d-%H%M%S).gif"
+			gfs_rotate "${DEMOGIF_ARCHIVE_DIR}" demo gif >/dev/null 2>&1 || true
+			mv -f "${demogif_tmp}" "${demogif_out}"
+			fEcho "OK: demo gif regenerated"
+		fi
+	else
+		rm -f "${demogif_tmp}"
+		fEcho "WARNING: demo gif generation failed (continuing)"
+	fi
 else
 	fEcho_Clean "no demo gif utility at ${demogif_util}; skipping"
 fi
