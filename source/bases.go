@@ -18,7 +18,8 @@ const (
 	base_32ws        = " 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x "
 	rfc4648start_c62 = " A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 "
 	unicodeExt_96    = " ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä"
-	base_288         = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ ゲ サ じ す ス せ ち づ で ネ ビ べ ぺ ま モ ゟ ヲ ½ ⅓ ⅔ ¼ ¾ ⅕ ⅖ ⅗ ⅘ ⅙ ⅚ ⅛ ⅜ ⅝ ⅞ "
+	base_288jc1      = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ ゲ サ じ す ス せ ち づ で ネ ビ べ ぺ ま モ ゟ ヲ ½ ⅓ ⅔ ¼ ¾ ⅕ ⅖ ⅗ ⅘ ⅙ ⅚ ⅛ ⅜ ⅝ ⅞ "
+	base_512tt       = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ¡ ¢ £ ¤ ¥ § © « ® ° ± µ · » ¿ Ø Þ ß æ ð ÷ ø þ ŋ ƅ Ɔ ƌ ƒ ƨ Ʊ ƶ ƹ ƾ ǂ ǝ ȸ ȹ ɀ Ʌ ɐ ɒ ɔ ɘ ə ɛ ɞ ɤ ɥ ɮ ɷ ɸ ɹ ʁ ʃ ʅ ʇ ʉ ʊ ʌ ʎ ʘ ʚ ʞ ʬ ʭ ͳ ͷ ͼ ͽ Δ Ω α δ ζ θ λ μ ξ π φ ψ ω ϑ ϕ ϖ ϝ ϟ Ϡ ϡ ϣ ϥ ϧ ϩ ϰ ϱ ϵ ϶ ϸ Ͻ Ͼ Ͽ ж л п я ѧ ѳ ҂ ҩ ԃ ԅ ԉ ԋ ԏ թ ժ ի կ ձ ճ մ ն չ պ վ ր ֏ ۲ ۳ ۴ ۶ ۸ ५ ६ ७ ८ ଌ ୧ ୫ ୬ ୯ ఠ వ ก ข ค ฅ ฆ ง จ ฉ ช ถ ท ธ ป ร ฤ ล ฦ ว ศ ษ ส ห อ ฮ ฯ ะ า ๑ ๓ ๖ ๙ ა ბ გ დ ე თ ი კ ლ ჟ რ ს ტ უ ფ ქ ღ ყ შ ჩ ც წ ჭ ჯ ჰ ჲ ჵ ჶ ჸ ჹ ჺ ዓ ዖ ዛ ዞ የ ዶ ገ ጌ ግ ጎ ጓ ጻ ጾ ፀ ህ ለ ላ ል ረ ሪ ሬ ር ስ ባ ቦ ኣ ኦ ካ ኮ ᚠ ᚢ ᚣ ᚦ ᚨ ᚬ ᚭ ᚮ ᚯ ᚳ ᚴ ᚸ ᚻ ᚼ ᚾ ᚿ ᛃ ᛄ ᛅ ᛆ ᛇ ᛉ ᛋ ᛎ ᛏ ᛓ ᛔ ᛗ ᛘ ᛚ ᛛ ᛜ ᛝ ᛟ ᛠ ᛡ ᛢ ᛣ ᛦ ᛨ ᛩ ᛪ ᛮ ᛯ ᛳ ᛶ ᛷ ᛸ ᥛ ᥝ ᥢ ᥰ ᥳ ᨑ ᲆ ᲇ ᲈ ᴈ ᴉ ᴎ ᴐ ᴒ ᴖ ᴗ ᴙ ᴚ ᴝ ᴟ ᴤ ᴧ ᴨ ᴫ ᵷ ẟ • ‣ ₢ ₣ ₤ € ₶ ₺ ℈ ℧ ℶ ℸ ⅃ ⅄ ⅋ ⅎ ↊ ↋ ← ↑ → ↓ ∂ ∃ ∆ ∇ ∋ ∩ ∻ ≈ ⊲ ⊳ ⋏ ⌂ ⌔ ⍢ ⍨ ⟂ ⟅ ⟠ ⦁ ⦂ ⦅ ⦛ ⦠ ⧎ ⧖ ぁ ぅ ぇ ぉ か こ さ す そ ち て と ひ ま め ゃ ゅ ょ り ゐ ゑ を ゕ ゖ ァ ゥ ォ カ キ ク ケ サ シ ス セ ソ タ チ ッ テ ヌ ネ ホ ャ ン ヵ ㄅ ㄆ ㄉ ㄊ ㄌ ㄓ ㄔ ㄘ ㄛ ㄝ ㄞ ㄠ ㄡ ㄤ ㅅ ㅈ ㅊ ㅍ ㅎ ㆄ ꓕ ꓘ ꓛ ꓞ ꓤ ꓥ ꓨ ꓩ ꓭ ꓱ ꓵ ꓶ 𐀀 𐀁 𐀂 𐀈 𐀍 𐀑 𐀒 𐀓 𐀔 𐀕 𐀖 𐀗 𐀘 𐀙 𐀚 𐀛 𐀣 "
 )
 
 // predefinedBases returns the list of bases compiled into the binary.
@@ -142,6 +143,14 @@ func predefinedBases() []*Base {
 			Aliases:     []string{"Rods", "10rods"},
 		}),
 
+		// Base-10 in ANSI blocks
+		mkSpec(SpecOpts{
+			BaseSymbols: "▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▒ ▓",
+			Aliases:     []string{"blocks10"},
+			NegSymbol:   "◆",
+			DecSymbol:   "●",
+		}),
+
 		// Base-10 in emoji (custom hand-picked)
 		mkSpec(SpecOpts{
 			BaseSymbols: "😀 😑 😔 😘 😜 😠 😬 😮 🙄 🤔",
@@ -234,10 +243,11 @@ func predefinedBases() []*Base {
 		// Base-32hex (numbers first), RFC 4648 §7.
 		// Although listed second in the RFC base-32 standard, it is more consistent (hexadecimal-like) with other bases.
 		// Alias "32h" is backwards-compatable with convert-base-v1, don't remove.
+		// Alias "32tt" is a subset of 512tt.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-7
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 32),
-			Aliases:     []string{"32h", "32hex", "32rfc4648s7", "RFC4648s7", "TheOneTrue32"},
+			Aliases:     []string{"32h", "32hex", "32rfc4648s7", "RFC4648s7", "32tt"},
 			Pad:         "=",  // RFC 4648 s3.2 mandates padding by default
 			PadEmit:     true, // codec/binary output is padded; number output never is
 		}),
@@ -315,7 +325,7 @@ func predefinedBases() []*Base {
 		// Extends base-36hex with lower-case letters.
 		// A truncated base-62.
 		// Not an official standard but reasonably obvious.
-		// "Created" by Jim Collier 2026-04-19, published with this code.
+		// Created by Jim Collier 2026-04-19, published with this code.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 48),
 			Aliases:     []string{"48", "48h", "48hex"},
@@ -425,7 +435,7 @@ func predefinedBases() []*Base {
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "64j1u" is backwards-compatabile with convert-base-v1, don't remove it.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_288, 64),
+			BaseSymbols: leftTokens(base_288jc1, 64),
 			Aliases:     []string{"64jc1", "64j1u"},
 		}),
 
@@ -449,10 +459,6 @@ func predefinedBases() []*Base {
 			Aliases:     []string{"64v1compat", "64depr", "64j1uw"},
 		}),
 
-		//
-		// [end of the base-64 domain]
-		//
-
 		// Base-64 of emoji: the Unicode "Emoticons" block, U+1F600..1F63F - the 56
 		// yellow faces followed by the 8 cat faces, in code-point order. Every
 		// symbol is a single code point (no ZWJ sequences, no skin-tone modifiers)
@@ -465,6 +471,18 @@ func predefinedBases() []*Base {
 			DisallowDec: true,
 		}),
 
+		// 64tt
+		// A shorter version of 512tt (and longer than 32tt).
+		// Created by Jim Collier 2026-07-13, published with this code.
+		mkSpec(SpecOpts{
+			BaseSymbols: leftTokens(base_512tt, 64),
+			Aliases:     []string{"64tt"},
+		}),
+
+		//
+		// [end of the base-64 domain]
+		//
+
 		// Base-69: The nice radix.
 		// It was debated on including a childish base like this.
 		// But in the spirit of being comprehensive, it was included.
@@ -472,7 +490,7 @@ func predefinedBases() []*Base {
 		// https://github.com/pshihn/base69
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " + / - * < > |",
-			Aliases:     []string{"69prsh", "69pshihn"},
+			Aliases:     []string{"69prsh", "69pshihn", "69nice"},
 			NegSymbol:   "~", // tilde; '-' is a base symbol here
 		}),
 
@@ -534,13 +552,13 @@ func predefinedBases() []*Base {
 		// Proquints
 		// A mixed-radix scheme, not a base encoding. Designed for pronounceable quintuplets. Proposed by Daniel Shawcross Wilkerson. Not useful here.
 
-		// Base-128
+		// Base-128jc1
 		// Extends base-64p with (a lot) more unicode characters.
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
 		// Not an official standard. Created by Jim Collier 2026-04-17, published with this code.
 		// Spaces are required for symbol sets with Unicode characters.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_288, 128),
+			BaseSymbols: leftTokens(base_288jc1, 128),
 			Aliases:     []string{"128jc1"},
 		}),
 
@@ -565,25 +583,49 @@ func predefinedBases() []*Base {
 			Aliases:     []string{"128v1compat", "128depr"},
 		}),
 
-		// Base-256: Extends base-128 with more unicode characters.
+		// 128tt
+		// A shorter version of 512tt.
+		// Created by Jim Collier 2026-07-13, published with this code.
+		mkSpec(SpecOpts{
+			BaseSymbols: leftTokens(base_512tt, 128),
+			Aliases:     []string{"128tt"},
+		}),
+
+		// Base-256jc1: Extends base-128 with more unicode characters.
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "256j1" is backwards-compatable with convert-base-v1, don't remove.
 		// Spaces are required for symbol sets with Unicode characters.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_288, 256),
+			BaseSymbols: leftTokens(base_288jc1, 256),
 			Aliases:     []string{"256jc1", "256j1"},
 		}),
 
-		// Base-288: Extends base-256 with more unicode characters
+		// 256tt
+		// A shorter version of 512tt.
+		// Created by Jim Collier 2026-07-13, published with this code.
+		mkSpec(SpecOpts{
+			BaseSymbols: leftTokens(base_512tt, 256),
+			Aliases:     []string{"256tt"},
+		}),
+
+		// Base-288jc1: Extends base-256 with more unicode characters.
 		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
 		// Not really worth it over base-256, but left in for backward-compatibility with convert-base-v1.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
 		// Alias "288j1" is backwards-compatable with convert-base-v1, don't remove.
 		// Spaces are required for symbol sets with Unicode characters.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_288, 288),
+			BaseSymbols: leftTokens(base_288jc1, 288),
 			Aliases:     []string{"288jc1", "288j1"},
+		}),
+
+		// 512tt
+		// A shorter version of 512tt.
+		// Created by Jim Collier 2026-07-13, published with this code.
+		mkSpec(SpecOpts{
+			BaseSymbols: leftTokens(base_512tt, 512), // Just to keep the pattern, but this is the full set of symbols.
+			Aliases:     []string{"512tt"},
 		}),
 
 		// Base 2048, original qntm's JS version. (Have to run the JS to get this alphabet.)
@@ -678,7 +720,8 @@ func predefinedBases() []*Base {
 			DisallowDec: true,
 		}),
 
-		// Every printable keyboard character of a plain-text document (base 98).
+		// Base 98: Every printable keyboard character of a plain-text document.
+		// Created by Jim Collier 2026-07-13, published with this code.
 		keyboardBase(),
 
 		// Raw binary bytes (bit-perfect roundtrip mode)
