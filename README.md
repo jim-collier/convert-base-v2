@@ -45,17 +45,29 @@
 		<td style="border: none;"><b>Convert any positional notation number, of any size, to and from any numeric base</b><br /><br />Also, encode/decode binary-to-text across far more bases than the standard tools like `base64` give you.</td>
 	</tr>
 </table>
+-->
 
 <img src="assets/demo.gif" alt="Demo" width="800"/>
--->
+
+<table>
+	<tr>
+		<td>Convert any regular positional notation number, of any size - positive, negative, and/or decimal - to and from any numeric base.</td>
+		<td>Encode/decode streaming binary-to-text across far more bases than the standard tools like `base64` give you, and on average faster.</td>
+		<td>It's a single, fast, cross-platform static binary written in Go.</td>
+	</tr>
+</table>
 
 </div>
 
-Convert any positional notation number, of any size, to and from any numeric base. (Even your own defined bases and alphabets.)
+<!--
+![Demo](assets/demo.gif)
 
-You can also encode/decode streaming binary-to-text across far more bases than the standard tools like `base64` give you, and on average faster.
+Convert any positional notation number, of any size, to and from any numeric base.
+
+Encode/decode streaming binary-to-text across far more bases than the standard tools like `base64` give you, and on average faster.
 
 It's a single, fast, cross-platform static binary written in Go.
+-->
 
 <!-- TOC ignore:true -->
 ## Table of contents
