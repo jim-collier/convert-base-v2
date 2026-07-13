@@ -38,6 +38,8 @@ In each section, items are listed approximately from newest to oldest.
 | ✅   | Complete
 | 🚫   | Canceled
 
+Sub-bullets can be prefaced with a short tag so the note's role is clear at a glance: `Reproduced:`, `Cause:`, `Probable fix:`, `Fixed:`, `Done:`, `Verified:`, or `Note:`.
+
 ## Backlog
 
 ### Todo
@@ -54,6 +56,9 @@ In each section, items are listed approximately from newest to oldest.
 		~~~
 
 ### Bugs
+
+- 🔘 Come up with better animated gif examples.
+	- Note: save `--list` for the end of the demo.
 
 ### New features and enhancements
 
@@ -93,10 +98,12 @@ In each section, items are listed approximately from newest to oldest.
 
 #### Done - New features and enhancements
 
+- ✅ Auto fractional precision. `--precision` now defaults to `auto`, which sizes the output fraction to the input's own precision (input frac-digit count scaled by the base-size ratio, plus a rounding guard, trailing zeros trimmed) instead of always stretching to 50 digits. A short decimal input no longer grows an invented tail in another base. An explicit `--precision N` still forces a fixed count for anyone who wants padded or lossless round-trip output. Auto round-trips are lossy by design, since each hop keeps only the digits the input justified.
 - ✅ CI/CD improvements (batch landed 20260711; the v1.1.0-beta7 release was cut by the new flow itself)
 	- ✅ Minimal hosted CI: `.github/workflows/ci.yml` vets, tests, and builds on every push and PR to dev and main. The full local pipeline is unchanged.
 	- ✅ Dev branch + release on main: `dev` is now the integration branch and `main` is release-only. Merging dev to main tags the version from `source/main.go` (if that tag doesn't exist yet) and publishes the release automatically; a merge without a version bump is a no-op. Flow documented in `design.md`.
-	- ✅ goreleaser packaging: `.goreleaser.yaml` produces the same six archives with the same names and bare-binary layout as `make release`, plus a checksums file. Local builds still use the Makefile.
+	- ✅ goreleaser packaging: superseded 20260712. Replaced by self-contained `cicd/utility/package.bash` (tarballs/zips, `.deb`/`.rpm` via nfpm, Windows installers via makensis, checksums) run by both `make release` and the workflow; goreleaser and `.goreleaser.yaml` retired. See `design.md`.
+	- ✅ Full release packaging + build split + main guard (20260712): packages every platform for both arches (adds freebsd, deb/rpm, Windows installers); split debug (test/profile) vs optimized (dogfood) native builds; main merge now hard-fails via `check-release.bash` unless the version was bumped and the Lifecycle badge matches.
 	- ✅ Pinned tool versions + dependabot: pins live in `cicd/tool-versions.env` (the pipeline installs anything missing or drifted before stage 1); dependabot files grouped weekly update PRs against dev.
 	- ✅ README badges: dynamic Go version, CI status, and latest release, replacing the static Go and Status badges.
 - ✅ Docs accuracy sweep. (BxZNl-26) Regenerated the README bases table's Name and Aliases columns from the program (matching rows by alphabet so the swapped 32/32h rows self-corrected and the jc->jc1 renames applied; every alias now resolves). Fixed the serial-number example (1fLcL4 is 64h not 64u, whole-seconds value, softened the /60 prose), the stale 85ps example-output row, the `--examples` bare `2048` (now `2048x`), the UTF byte-count table and prose in both copies of how_to_design_a_numeric_base.md (3-byte UTF-16 is 2, 4-byte is 4/4), the example.conf silent-disable claim and undocumented `pad:` field, and the changelog 2025->2026 year typos. Added NEXT VERSION changelog entries for this batch of enhancements.
@@ -174,9 +181,7 @@ In each section, items are listed approximately from newest to oldest.
 
 ### Canceled
 
-- 🚫 Backwards compatible base '128v1compat' has a subtly incorrect alphabet difinition. (github #1)
-	- The base definition for '128j1' in v1 is - annoyingly - a "word-safe" version.
-		- (I can't remember if that was intentional. It shouldn't have been, because base 256 and 288 aren't. Base 128 should have been a subset of 256.)
-	- When writing the alphabets for v2, rather than copying the v1 alphabets verbatim, I made an incorrect assumptions about 128's logical structure. The difference can be very subtle - especially since 128 is an even power of 2. Which means some binary encodings might be off by only a single character.
-	- Step 1: Carefully compare the alphabet strings for v1, v1b, and v2. (Just paste all three on three lines in a doc, do `eyeball diff`.)
-	- Result: compared v2 against the bundled v1b for all 128 values. v2 `128v1compat` and `128jc1` are byte-for-byte identical to v1b's, and the test.bash v1 cross-check passes. Cannot substantiate a discrepancy without the original v1 (not v1b) alphabet, and altering the alphabet now would break the verified v1b compatibility. Needs the original v1 reference to proceed.
+- 🚫 Backwards compatible base '128v1compat' may have a subtly incorrect alphabet definition. (github #1)
+	- Cause: the v1 base-128 definition is a "word-safe" version, which base 256 and 288 are not. Base 128 should have been a subset of 256. When writing v2, an incorrect assumption was made about the base-128 structure instead of copying v1 verbatim. Because 128 is a power of two, the difference could be as small as a single character in some binary encodings.
+	- Verified: compared v2 against the bundled v1b for all 128 values. `128v1compat` and `128jc1` are byte-for-byte identical to v1b, and the v1 cross-check passes.
+	- Note: cannot confirm any discrepancy without the original v1 (not v1b) alphabet, and changing it now would break the verified v1b compatibility. Needs the original v1 reference to proceed.

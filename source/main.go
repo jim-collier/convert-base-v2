@@ -12,13 +12,14 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 )
 
 // version is overwritten at build time via -ldflags "-X main.version=...". It
 // must be a var, not a const: the linker can only patch a var, so a const here
 // made the Makefile's version injection a silent no-op.
-var version = "v1.1.0-beta7"
+var version = "v2.0.0"
 
 const (
 	copyrightYear = "2023-2026"
@@ -40,7 +41,7 @@ func run() error {
 		toName        = flag.String("to", "", "output base name/alias; default 10; also accepted as a positional arg")
 		fromSymbols   = flag.String("from-symbols", "", `custom input base (spec form: "SYMS [neg=X] [dec=Y] [pad=Z]")`)
 		toSymbols     = flag.String("to-symbols", "", `custom output base (spec form: "SYMS [neg=X] [dec=Y] [pad=Z]")`)
-		precision     = flag.Int("precision", 50, "max fractional digits in output")
+		precision     = flag.String("precision", "auto", "max fractional digits, or 'auto' to match the input's precision")
 		lower         = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
 		upper         = flag.Bool("upper", false, "uppercase output (errors if output base has mixed-case digits)")
 		noNewline     = flag.Bool("no-newline", false, "do not append a trailing newline to text output (like echo -n)")
@@ -281,8 +282,14 @@ func run() error {
 		return fmt.Errorf("output base: %w", err)
 	}
 
-	if *precision < 0 {
-		return fmt.Errorf("precision must be >= 0")
+	// -1 is the auto sentinel Convert understands; an explicit value must be >= 0.
+	precVal := -1
+	if !strings.EqualFold(strings.TrimSpace(*precision), "auto") {
+		n, perr := strconv.Atoi(strings.TrimSpace(*precision))
+		if perr != nil || n < 0 {
+			return fmt.Errorf("precision must be a non-negative integer or 'auto'")
+		}
+		precVal = n
 	}
 
 	if *lower && *upper {
@@ -363,13 +370,13 @@ func run() error {
 	if routeBytes {
 		// from-digits -> raw bytes -> to-digits, matching the streaming route and
 		// basenc byte-for-byte (whole-byte checks and RFC padding included).
-		mid, cerr := Convert(number, from, bytes, *precision)
+		mid, cerr := Convert(number, from, bytes, precVal)
 		if cerr != nil {
 			return cerr
 		}
-		result, err = Convert(mid, bytes, to, *precision)
+		result, err = Convert(mid, bytes, to, precVal)
 	} else {
-		result, err = Convert(number, from, to, *precision)
+		result, err = Convert(number, from, to, precVal)
 	}
 	if err != nil {
 		return err
@@ -609,7 +616,7 @@ given, output base also defaults to 10.
 Conversion mode:
   --binary, --bin, -b  Treat both sides as raw bytes (encode/decode like basenc)
   --number, --num, -N  Treat input as a positional notation number (default)
-  --precision N        Max fractional digits in output  [default 50]
+  --precision N|auto   Max fractional digits, or auto to match input  [default auto]
   --lower / --upper    Force output case (errors on mixed-case digit bases)
   --no-newline, -n     Omit trailing newline on text output (like echo -n)
 

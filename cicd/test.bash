@@ -196,6 +196,18 @@ check eq  "neg fraction -0.5 -> 2"   -0.1      -- --number --precision 6 -- -0.5
 check eq  "neg mixed -255.5 -> 16"   -FF.8     -- --number -- -255.5 16
 check eq  "fraction 255.5 -> 16"     FF.8      -- --number 255.5 16
 check eq  "fraction 0.1 -> 16 p6"     0.19999A -- --number --precision 6 0.1 16
+## Auto precision (the default): output frac length tracks the input's scaled by
+## base size, so a short decimal input does not grow an invented tail. Weird
+## corners: widening (dec->bin), narrowing (hex->dec), an odd base ratio, a
+## terminating value that trims, and a big base down to a small one.
+check eq  "auto 0.1 -> 16"            0.1A      -- --number 0.1 16
+check eq  "auto 0.1 -> 2"             0.00011   -- --number 0.1 2
+check eq  "auto 0.1 -> 3"             0.0022    -- --number 0.1 3
+check eq  "auto FF.8 -> 10"           255.5     -- --from 16 --to 10 FF.8
+check eq  "auto 0.5 -> 2 (trims)"     0.1       -- --number 0.5 2
+check eq  "auto 0.9 -> 2 (round up)"  0.11101   -- --number 0.9 2
+check eq  "auto 288 -> 10"            0.0035    -- --from 288j1 --to 10 0.1
+check eq  "auto tiny 0.000001 -> 16"  0.000011  -- --number 0.000001 16
 ## Independent (non-round-trip) known-value pins for bases that otherwise only
 ## get self-round-trip fuzz, so a bug mirrored in encode+decode can't hide.
 check eq  "pin 1000000 -> 58btc"     68GP      -- --number 1000000 58btc
@@ -254,7 +266,8 @@ check errmsg "neg number without --"   'a "--" separator'                -- -123
 check errmsg "unknown flag hint"       'unknown flag'                    -- --lowr 255 16
 check errmsg "bad digit for base"   'not in base'                        -- --from 2 9
 check errmsg "extra positional"     'unexpected extra positional'        -- 1 2 3
-check errmsg "precision < 0"        'precision must be >= 0'             -- --precision -1 1
+check errmsg "precision < 0"        'non-negative integer or'            -- --precision -1 1
+check errmsg "precision bad word"   'non-negative integer or'            -- --precision foo 1 16
 check errmsg "empty input"          'empty input'                        -- "" 16
 check err   "multiple decimals"     -                                     -- --from 10 1.2.3 16
 check err   "double negative"       -                                     -- -- --5 16
@@ -311,7 +324,7 @@ done
 ## Big bases (more than 8 bits per char) round-trip at every input length,
 ## including the odd lengths a zero-padded tail used to corrupt. Sweep edge
 ## lengths for each.
-for pair in "2048twitter" "2048rust" "32768qntm" "65536"; do
+for pair in "2048twitter" "2048rust" "32768qntm" "65536qntm"; do
 	bigfail=0
 	for n in 0 1 2 3 4 5 7 8 15 16 17 31 32 33 64 333; do
 		src="${CBT_TMP}/bp_src"; mid="${CBT_TMP}/bp_mid"; out="${CBT_TMP}/bp_out"
@@ -392,11 +405,11 @@ nvec(){ # LABEL BASE INPUT_HEX EXPECTED_CODEPOINTS(space-separated hex)
 	[[ "$got" == "$exp" ]] && _pass "native vector ${label}" \
 		|| _fail "native vector ${label}" "want=[$cps] got=[$(printf '%s' "$got" | od -An -tx1 | tr -d '\n')]"
 }
-nvec "65536 lone byte"   65536       00         1500
-nvec "65536 byte order"  65536       0102       3601
-nvec "65536 pair+tail"   65536       010203     "3601 1503"
-nvec "65536 high block"  65536       ffff       285FF
-nvec "65536 Hello"       65536       48656c6c6f "9A48 A36C 156F"
+nvec "65536 lone byte"   65536qntm   00         1500
+nvec "65536 byte order"  65536qntm   0102       3601
+nvec "65536 pair+tail"   65536qntm   010203     "3601 1503"
+nvec "65536 high block"  65536qntm   ffff       285FF
+nvec "65536 Hello"       65536qntm   48656c6c6f "9A48 A36C 156F"
 nvec "32768 one byte"    32768qntm   00         06BF
 nvec "32768 two bytes"   32768qntm   0000       "04A0 025F"
 nvec "32768 short tail"  32768qntm   000000000000 "04A0 04A0 04A0 018F"
@@ -569,6 +582,9 @@ for ((i=0; i<iters; i++)); do
 	base="${FUZZ_BASES[idx]}"
 	val="$(_rand_int "$maxlen")"
 	_run --from 10 --to "$base" -- "$val"; enc="$_out"; ((_rc == 0)) || { fuzz_fail=$((fuzz_fail+1)); _fail "fuzz enc base=$base val-len=${#val}" "rc=$_rc err=[$_err]"; continue; }
+	## A lone "-" output (a base whose single digit is "-", e.g. hostname value 36)
+	## is the read-stdin sentinel as a positional, so it can't round-trip via argv.
+	[[ "$enc" == "-" ]] && continue
 	_run --from "$base" --to 10 -- "$enc"
 	{ ((_rc == 0)) && [[ "$_out" == "$val" ]]; } || { fuzz_fail=$((fuzz_fail+1)); _fail "fuzz round-trip base=$base" "val=[$val] enc=[$enc] got=[$_out] rc=$_rc"; }
 done
@@ -623,7 +639,13 @@ for ((i = 0; i < iters; i++)); do
 	_load_syms "$src_idx"
 	src_name="${IDX_NAME[src_idx]}"; tgt_name="${IDX_NAME[tgt_idx]}"
 	src_str="$(_rand_symbols "$src_idx")"
+	## A lone "-" as a positional value is the read-stdin sentinel, not a digit,
+	## so a base that carries "-" in its alphabet (hostname, username, ...) can't
+	## pass the single-digit "-" through argv. Skip just that one string on either
+	## side; any longer value that merely contains "-" is unambiguous and fine.
+	[[ "$src_str" == "-" ]] && continue
 	_run --from "$src_name" --to "$tgt_name" -- "$src_str"; encoded="$_out"; ((_rc == 0)) || { symfuzz_fail=$((symfuzz_fail+1)); _fail "symbol fuzz enc $src_name->$tgt_name" "src=[$src_str] rc=$_rc err=[$_err]"; continue; }
+	[[ "$encoded" == "-" ]] && continue
 	_run --from "$tgt_name" --to "$src_name" -- "$encoded"; symfuzz_n=$((symfuzz_n + 1))
 	{ ((_rc == 0)) && [[ "$_out" == "$src_str" ]]; } || { symfuzz_fail=$((symfuzz_fail+1)); _fail "symbol fuzz round-trip $src_name<->$tgt_name" "src=[$src_str] enc=[$encoded] got=[$_out] rc=$_rc"; }
 done

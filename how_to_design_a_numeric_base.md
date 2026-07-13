@@ -55,7 +55,6 @@ Note: Although "character", "symbol", and "glyph" have subtly different meanings
 		- [UTF-16 and base-32768](#utf-16-and-base-32768)
 		- [UTF-32 and base-65536](#utf-32-and-base-65536)
 		- [General NON-concerns for binary-to-text encoding](#general-non-concerns-for-binary-to-text-encoding)
-	- [Printable character counts for each UTF byte range](#printable-character-counts-for-each-utf-byte-range)
 - [Guidelines on what to avoid during symbol selection](#guidelines-on-what-to-avoid-during-symbol-selection)
 	- [Class 1; things that break either system](#class-1-things-that-break-either-system)
 	- [Class 2; things that make a positional notation numbering system hard to read and use](#class-2-things-that-make-a-positional-notation-numbering-system-hard-to-read-and-use)
@@ -84,13 +83,13 @@ You only have 95 printable 1-byte characters, and 33 are potentially problematic
 | 3          | 1110xxxx-10xxxxxx-10xxxxxx           | 65,536           | 51,600                                     | 3           | 2            |
 | 4          | 11110xxx-10xxxxxx-10xxxxxx-10xxxxxx  | 2,097,152        | 90,764                                     | 4           | 4            | Unicode caps at U+10FFFF for UTF-16 surrogate pair scheme compatibility, so the mathly max is actually 1,114,112.
 
-<sup>*</sup> _Footnote: "Actual usable character count" excludes non-printing control characters, ranges reserved for private use, combining marks, and RTL or "right-to-left" symbols. And the U+10FFFF cap._
+<sup>1</sup> _Footnote: "Actual usable character count" excludes non-printing control characters, ranges reserved for private use, combining marks, and RTL or "right-to-left" symbols. And the U+10FFFF cap._
 
 Other modern text encoding schemes are usually subsets or supersets of a UTF scheme. (E.g. GB18030, a Chinese standard, a UTF-8 superset.)
 
 ### Positional notation numbering system
 
-Such a thing is, by it's nature, meant to be _readable by, and useful to, humans_.
+Such a thing is, by its nature, meant to be _readable by, and useful to, humans_.
 
 This automatically implies a few things:
 
@@ -126,7 +125,7 @@ Are the symbols in your base likely to be considered "reserved" by OSes for file
 
 	- If your base is very large, then it will be dominated by 2-byte and possibly even 3- and 4-byte symbols anyway. In that case, again, losing a comparatively tiny % of 1-byte symbols, may be a trivial cost.
 
-	> _Well into the 21st century now, the safest approach is generally just to not use any ASCII keyboard symbols in a positional notation numbering system at all- and stick to the 62 upper and lower-case alphanumeric symbols to start with. Then reach into the 2-, 3-, and even 4-byte UTF-8 range for additional symbols. Or for novelty, don't use any 1-byte UTF-8 symbols at all._
+	> _Well into the 21st century now, the safest approach is generally just to not use any ASCII keyboard symbols in a positional notation numbering system at all - and stick to the 62 upper and lower-case alphanumeric symbols to start with. Then reach into the 2-, 3-, and even 4-byte UTF-8 range for additional symbols. Or for novelty, don't use any 1-byte UTF-8 symbols at all._
 
 #### Legibility and ambiguity
 
@@ -226,7 +225,7 @@ So _very_ careful symbol selection, while checking multiple monospace fonts acro
 
 Perhaps ironically, symbols marked with the Unicode "Wide" designation, usually display fine in terminal emulators. These are typically eastern-asian symbol sets such as CJK. They are specified as having _two_ character spaces to display, and terminal emulators usually honor that.
 
-Legacy Windows `conhost.txt` (the old application for hosting `cmd.exe`), can work with UTF-8, but only if the code page is set to UTF-8 ("chcp 65001"), and a compatible font is used (e.g., Consolas, Cascadia Mono, Noto Sans Mono, etc.).
+Legacy Windows `conhost.exe` (the old application for hosting `cmd.exe`), can work with UTF-8, but only if the code page is set to UTF-8 ("chcp 65001"), and a compatible font is used (e.g., Consolas, Cascadia Mono, Noto Sans Mono, etc.).
 
 #### Monospace text editors
 
@@ -250,7 +249,7 @@ __A base 64 encoding scheme, using as many traditional 1-byte Unicode characters
 
 The traditional challenge has been:
 
-- There is only 94 visible, printable 1-byte Unicode (formerly ASCII) characters.
+- There are only 94 visible, printable 1-byte Unicode (formerly ASCII) characters.
 
 - Out of those 94, most or all of the non-alphanumeric symbols that appear on a keyboard should be avoided as "unsafe" - for reserved characters for filesystems, URLs, etc. (Unless the purpose for encoding is very narrow and well-defined.)
 
@@ -266,7 +265,7 @@ A base-32768 (e.g. [this one](https://github.com/qntm/base32768)) provides optim
 
 - Many programming languages, and the Windows API, use UTF-16.
 
-- There's plenty of room for innovation here. but 32,768 characters is so many, that factors like "existing adoption" and "codepoint efficiency" are far more important than "aesthetics".
+- There's plenty of room for innovation here. But 32,768 characters is so many, that factors like "existing adoption" and "codepoint efficiency" are far more important than "aesthetics".
 
 #### UTF-32 and base-65536
 
@@ -280,28 +279,11 @@ UTF-32 is rarely used for storage or interchange. It's used sometimes by code li
 
 1. __Symbol width overflowing display cells__: Since human-readable output to a text-based terminal is generally irrelevant, you generally don't need to be concerned with overflowing and therefore illegible characters. For example, it's probably completely unconcerning if "Narrow" Unicode symbols visually overflow their assigned terminal cells. (Because if you're even seeing it on a terminal in the first place, you probably forgot to include a piped operation somewhere in a command.)
 
-1. __codepoint order__: Since the output of binary encoding usually looks essentially random, there's not much argument for starting a binary-to-text alphabet with the hex convention of `0-9A-Za-z`, or maintaining Unicode codepoint order at all. (Other that minimizing programmer confusion, and the usually equally valid argument of "why _not_ maintain codepoint order"?)
+1. __codepoint order__: Since the output of binary encoding usually looks essentially random, there's not much argument for starting a binary-to-text alphabet with the hex convention of `0-9A-Za-z`, or maintaining Unicode codepoint order at all. (Other than minimizing programmer confusion, and the usually equally valid argument of "why _not_ maintain codepoint order"?)
 
 1. __Symbol ambiguity__: The volume of data in a binary-to-text scheme is usually too high for manual transcription, so symbol disambiguation is usually irrelevant. As long as they are numerically distinct at the codepoint level.
 
 Bases 32 and 64 are already exhaustively solved problems. There's room at higher bases for innovation.
-
-### Printable character counts for each UTF byte range
-
-The idea is usually to be as efficient as possible for a given Unicode encoding scheme. For UTF-8 and UTF-16, that means packing as many <= 2-byte symbols into the base alphabet as possible.
-
-But you only have 95 printable 1-byte characters, and 33 are potentially problematic symbols that are "reserved" in various contexts (e.g. filesystem name delimiter "/", ":", or "\"). So for anything over about base-64 more-or-less, you have to accept that eventually you'll have to start eating into the 2-byte UTF-8 range. (And 1-byte symbols save you nothing in UTF-16, other than a tiny % more headroom for more 2-byte symbols before eating into the 4-byte (surrogate-pair) range for very large bases.)
-
-| Byte count | UTF-8 bitmask                       | Mathly max count | Actual usable character count <sup>1</sup> | UTF-8 bytes | UTF-16 bytes | Comments
-| --:        | :--                                  | --:              | --:                                        | --:         | --:          | :--
-| 1          | 0xxxxxxx                             | 128              | 95                                         | 1           | 2            | 62 printable if you subtract all "keyboard" symbols used as reserved symbols in various contexts.
-| 2          | 110xxxxx-10xxxxxx                    | 2,048            | 1,166                                      | 2           | 2            |
-| 3          | 1110xxxx-10xxxxxx-10xxxxxx           | 65,536           | 51,600                                     | 3           | 2            |
-| 4          | 11110xxx-10xxxxxx-10xxxxxx-10xxxxxx  | 2,097,152        | 90,764                                     | 4           | 4            | Unicode caps at U+10FFFF for UTF-16 surrogate pair scheme compatibility, so the mathly max is actually 1,114,112.
-
-<sup>*</sup> _Footnote: "Actual usable character count" excludes non-printing control characters, ranges reserved for private use, combining marks, and RTL or "right-to-left" symbols. And the U+10FFFF cap._
-
-Other modern encoding schemes are usually subsets or supersets of a UTF scheme. (E.g. GB18030, a Chinese standard, a UTF-8 superset.)
 
 ## Guidelines on what to avoid during symbol selection
 
@@ -359,7 +341,7 @@ __Positional notation numbering system__: In very approximate and subjective ord
 
 	- It can be an incredible - and maddening - challenge to find and choose only baseline, unadorned, visually unique symbols. Especially without programmatic help.
 
-- _Any_ character that can be decomposed, which includes the previous "baked-in" diacritic characters, but also and ligatures like Æ. The look cool, but confusing in context. And often overflow their allotted cells on terminal emulators.
+- _Any_ character that can be decomposed, which includes the previous "baked-in" diacritic characters, but also ligatures like Æ. They look cool, but confusing in context. And often overflow their allotted cells on terminal emulators.
 
 - Most middle-barred letters that look "crossed-out". Technically part of the previous point about diacritics, but worth calling out separately. Like other diacritics, it makes for hard-to-read, visually messy output.
 
@@ -405,7 +387,7 @@ __Positional notation numbering system__: In very approximate and subjective ord
 
 	- Programmatic help can weed out offenders quickly.
 
-- Symbols that have more than one parts disconnected from each other, separated by too much space, esp. horizontally.
+- Symbols that have more than one part disconnected from each other, separated by too much space, esp. horizontally.
 
 - Severely slanted symbols can add confusion with adjacent characters.
 

@@ -50,12 +50,17 @@ SRC_DIR="source"
 ## formatter here - bash is hand-formatted on purpose.
 FMT_CMD=(make -C "${SRC_DIR}" fmt)
 
-## Stage 2: native build. Produces NATIVE_BUILD_OUT, which the engine then copies
-## to STAGED_BIN. STAGED_BIN lives outside what 'make release' cleans, so the tested
-## binary survives the cross-compile stage and is the one that gets dogfooded.
-NATIVE_BUILD_CMD=(make -C "${SRC_DIR}" local)
+## Stage 2: two native builds, both staged under source/bin (outside what the
+## cross stage touches, so they survive it).
+##   - debug (symbols kept): the tests and profiler run against this.
+##   - release (optimized, stripped): smoke-checked, then dogfooded. It matches
+##     what the cross stage ships, so we dogfood the real thing, not a debug build.
+NATIVE_BUILD_CMD=(make -C "${SRC_DIR}" debug)
 NATIVE_BUILD_OUT="${SRC_DIR}/${EXE_NAME}"
 STAGED_BIN="${SRC_DIR}/bin/${EXE_NAME}"
+RELEASE_BUILD_CMD=(make -C "${SRC_DIR}" local)
+RELEASE_BUILD_OUT="${SRC_DIR}/${EXE_NAME}"
+STAGED_RELEASE_BIN="${SRC_DIR}/bin/${EXE_NAME}-release"
 
 ## Pinned tool versions live in cicd/tool-versions.env; the engine runs this
 ## before stage 1 to go-install anything missing or drifted (warn-only, so the
@@ -111,8 +116,11 @@ LINT_LOG_DIR="cicd/artifacts/lint"          # relative to repo root; created if 
 ## keeps ~30 - first + newest-per-hour/day/week/month/year + last 10. Tune with the
 ## GFS_KEEP_* env vars (GFS_KEEP_FREQUENT, GFS_KEEP_DAILY, ...) if needed.
 
-## Stage 6: cross-compile every shipping platform into source/dist as tgz/zip.
-## This doubles as a build-sanity gate. Set BUILD_CROSS=0 (or --no-cross/--quick) to skip.
+## Stage 6: cross-compile + package every shipping platform into source/dist.
+## `make release` runs cicd/utility/package.bash: archives (tgz/zip) for all of
+## linux/darwin/freebsd/windows x amd64/arm64, plus .deb/.rpm (nfpm) and Windows
+## installers (makensis), plus checksums. Doubles as a build-sanity gate. Set
+## BUILD_CROSS=0 (or --no-cross/--quick) to skip.
 BUILD_CROSS=1
 RELEASE_CMD=(make -C "${SRC_DIR}" release)
 RELEASE_ARTIFACT_DIR="${SRC_DIR}/dist"
@@ -130,6 +138,23 @@ DOGFOOD_FIXED_DESTS=(
 ## failure is a warning, not a stop. Also skipped by --quick.
 DO_SCREENSHOTS=0
 SCREENSHOT_CMD=(utility/gen-screenshots.bash)
+
+## Stage 7 (after screenshots): demo gif. Types the scenario's commands into a fake
+## terminal, runs each against the tested binary, and renders the animated loop.
+## Seeded, so an unchanged binary + scenario reproduces the same file. A failure is
+## a warning, not a stop. Skipped by --quick / --no-demogif. When the render differs
+## from the committed copy, a timestamped original is kept (GFS-pruned) out of tree
+## under DEMOGIF_ARCHIVE_DIR, then landed in the repo at DEMOGIF_OUT.
+DO_DEMOGIF=1
+DEMOGIF_CMD=(cicd/utility/gen-demo-gif.py --scenario cicd/demo-scenario.toml)
+DEMOGIF_OUT="assets/demo.gif"                 # in-repo copy the README embeds
+DEMOGIF_ARCHIVE_DIR="../private/demos/gif"    # out-of-tree originals, GFS-rotated
+
+## Stage 8 (before publish): optional local pre-publish hook. Points at an
+## out-of-tree script kept under ../private, so it never ships with the repo.
+## Runs if present + executable; a missing dir/file is skipped, not an error.
+## A non-zero exit aborts before anything is published, so the hook can gate.
+PREPUBLISH_HOOK="../private/hooks/pre-publish.bash"
 
 ## Stage 8: backup + publish to git (runs from repo root). The engine always passes
 ## --quiet (it already gave the message prompt) and, when it has one, -m MESSAGE.

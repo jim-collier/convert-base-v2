@@ -27,8 +27,8 @@
 ##	   3. lint (go vet gating; golangci-lint + staticcheck if installed)
 ##	   4. tests (unit + integration harness + fuzz + govulncheck security)
 ##	   5. profiler (flamegraph SVG; non-gating artifact - see failure policy)
-##	   6. cross-compile every shipping platform (build sanity + release archives)
-##	   7. dogfood (install the native build locally, fixed name) + screenshots
+##	   6. cross-compile + package every shipping platform (archives, deb/rpm, Windows installers, checksums)
+##	   7. dogfood (install the optimized native build locally, fixed name) + screenshots + demo gif
 ##	   8. backup + publish to git (runs from repo root)
 ##	- Syntax:
 ##	  cicd/cicd.bash [options]
@@ -39,13 +39,14 @@
 ##	       --msg MSG       alias for --message
 ##	   --no-fmt            skip the formatter stage
 ##	   --no-lint           skip the lint stage
-##	   --no-cross          skip the cross-compile stage
+##	   --no-cross          skip the cross-compile + package stage
 ##	   --no-profile        skip the profiler stage
 ##	   --no-dogfood        skip installing the native build locally
 ##	   --no-screenshots    skip regenerating README screenshots
+##	   --no-demogif        skip regenerating the demo gif
 ##	   --no-publish        skip the git backup + publish stage
 ##	   --long              exhaustive test run (sets CICDTEST_DO_LONGTEST=1)
-##	   --quick             skip the slow stages (cross-compile, profiler, screenshots) and shorten fuzz
+##	   --quick             skip the slow stages (cross-compile, profiler, screenshots, demo gif) and shorten fuzz
 ##	   -h, --help          show this help
 ##	- If neither -q/-y nor -m is given, the run prompts once for a commit message
 ##	  (blank = git editor; Ctrl+C aborts the whole run), then finishes unattended.
@@ -77,6 +78,7 @@ source "${here}/config.bash"
 source "${here}/utility/include/gfs-rotate.bash"       ## gfs_rotate() for the artifact dirs
 cd "${root}"
 stamp="$(date +%Y%m%d-%H%M%S)"
+export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the Entering/Leaving dir noise
 
 ## Parse options.
 assume_yes=0; quiet=0; quick=0; do_long=0; cli_message=""
@@ -89,14 +91,19 @@ while (($#)); do case "$1" in
 	--no-profile)             PROFILE_ENABLE=0; shift ;;
 	--no-dogfood)             DOGFOOD_FIXED_DESTS=(); shift ;;
 	--no-screenshots)         DO_SCREENSHOTS=0; shift ;;
+	--no-demogif)             DO_DEMOGIF=0; shift ;;
 	--no-publish)             GIT_PUBLISH=(); shift ;;
 	--long)                   do_long=1; shift ;;
-	--quick)                  quick=1; BUILD_CROSS=0; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; shift ;;
+	--quick)                  quick=1; BUILD_CROSS=0; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; shift ;;
 	--message=*|--msg=*|-m=*) cli_message="${1#*=}"; shift ;;
 	-m|--message|--msg)       cli_message="${2-}"; shift; (($#)) && shift ;;
 	-h|--help)                sed -n '/^##	- Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##	\{0,1\}//'; exit 0 ;;
 	*) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
 esac; done
+
+## Brief beat after each stage header so the cheap fast stages stay readable.
+## Off for unattended runs (-q/-y) where nobody is watching.
+stage_pause=0.4; ((assume_yes)) && stage_pause=0
 
 ## Publish commit message: -m wins, then config, then a default when unattended.
 ## Empty -> publish interactively (git commit opens an editor); when interactive
@@ -117,7 +124,7 @@ fEcho_Clean(){ if [[ -n "${1:-}" ]]; then echo -e "$*"; _wasLastEchoBlank=0; eli
 fEcho(){       if [[ -n "$*"     ]]; then fEcho_Clean "[ $* ]"; else fEcho_Clean ""; fi; }
 fEcho_Force(){ fEcho_ResetBlankCounter; fEcho "$*"; }
 _letterbox="••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"
-fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fEcho "$*"; }
+fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fEcho "$*"; [[ "${stage_pause:-0}" == 0 ]] || sleep "${stage_pause}"; }
 fDie(){ { fEcho_Force "FAILED: $*"; } >&2; exit 1; }
 ## Run a command array inside the Go module dir (SRC_DIR). Go tool stages need it.
 in_src(){ ( cd "${root}/${SRC_DIR}" && "$@" ); }
@@ -132,7 +139,9 @@ fEcho_Clean "${APP_NAME} local CI/CD"
 fEcho_Clean
 fEcho_Clean "Repo root ...........: ${root}"
 fEcho_Clean "Format ..............: ${FMT_CMD[*]:-(skipped)}"
-fEcho_Clean "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN}"
+fEcho_Clean "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debug)"
+((${#RELEASE_BUILD_CMD[@]})) && \
+fEcho_Clean "                       ${RELEASE_BUILD_CMD[*]} -> ${STAGED_RELEASE_BIN} (release, dogfooded)"
 if ((${#VET_CMD[@]})); then
 	fEcho_Clean "Lint ................: ${VET_CMD[*]}  (+ golangci-lint, staticcheck if installed)"
 else
@@ -152,9 +161,9 @@ else
 	fEcho_Clean "Profiler ............: (skipped)"
 fi
 if ((BUILD_CROSS)); then
-	fEcho_Clean "Cross-compile .......: ${RELEASE_CMD[*]} -> ${RELEASE_ARTIFACT_DIR}/"
+	fEcho_Clean "Cross + package .....: ${RELEASE_CMD[*]} -> ${RELEASE_ARTIFACT_DIR}/ (tgz/zip, deb/rpm, installers)"
 else
-	fEcho_Clean "Cross-compile .......: (skipped)"
+	fEcho_Clean "Cross + package .....: (skipped)"
 fi
 if ((${#DOGFOOD_FIXED_DESTS[@]})); then
 	if [[ -n "$fixed_dest" ]]; then fEcho_Clean "Dogfood, fixed name .: overwrite ${fixed_dest}/${EXE_NAME}"
@@ -163,6 +172,7 @@ else
 	fEcho_Clean "Dogfood, fixed name .: (disabled)"
 fi
 fEcho_Clean "Screenshots .........: $( ((DO_SCREENSHOTS)) && echo "${SCREENSHOT_CMD[*]}" || echo '(skipped)')"
+fEcho_Clean "Demo gif ............: $( ((DO_DEMOGIF)) && echo "${DEMOGIF_CMD[*]}" || echo '(skipped)')"
 if ((${#GIT_PUBLISH[@]} == 0)); then
 	fEcho_Clean "Publish (last) ......: (disabled)"
 elif [[ -n "$publish_msg" ]]; then
@@ -190,6 +200,10 @@ fi
 if [[ -n "${LINT_LOG_DIR:-}" ]] && mkdir -p "${root}/${LINT_LOG_DIR}" 2>/dev/null; then
 	gfs_rotate "${root}/${LINT_LOG_DIR}" run log >/dev/null 2>&1 || true
 	exec > >(tee "${root}/${LINT_LOG_DIR}/run_${stamp}.log") 2>&1
+	## Wait for tee to drain on exit, else the shell prompt returns mid-flush and
+	## the last output lands after it (looks like the prompt "came back").
+	tee_pid=$!
+	trap 'exec 1>&- 2>&-; wait "${tee_pid}" 2>/dev/null' EXIT
 fi
 
 ## Pinned tools: bring any go-installed tool that drifted from tool-versions.env
@@ -207,13 +221,22 @@ else
 	fEcho "OK: formatted (${FMT_CMD[*]})"
 fi
 
-## Stage 2: native build, staged aside from what the cross stage cleans.
+## Stage 2: native builds, staged aside from what the cross stage cleans. The
+## debug build (symbols) is what the tests and profiler run against; the
+## optimized build is smoke-checked here and dogfooded in stage 7.
 fSection "2/8  Native build"
 "${NATIVE_BUILD_CMD[@]}"
-[[ -f "${NATIVE_BUILD_OUT}" ]] || fDie "native build produced no binary: ${NATIVE_BUILD_OUT}"
+[[ -f "${NATIVE_BUILD_OUT}" ]] || fDie "debug build produced no binary: ${NATIVE_BUILD_OUT}"
 mkdir -p "$(dirname "${STAGED_BIN}")"
 cp -f "${NATIVE_BUILD_OUT}" "${STAGED_BIN}"
-fEcho "OK: native build: ${STAGED_BIN} ($(du -h "${STAGED_BIN}" | cut -f1))  ($("${STAGED_BIN}" --version))"
+fEcho "OK: debug build: ${STAGED_BIN} ($(du -h "${STAGED_BIN}" | cut -f1))  ($("${STAGED_BIN}" --version))"
+if ((${#RELEASE_BUILD_CMD[@]})); then
+	"${RELEASE_BUILD_CMD[@]}"
+	[[ -f "${RELEASE_BUILD_OUT}" ]] || fDie "release build produced no binary: ${RELEASE_BUILD_OUT}"
+	cp -f "${RELEASE_BUILD_OUT}" "${STAGED_RELEASE_BIN}"
+	"${STAGED_RELEASE_BIN}" --version >/dev/null 2>&1 || fDie "release build smoke check failed"
+	fEcho "OK: release build: ${STAGED_RELEASE_BIN} ($(du -h "${STAGED_RELEASE_BIN}" | cut -f1))  ($("${STAGED_RELEASE_BIN}" --version))"
+fi
 
 ## Stage 3: lint. go vet is gating; golangci-lint / staticcheck run when installed
 ## (a failed probe skips that one with a warning). All output lands in the run log.
@@ -324,23 +347,26 @@ run_profiler(){
 fSection "5/8  Profiler"
 run_profiler
 
-## Stage 6: cross-compile (build sanity + release archives).
-fSection "6/8  Cross-compile"
+## Stage 6: cross-compile + package (build sanity + release artifacts).
+fSection "6/8  Cross + package"
 if ((BUILD_CROSS)); then
 	"${RELEASE_CMD[@]}"
-	count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' \) 2>/dev/null | wc -l)"
-	((count > 0)) || fDie "cross-compile produced no archives in ${RELEASE_ARTIFACT_DIR}/"
-	fEcho "OK: release archives: ${count} in ${RELEASE_ARTIFACT_DIR}/"
+	count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.exe' \) 2>/dev/null | wc -l)"
+	((count > 0)) || fDie "cross + package produced no artifacts in ${RELEASE_ARTIFACT_DIR}/"
+	fEcho "OK: release artifacts: ${count} in ${RELEASE_ARTIFACT_DIR}/"
 else
-	fEcho_Clean "cross-compile skipped"
+	fEcho_Clean "cross + package skipped"
 fi
 
-## Stage 7: dogfood (fixed name) + screenshots.
+## Stage 7: dogfood (fixed name) + screenshots. Dogfood the optimized release
+## build (the real thing), falling back to the debug build if it wasn't made.
 fSection "7/8  Dogfood"
+dogfood_bin="${STAGED_BIN}"
+[[ -n "${STAGED_RELEASE_BIN:-}" && -f "${STAGED_RELEASE_BIN}" ]] && dogfood_bin="${STAGED_RELEASE_BIN}"
 if ((${#DOGFOOD_FIXED_DESTS[@]})); then
 	if [[ -n "$fixed_dest" ]]; then
-		if ! cp -f "${STAGED_BIN}" "${fixed_dest}/${EXE_NAME}" && [[ "${fixed_dest}" != "${HOME}/"* ]]; then
-			sudo cp -f "${STAGED_BIN}" "${fixed_dest}/${EXE_NAME}"
+		if ! cp -f "${dogfood_bin}" "${fixed_dest}/${EXE_NAME}" && [[ "${fixed_dest}" != "${HOME}/"* ]]; then
+			sudo cp -f "${dogfood_bin}" "${fixed_dest}/${EXE_NAME}"
 		fi
 		fEcho "OK: installed -> ${fixed_dest}/${EXE_NAME}"
 	else
@@ -361,8 +387,43 @@ else
 	fEcho_Clean "no screenshot utility at ${screenshot_util}; skipping"
 fi
 
+## Demo gif: types the scenario into a fake terminal, runs each command against the
+## tested binary, renders the animated loop. A failure is a warning, never a stop.
+demogif_util="${root}/${DEMOGIF_CMD[0]}"
+if ((! DO_DEMOGIF)); then
+	fEcho_Clean "demo gif skipped"
+elif [[ -f "${demogif_util}" ]]; then
+	demogif_out="${root}/${DEMOGIF_OUT}"
+	demogif_tmp="${demogif_out}.new"
+	if (cd "${root}" && python3 "${DEMOGIF_CMD[@]}" --out "${demogif_tmp}" --bin "${root}/${STAGED_BIN}"); then
+		if [[ -f "${demogif_out}" ]] && cmp -s "${demogif_tmp}" "${demogif_out}"; then
+			rm -f "${demogif_tmp}"
+			fEcho "OK: demo gif unchanged"
+		else
+			## Keep the new original out of tree (GFS-pruned), then land it in the repo.
+			mkdir -p "${DEMOGIF_ARCHIVE_DIR}"
+			cp -f "${demogif_tmp}" "${DEMOGIF_ARCHIVE_DIR}/demo_$(date +%Y%m%d-%H%M%S).gif"
+			gfs_rotate "${DEMOGIF_ARCHIVE_DIR}" demo gif >/dev/null 2>&1 || true
+			mv -f "${demogif_tmp}" "${demogif_out}"
+			fEcho "OK: demo gif regenerated"
+		fi
+	else
+		rm -f "${demogif_tmp}"
+		fEcho "WARNING: demo gif generation failed (continuing)"
+	fi
+else
+	fEcho_Clean "no demo gif utility at ${demogif_util}; skipping"
+fi
+
 ## Stage 8: backup + publish.
 fSection "8/8  Backup + publish"
+## Optional out-of-tree pre-publish hook (kept under ../private so it never ships
+## in the repo). Run it if present + executable; a missing dir/file is skipped,
+## not an error. Non-zero exit aborts before anything is published.
+if [[ -n "${PREPUBLISH_HOOK:-}" && -x "${PREPUBLISH_HOOK}" ]]; then
+	fEcho_Clean "pre-publish hook: ${PREPUBLISH_HOOK}"
+	"${PREPUBLISH_HOOK}" "${root}" || fDie "pre-publish hook rejected the tree"
+fi
 ## Always run the publisher quiet: cicd already gave the initial prompt, so skip
 ## its redundant continue-prompt. With no message it still lets git open the editor.
 pub_flags=(--quiet)

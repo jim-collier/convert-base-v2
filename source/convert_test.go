@@ -78,7 +78,7 @@ func BenchmarkDecode64(b *testing.B) {
 }
 
 // The big native base goes through a separate encoder (multi-byte symbols).
-func BenchmarkEncode65536(b *testing.B) { benchConvert(b, "bytes", "65536", benchBytes()) }
+func BenchmarkEncode65536(b *testing.B) { benchConvert(b, "bytes", "65536qntm", benchBytes()) }
 
 // Streaming benchmarks exercise the CLI's actual pipe path (streamConvert) with
 // no real I/O: a bytes.Reader in, io.Discard out. This is what a `cat file | ...`
