@@ -3,12 +3,15 @@
 # renders as the program name; {bin} runs as the tested binary path. pause= is the
 # read time in seconds. overflow= is "truncate" (default) or "wrap". scrollrate=
 # (px/s) and linems= pace a step's output; wpm_digits speeds up number typing.
+# end_hold/end_black (seconds) hold the last frame, then show black, before looping.
 
 title = "convert-base-v2"
 prog  = "convert-base-v2"
 seed  = 11
 font  = ["Monaspace Argon SemiBold"]
 wpm_digits = 255
+end_hold  = 3.0
+end_black = 2.0
 
 [[step]]
 note  = "Positional notation conversion - any size, any base"

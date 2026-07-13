@@ -7,9 +7,10 @@
 ##		the occasional corrected typo), then actually executed so the captured
 ##		output can never go stale. Scrolling is pixel-smooth (content settles
 ##		back onto the line grid at rest) and the cursor glides between cells
-##		rather than teleporting. The loop just repeats - no fade (fades bloat
-##		the file badly). Frames share one exact master palette, so nothing is
-##		ever re-dithered. Project-agnostic - point it at any scenario.
+##		rather than teleporting. At the end it holds the last frame still, then
+##		hard-cuts to a black frame before repeating - a held black frame is one
+##		cheap frame, not a bloaty fade. Frames share one exact master palette,
+##		so nothing is ever re-dithered. Project-agnostic - point it at any scenario.
 ##	Syntax:
 ##		gen-demo-gif.py --scenario FILE --out FILE [--bin PATH] [--seed N]
 ##		  --scenario FILE  TOML scenario (see fLoadScenario for the format)
@@ -147,6 +148,8 @@ def fLoadScenario(path):
 	##	  title = "window title"        prog = "name shown in typed commands"
 	##	  font = ["pref1", "pref2"]     seed = 11
 	##	  wpm_digits = 42               digit typing speed (numbers-heavy demos: raise it)
+	##	  end_hold = 3.0                seconds the final frame holds before the loop
+	##	  end_black = 2.0               seconds of black after the hold, then repeat
 	##	  [[step]]
 	##	  note = "shown as a typed # comment first"     (optional)
 	##	  show = "{prog} 255 16"        the command line as typed
@@ -614,7 +617,17 @@ def fMain():
 			snap(60)
 			blinkPause(1000 * float(step.get("pause", 2.6)))
 
-	blinkPause(1400)                                 # linger before the loop repeats
+	##	Tail: hold the last frame dead still, then a hard cut to black before the
+	##	loop repeats. The black is one held frame (a cut, not a fade), so it costs
+	##	almost nothing.
+	holdMs  = 1000 * float(sc.get("end_hold", 3.0))
+	blackMs = 1000 * float(sc.get("end_black", 2.0))
+	if holdMs > 0:
+		snap(holdMs)
+	if blackMs > 0:
+		black = Image.new("RGB", (CANVAS_W, CANVAS_H), (0, 0, 0)).quantize(
+			palette=scr.pal, dither=Image.Dither.NONE)
+		mov.add(black, blackMs)
 
 	os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
 	mov.frames[0].save(args.out, save_all=True, append_images=mov.frames[1:],
@@ -632,6 +645,8 @@ if __name__ == "__main__":
 
 
 ##	History:
+##		- 20260713 JC: End of loop holds the final frame (end_hold, 3s) then hard-
+##			cuts to black (end_black, 2s) before repeating.
 ##		- 20260711 JC: v1.2. Antialiased text again (ramped 256 palette), color
 ##			emoji tiles, prompt hidden until output lands, faster typing and
 ##			scrolling, cell-width wrap.
