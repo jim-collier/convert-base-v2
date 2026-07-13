@@ -14,95 +14,73 @@
 - [Goal](#goal)
 - [Architecture](#architecture)
 	- [Language and stack](#language-and-stack)
-	- [Logical code organization](#logical-code-organization)
-	- [API](#api)
-- [Code review BxZNl - recommendations](#code-review-bxznl---recommendations)
-	- [Input handling and CLI contract](#input-handling-and-cli-contract)
-	- [Alphabets, markers, and specs](#alphabets-markers-and-specs)
-	- [Binary and streaming paths](#binary-and-streaming-paths)
-	- [Fractions](#fractions)
-	- [Registry and config](#registry-and-config)
-	- [Versioning](#versioning)
-	- [Testing](#testing)
-	- [Docs](#docs)
+	- [Code organization](#code-organization)
+	- [CLI contract](#cli-contract)
+- [Key design decisions](#key-design-decisions)
 - [CI/CD and release flow](#cicd-and-release-flow)
 
 <!-- /TOC -->
 
 ## Goal
 
+One small, fast, portable command line tool that does two related jobs well:
+
+- Convert a number of any size between any two bases, including negatives and fractions.
+- Encode and decode raw binary to and from text in the bases that can carry bytes exactly.
+
+It should cover the everyday standards (base 10, 16, RFC 4648 base 32 and 64) and a wide set of named and custom bases, match published reference encoders byte for byte, and stay stable and deterministic so scripts can rely on its output for years.
+
 ## Architecture
 
 ### Language and stack
 
-### Logical code organization
+- Go, module `github.com/jim-collier/convert-base-v2`, one `main` package under `source/`.
+- One dependency, `gopkg.in/yaml.v3`, for optional config files.
+- Ships as a single static binary. Release builds are stripped and trimmed with `CGO_ENABLED=0`.
 
-### API
+### Code organization
 
-## Code review BxZNl - recommendations
+- `main.go` reads flags and config, resolves the conversion, and handles stdin and pipes. It also holds the version string.
+- `convert.go` is the conversion core. It has two paths: an arbitrary-precision path (handles sign and fractions) and a fast bit-packing path used when a base is a power of two.
+- `registry.go` defines the `Base` type, the lookup registry, and config loading.
+- `bases.go` lists the predefined named bases and their alphabets. A new base is one more entry here.
+- `symbolspec.go` parses user-supplied alphabets and the `neg` / `dec` / `pad` marker tokens.
 
-Recommendations from the 20260708 code review. Numbers match the backlog items; deeper notes are kept outside the repo.
+### CLI contract
 
-### Input handling and CLI contract
+- Usage is `convert-base-v2 [flags] NUMBER [OUTBASE]`. A positional `NUMBER` always wins, so a pipe is read only when the input is `-`.
+- If `--from` is unset the input base is 10. If neither `--to` nor a positional `OUTBASE` is given, the output base is 10 too. Under `--binary`, an omitted side defaults to `bytes`.
+- Conflicting selectors (for example `--to` and a different positional base) do not silently pick one. They emit a note on stderr and follow a documented precedence.
+- Query flags (`--list`, `--show-symbols`, and friends) each print one value and exit, so scripts can read the base set from the program itself.
 
-- BxZNl-1: pick one stdin contract and enforce it. Cleanest option: when stdin is a pipe and exactly one positional is given that resolves as a base name, treat it as OUTBASE, matching the synopsis. If that feels too magical, hard-error on "pipe attached but NUMBER given on argv" instead. Silent success is the one wrong answer.
-- BxZNl-16: four cheap message fixes. When the rejected extra positional starts with "-", say flags must come before the number. When an unknown flag looks like a negative number, suggest the `--` separator. Give the flag package a one-line usage hint instead of a no-op. Append "see --list" to unknown-base errors, with an optional edit-distance-1 suggestion.
-- BxZNl-17: conflicting inputs should error, or at least warn: `--to` plus a different positional OUTBASE, and `--from` plus `--from-symbols`. The precedence is documented in a code comment, not to the user.
-- BxZNl-18: pass a writer into the help/examples printers; stdout when explicitly requested, stderr on the no-args error path.
-- BxZNl-19: add an index column to --list, and warn or error when --by-index is set without a query flag.
+## Key design decisions
 
-### Alphabets, markers, and specs
+The rationale behind the choices most likely to be questioned later. Each was settled during pre-1.0 review.
 
-- BxZNl-2: in finalize(), when symbols have mixed lengths, reject sets where one symbol is a proper prefix of another. Prefix-freeness makes the existing greedy tokenizer provably correct, so validation is the whole fix. The error should name the two conflicting symbols.
-- BxZNl-3: also reject an effective negative or decimal marker that appears as a substring of any digit symbol (and the reverse). The alternative, folding marker detection into tokenization, is more invasive and only needed if substring collisions should be legal.
-- BxZNl-5: route \t and \n through the same placeholder trick already used for escaped space, restoring them after the whitespace split. Or drop them from the documented escape list.
-- BxZNl-13: either implement comma-split in the multi-token branch or fix the doc comment; add a test either way.
-- BxZNl-15: reject a raw U+FFFE in the spec before unescaping, since it is the placeholder rune.
+- **Two binary paths, kept separate.** Streaming (constant memory, linear time) and buffered positional (quadratic time) are genuinely different jobs, so they stay as two implementations rather than being merged. An equivalence test pins them together, and fails if they ever diverge.
 
-### Binary and streaming paths
+- **Padding is by mode, not by base.** Positional number output is never padded. The binary-to-text codec path pads to the group boundary for every RFC 4648 variant, matching the strict standard decoders. Decoding stays lenient and accepts padded or unpadded input either way.
 
-- BxZNl-4: after the read loop in streaming encode, return any error that is not EOF or unexpected-EOF instead of finishing the tail. Mirrors what the decode side already does.
-- BxZNl-6: make leniency identical on both channels. Streaming decode should accept pad bytes only as a trailing run; buffered decode should get the same CR/LF skip streaming has (for single-byte bases whose alphabet lacks those bytes). base91 should skip only whitespace and error on other unknown bytes; reference encoders never emit them, so interop is unaffected.
-- BxZNl-25: longer term, either route the buffered binary conversions through the stream implementation (wrap argv input in a reader), or keep the fast paths and pin them with the equivalence tests in BxZNl-22. One implementation per direction ends this class of bug.
+- **Fractional precision defaults to `auto`.** The output fraction is sized to the input's own precision instead of always stretching to a fixed maximum, so a short value like `0.1` does not grow an invented tail in another base. Auto round-trips are lossy by design; `--precision N` is available when a fixed or lossless width is wanted.
 
-### Fractions
+- **Markers are tri-state.** A base's negative and decimal markers can be unset (use the global default), explicitly disabled, or set to a specific symbol. This keeps custom alphabets that reuse `-` or `.` as digits working.
 
-- BxZNl-7: after the emit loop, round the final digit to nearest (compare twice the remaining numerator against the denominator, carry into the integer part on overflow). Combine with the input-precision clamp; clamping makes truncation drift proportionally larger, so do both together.
-- Input-precision clamp (done): `--precision` defaults to `auto`. Rather than always emitting the fixed maximum, auto sizes the output fraction to the input's information content - the input's fractional digit count scaled by the base-size ratio `log(fromBase)/log(toBase)`, plus one guard digit, then trailing zeros trimmed. This stops a short decimal like `0.1` from implying 50 digits of precision it never had. It is bounded by the input length so it cannot run away, and an explicit `--precision N` remains available when a fixed or lossless-round-trip width is wanted. The tradeoff, accepted deliberately: auto round-trips lose precision at each hop, since every hop keeps only the digits the prior value justified.
-- BxZNl-8: treat an all-zero emitted fraction as no fraction before the zero and sign logic, so tiny values print "0" instead of "0.000" or "-0.000".
+- **Custom alphabets must be prefix-free.** For multi-character symbols, no symbol may be a prefix of another, and a marker may not appear inside a digit. That keeps the simple left-to-right tokenizer provably correct, so the fix is validation, not a more complex parser.
 
-### Registry and config
+- **Config override keeps the base list truthful.** When a config base shadows a built-in one, the shadowed entry is dropped or loses only the stolen aliases, so `--list` and the index space stay accurate.
 
-- BxZNl-10: when a registered base fully shadows an existing one, replace it in the ordered list; when it steals only some aliases, drop those from the shadowed row (derive the ALIASES column from the live alias map) or mark the row overridden. Keeps --list truthful and the --by-index space meaningful.
-- BxZNl-11: track whether --config was explicitly set (flag.Visit); explicit and missing is an error, the implicit /etc and XDG paths stay lenient.
-- BxZNl-12: check every integer alias, not just the first, and run the check on the normalized name so "b99" style aliases cannot bypass it.
-- BxZNl-14: make `pad: ""` clear the pad to honor the documented explicit-fields-win rule, matching the tri-state behavior negative and decimal already have. A separate emit flag would let config bases express accept-but-do-not-emit pads.
-- BxZNl-20: the padding rule is by mode, not by base. Positional (number) conversion is never padded; the binary-to-text codec path pads to the group boundary. Among the options (document the deviation, add padded siblings, or flip), it was decided to flip 32hex/64url/64hex to emit padding in codec mode, so all RFC 4648 variants behave alike and match the strict stdlib decoders. Decode stays lenient, accepting padded or unpadded input, so no valid input is rejected; only the codec-mode output of those three bases changes.
-- BxZNl-21: a small optional decode-alias map on Base (extra input bytes mapping to existing digit values) covers Crockford's O/I/L rule without touching encoding.
+- **The version is a `var`, not a `const`.** The release build patches it through a linker flag, which only works on a var. The source value is the single source of truth for what version ships.
 
-### Versioning
-
-- BxZNl-9: change `const version` to `var version = "dev"` so the linker's -X actually lands, tag releases, and let git describe be the single source of truth. That retires the keep-two-places-in-sync rule and the stale-version failure mode at once.
-
-### Testing
-
-- BxZNl-22: priority order for Go tests: streaming-vs-buffered equivalence over random lengths for every power-of-2 base and pad variant; the codec and big-base spec vectors ported from test.bash; table-driven Convert cases for sign, fraction, marker tri-state, and multi-char symbols; ParseSymbolSpec and config-load cases. Until then, make the Makefile test target also run cicd/test.bash so the canonical entry point gates something.
-- BxZNl-23: in test.bash, add one pinned known-value vector per predefined base (a single number and its exact expected string) to catch symmetric bugs; a fractional block with fixed vectors, negatives, precision 0, and an exact power-of-2 round trip; a config block using temp YAML files; a spec block pinning the 85ps symbol count and escape handling; a minimum-count assertion after the --list scrape; a loud SKIPPED when the v1 binary is absent.
-- BxZNl-24: a minimal gate is enough: build, vet, go test, then test.bash with low fuzz iterations. cicd.bash stays the release pipeline, not the only test runner.
-
-### Docs
-
-- BxZNl-26: regenerate the README bases table from --list and --show-symbols output rather than hand-fixing rows; the example-output table earlier in the README already matches the binary, so only the bases table drifted. Fix --examples to use 2048x or register a bare "2048" alias. Correct the serial-number example (the string shown is 64h of undivided seconds), the example.conf marker-collision comment, the UTF byte columns, and the changelog year typos.
+- **Output stays deterministic and stable.** Given the same input and base, the output never changes across runs or platforms. Any future change that would alter output goes to a new version suffix so old scripts keep working.
 
 ## CI/CD and release flow
 
-- Branching: dev is the integration branch. Feature branches merge to dev; main is release-only.
-- Hosted CI is a bare safety net (vet, test, build on push and PR, via GitHub Actions). The full pipeline (fuzz, profiling, dogfood, package, publish) stays local in cicd/.
-- Two native builds. The debug build (symbols kept) is what the tests and profiler run against. The optimized build (stripped) is smoke-checked, dogfooded, and matches what the cross stage ships, so day-to-day use is the real thing.
-- Packaging is self-contained (cicd/utility/package.bash), not goreleaser. Rationale: goreleaser cannot run on the dev box (not installed, and it is a heavy orchestrator), and the project already favors bespoke, dependency-light tooling. The same script runs locally and in the release workflow, so what ships is what was built and tested here.
-  - Targets: linux, darwin, freebsd, windows on both amd64 and arm64. ARM is built unconditionally - Go cross-compiles it at native speed, so there is no reason to gate it behind a flag.
-  - Artifacts per platform: a tarball (or zip on Windows) of the bare static binary; a .deb and .rpm for each Linux arch (via nfpm, which cross-packages any arch without native rpmbuild/dpkg); a single-file Windows installer .exe per arch (via makensis) that drops the binary, puts it on PATH, registers an uninstaller, and overwrites an existing install when re-run; and a checksums file. Go binaries are static, so nothing bundles a runtime.
-  - macOS .dmg and a native FreeBSD .pkg are deferred - both need their own OS tooling to build and sign; those platforms ship as tarballs for now.
-- Releases are automatic on a merge to main. The version var in source/main.go is the source of truth. A guard runs first (cicd/utility/check-release.bash) and FAILS the workflow if the version was not bumped (its tag already exists), if it sorts behind the newest tag, or if the README Lifecycle badge does not match the version stage. Because main is release-only, an un-bumped merge is a mistake, not a silent no-op. On success the workflow tags, packages, and publishes with gh.
-- Release prep on dev is: rename the changelog's NEXT VERSION heading to the version and date (the workflow lifts that section as the release notes), bump the version var, and set the Lifecycle badge to match the stage (alpha/beta/rc/none -> Alpha/Beta/RC/Stable).
-- Tool versions (golangci-lint, staticcheck, govulncheck, nfpm) are pinned in cicd/tool-versions.env, one place read by both the local pipeline and the workflows. Dependabot files grouped weekly update PRs against dev.
+- Branching: `dev` is the integration branch. Feature branches merge to `dev`; `main` is release-only.
+- Hosted CI is a bare safety net: vet, test, and build on every push and pull request. The full pipeline (fuzz, profiling, dogfood, package, publish) stays local.
+- Two native builds. The debug build (symbols kept) is what tests and the profiler run against. The optimized build (stripped) is smoke-checked, dogfooded, and matches what ships, so day-to-day use is the real thing.
+- Packaging is self-contained (`cicd/utility/package.bash`). The same script runs locally and in the release workflow, so what ships is what was built and tested here.
+	- Targets: linux, darwin, freebsd, and windows on amd64 and arm64. ARM is built unconditionally, since Go cross-compiles it at native speed.
+	- Per platform: a tarball (zip on Windows) of the static binary, a `.deb` and `.rpm` for each Linux arch, a single-file Windows installer that adds the tool to PATH and can update an existing install, and a checksums file. macOS `.dmg` and a native FreeBSD `.pkg` are deferred; those platforms ship as tarballs for now.
+- Releases are automatic on a merge to `main`. The version var in `source/main.go` is the source of truth. A guard runs first and fails the workflow if the version was not bumped, if it sorts behind the newest tag, or if the README Lifecycle badge does not match the version stage. On success the workflow tags, packages, and publishes.
+- Release prep on `dev`: rename the changelog's next-version heading to the version and date, bump the version var, and set the Lifecycle badge to match the stage.
+- Tool versions are pinned in `cicd/tool-versions.env`, read by both the local pipeline and the workflows. Dependabot files grouped weekly update pull requests against `dev`.

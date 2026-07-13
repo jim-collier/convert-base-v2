@@ -101,10 +101,8 @@ func predefinedBases() []*Base {
 			Aliases:     []string{"10", "decimal", "dec", "arabic"},
 		}),
 
-		//⑀ 	⑁ 	⑂ 	⑃ 	⑄ 	⑅ 	⑆ 	⑇ 	⑈ 	⑉
-
 		// Base-10 in Japanese Kanji
-		// Same unicode points as Chinese Hazi, except for different 0.
+		// Same unicode points as Chinese Hanzi, except for a different 0.
 		// Japanese also uses '零' for 0, but traditionally to mean the "concept" of 0, not in positional number notation.
 		// Spaces are required for symbol sets with Unicode characters.
 		mkSpec(SpecOpts{
@@ -205,7 +203,7 @@ func predefinedBases() []*Base {
 		}),
 
 		// base-30 Rock; a novelty honorary base for the legendary comedy TV show.
-		// It's RFC RFC 4648 §7 base-32hex, but with the ending U and V chopped off.
+		// It's RFC 4648 §7 base-32hex, but with the ending U and V chopped off.
 		//   (Which conveniently also happen to be among the more ambiguous characters in the alphabet.)
 		// And unlike starting with, say, Crockford or word-safe as the base, the letters "ROCK" are in this base.
 		// Not an official standard. Created by Jim Collier 2026-04-19, published with this code.
@@ -470,7 +468,7 @@ func predefinedBases() []*Base {
 		// Base-69: The nice radix.
 		// It was debated on including a childish base like this.
 		// But in the spirit of being comprehensive, it was included.
-		// Not an official standard, but published. It's based on the heinous RFC 4648 §4, which is unfortunate.
+		// Not an official standard, but published. It's based on the awkward RFC 4648 §4.
 		// https://github.com/pshihn/base69
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " + / - * < > |",
@@ -590,7 +588,7 @@ func predefinedBases() []*Base {
 
 		// Base 2048, original qntm's JS version. (Have to run the JS to get this alphabet.)
 		// Denser display for values, but worse encoding density than base64 on UTF-8.
-		// Best specifically for encoding binary data on Twitter/𝕏.
+		// Best specifically for encoding binary data on Twitter/X.
 		// Not an official standard, but published.
 		// https://github.com/qntm/base2048
 		mkSpec(SpecOpts{
@@ -602,7 +600,7 @@ func predefinedBases() []*Base {
 
 		// Base 2048, incompatible rust version.
 		// Meant to have fewer cross-platform weird characters.
-		// Best specifically for encoding binary data on Twitter/𝕏.
+		// Best specifically for encoding binary data on Twitter/X.
 		// Not an official standard, but published.
 		// https://github.com/LLFourn/rust-base2048
 		mkSpec(SpecOpts{
