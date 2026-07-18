@@ -27,7 +27,7 @@ jobs:
         id: ver
         run: bash cicd/utility/check-release.bash
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: .go-version
           cache-dependency-path: source/go.sum
