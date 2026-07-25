@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode/utf8"
 
 	"gopkg.in/yaml.v3"
 )
@@ -293,6 +294,18 @@ func (b *Base) finalize() error {
 	if b.PadSymbol != "" {
 		if _, collides := b.value[b.PadSymbol]; collides {
 			return fmt.Errorf("base %q: padding symbol %q is also a digit", b.Name(), b.PadSymbol)
+		}
+		// Padding is counted in characters: encode appends one per position left
+		// before the group boundary, decode strips a trailing run. A multi-character
+		// pad overshoots the boundary on encode and only strips by accident.
+		if utf8.RuneCountInString(b.PadSymbol) > 1 {
+			return fmt.Errorf("base %q: padding symbol %q must be a single character", b.Name(), b.PadSymbol)
+		}
+		// Padding is only ever applied on the bit-packed binary path, which needs a
+		// power-of-2 base of at most 8 bits per digit. Set anywhere else it would be
+		// accepted and then silently do nothing, so reject it where it is defined.
+		if k := powerOfTwoBits(len(b.Symbols)); k == 0 || k > 8 {
+			return fmt.Errorf("base %q: padding applies only to power-of-2 bases of at most 256 symbols; this base has %d", b.Name(), len(b.Symbols))
 		}
 	}
 

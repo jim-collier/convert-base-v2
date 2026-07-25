@@ -427,6 +427,53 @@ func TestApplyMarkers(t *testing.T) {
 	}
 }
 
+// Padding is only ever applied on the bit-packed path, one character at a time.
+// A definition that can never take effect must be rejected where it is written,
+// not accepted and then quietly ignored.
+func TestPadRejections(t *testing.T) {
+	reg := newReg(t)
+	pad := func(name, p string) error {
+		b, err := reg.Lookup(name)
+		if err != nil {
+			t.Fatalf("Lookup(%q): %v", name, err)
+		}
+		copied := *b
+		copied.PadSymbol = p
+		copied.PadEmit = true
+		return copied.finalize()
+	}
+	// Multi-character pad: encode would overshoot the group boundary.
+	if err := pad("64", "=="); err == nil {
+		t.Error("a multi-character pad should be rejected")
+	}
+	// Above 8 bits per digit the bit-packed path is never taken, so a pad there
+	// would silently do nothing.
+	if err := pad("512tt", "="); err == nil {
+		t.Error("a pad on a base above 8 bits per digit should be rejected")
+	}
+	// Same for a base that is not a power of two at all.
+	if err := pad("45", "="); err == nil {
+		t.Error("a pad on a non-power-of-2 base should be rejected")
+	}
+	// A single character is fine, including a multi-byte one.
+	if err := pad("64", "="); err != nil {
+		t.Errorf("single-character pad rejected: %v", err)
+	}
+	if err := pad("64", "§"); err != nil {
+		t.Errorf("single-rune multi-byte pad rejected: %v", err)
+	}
+	// The padded builtins must still finalize as defined.
+	for _, name := range []string{"64", "64u", "64h", "32", "32h"} {
+		b, err := reg.Lookup(name)
+		if err != nil {
+			t.Fatalf("Lookup(%q): %v", name, err)
+		}
+		if b.PadSymbol == "" {
+			t.Errorf("builtin %q lost its padding symbol", name)
+		}
+	}
+}
+
 // Bad base definitions must be rejected by finalize(), not silently accepted.
 func TestFinalizeRejections(t *testing.T) {
 	reg := newReg(t)

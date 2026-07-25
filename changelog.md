@@ -36,6 +36,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - A symbol spec is digit symbols and nothing else, matching how the predefined bases and the config file fields already worked.
+- A padding character that could never take effect is now an error where it is defined, instead of being accepted and quietly ignored. Padding must be a single character, and only applies to power-of-2 bases of at most 256 symbols, which is the only place it is ever emitted. Fixes a multi-character pad overshooting the group boundary on encode.
 
 ### Removed
 
