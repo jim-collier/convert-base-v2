@@ -26,11 +26,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Notes
 
+- Breaking: the `neg=`, `dec=`, and `pad=` tokens are gone from symbol specs. A spec that still carries one is now an error naming its replacement, so nothing changes meaning silently. Update any script or config file that used the old form.
+
 ### Added
+
+- Six flags to set the markers directly: `--from-neg`, `--from-dec`, `--from-pad`, `--to-neg`, `--to-dec`, `--to-pad`. An empty value disables a marker, and an omitted flag leaves the base as it was.
+- Markers can now be set on any base, named or custom. `--from hex --from-neg '~'` reads `~ff` as -255. Previously only a hand-written alphabet could carry custom markers.
 
 ### Changed
 
+- A symbol spec is digit symbols and nothing else, matching how the predefined bases and the config file fields already worked.
+
 ### Removed
+
+- The `neg=`, `dec=`, and `pad=` tokens inside symbol specs, on the command line and in config files. Config files keep their `negative:`, `decimal:`, and `pad:` fields, which are unchanged.
 
 ### Other work
 

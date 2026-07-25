@@ -10,27 +10,6 @@ import (
 	"strings"
 )
 
-// SymbolSpec is a parsed form of a base's symbol definition.
-//
-// Negative / Decimal mirror Base.Negative / Base.Decimal:
-//
-//	nil   - not set by this spec (caller falls back to defaults)
-//	&""   - explicitly disabled  (spec token was a bare "neg=" or "dec=")
-//	&"X"  - explicit marker X    (spec token was "neg=X" or "dec=X")
-//
-// Pad is the optional RFC-style padding character for binary output:
-//
-//	nil   - no padding (the default)
-//	&"X"  - pad binary output up to the group boundary with X, and strip a
-//	        trailing run of X on decode. Only meaningful for power-of-2 bases.
-//	        A bare "pad=" (empty) is treated the same as nil.
-type SymbolSpec struct {
-	Symbols  []string
-	Negative *string
-	Decimal  *string
-	Pad      *string
-}
-
 // Internal placeholders standing in for whitespace characters that were escaped
 // in a spec, so they survive strings.Fields and are restored afterward. They are
 // Unicode noncharacters, never legal in real text; a raw spec that already
@@ -41,20 +20,19 @@ const (
 	phNewline = '\uFDD0'
 )
 
-// ParseSymbolSpec parses a whitespace-delimited spec string.
+// ParseSymbolSpec parses a whitespace-delimited spec string into digit symbols.
+//
+// A spec is symbols and nothing else. Negative, decimal, and padding markers are
+// set alongside it - by the --from-*/--to-* flags on the command line, by the
+// negative/decimal/pad fields in a config file, or by SpecOpts in bases.go.
 //
 //	Rules:
-//	  - Tokens of the form "neg=X" and "dec=Y" set the respective marker.
-//	    (X and Y are everything after the '='; they may be multi-char, or empty
-//	    to explicitly disable that feature for this base.)
-//	  - A "pad=X" token turns on RFC-style padding for binary output (see
-//	    SymbolSpec.Pad). A bare "pad=" means no padding.
-//	  - All other tokens are digit symbols, in order.
-//	  - If there is exactly one digit token, it is further split:
+//	  - Every token is a digit symbol, in order.
+//	  - If there is exactly one token, it is further split:
 //	      * if it contains commas, split on commas (each piece is a symbol);
 //	      * otherwise, split per Unicode rune.
 //	    This makes "ABCD" and "A,B,C,D" and "A B C D" equivalent.
-//	  - If there are multiple digit tokens, each token is one symbol
+//	  - If there are multiple tokens, each token is one symbol
 //	    (with optional comma-split within a token, e.g. "0,1 2 3").
 //
 // Escape sequences allow characters that would otherwise conflict with the
@@ -65,41 +43,31 @@ const (
 //	\t        -> tab
 //	\n        -> newline
 //	\"        -> double quote
-func ParseSymbolSpec(s string) (SymbolSpec, error) {
+func ParseSymbolSpec(s string) ([]string, error) {
 	if strings.ContainsAny(s, string([]rune{phSpace, phTab, phNewline})) {
-		return SymbolSpec{}, fmt.Errorf("symbol spec contains a reserved noncharacter (U+FFFE/U+FFFF/U+FDD0)")
+		return nil, fmt.Errorf("symbol spec contains a reserved noncharacter (U+FFFE/U+FFFF/U+FDD0)")
 	}
 	s = unescapeSpec(s)
 
-	var out SymbolSpec
-	tokens := strings.Fields(s)
+	var symbols []string
 	var digitTokens []string
-	for _, t := range tokens {
+	for _, t := range strings.Fields(s) {
 		t = restorePlaceholders(t)
-		switch {
-		case strings.HasPrefix(t, "neg="):
-			v := t[len("neg="):]
-			out.Negative = &v
-		case strings.HasPrefix(t, "dec="):
-			v := t[len("dec="):]
-			out.Decimal = &v
-		case strings.HasPrefix(t, "pad="):
-			v := t[len("pad="):]
-			out.Pad = &v
-		default:
-			digitTokens = append(digitTokens, t)
+		if err := checkRetiredToken(t); err != nil {
+			return nil, err
 		}
+		digitTokens = append(digitTokens, t)
 	}
 	if len(digitTokens) == 0 {
-		return out, fmt.Errorf("symbol spec has no digit symbols")
+		return nil, fmt.Errorf("symbol spec has no digit symbols")
 	}
 	if len(digitTokens) == 1 {
 		t := digitTokens[0]
 		if strings.Contains(t, ",") {
-			out.Symbols = splitCommas(t)
+			symbols = splitCommas(t)
 		} else {
 			for _, r := range t {
-				out.Symbols = append(out.Symbols, string(r))
+				symbols = append(symbols, string(r))
 			}
 		}
 	} else {
@@ -109,13 +77,32 @@ func ParseSymbolSpec(s string) (SymbolSpec, error) {
 		// literal comma digit - some builtin alphabets (e.g. 85ps) rely on that.
 		for _, t := range digitTokens {
 			if parts := splitCommas(t); strings.Contains(t, ",") && len(parts) >= 2 {
-				out.Symbols = append(out.Symbols, parts...)
+				symbols = append(symbols, parts...)
 			} else {
-				out.Symbols = append(out.Symbols, t)
+				symbols = append(symbols, t)
 			}
 		}
 	}
-	return out, nil
+	return symbols, nil
+}
+
+// checkRetiredToken rejects the marker tokens that specs used to carry. Without
+// this they would silently become digit symbols, so a stale "0 1 2 3 neg=~" would
+// quietly turn into a base 5 whose last digit is the text "neg=~". The check is
+// permanent, not transitional: the cost is that these three exact strings can't
+// be digits (a config file can still express them via the list form), and the
+// alternative is a corrupted alphabet that looks like it worked.
+func checkRetiredToken(token string) error {
+	for _, m := range []struct{ prefix, flag, field string }{
+		{"neg=", "--from-neg/--to-neg", "negative:"},
+		{"dec=", "--from-dec/--to-dec", "decimal:"},
+		{"pad=", "--from-pad/--to-pad", "pad:"},
+	} {
+		if strings.HasPrefix(token, m.prefix) {
+			return fmt.Errorf("symbol spec: %q is no longer part of the symbol spec; use %s on the command line, or the %q field in a config file", token, m.flag, m.field)
+		}
+	}
+	return nil
 }
 
 // unescapeSpec processes escape sequences in a spec string. Escaped whitespace

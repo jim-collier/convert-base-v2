@@ -39,8 +39,8 @@ func run() error {
 	var (
 		fromName      = flag.String("from", "", "input base name/alias (e.g. 10, hex, 64u); default 10")
 		toName        = flag.String("to", "", "output base name/alias; default 10; also accepted as a positional arg")
-		fromSymbols   = flag.String("from-symbols", "", `custom input base (spec form: "SYMS [neg=X] [dec=Y] [pad=Z]")`)
-		toSymbols     = flag.String("to-symbols", "", `custom output base (spec form: "SYMS [neg=X] [dec=Y] [pad=Z]")`)
+		fromSymbols   = flag.String("from-symbols", "", "custom input base: the digit symbols, whitespace-delimited")
+		toSymbols     = flag.String("to-symbols", "", "custom output base (same form)")
 		precision     = flag.String("precision", "auto", "max fractional digits, or 'auto' to match the input's precision")
 		lower         = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
 		upper         = flag.Bool("upper", false, "uppercase output (errors if output base has mixed-case digits)")
@@ -64,6 +64,18 @@ func run() error {
 		hFlag         = flag.Bool("h", false, "alias for -help")
 		examplesFlag  = flag.Bool("examples", false, "show usage examples and exit")
 	)
+
+	// Marker overrides, one set per side. These apply to whatever base the side
+	// resolved to, named or custom. An empty value disables the marker; an
+	// absent flag leaves the base's own setting alone.
+	fromMarkers := &markerFlags{prefix: "--from"}
+	toMarkers := &markerFlags{prefix: "--to"}
+	flag.Var(&fromMarkers.neg, "from-neg", `negative marker for the input base (default "-"; empty disables)`)
+	flag.Var(&fromMarkers.dec, "from-dec", `decimal marker for the input base (default "."; empty disables)`)
+	flag.Var(&fromMarkers.pad, "from-pad", "padding character stripped from input in binary mode")
+	flag.Var(&toMarkers.neg, "to-neg", `negative marker for the output base (default "-"; empty disables)`)
+	flag.Var(&toMarkers.dec, "to-dec", `decimal marker for the output base (default "."; empty disables)`)
+	flag.Var(&toMarkers.pad, "to-pad", "padding character written in binary mode")
 
 	// Suppress Go's default auto-exit on -h/-help; we handle help ourselves
 	// so we can show config-file status and base-resolution info. ContinueOnError
@@ -202,7 +214,7 @@ func run() error {
 	if *fromSymbols != "" && *fromName != "" {
 		fmt.Fprintf(os.Stderr, "note: --from-symbols overrides --from %q\n", *fromName)
 	}
-	from, err := resolveBase(reg, inBaseName, *fromSymbols)
+	from, err := resolveBase(reg, inBaseName, *fromSymbols, fromMarkers)
 	if err != nil {
 		return fmt.Errorf("input base: %w", err)
 	}
@@ -277,7 +289,7 @@ func run() error {
 		}
 	}
 
-	to, err := resolveBase(reg, outBaseName, *toSymbols)
+	to, err := resolveBase(reg, outBaseName, *toSymbols, toMarkers)
 	if err != nil {
 		return fmt.Errorf("output base: %w", err)
 	}
@@ -471,23 +483,100 @@ func sameBase(reg *Registry, a, b string) bool {
 	return ea == nil && eb == nil && ba == bb
 }
 
+// optString is a string flag that remembers whether it was given, so an absent
+// flag stays distinguishable from an explicit empty value. That is what lets the
+// marker flags carry the same three states as Base.Negative/Base.Decimal:
+// unset (leave the base alone), empty (disable), or a value.
+type optString struct {
+	value string
+	set   bool
+}
+
+func (o *optString) String() string {
+	if o == nil {
+		return ""
+	}
+	return o.value
+}
+
+func (o *optString) Set(s string) error {
+	o.value = s
+	o.set = true
+	return nil
+}
+
+// markerFlags groups one side's marker overrides. Prefix is "--from" or "--to",
+// used only in messages.
+type markerFlags struct {
+	neg, dec, pad optString
+	prefix        string
+}
+
+func (m *markerFlags) any() bool {
+	return m != nil && (m.neg.set || m.dec.set || m.pad.set)
+}
+
+// set writes the overrides onto a base that has not been finalized yet. Order
+// matters: a custom alphabet that uses "-" or "." as digits only survives
+// finalize() once its replacement markers are in place.
+func (m *markerFlags) set(b *Base) {
+	if m == nil {
+		return
+	}
+	if m.neg.set {
+		b.Negative = strPtr(m.neg.value)
+	}
+	if m.dec.set {
+		b.Decimal = strPtr(m.dec.value)
+	}
+	if m.pad.set {
+		b.PadSymbol = m.pad.value
+		b.PadEmit = m.pad.value != ""
+	}
+}
+
+// applyMarkers returns a copy of an already-finalized base with the overrides
+// applied, or base itself when no flag was given. It copies because registry
+// bases are shared pointers. finalize() rebuilds every derived table from
+// scratch, so re-running it on the copy is safe and re-validates the new markers
+// (collision with a digit, marker inside a digit, negative equal to decimal,
+// pad that is also a digit).
+func applyMarkers(base *Base, m *markerFlags) (*Base, error) {
+	if !m.any() {
+		return base, nil
+	}
+	// Sign and fractions are meaningless for raw bytes, and every byte value is
+	// already a digit, so there is nothing a marker could be set to.
+	if base.Binary {
+		return nil, fmt.Errorf("base %q carries raw bytes; %s-neg/-dec/-pad do not apply to it", base.Name(), m.prefix)
+	}
+	overridden := *base
+	m.set(&overridden)
+	overridden.Source = base.Source + fmt.Sprintf(" (markers overridden by %s-* flags)", m.prefix)
+	if err := overridden.finalize(); err != nil {
+		return nil, err
+	}
+	return &overridden, nil
+}
+
 // resolveBase returns a Base either from the registry (by name) or from a
-// custom symbols spec (which, if provided, takes precedence over the name).
+// custom symbols spec (which, if provided, takes precedence over the name),
+// with any marker overrides applied. A nil markers argument means none.
 // CLI-supplied custom bases are tagged with Source indicating the flag name.
-func resolveBase(reg *Registry, name, customSpec string) (*Base, error) {
+func resolveBase(reg *Registry, name, customSpec string, markers *markerFlags) (*Base, error) {
 	if customSpec != "" {
-		sp, err := ParseSymbolSpec(customSpec)
+		symbols, err := ParseSymbolSpec(customSpec)
 		if err != nil {
 			return nil, err
 		}
 		b := &Base{
-			Aliases:  []string{fmt.Sprintf("custom(%d)", len(sp.Symbols))},
-			Symbols:  sp.Symbols,
-			Negative: sp.Negative,
-			Decimal:  sp.Decimal,
-			Source:   "--from-symbols / --to-symbols (CLI flag)",
+			Aliases: []string{fmt.Sprintf("custom(%d)", len(symbols))},
+			Symbols: symbols,
+			Source:  "--from-symbols / --to-symbols (CLI flag)",
 		}
-		applyPad(b, sp.Pad)
+		// Set before finalize, not after: the markers are part of the definition
+		// here, and the defaults may well collide with this alphabet's digits.
+		markers.set(b)
 		if err := b.finalize(); err != nil {
 			return nil, err
 		}
@@ -496,7 +585,11 @@ func resolveBase(reg *Registry, name, customSpec string) (*Base, error) {
 	if name == "" {
 		return nil, fmt.Errorf("no base specified")
 	}
-	return reg.Lookup(name)
+	b, err := reg.Lookup(name)
+	if err != nil {
+		return nil, err
+	}
+	return applyMarkers(b, markers)
 }
 
 // readStdin reads all of stdin as bytes. Trims exactly one trailing '\n' (and
@@ -610,8 +703,16 @@ given, output base also defaults to 10.
 	fmt.Fprintf(out, `Base selection:
   --from NAME          Input base name/alias (e.g. 10, hex, 64u)  [default 10]
   --to NAME            Output base; also accepted as a positional OUTBASE arg
-  --from-symbols SPEC  Custom input base: "SYMS [neg=X] [dec=Y] [pad=Z]"
-  --to-symbols SPEC    Custom output base (same spec form)
+  --from-symbols SYMS  Custom input base: the digit symbols, whitespace-delimited
+  --to-symbols SYMS    Custom output base (same form)
+
+Markers (apply to any base, named or custom; empty value disables):
+  --from-neg X         Negative marker for the input base   [default "-"]
+  --from-dec X         Decimal marker for the input base    [default "."]
+  --from-pad X         Padding stripped from input in binary mode
+  --to-neg X           Negative marker for the output base  [default "-"]
+  --to-dec X           Decimal marker for the output base   [default "."]
+  --to-pad X           Padding written in binary mode
 
 Conversion mode:
   --binary, --bin, -b  Treat both sides as raw bytes (encode/decode like basenc)
@@ -696,22 +797,12 @@ func pathLoaded(reg *Registry, path string) bool {
 func reportSide(out io.Writer, label string, reg *Registry, name, symbols, flagName string) {
 	switch {
 	case symbols != "":
-		sp, err := ParseSymbolSpec(symbols)
+		parsed, err := ParseSymbolSpec(symbols)
 		if err != nil {
 			fmt.Fprintf(out, "  %s: %s -> INVALID SPEC: %v\n", label, flagName, err)
 			return
 		}
-		fmt.Fprintf(out, "  %s: custom spec via %s -> %d digits", label, flagName, len(sp.Symbols))
-		if sp.Negative != nil {
-			fmt.Fprintf(out, ", neg=%s", fmtMarker(sp.Negative))
-		}
-		if sp.Decimal != nil {
-			fmt.Fprintf(out, ", dec=%s", fmtMarker(sp.Decimal))
-		}
-		if sp.Pad != nil {
-			fmt.Fprintf(out, ", pad=%s", fmtMarker(sp.Pad))
-		}
-		fmt.Fprintln(out)
+		fmt.Fprintf(out, "  %s: custom spec via %s -> %d digits\n", label, flagName, len(parsed))
 	case name != "":
 		b, err := reg.Lookup(name)
 		if err != nil {
@@ -723,16 +814,6 @@ func reportSide(out io.Writer, label string, reg *Registry, name, symbols, flagN
 	default:
 		fmt.Fprintf(out, "  %s: (unset, would default to base 10, source: built-in)\n", label)
 	}
-}
-
-func fmtMarker(p *string) string {
-	if p == nil {
-		return "(default)"
-	}
-	if *p == "" {
-		return "(disabled)"
-	}
-	return fmt.Sprintf("%q", *p)
 }
 
 func printCopyright(out io.Writer) {
@@ -763,7 +844,11 @@ func printExamples(out io.Writer) {
   convert-base-v2 --from-symbols ABCD  --to 10  CBBA.B
 
   # Custom base and input value, to wordsafe base-20 output; = -9FCC.8M6
-  convert-base-v2  --from-symbols "aeiouy.-_0 neg=~ dec=/"  --to 20w  "~y0-._/ooo"
+  # The alphabet uses "-" and "." as digits, so pick markers that are free.
+  convert-base-v2  --from-symbols "aeiouy.-_0" --from-neg '~' --from-dec '/'  --to 20w  "~y0-._/ooo"
+
+  # Markers work on named bases too, not just custom alphabets
+  convert-base-v2  --from hex --from-neg '~'  --to 10  -- '~ff'
 
   # Convert a binary file to any 2^N base (i.e. 4, 8, 16, 32, 64 ... 65536)
   # Streams in linear time at speeds competitive with basenc/base64. The draw is

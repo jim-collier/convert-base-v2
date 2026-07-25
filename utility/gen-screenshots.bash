@@ -166,8 +166,8 @@ blank
 p "convert-base-v2 --from-symbols ABCD --to 10 CBBA.B"
 o "$(run --from-symbols ABCD --to 10 CBBA.B)"
 blank
-p "convert-base-v2 --from-symbols \"aeiouy.-_0 neg=~ dec=/\" --to 20w \"~y0-._/ooo\""
-o "$(run --from-symbols "aeiouy.-_0 neg=~ dec=/" --to 20w "~y0-._/ooo")"
+p "convert-base-v2 --from-symbols \"aeiouy.-_0\" --from-neg '~' --from-dec '/' --to 20w \"~y0-._/ooo\""
+o "$(run --from-symbols "aeiouy.-_0" --from-neg '~' --from-dec '/' --to 20w "~y0-._/ooo")"
 blank
 p "convert-base-v2 --to-symbols \"🌑🌒🌓🌔🌕🌖🌗🌘\" 1234"
 o "$(run --to-symbols "🌑🌒🌓🌔🌕🌖🌗🌘" 1234)"

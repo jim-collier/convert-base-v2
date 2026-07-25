@@ -40,7 +40,7 @@ The other two ways a base can be defined were left alone, so the old format is s
 
 - On the command line, tokens inside `--from-symbols` and `--to-symbols` are the only way to set a marker at all.
 
-So one idea now has two spellings, and the surface a person actually types still has the awkward one. This document covers finishing the job.
+So one idea now has two implementations, and the surface a person actually types still has the awkward one. This document covers finishing the job.
 
 There is a second, quieter problem. `mkSpec` parses its symbol string through the same parser but never reads the marker tokens back out, so a `neg=~` accidentally left inside a `BaseSymbols` string is parsed off and thrown away. It produces no error, no marker, and no digit.
 
@@ -124,7 +124,7 @@ convert-base-v2 --from hex --from-neg '~' --to 10 -- '~ff'
 
 ### 1. Symbol spec carries symbols only
 
-`ParseSymbolSpec` stops handling `neg=`, `dec=`, and `pad=`. `SymbolSpec` loses its `Negative`, `Decimal`, and `Pad` fields and keeps only `Symbols`. Escapes, the comma split, and the single versus multiple token rules are unaffected.
+`ParseSymbolSpec` stops handling `neg=`, `dec=`, and `pad=`. With the markers gone, the `SymbolSpec` struct has nothing left but its symbol list, so it goes away too and the parser returns the symbols directly. Escapes, the comma split, and the single versus multiple token rules are unaffected.
 
 This also closes the `mkSpec` hole on its own. With no tokens to parse off, a stray marker in a `BaseSymbols` string becomes a duplicate or unexpected digit and gets caught.
 
@@ -157,13 +157,15 @@ The six flags from above, backed by a small `flag.Value` type that records wheth
 
 Applying an override, per side:
 
-1. Resolve the base as it is resolved today, by name or from a symbol spec.
+1. For a custom alphabet, set the markers on the new base *before* its first `finalize()`. They are part of the definition in that case, and an alphabet that uses `-` or `.` as digits would otherwise be rejected for colliding with a default marker it was about to replace.
 
-1. If no override flag was given for that side, use it as is.
+1. For a named base, look it up as usual. If no override flag was given for that side, use it as is.
 
 1. Otherwise shallow copy it, set `Negative`, `Decimal`, or `PadSymbol` and `PadEmit` from the flags, and call `finalize()` again. Copy first, because registry bases are shared. `finalize()` rebuilds every derived table from scratch, so calling it a second time is safe.
 
 1. Set `Source` so `--help` shows that the base was modified by flags.
+
+1. Reject the overrides for the `bytes` base. Sign and fractions are meaningless for raw bytes, and every byte value is already a digit, so there is nothing a marker could be set to.
 
 Validation comes along for free. `finalize()` already rejects a marker that collides with a digit, a marker that appears inside a digit symbol, negative and decimal being the same, and a padding character that is also a digit.
 

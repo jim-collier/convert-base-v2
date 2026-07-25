@@ -51,7 +51,7 @@ It should cover the everyday standards (base 10, 16, RFC 4648 base 32 and 64) an
 
 - `bases.go` lists the predefined named bases and their alphabets. A new base is one more entry here.
 
-- `symbolspec.go` parses user-supplied alphabets and the `neg` / `dec` / `pad` marker tokens.
+- `symbolspec.go` parses user-supplied alphabets. A spec is digit symbols only; the negative, decimal, and padding markers are set separately, by flags or config fields.
 
 ### CLI contract
 

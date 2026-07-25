@@ -227,7 +227,17 @@ _run --no-newline 255 16
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Custom symbol specs"
 check eq  "custom in, fractional"   148.25    -- --from-symbols ABCD --to 10 CBBA.B
-check eq  "custom out, neg+dec"     -9FCC.8M6 -- --from-symbols "aeiouy.-_0 neg=~ dec=/" --to 20w "~y0-._/ooo"
+check eq  "custom out, neg+dec"     -9FCC.8M6 -- --from-symbols "aeiouy.-_0" --from-neg "~" --from-dec "/" --to 20w "~y0-._/ooo"
+## Markers are separate from the symbols. The retired in-string tokens must be an
+## error, never silently absorbed as a digit.
+check errmsg "retired neg= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 neg=~" --to 10 5
+check errmsg "retired dec= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 dec=," --to 10 5
+check errmsg "retired pad= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 pad==" --to 10 5
+## Markers apply to named bases too, not just custom alphabets.
+check eq  "marker on named base"    -255      -- --from 16 --from-neg "~" --to 10 "~ff"
+check eq  "marker on output base"   "~FF"     -- --from 10 --to 16 --to-neg "~" -- -255
+check errmsg "marker collides"      'is also a digit' -- --from 16 --from-neg "a" --to 10 ff
+check errmsg "markers vs bytes"     'carries raw bytes' -- --from bytes --from-neg "~" --to 16 5
 check ok  "custom both sides"       -         -- --from-symbols ABCD --to-symbols 0123 CBBA
 check errmsg "one-symbol spec fails" 'at least 2 symbols' -- --from-symbols A 5 16
 ## Spec parser edge cases: multi-token comma split makes a base-4 alphabet
@@ -445,16 +455,16 @@ pipecheck "base64url takes unpadded" 64u bytes "Zm9vYg" "foob"
 ## Number-mode output is never padded, even for the RFC variants.
 pipecheck "base64url number unpadded" 10 64u "255" "D_"
 
-## Custom (user-defined) bases can opt into the same padding with a pad= token.
+## Custom (user-defined) bases can opt into the same padding with --to-pad.
 ## This custom alphabet mirrors RFC 4648 base32, so its padded output must match.
-B32C="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567 pad=="
-padgot=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" 2>"${CBT_ERR}")
+B32C="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
+padgot=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" --to-pad "=" 2>"${CBT_ERR}")
 [[ "$padgot" == "IE======" ]] && _pass "custom base32 emits pad" || _fail "custom base32 emits pad" "got='$padgot'"
-padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --to bytes 2>"${CBT_ERR}")
+padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" --to-pad "=" 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}")
 [[ "$padrt" == "A" ]] && _pass "custom pad round-trips" || _fail "custom pad round-trips" "got='$padrt'"
-padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --to bytes 2>"${CBT_ERR}")
+padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}")
 [[ "$padun" == "A" ]] && _pass "custom pad decode takes unpadded" || _fail "custom pad decode takes unpadded" "got='$padun'"
-check errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF pad=A" --to 10 5
+check errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF" --from-pad "A" --to 10 5
 
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
 check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to bytes ABC

@@ -153,10 +153,10 @@ Decision: Use structs for the simplicity, with the understood and accepted trade
 
 What differs from the plan:
 
-- Padding landed as `Pad string` plus `PadEmit bool`, not `PadSymbols []string`. Only one padding character is ever needed, and the separate emit flag was required for the RFC variants that accept padding on decode but do not write it. The planned `PadSymbols` and `DisallowPad` fields still sit in `SpecOpts` unused, marked "future use". They should be removed.
+- Padding is `Pad string` plus `PadEmit bool`, not `PadSymbols []string`. Only one padding character is needed, and the separate emit flag was required for the RFC variants that accept padding on decode but do not write it. The planned `PadSymbols` and `DisallowPad` fields still sit in `SpecOpts` unused, marked "future use". They should be removed.
 
 - The constraint that ruled out string pointers turned out not to hold. `Base.Negative` and `Base.Decimal` were already `*string`, and `strPtr()` in `registry.go` already made pointing at a literal a non-issue. So the `Disallow*` booleans were adopted to work around a problem the tree had already solved. Not worth undoing on its own, but worth knowing if these fields are revisited.
 
 - Nothing in `mkSpec` reads the marker tokens back out of the parsed spec. A stray `neg=~` left inside a `BaseSymbols` string is therefore parsed off and silently dropped: no error, no marker, and no digit either. The follow-on document fixes this by rejecting those tokens in the parser.
 
-Retrospective: the requirements were right and still are, but the scope was too narrow. The awkwardness this document set out to remove was most visible where a user types it, in a config file or on the command line, and neither surface is mentioned here. Fixing only the internal constructor left the project with two conventions for one idea.
+Retrospective: the requirements were right and still are, but the scope was too narrow. The awkwardness this document set out to remove was most visible where a user types it, in a config file or on the command line, and neither surface is mentioned here. Fixing only the internal constructor left the project with two conventions for one idea. That delta is addressed in the next design doc.

@@ -283,7 +283,7 @@ func (b *Base) finalize() error {
 		}
 		for _, s := range b.Symbols {
 			if s != mk.mark && strings.Contains(s, mk.mark) {
-				return fmt.Errorf("base %q: %s marker %q appears inside digit symbol %q; pick a marker that is not part of any digit (e.g. \"%s=X\")", b.Name(), mk.kind, mk.mark, s, mk.kind[:3])
+				return fmt.Errorf("base %q: %s marker %q appears inside digit symbol %q; pick a marker that is not part of any digit", b.Name(), mk.kind, mk.mark, s)
 			}
 		}
 	}
@@ -320,8 +320,8 @@ func resolveMarker(kind string, raw *string, def string, digits map[string]int, 
 	case raw == nil:
 		if _, collides := digits[def]; collides {
 			return "", fmt.Errorf(
-				"base %q: default %s marker %q collides with a digit; set %s marker explicitly (e.g. \"%s=X\"), or disable with bare \"%s=\"",
-				baseName, kind, def, kind, kind[:3], kind[:3])
+				"base %q: default %s marker %q collides with a digit; set the marker to something else, or to an empty string to disable it (--from-%s/--to-%s, or the %q field in a config file)",
+				baseName, kind, def, kind[:3], kind[:3], kind+":")
 		}
 		return def, nil
 	case *raw == "":
@@ -650,27 +650,17 @@ func isDigitByte(b byte) bool { return b >= '0' && b <= '9' }
 // where you need a *string value (e.g. strPtr("") to mean "explicitly disabled").
 func strPtr(s string) *string { return &s }
 
-// applyPad sets a base's padding from a spec/config *string. A non-empty value
-// turns on padding (emit + lenient decode strip); nil or "" leaves it off.
-func applyPad(b *Base, pad *string) {
-	if pad != nil && *pad != "" {
-		b.PadSymbol = *pad
-		b.PadEmit = true
-	}
-}
-
 // --- YAML config loading ----------------------------------------------------
 
 // configBase is the YAML shape of one base entry. The top-level config file
 // is a YAML list of these.
 //
 //	`symbols` may be either:
-//	   * a string - parsed via ParseSymbolSpec (whitespace-delimited, with
-//	     optional "neg=X" / "dec=Y" trailer tokens); or
+//	   * a string - parsed via ParseSymbolSpec (whitespace-delimited digits); or
 //	   * a YAML list of strings - each list entry is one literal digit
 //	     symbol (convenient for symbols containing "=" or similar).
-//	`negative` and `decimal`, if present, override any values set via the
-//	in-string trailer.
+//	`negative`, `decimal`, and `pad` set the markers. They are separate from
+//	the symbols, which carry digits only.
 type configBase struct {
 	Aliases  []string  `yaml:"aliases"`
 	Symbols  yaml.Node `yaml:"symbols"`
@@ -721,14 +711,11 @@ func (cb configBase) toBase() (*Base, error) {
 	b := &Base{Aliases: cb.Aliases}
 	switch cb.Symbols.Kind {
 	case yaml.ScalarNode:
-		spec, err := ParseSymbolSpec(cb.Symbols.Value)
+		symbols, err := ParseSymbolSpec(cb.Symbols.Value)
 		if err != nil {
 			return nil, fmt.Errorf("base %q: %w", cb.Aliases[0], err)
 		}
-		b.Symbols = spec.Symbols
-		b.Negative = spec.Negative
-		b.Decimal = spec.Decimal
-		applyPad(b, spec.Pad)
+		b.Symbols = symbols
 	case yaml.SequenceNode:
 		var arr []string
 		if err := cb.Symbols.Decode(&arr); err != nil {
@@ -740,14 +727,12 @@ func (cb configBase) toBase() (*Base, error) {
 	default:
 		return nil, fmt.Errorf("base %q: 'symbols' must be a string or list of strings", cb.Aliases[0])
 	}
-	// Explicit YAML fields override any trailer in the symbols string.
 	if cb.Negative != nil {
 		b.Negative = cb.Negative
 	}
 	if cb.Decimal != nil {
 		b.Decimal = cb.Decimal
 	}
-	// An explicit "pad:" wins over a trailer pad, including "" to disable it.
 	if cb.Pad != nil {
 		if *cb.Pad == "" {
 			b.PadSymbol = ""

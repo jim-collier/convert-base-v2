@@ -20,8 +20,9 @@ import (
 // input. An error return is fine; a crash is not.
 func FuzzParseSymbolSpec(f *testing.F) {
 	f.Add("ABCD")
-	f.Add("aeiouy.-_0 neg=~ dec=/")
-	f.Add("0123456789abcdef pad==")
+	f.Add("aeiouy.-_0")
+	f.Add("0123456789abcdef")
+	f.Add("0 1 2 3 neg=~") // retired marker token: must error, not panic
 	f.Add("")
 	f.Fuzz(func(t *testing.T, spec string) {
 		_, _ = ParseSymbolSpec(spec) // only asserting no panic
