@@ -22,7 +22,7 @@
 ##	Exit: 0 wrote the GIF, 2 non-fatal skip (no Pillow, bad scenario, cmd failed).
 ##	History: At bottom of script.
 
-##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT
@@ -645,11 +645,11 @@ if __name__ == "__main__":
 
 
 ##	History:
-##		- 20260713 JC: End of loop holds the final frame (end_hold, 3s) then hard-
+##		- 20260713: End of loop holds the final frame (end_hold, 3s) then hard-
 ##			cuts to black (end_black, 2s) before repeating.
-##		- 20260711 JC: v1.2. Antialiased text again (ramped 256 palette), color
+##		- 20260711: v1.2. Antialiased text again (ramped 256 palette), color
 ##			emoji tiles, prompt hidden until output lands, faster typing and
 ##			scrolling, cell-width wrap.
-##		- 20260711 JC: v1.1. Pixel-smooth scrolling and cursor glide; scenario
+##		- 20260711: v1.1. Pixel-smooth scrolling and cursor glide; scenario
 ##			knobs wpm_digits, scrollrate, linems.
-##		- 20260711 JC: v1.0. Scenario-driven typing/render/fade engine.
+##		- 20260711: v1.0. Scenario-driven typing/render/fade engine.

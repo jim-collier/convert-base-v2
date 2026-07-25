@@ -17,7 +17,7 @@
 ##		  release cleanly.
 ##	History: At bottom.
 
-##	Copyright © 2026 Jim Collier
+##	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
 ##	Licensed under GNU GPL v2 <https://www.gnu.org/licenses/gpl-2.0.html>. No warranty.
 ##	SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -70,4 +70,4 @@ fi
 
 
 ##	History:
-##		- 2026-07-12 JC: Created. Version-bump + Lifecycle-badge guard for the release path.
+##		- 2026-07-12: Created. Version-bump + Lifecycle-badge guard for the release path.

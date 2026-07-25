@@ -6,7 +6,7 @@ To run:
 	- Requires Python 3, and the standard library `unicodedata` - in this case 15.0.0.
 	- Run: python3 build_csv.py
 
-Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
 Licensed under the GNU General Public License v2.0 or later. Full text at:
 	https://spdx.org/licenses/GPL-2.0-or-later.html
 SPDX-License-Identifier: GPL-2.0-or-later
