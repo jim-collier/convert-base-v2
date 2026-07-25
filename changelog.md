@@ -22,7 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Other work
 -->
 
-## v2.0.1 - WIP
+## v2.1.0 - WIP
 
 ### Notes
 
