@@ -890,11 +890,8 @@ func runeRange(lo, hi rune) []string {
 	return out
 }
 
-// leftTokens returns the first n whitespace-separated tokens from s, joined
-// by single spaces, with a single space on each end (matching the constant
-// convention of space-padded edges). Panics if n exceeds the token count.
-// This is called at init, so a bad count is a bug, not a runtime condition.
-// midTokens returns n tokens starting at 1-based position start.
+// midTokens returns n tokens starting at 1-based position start, joined and
+// space-padded like leftTokens.
 func midTokens(s string, start, n int) string {
 	tokens := strings.Fields(s)
 	i := start - 1
@@ -904,6 +901,10 @@ func midTokens(s string, start, n int) string {
 	return " " + strings.Join(tokens[i:i+n], " ") + " "
 }
 
+// leftTokens returns the first n whitespace-separated tokens from s, joined
+// by single spaces, with a single space on each end (matching the constant
+// convention of space-padded edges). Panics if n exceeds the token count.
+// This is called at init, so a bad count is a bug, not a runtime condition.
 func leftTokens(s string, n int) string {
 	tokens := strings.Fields(s)
 	if n > len(tokens) {
