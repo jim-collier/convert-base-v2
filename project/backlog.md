@@ -61,11 +61,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 - 🔘 For base "keyboard", allow encoding tab, newline, CR, etc. like "%NEWLINE%", "%DOUBLE_QOUTE%", etc. (Or some other way.)
 
-- 🛠️ User-defined alphabets:
-	- Need flags to define negative, decimal, and pad - not all in one string.
-	- Ditto for config definitions.
-	- Designed in `design_docs/20260725_neg_dec_pad_config_cli.md`, pending review. Six per-side flags, config keeps its existing fields and loses the in-string form, and the retired tokens error out instead of turning into digits.
-
 - 🔘 Animated gif demo: Come up with better examples and reencode.
 	- Only one base-10 example
 	- emoji64: Not from base 10; from base 62 with negative and decimal
@@ -113,6 +108,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ User-defined alphabets:
+	- Need flags to define negative, decimal, and pad - not all in one string.
+	- Ditto for config definitions.
+	- Done. Six flags: `--from-neg`/`--from-dec`/`--from-pad` and the `--to-` three. An empty value disables a marker, an omitted flag changes nothing.
+	- Markers now work on named bases too, not just custom alphabets. `--from hex --from-neg '~'` reads `~ff` as -255.
+	- A symbol spec is digits only. Config files keep their `negative:`/`decimal:`/`pad:` fields; the in-string form is gone from both surfaces.
+	- The retired `neg=`/`dec=`/`pad=` tokens are a hard error naming the replacement, so a stale spec can't quietly turn one into a digit and shift the alphabet.
+	- Designed in `design_docs/20260725_neg_dec_pad_config_cli.md`.
 
 - ✅ Design new bases (all just shorter versions of 1024tt, which starts with base 62h):
 	- ✅ Blocks: ▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▒ ▓
