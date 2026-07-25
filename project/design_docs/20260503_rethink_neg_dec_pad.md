@@ -12,6 +12,7 @@
 
 <!-- TOC -->
 
+- [Status](#status)
 - [Introduction](#introduction)
 - [Related to Issues, PRs](#related-to-issues-prs)
 - [Requirements](#requirements)
@@ -22,8 +23,15 @@
 		- [functional options](#functional-options)
 		- [structs](#structs)
 - [Detailed solution](#detailed-solution)
+- [Outcome](#outcome)
 
 <!-- /TOC -->
+
+## Status
+
+Implemented, with one divergence. Closed 20260725. See [Outcome](#outcome) for what shipped.
+
+Scope note: this document only ever covered the Go source definitions in `bases.go`. The same problem in config files and on the command line is not addressed here, and is picked up by `20260725_neg_dec_pad_config_cli.md`.
 
 ## Introduction
 
@@ -36,7 +44,9 @@ mkSpec(base_62hex+" - _ neg=~", "64h", "64hex", "64hexurl", "64hu"),
 Problems:
 
 - Going to get unweildly when adding high-base padding symbols.
+
 - Compound problem with ability to use space as a delimiter.
+
 - It's a little janky.
 
 This is a universal (if minor) problem class - basically how to best break out paremeters you rarely want to specify and that sometimes have magic meaning - solved a million times in a million ways, in different idiomatic ways in different languages.
@@ -48,7 +58,9 @@ This is a universal (if minor) problem class - basically how to best break out p
 ## Requirements
 
 - Those things need to be completely separate from the base symbols string.
+
 - Need to default to standard symbols if not specified.
+
 - Need to be able to positively specify "_no_ negative and/or decimal allowed".
 
 ## Constraints
@@ -56,6 +68,7 @@ This is a universal (if minor) problem class - basically how to best break out p
 - As far as just modifying the inputs to `mkSpec()` goes, Go has no support for named parameters.
 	- The idiomatic workaround is to use `structs` or `functional options` as input to `mkSpec()`.
 		- Either can get verbose.
+
 - Neither `structs` nor `functional options` can represent "absence". But we need to be able to tell the function, for example, "for this base we don't allow negative" - vs "I'm not going to specify anything so just use the default symbol that represents 'negative'."
 
 ## High-level solution
@@ -81,7 +94,9 @@ Points to consider:
 ### Example usage comparisons
 
 - Override the default for `neg`,
+
 - not specify `dec` and let it use the default, and
+
 - disallow padding (just as an example even though the latter wouldn't be done for this base).
 
 #### `functional options`
@@ -131,3 +146,17 @@ Decision: Use structs for the simplicity, with the understood and accepted trade
 1. Invoke it in `bases.go` as illustrated in the previous section.
 
 1. Update the existing base definitions to use this idiom.
+
+## Outcome
+
+`SpecOpts` and `mkSpec(SpecOpts{...})` shipped as specified, and every predefined base uses them. `mkSpec` panics if `NegSymbol` is set alongside `DisallowNeg` (same for decimal and pad), since a bad definition there is a source bug, not a runtime condition.
+
+What differs from the plan:
+
+- Padding landed as `Pad string` plus `PadEmit bool`, not `PadSymbols []string`. Only one padding character is ever needed, and the separate emit flag was required for the RFC variants that accept padding on decode but do not write it. The planned `PadSymbols` and `DisallowPad` fields still sit in `SpecOpts` unused, marked "future use". They should be removed.
+
+- The constraint that ruled out string pointers turned out not to hold. `Base.Negative` and `Base.Decimal` were already `*string`, and `strPtr()` in `registry.go` already made pointing at a literal a non-issue. So the `Disallow*` booleans were adopted to work around a problem the tree had already solved. Not worth undoing on its own, but worth knowing if these fields are revisited.
+
+- Nothing in `mkSpec` reads the marker tokens back out of the parsed spec. A stray `neg=~` left inside a `BaseSymbols` string is therefore parsed off and silently dropped: no error, no marker, and no digit either. The follow-on document fixes this by rejecting those tokens in the parser.
+
+Retrospective: the requirements were right and still are, but the scope was too narrow. The awkwardness this document set out to remove was most visible where a user types it, in a config file or on the command line, and neither surface is mentioned here. Fixing only the internal constructor left the project with two conventions for one idea.

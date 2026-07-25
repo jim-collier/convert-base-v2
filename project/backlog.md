@@ -61,11 +61,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 - 🔘 For base "keyboard", allow encoding tab, newline, CR, etc. like "%NEWLINE%", "%DOUBLE_QOUTE%", etc. (Or some other way.)
 
-- 🔘 Switch config engine from YAML to SHCL.
-
-- 🔘 User-defined alphabets:
+- 🛠️ User-defined alphabets:
 	- Need flags to define negative, decimal, and pad - not all in one string.
 	- Ditto for config definitions.
+	- Designed in `design_docs/20260725_neg_dec_pad_config_cli.md`, pending review. Six per-side flags, config keeps its existing fields and loses the in-string form, and the retired tokens error out instead of turning into digits.
 
 - 🔘 Animated gif demo: Come up with better examples and reencode.
 	- Only one base-10 example
@@ -76,6 +75,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Convert a sentence from keyboard to some high radix, rune-heavy base.
 	- For twitter output, give more detail of the processing in leading comment.
 	- Note: save `--list` for the end of the demo.
+
+- ✋ Switch config engine from YAML to SHCL.
 
 ### Done
 
