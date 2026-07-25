@@ -40,9 +40,34 @@ func base(t testing.TB, reg *Registry, name string) *Base {
 
 func customBase(t testing.TB, reg *Registry, spec string) *Base {
 	t.Helper()
-	b, err := resolveBase(reg, "", spec)
+	b, err := resolveBase(reg, "", spec, nil)
 	if err != nil {
 		t.Fatalf("resolveBase(%q): %v", spec, err)
+	}
+	return b
+}
+
+// mk builds a markerFlags the way flag parsing would. A nil neg/dec means the
+// flag was not given; a string (including "") means it was.
+func mk(prefix string, neg, dec interface{}) *markerFlags {
+	m := &markerFlags{prefix: prefix}
+	if s, ok := neg.(string); ok {
+		m.neg = optString{value: s, set: true}
+	}
+	if s, ok := dec.(string); ok {
+		m.dec = optString{value: s, set: true}
+	}
+	return m
+}
+
+// markerBase builds a custom base and applies marker overrides to it, the same
+// way the --from-neg / --from-dec flags do.
+func markerBase(t testing.TB, reg *Registry, spec, neg, dec string) *Base {
+	t.Helper()
+	b := customBase(t, reg, spec)
+	b, err := applyMarkers(b, mk("--from", neg, dec))
+	if err != nil {
+		t.Fatalf("applyMarkers(%q, neg %q, dec %q): %v", spec, neg, dec, err)
 	}
 	return b
 }
@@ -286,7 +311,7 @@ func TestCustomSymbolsAndMarkers(t *testing.T) {
 		t.Errorf("custom ABCD CBBA.B -> 10 = %q, want 148.25", got)
 	}
 	// Round-trip a signed fraction through a custom negative/decimal marker base.
-	rt := customBase(t, reg, "0123456789 neg=~ dec=/")
+	rt := markerBase(t, reg, "0123456789", "~", "/")
 	enc, err := Convert("~12/5", rt, dec10, 50)
 	if err != nil {
 		t.Fatalf("marker decode: %v", err)
@@ -316,8 +341,89 @@ func TestSpecParser(t *testing.T) {
 		t.Errorf(`spec 'a\ b' = %d symbols, want 3`, len(b.Symbols))
 	}
 	// A one-symbol spec is rejected.
-	if _, err := resolveBase(reg, "", "A"); err == nil {
+	if _, err := resolveBase(reg, "", "A", nil); err == nil {
 		t.Error("one-symbol spec should error")
+	}
+}
+
+// The retired marker tokens must be an error, never a digit symbol. Accepting
+// them as digits would silently shift a whole alphabet.
+func TestRetiredMarkerTokensRejected(t *testing.T) {
+	for _, spec := range []string{
+		"0123456789 neg=~",
+		"0 1 2 3 dec=,",
+		"0123456789abcdef pad==",
+		"neg=",
+	} {
+		if _, err := ParseSymbolSpec(spec); err == nil {
+			t.Errorf("spec %q: retired marker token should be rejected", spec)
+		}
+	}
+	// A token that merely starts with the same letters is still a normal digit.
+	syms, err := ParseSymbolSpec("negative decisive padding")
+	if err != nil {
+		t.Fatalf("non-marker tokens should parse: %v", err)
+	}
+	if len(syms) != 3 {
+		t.Errorf("got %d symbols, want 3", len(syms))
+	}
+}
+
+// Marker flags apply to any base, and must not disturb the shared registry copy.
+func TestApplyMarkers(t *testing.T) {
+	reg := newReg(t)
+	dec10 := base(t, reg, "10")
+	hex := base(t, reg, "hex")
+
+	// Override the negative marker on a named base.
+	tilde, err := applyMarkers(hex, mk("--from", "~", nil))
+	if err != nil {
+		t.Fatalf("applyMarkers on hex: %v", err)
+	}
+	got, err := Convert("~ff", tilde, dec10, 0)
+	if err != nil {
+		t.Fatalf("convert with overridden marker: %v", err)
+	}
+	if got != "-255" {
+		t.Errorf("~ff hex -> 10 = %q, want -255", got)
+	}
+	// The registry's own hex must be untouched, since bases are shared pointers.
+	if hex.NegSym() != "-" {
+		t.Errorf("registry hex negative marker = %q, want \"-\"; applyMarkers mutated a shared base", hex.NegSym())
+	}
+	if _, err := Convert("~ff", hex, dec10, 0); err == nil {
+		t.Error("unmodified hex should still reject \"~ff\"")
+	}
+
+	// An empty value disables the marker.
+	off, err := applyMarkers(hex, mk("--from", "", nil))
+	if err != nil {
+		t.Fatalf("applyMarkers disable: %v", err)
+	}
+	if off.NegSym() != "" {
+		t.Errorf("disabled negative marker = %q, want empty", off.NegSym())
+	}
+	if _, err := Convert("-ff", off, dec10, 0); err == nil {
+		t.Error("negatives should be rejected once the marker is disabled")
+	}
+
+	// No flags set returns the base itself, not a copy.
+	same, err := applyMarkers(hex, mk("--from", nil, nil))
+	if err != nil {
+		t.Fatalf("applyMarkers no-op: %v", err)
+	}
+	if same != hex {
+		t.Error("applyMarkers with no flags should return the original base")
+	}
+
+	// A marker that collides with a digit is caught by finalize().
+	if _, err := applyMarkers(hex, mk("--from", "a", nil)); err == nil {
+		t.Error("a negative marker that is also a hex digit should be rejected")
+	}
+
+	// Markers are meaningless for raw bytes.
+	if _, err := applyMarkers(base(t, reg, "bytes"), mk("--from", "~", nil)); err == nil {
+		t.Error("marker overrides should be rejected for the bytes base")
 	}
 }
 
@@ -330,7 +436,7 @@ func TestFinalizeRejections(t *testing.T) {
 		"aa a",    // "a" is a prefix of "aa"
 	}
 	for _, spec := range bad {
-		if _, err := resolveBase(reg, "", spec); err == nil {
+		if _, err := resolveBase(reg, "", spec, nil); err == nil {
 			t.Errorf("spec %q should be rejected by finalize()", spec)
 		}
 	}

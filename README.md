@@ -136,6 +136,9 @@ convert-base-v2 1767269700 64h                # 1fLcL4
 # Decimal to a base you invent on the spot
 convert-base-v2 --to-symbols "a b c d e f" 42 # bba
 
+# Pick your own negative or decimal marker, on any base
+convert-base-v2 --from hex --from-neg '~' -- '~ff'  # -255
+
 # Encode a file to base 64, and back
 some-command | convert-base-v2 --binary --to 64
 convert-base-v2 --binary --from 64 --to bytes < file.b64
