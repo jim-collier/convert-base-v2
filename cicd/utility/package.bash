@@ -20,7 +20,7 @@
 ##		  workflow, so what ships is what was built and tested here.
 ##	History: At bottom.
 
-##	Copyright © 2026 Jim Collier
+##	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
 ##	Licensed under GNU GPL v2 <https://www.gnu.org/licenses/gpl-2.0.html>. No warranty.
 ##	SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -186,4 +186,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt | wc -l) 
 
 
 ##	History:
-##		- 2026-07-12 JC: Created. Self-contained cross-build + deb/rpm/NSIS packaging, replacing goreleaser.
+##		- 2026-07-12: Created. Self-contained cross-build + deb/rpm/NSIS packaging, replacing goreleaser.

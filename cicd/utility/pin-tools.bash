@@ -1,4 +1,9 @@
 #!/usr/bin/env bash
+
+##	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
 set -euo pipefail
 
 ##	Purpose:

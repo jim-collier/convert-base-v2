@@ -24,7 +24,7 @@
 ##	History: at bottom.
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 
-##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT
@@ -219,6 +219,6 @@ echo "gen-screenshots: wrote 5 originals to ${LARGE} and thumbnails to ${SMALL}"
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## History
-##		- 2026-07-04 JC: First version. Five terminal transcripts (everyday,
+##		- 2026-07-04: First version. Five terminal transcripts (everyday,
 ##		  exotic bases, custom alphabets, binary streaming, config + list).
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
