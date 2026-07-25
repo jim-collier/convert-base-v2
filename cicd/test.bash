@@ -465,6 +465,11 @@ padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" 
 padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}")
 [[ "$padun" == "A" ]] && _pass "custom pad decode takes unpadded" || _fail "custom pad decode takes unpadded" "got='$padun'"
 check errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF" --from-pad "A" --to 10 5
+## A pad is only ever applied on the bit-packed path, one character at a time.
+## Definitions that could never take effect are rejected where they are written.
+check errmsg "multi-char pad rejected" 'must be a single character' -- --from bytes --to 64 --to-pad "==" 5
+check errmsg "pad above 8 bits rejected" 'at most 256 symbols' -- --from bytes --to 512tt --to-pad "=" 5
+check errmsg "pad on non-2^N rejected" 'at most 256 symbols' -- --from bytes --to 45 --to-pad "=" 5
 
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
 check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to bytes ABC
