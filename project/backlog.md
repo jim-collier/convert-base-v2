@@ -115,7 +115,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: `512tt`, `1024tt`, and `2048tt` gained a tail character, which is what let them stream; their binary layout changed and none had shipped.
 	- Verified: peak memory is flat near 20 MB for every base. Encoding 48 MB to `emoji64` went from 1.2 GB to 20 MB, decoding `128tt` from 753 MB to 21 MB and about three times faster.
 	- Verified: 625 streamed-against-buffered comparisons, 121000 fuzz round-trips, harness at 252 checks including a peak-memory ceiling per base.
-	- Note: a user-defined base above 8 bits still has no way to declare a tail character, so it keeps the length-prefixed layout and buffers on encode.
+	- Done: closed the last gap with a `tail:` config field and `--from-tail`/`--to-tail` flags, so a base of your own above 8 bits can stream too. A 24 MB encode drops from 244 MB to 21 MB. Without a tail the length-prefixed layout still works, so nothing had to change.
+	- Verified: round-trips at every awkward length on both layouts, the width and overlap guards reject a tail that could never be used, and the config and flag surfaces agree.
 
 - ✅ User-defined alphabets:
 	- Need flags to define negative, decimal, and pad - not all in one string.

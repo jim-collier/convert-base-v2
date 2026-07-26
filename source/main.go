@@ -65,17 +65,19 @@ func run() error {
 		examplesFlag  = flag.Bool("examples", false, "show usage examples and exit")
 	)
 
-	// Marker overrides, one set per side. These apply to whatever base the side
-	// resolved to, named or custom. An empty value disables the marker; an
-	// absent flag leaves the base's own setting alone.
-	fromMarkers := &markerFlags{prefix: "--from"}
-	toMarkers := &markerFlags{prefix: "--to"}
+	// Per-side overrides. These apply to whatever base the side resolved to,
+	// named or custom. An empty value disables the marker; an absent flag
+	// leaves the base's own setting alone.
+	fromMarkers := &sideFlags{prefix: "--from"}
+	toMarkers := &sideFlags{prefix: "--to"}
 	flag.Var(&fromMarkers.neg, "from-neg", `negative marker for the input base (default "-"; empty disables)`)
 	flag.Var(&fromMarkers.dec, "from-dec", `decimal marker for the input base (default "."; empty disables)`)
 	flag.Var(&fromMarkers.pad, "from-pad", "padding character stripped from input in binary mode")
+	flag.Var(&fromMarkers.tail, "from-tail", "tail symbols for a >8-bit input base in binary mode")
 	flag.Var(&toMarkers.neg, "to-neg", `negative marker for the output base (default "-"; empty disables)`)
 	flag.Var(&toMarkers.dec, "to-dec", `decimal marker for the output base (default "."; empty disables)`)
 	flag.Var(&toMarkers.pad, "to-pad", "padding character written in binary mode")
+	flag.Var(&toMarkers.tail, "to-tail", "tail symbols for a >8-bit output base in binary mode")
 
 	// Suppress Go's default auto-exit on -h/-help; we handle help ourselves
 	// so we can show config-file status and base-resolution info. ContinueOnError
@@ -505,23 +507,23 @@ func (o *optString) Set(s string) error {
 	return nil
 }
 
-// markerFlags groups one side's marker overrides. Prefix is "--from" or "--to",
-// used only in messages.
-type markerFlags struct {
-	neg, dec, pad optString
-	prefix        string
+// sideFlags groups one side's per-base overrides: the three markers and the
+// binary tail repertoire. Prefix is "--from" or "--to", used only in messages.
+type sideFlags struct {
+	neg, dec, pad, tail optString
+	prefix              string
 }
 
-func (m *markerFlags) any() bool {
-	return m != nil && (m.neg.set || m.dec.set || m.pad.set)
+func (m *sideFlags) any() bool {
+	return m != nil && (m.neg.set || m.dec.set || m.pad.set || m.tail.set)
 }
 
 // set writes the overrides onto a base that has not been finalized yet. Order
 // matters: a custom alphabet that uses "-" or "." as digits only survives
 // finalize() once its replacement markers are in place.
-func (m *markerFlags) set(b *Base) {
+func (m *sideFlags) set(b *Base) error {
 	if m == nil {
-		return
+		return nil
 	}
 	if m.neg.set {
 		b.Negative = strPtr(m.neg.value)
@@ -533,6 +535,26 @@ func (m *markerFlags) set(b *Base) {
 		b.PadSymbol = m.pad.value
 		b.PadEmit = m.pad.value != ""
 	}
+	if m.tail.set {
+		if m.tail.value == "" {
+			b.TailSymbols = nil
+			// Only drop a tail layout. A codec name lives in the same field,
+			// and clearing that would quietly stop the base doing binary at all.
+			if isTailScheme(b.BinaryScheme) {
+				b.BinaryScheme = ""
+			}
+			return nil
+		}
+		tail, err := ParseSymbolSpec(m.tail.value)
+		if err != nil {
+			return fmt.Errorf("%s-tail: %w", m.prefix, err)
+		}
+		b.TailSymbols = tail
+		// Same choice the config makes: a hand-declared tail gets the qntm
+		// layout, the one that streams both directions.
+		b.BinaryScheme = "qntm"
+	}
+	return nil
 }
 
 // applyMarkers returns a copy of an already-finalized base with the overrides
@@ -541,18 +563,20 @@ func (m *markerFlags) set(b *Base) {
 // scratch, so re-running it on the copy is safe and re-validates the new markers
 // (collision with a digit, marker inside a digit, negative equal to decimal,
 // pad that is also a digit).
-func applyMarkers(base *Base, m *markerFlags) (*Base, error) {
+func applyMarkers(base *Base, m *sideFlags) (*Base, error) {
 	if !m.any() {
 		return base, nil
 	}
 	// Sign and fractions are meaningless for raw bytes, and every byte value is
 	// already a digit, so there is nothing a marker could be set to.
 	if base.Binary {
-		return nil, fmt.Errorf("base %q carries raw bytes; %s-neg/-dec/-pad do not apply to it", base.Name(), m.prefix)
+		return nil, fmt.Errorf("base %q carries raw bytes; %s-neg/-dec/-pad/-tail do not apply to it", base.Name(), m.prefix)
 	}
 	overridden := *base
-	m.set(&overridden)
-	overridden.Source = base.Source + fmt.Sprintf(" (markers overridden by %s-* flags)", m.prefix)
+	if err := m.set(&overridden); err != nil {
+		return nil, err
+	}
+	overridden.Source = base.Source + fmt.Sprintf(" (overridden by %s-* flags)", m.prefix)
 	if err := overridden.finalize(); err != nil {
 		return nil, err
 	}
@@ -563,7 +587,7 @@ func applyMarkers(base *Base, m *markerFlags) (*Base, error) {
 // custom symbols spec (which, if provided, takes precedence over the name),
 // with any marker overrides applied. A nil markers argument means none.
 // CLI-supplied custom bases are tagged with Source indicating the flag name.
-func resolveBase(reg *Registry, name, customSpec string, markers *markerFlags) (*Base, error) {
+func resolveBase(reg *Registry, name, customSpec string, markers *sideFlags) (*Base, error) {
 	if customSpec != "" {
 		symbols, err := ParseSymbolSpec(customSpec)
 		if err != nil {
@@ -576,7 +600,9 @@ func resolveBase(reg *Registry, name, customSpec string, markers *markerFlags) (
 		}
 		// Set before finalize, not after: the markers are part of the definition
 		// here, and the defaults may well collide with this alphabet's digits.
-		markers.set(b)
+		if err := markers.set(b); err != nil {
+			return nil, err
+		}
 		if err := b.finalize(); err != nil {
 			return nil, err
 		}
@@ -710,9 +736,11 @@ Markers (apply to any base, named or custom; empty value disables):
   --from-neg X         Negative marker for the input base   [default "-"]
   --from-dec X         Decimal marker for the input base    [default "."]
   --from-pad X         Padding stripped from input in binary mode
+  --from-tail SYMS     Tail symbols for a >8-bit input base in binary mode
   --to-neg X           Negative marker for the output base  [default "-"]
   --to-dec X           Decimal marker for the output base   [default "."]
   --to-pad X           Padding written in binary mode
+  --to-tail SYMS       Tail symbols for a >8-bit output base in binary mode
 
 Conversion mode:
   --binary, --bin, -b  Treat both sides as raw bytes (encode/decode like basenc)

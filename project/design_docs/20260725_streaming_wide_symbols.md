@@ -116,7 +116,9 @@ So the three tt bases need 2, 4 and 8 tail symbols. One shared block of eight co
 
 The eight symbols have to sit outside `base_2048tt`, which holds exactly 2048 with no spares, so they are genuinely new: U+2E00 to U+2E07, supplemental punctuation. Punctuation reads as a terminator against a primary repertoire of letters, digits and CJK, which is the same instinct behind qntm using ASCII 0-7 against a Latin primary.
 
-A user-defined base above eight bits still has no way to declare a tail, so it keeps the varint packing and stays buffered on encode. That is the one remaining case.
+A user-defined base above eight bits can declare its own tail, through a `tail:` config field or the `--from-tail` / `--to-tail` flags, in the same string-or-list form as the symbols. Declaring one moves the base onto the tail scheme and it streams like any built-in. Leaving it out keeps the varint packing, which still round-trips but has to buffer the encode, so nothing that worked before changed.
+
+A hand-declared tail always gets the qntm layout. It is the scheme that streams cleanly in both directions, and choosing it here means a config never has to name one. The width rule above is enforced at load time rather than at conversion time, so a tail that could never be used is an error where it is written.
 
 ## Detailed solution
 
@@ -161,10 +163,10 @@ Decoding needs one symbol of lookahead, since a tail symbol is legal only in the
 ## Touch points
 
 - `bases.go` - tail repertoires on the three tt bases.
-- `registry.go` - two fields and their setup in `finalize()`, plus validation that a tail repertoire is disjoint from the digits and wide enough for the base.
+- `registry.go` - two fields and their setup in `finalize()`, plus validation that a tail repertoire is disjoint from the digits and wide enough for the base. The `tail:` config field and the shared string-or-list decoder it uses with `symbols:`.
+- `main.go` - the `--from-tail` / `--to-tail` flags, on the same per-side override group as the markers.
 - `convert.go` - the two new functions, the dispatch in `streamConvert`, the leg predicate, and line-break tolerance on the buffered multi-byte decode.
-- `main.go` - nothing, as expected; the dispatch lives below it.
-- `conversions_test.go`, `fuzz_test.go`, `cicd/test.bash` - wider targets, the wrapped-input case, and the peak-memory ceiling.
+- `conversions_test.go`, `fuzz_test.go`, `cicd/test.bash` - wider targets, the wrapped-input case, the peak-memory ceiling, and both tail-declaring surfaces.
 
 ## Testing
 
@@ -180,7 +182,7 @@ Nothing else changed. Every other conversion produces exactly what it produced b
 
 ## Outcome
 
-Every base that can carry raw bytes now streams both ways, at about 20 MB of peak memory regardless of input size.
+Every base that can carry raw bytes now streams both ways, at about 20 MB of peak memory regardless of input size. That includes a base of your own once it declares a tail: a 24 MB encode through a custom 512-symbol base falls from 244 MB to 21 MB, and decoding it holds at 21 MB.
 
 Encoding 48 MB, before and after:
 
