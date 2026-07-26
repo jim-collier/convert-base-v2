@@ -334,7 +334,7 @@ done
 ## Big bases (more than 8 bits per char) round-trip at every input length,
 ## including the odd lengths a zero-padded tail used to corrupt. Sweep edge
 ## lengths for each.
-for pair in "2048twitter" "2048rust" "32768qntm" "65536qntm"; do
+for pair in "512tt" "1024tt" "2048tt" "2048twitter" "2048rust" "32768qntm" "65536qntm"; do
 	bigfail=0
 	for n in 0 1 2 3 4 5 7 8 15 16 17 31 32 33 64 333; do
 		src="${CBT_TMP}/bp_src"; mid="${CBT_TMP}/bp_mid"; out="${CBT_TMP}/bp_out"
@@ -376,6 +376,23 @@ for base in "${RAW_BASES[@]}"; do
 	done
 done
 ((raw_all_fail == 0)) && _pass "raw round-trip, all codec bases (${#RAW_BASES[@]} bases, ${raw_all_n} blobs)" || printf '  %s%d raw round-trip failures above%s\n' "${red}" "$raw_all_fail" "${rst}"
+
+## Wrapped output must decode back, on both the piped and the argv path, at wrap
+## widths that land inside a multi-byte digit. Line breaks have to be dropped
+## before the bytes are read as characters, or a split digit looks like bad UTF-8.
+for base in 64 64w emoji64 128tt 512tt 2048rust 65536qntm; do
+	wrapfail=0
+	src="${CBT_TMP}/wr_src"; enc="${CBT_TMP}/wr_enc"; out="${CBT_TMP}/wr_out"
+	head -c 300 /dev/urandom >"$src"
+	"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" --no-newline <"$src" >"$enc" 2>"${CBT_ERR}" || wrapfail=$((wrapfail+1))
+	for width in 7 13 40; do
+		fold -w "$width" <"$enc" | "${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes >"$out" 2>"${CBT_ERR}" || wrapfail=$((wrapfail+1))
+		cmp -s "$src" "$out" || wrapfail=$((wrapfail+1))
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes "$(fold -w "$width" <"$enc")" >"$out" 2>"${CBT_ERR}" || wrapfail=$((wrapfail+1))
+		cmp -s "$src" "$out" || wrapfail=$((wrapfail+1))
+	done
+	((wrapfail == 0)) && _pass "wrapped input decodes via ${base}" || _fail "wrapped input decodes via ${base}" "${wrapfail} failures"
+done
 
 ## A base the tool does NOT advertise as a codec (RAW column "-") must refuse raw
 ## binary, not silently mis-handle it. Spot-check a spread, including the two
@@ -750,6 +767,29 @@ if ((doPerf)); then
 		peak=$(awk -F': ' '/Maximum resident set size/{print $2}' "$prof")
 		wall=$(awk -F': ' '/wall clock/{print $NF}' "$prof")
 		printf '  %sprofile: base64url encode of %s MiB - peak RSS %s KiB, wall %s%s\n' "${dim}" "$perf_mib" "${peak:-?}" "${wall:-?}" "${rst}"
+	fi
+
+	## Peak memory must not scale with input size for any base that streams. This
+	## is the guard that matters for the multi-byte bases: if one of them quietly
+	## stops taking the streaming path it still produces correct output, just at
+	## several hundred MiB instead of about twenty, which no round-trip check sees.
+	if [[ -x /usr/bin/time ]]; then
+		memsrc="${CBT_TMP}/mem_src"; memenc="${CBT_TMP}/mem_enc"; memprof="${CBT_TMP}/mem_prof"
+		mem_mib=24
+		mem_ceiling=120000 # KiB; streaming sits near 20 MiB, buffered runs 10-25x the input
+		head -c "$((mem_mib * 1024 * 1024))" /dev/urandom >"$memsrc"
+		for base in 64u emoji64 128tt 512tt 65536qntm; do
+			/usr/bin/time -f '%M' "${EXE}" --from bytes --to "$base" --no-newline <"$memsrc" >"$memenc" 2>"$memprof" || true
+			encpeak=$(tail -1 "$memprof")
+			/usr/bin/time -f '%M' "${EXE}" --from "$base" --to bytes <"$memenc" >/dev/null 2>"$memprof" || true
+			decpeak=$(tail -1 "$memprof")
+			if [[ "$encpeak" =~ ^[0-9]+$ && "$decpeak" =~ ^[0-9]+$ ]] \
+				&& ((encpeak < mem_ceiling && decpeak < mem_ceiling)); then
+				_pass "constant memory via ${base} (${mem_mib} MiB in, peak ${encpeak}/${decpeak} KiB)"
+			else
+				_fail "constant memory via ${base}" "peak enc=${encpeak} dec=${decpeak} KiB, ceiling ${mem_ceiling}"
+			fi
+		done
 	fi
 
 	## Throughput of a non-power-of-2 binary-to-text codec (base91), so a speed

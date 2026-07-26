@@ -109,6 +109,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Stream binary encode and decode for the multi-byte bases, not just the single-character ones.
+	- Cause: the tuned path is a byte-table design end to end, so it can only hold one-byte digits. Everything else buffered the whole input and the whole output.
+	- Done: a second streaming path for digits that are one character but several bytes, covering the bases above 8 bits per digit as well. The tuned path is untouched.
+	- Done: `512tt`, `1024tt`, and `2048tt` gained a tail character, which is what let them stream; their binary layout changed and none had shipped.
+	- Verified: peak memory is flat near 20 MB for every base. Encoding 48 MB to `emoji64` went from 1.2 GB to 20 MB, decoding `128tt` from 753 MB to 21 MB and about three times faster.
+	- Verified: 625 streamed-against-buffered comparisons, 121000 fuzz round-trips, harness at 252 checks including a peak-memory ceiling per base.
+	- Note: a user-defined base above 8 bits still has no way to declare a tail character, so it keeps the length-prefixed layout and buffers on encode.
+
 - ✅ User-defined alphabets:
 	- Need flags to define negative, decimal, and pad - not all in one string.
 	- Ditto for config definitions.

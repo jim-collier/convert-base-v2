@@ -489,6 +489,58 @@ func TestFinalizeRejections(t *testing.T) {
 	}
 }
 
+// Wrapped encoder output must decode back to the original, on both paths and at
+// wrap widths that fall inside a multi-byte digit. Line breaks have to be dropped
+// before the bytes are read as runes, or a split digit looks like bad UTF-8.
+func TestWrappedBinaryDecode(t *testing.T) {
+	reg := newReg(t)
+	bytesB := base(t, reg, "bytes")
+	rng := rand.New(rand.NewSource(0xf01d))
+	blob := make([]byte, 300)
+	rng.Read(blob)
+
+	for _, name := range []string{"64", "64w", "emoji64", "128tt", "512tt", "2048rust", "65536qntm"} {
+		to := base(t, reg, name)
+		enc, err := Convert(string(blob), bytesB, to, 0)
+		if err != nil {
+			t.Fatalf("encode %s: %v", name, err)
+		}
+		for _, width := range []int{7, 13, 40} {
+			wrapped := wrapBytes(enc, width)
+			got, err := Convert(wrapped, to, bytesB, 0)
+			if err != nil {
+				t.Errorf("buffered decode %s wrap %d: %v", name, width, err)
+			} else if got != string(blob) {
+				t.Errorf("buffered decode %s wrap %d did not recover the blob", name, width)
+			}
+			var streamed bytes.Buffer
+			ok, err := streamConvert(strings.NewReader(wrapped), &streamed, to, bytesB)
+			if err != nil {
+				t.Errorf("stream decode %s wrap %d: %v", name, width, err)
+				continue
+			}
+			if ok && streamed.String() != string(blob) {
+				t.Errorf("stream decode %s wrap %d did not recover the blob", name, width)
+			}
+		}
+	}
+}
+
+// wrapBytes inserts a newline every n bytes, ignoring rune boundaries the way a
+// byte-counting wrapper would.
+func wrapBytes(s string, n int) string {
+	var sb strings.Builder
+	for i := 0; i < len(s); i += n {
+		end := i + n
+		if end > len(s) {
+			end = len(s)
+		}
+		sb.WriteString(s[i:end])
+		sb.WriteByte('\n')
+	}
+	return sb.String()
+}
+
 // The crown-jewel test: the streaming and buffered binary paths must produce
 // identical output, for both encode and decode, across power-of-2 bases and many
 // lengths (the two are otherwise only ever tested against themselves).
@@ -496,12 +548,19 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 	reg := newReg(t)
 	bytesB := base(t, reg, "bytes")
 	rng := rand.New(rand.NewSource(0x5eed))
-	targets := []string{"2", "4", "8", "16", "32", "64", "64u", "64h", "32h", "128jc1", "256jc1"}
-	lengths := []int{0, 1, 2, 3, 4, 5, 7, 8, 15, 16, 17, 31, 63, 64, 100, 255, 256, 257, 1000}
+	// Every base that can carry raw bytes through a power-of-2 packing: the
+	// single-byte ones on the tuned path, the rest on the wide path.
+	targets := []string{
+		"2", "4", "8", "16", "32", "32h", "64", "64u", "64h",
+		"64jc1", "64w", "64tt", "emoji64", "128jc1", "128w", "128tt", "256jc1", "256tt",
+		"512tt", "1024tt", "2048tt", "2048twitter", "2048rust", "32768qntm", "65536qntm",
+	}
+	lengths := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 31, 63, 64, 100, 255, 256, 257, 1000, 4096, 65537}
 
 	streamed := 0
 	for _, name := range targets {
 		to := base(t, reg, name)
+		perBase := 0
 		for _, n := range lengths {
 			blob := make([]byte, n)
 			rng.Read(blob)
@@ -521,6 +580,7 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 				continue
 			}
 			streamed++
+			perBase++
 			if streamEnc.String() != bufEnc {
 				t.Errorf("ENCODE mismatch %s len %d:\n buffered=%q\n stream  =%q", name, n, bufEnc, streamEnc.String())
 				continue
@@ -542,6 +602,11 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 			if bufDec != in {
 				t.Errorf("decode did not recover blob %s len %d", name, n)
 			}
+		}
+		// Every target here is meant to stream. Declining one silently would
+		// leave it buffered-only with the comparison quietly skipped.
+		if perBase == 0 {
+			t.Errorf("%s never took the streaming path", name)
 		}
 	}
 	if streamed == 0 {

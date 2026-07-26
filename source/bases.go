@@ -625,6 +625,14 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 512), // Just to keep the pattern, but this is the full set of symbols.
 			Aliases:     []string{"512tt"},
+			// Tail repertoire, same idea as the published big bases: the last chunk of
+			// a byte stream rarely fills a whole digit, and padding it out can invent a
+			// whole spare byte the decoder can't tell from real data. A tail alphabet of
+			// 2^(k-8) symbols covers exactly the leftover widths where that happens, so
+			// k=9 needs two. Shares one block with 1024tt and 2048tt (U+2E00..U+2E07),
+			// which is outside base_2048tt so it can never collide with a digit.
+			TailSymbols:  runeRange(0x2E00, 0x2E01),
+			BinaryScheme: "qntm",
 		}),
 
 		// 1024tt
@@ -632,6 +640,9 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 1024), // Just to keep the pattern, but this is the full set of symbols.
 			Aliases:     []string{"1024tt"},
+			// 2-bit tail, per the 2^(k-8) rule noted on 512tt.
+			TailSymbols:  runeRange(0x2E00, 0x2E03),
+			BinaryScheme: "qntm",
 		}),
 
 		// 2048tt
@@ -639,6 +650,10 @@ func predefinedBases() []*Base {
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 2048), // Just to keep the pattern, but this is the full set of symbols.
 			Aliases:     []string{"2048tt"},
+			// 3-bit tail, per the 2^(k-8) rule noted on 512tt. Same width as the two
+			// published base 2048s, which is a good sign the rule is the real one.
+			TailSymbols:  runeRange(0x2E00, 0x2E07),
+			BinaryScheme: "qntm",
 		}),
 
 		// Base 2048, original qntm's JS version. (Have to run the JS to get this alphabet.)
