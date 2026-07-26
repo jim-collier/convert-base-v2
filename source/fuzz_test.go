@@ -53,9 +53,11 @@ func FuzzConvert(f *testing.F) {
 	})
 }
 
-// FuzzStreamRoundTrip: raw bytes -> base64url -> raw bytes must reproduce the
+// FuzzStreamRoundTrip: raw bytes -> text base -> raw bytes must reproduce the
 // input exactly. Exercises the streaming bit-packing encode and decode paths on
-// arbitrary lengths and byte values.
+// arbitrary lengths and byte values, across one base per streaming shape: the
+// tuned byte path, wide symbols under and over 8 bits per digit, and each of the
+// tail schemes. Odd lengths are where chunk edges and tails go wrong.
 func FuzzStreamRoundTrip(f *testing.F) {
 	reg, err := NewRegistry()
 	if err != nil {
@@ -65,29 +67,35 @@ func FuzzStreamRoundTrip(f *testing.F) {
 	if err != nil {
 		f.Fatal(err)
 	}
-	b64, err := reg.Lookup("64u")
-	if err != nil {
-		f.Fatal(err)
+	var targets []*Base
+	for _, name := range []string{"64u", "128tt", "emoji64", "512tt", "2048rust", "65536qntm"} {
+		b, err := reg.Lookup(name)
+		if err != nil {
+			f.Fatal(err)
+		}
+		targets = append(targets, b)
 	}
 	f.Add([]byte("hello world"))
 	f.Add([]byte{0, 1, 2, 253, 254, 255})
 	f.Add([]byte(""))
 	f.Fuzz(func(t *testing.T, data []byte) {
-		var enc bytes.Buffer
-		handled, err := streamConvert(bytes.NewReader(data), &enc, bytesBase, b64)
-		if err != nil || !handled {
-			t.Skipf("encode not handled/streamed (err=%v)", err)
-		}
-		var dec bytes.Buffer
-		handled, err = streamConvert(bytes.NewReader(enc.Bytes()), &dec, b64, bytesBase)
-		if err != nil {
-			t.Fatalf("decode failed for %d-byte input: %v", len(data), err)
-		}
-		if !handled {
-			t.Skip("decode not streamed")
-		}
-		if !bytes.Equal(dec.Bytes(), data) {
-			t.Fatalf("round-trip mismatch: in=%q out=%q", data, dec.Bytes())
+		for _, to := range targets {
+			var enc bytes.Buffer
+			handled, err := streamConvert(bytes.NewReader(data), &enc, bytesBase, to)
+			if err != nil || !handled {
+				t.Skipf("encode not handled/streamed for %s (err=%v)", to.Name(), err)
+			}
+			var dec bytes.Buffer
+			handled, err = streamConvert(bytes.NewReader(enc.Bytes()), &dec, to, bytesBase)
+			if err != nil {
+				t.Fatalf("decode failed for %d-byte input via %s: %v", len(data), to.Name(), err)
+			}
+			if !handled {
+				t.Skipf("decode not streamed for %s", to.Name())
+			}
+			if !bytes.Equal(dec.Bytes(), data) {
+				t.Fatalf("round-trip mismatch via %s: in=%q out=%q", to.Name(), data, dec.Bytes())
+			}
 		}
 	})
 }

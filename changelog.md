@@ -31,10 +31,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Six flags to set the markers directly: `--from-neg`, `--from-dec`, `--from-pad`, `--to-neg`, `--to-dec`, `--to-pad`. An empty value disables a marker, and an omitted flag leaves the base as it was.
+- Two bases between `512tt` and the published base 2048s: `1024tt` and `2048tt`.
 - Markers can now be set on any base, named or custom. `--from hex --from-neg '~'` reads `~ff` as -255. Previously only a hand-written alphabet could carry custom markers.
 
 ### Changed
 
+- Raw binary now streams through every base that can carry it, not just the single-character ones. A large file through one of the multi-byte bases holds steady near 20 MB of memory instead of growing with the file, and decoding runs about three times faster. Encoding a 48 MB file to `emoji64` used to peak at 1.2 GB.
+- `512tt`, `1024tt`, and `2048tt` now end a byte stream with a tail character, the same approach the published big bases use, which is what lets them stream. Their binary layout changed as a result. None of the three has been in a release, so no existing data is affected.
+- Binary decoding of a base with multi-character digits now accepts line breaks, so wrapped output reads back. The single-character bases already did.
 - A symbol spec is digit symbols and nothing else, matching how the predefined bases and the config file fields already worked.
 - A padding character that could never take effect is now an error where it is defined, instead of being accepted and quietly ignored. Padding must be a single character, and only applies to power-of-2 bases of at most 256 symbols, which is the only place it is ever emitted. Fixes a multi-character pad overshooting the group boundary on encode.
 

@@ -344,7 +344,9 @@ func convertBitPacked(input string, from, to *Base, kIn, kOut int) (string, erro
 			feed(v)
 		}
 	default:
-		digits, err := from.Tokenize(input)
+		// Tolerate line breaks the way the byte paths do, so wrapped multi-byte
+		// output reads back the same whether it arrives via argv or a pipe.
+		digits, err := from.Tokenize(stripLineBreaks(input))
 		if err != nil {
 			return "", err
 		}
@@ -457,18 +459,22 @@ func streamConvert(r io.Reader, w io.Writer, from, to *Base) (bool, error) {
 	if to.Binary {
 		kBase = kIn
 	}
-	if kBase > 8 { // the big native bases (2048/32768/65536) keep the buffered path
-		return false, nil
-	}
+	// Single-byte digits up to 8 bits get the tuned byte-table path; everything
+	// else that is still one rune per digit gets the wide path.
+	byteLeg := kBase <= 8
 	switch {
-	case from.Binary && !to.Binary && to.allOneByte:
+	case from.Binary && !to.Binary && byteLeg && to.allOneByte:
 		return true, streamEncode(r, w, to, kOut)
-	case to.Binary && !from.Binary && from.allOneByte:
+	case to.Binary && !from.Binary && byteLeg && from.allOneByte:
 		// A multi-byte pad symbol can't be matched a byte at a time, so bail.
 		if len(from.PadSymbol) > 1 {
 			return false, nil
 		}
 		return true, streamDecode(r, w, from, kIn)
+	case from.Binary && !to.Binary && streamableWide(to):
+		return true, streamEncodeWide(r, w, to, kOut)
+	case to.Binary && !from.Binary && streamableWide(from):
+		return true, streamDecodeWide(r, w, from, kIn)
 	}
 	return false, nil
 }
@@ -502,11 +508,15 @@ func streamBytesRoute(r io.Reader, w io.Writer, from, to, bytes *Base) (bool, er
 }
 
 // streamableByteLeg reports whether a text base can carry one leg of the
-// streamBytesRoute pipe: a single-byte-per-digit power-of-2 base (k in 1..8),
-// with no multi-byte pad symbol.
+// streamBytesRoute pipe: either a single-byte-per-digit power-of-2 base (k in
+// 1..8) with no multi-byte pad symbol, or anything the wide path can serve. The
+// two legs are independent, so a wide base can pair with a byte one.
 func streamableByteLeg(b *Base) bool {
 	k := powerOfTwoBits(len(b.Symbols))
-	return k >= 1 && k <= 8 && b.allOneByte && len(b.PadSymbol) <= 1
+	if k >= 1 && k <= 8 && b.allOneByte && len(b.PadSymbol) <= 1 {
+		return true
+	}
+	return streamableWide(b)
 }
 
 // streamEncode packs raw bytes from r into single-byte digits on w. It works a
@@ -755,6 +765,301 @@ func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
 	}
 	if accBits > 0 && acc != 0 {
 		return fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
+	}
+	return nil
+}
+
+// streamableWide reports whether a text base can use the wide streaming path:
+// one rune per digit, and either at most 8 bits per digit or a native tail
+// scheme. A big base with no tail scheme falls back to the length-prefixed
+// buffered packing, which cannot stream because the length leads the output.
+func streamableWide(b *Base) bool {
+	k := powerOfTwoBits(len(b.Symbols))
+	if k == 0 || !b.allOneRune {
+		return false
+	}
+	if k > 8 {
+		return len(b.TailSymbols) > 0
+	}
+	return true
+}
+
+// streamEncodeWide packs raw bytes from r into digits that are single runes of
+// more than one byte, or wider than 8 bits, or both. It is the counterpart of
+// streamEncode for everything that byte table can't represent: same bit packing,
+// but digits are copied in as strings, so there is no group unrolling and no
+// fixed output stride. Above 8 bits per digit the final partial chunk follows
+// the base's published tail scheme, matching encodeBigBaseNative.
+func streamEncodeWide(r io.Reader, w io.Writer, to *Base, kOut int) error {
+	mask := uint64(1)<<kOut - 1
+	swap := to.BinaryScheme == "qntm65536"
+	kTail := powerOfTwoBits(len(to.TailSymbols))
+
+	const bufSize = 1 << 16
+	inbuf := make([]byte, bufSize)
+	out := make([]byte, 0, bufSize*8/kOut*to.maxByteLen+to.maxByteLen)
+
+	// base65536 indexes its repertoire by the byte-swapped pair, so the raw
+	// accumulator and the code-point index differ by the swap.
+	symbol := func(idx int) string {
+		if swap {
+			idx = swap16(idx)
+		}
+		return to.Symbols[idx]
+	}
+
+	var acc uint64
+	var accBits int
+	totalDigits := 0
+	for {
+		nn, err := r.Read(inbuf)
+		out = out[:0]
+		for i := 0; i < nn; i++ {
+			acc = acc<<8 | uint64(inbuf[i])
+			accBits += 8
+			for accBits >= kOut {
+				accBits -= kOut
+				out = append(out, symbol(int((acc>>accBits)&mask))...)
+				acc &= uint64(1)<<accBits - 1
+				totalDigits++
+			}
+		}
+		if len(out) > 0 {
+			if _, werr := w.Write(out); werr != nil {
+				return werr
+			}
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	// Final partial chunk, then any RFC padding.
+	out = out[:0]
+	if accBits > 0 {
+		switch {
+		case kTail == 0:
+			// Up to 8 bits per digit: zero-pad the low bits, which the reverse
+			// direction discards, exactly as the buffered path does.
+			out = append(out, symbol(int((acc<<(kOut-accBits))&mask))...)
+			totalDigits++
+		case to.BinaryScheme == "rust2048":
+			// Right-justified leftover, no padding bits added.
+			if accBits <= kTail {
+				out = append(out, to.TailSymbols[int(acc)]...)
+			} else {
+				out = append(out, symbol(int(acc))...)
+			}
+		default:
+			// qntm: left-justify and pad the low bits with 1s, into the tail
+			// repertoire when the leftover fits it, else the primary one.
+			if accBits <= kTail {
+				out = append(out, to.TailSymbols[int(acc<<(kTail-accBits))|(1<<(kTail-accBits)-1)]...)
+			} else {
+				out = append(out, symbol(int(acc<<(kOut-accBits))|(1<<(kOut-accBits)-1))...)
+			}
+		}
+	}
+	if to.PadEmit && to.PadSymbol != "" {
+		groupDigits := 8 / gcd(8, kOut)
+		if rem := totalDigits % groupDigits; rem != 0 {
+			for i := 0; i < groupDigits-rem; i++ {
+				out = append(out, to.PadSymbol...)
+			}
+		}
+	}
+	if len(out) > 0 {
+		if _, err := w.Write(out); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// streamDecodeWide unpacks single-rune digits from r into raw bytes on w, the
+// counterpart of streamDecode for bases the byteValue table can't hold. Runes
+// are decoded straight out of the read buffer (carrying an incomplete one across
+// a chunk edge) and looked up in runeValue, which is why the path needs one rune
+// per digit: the general longest-match tokenizer would allocate per digit, and a
+// trie is not affordable for a 65536-symbol base.
+//
+// With a tail repertoire the decode runs one symbol behind, because the last
+// symbol is read differently from the rest and nothing before end of stream says
+// which one it is. base2048rust also sizes its last symbol from the total symbol
+// count, which the running count has by the time the held symbol is released.
+func streamDecodeWide(r io.Reader, w io.Writer, from *Base, kIn int) error {
+	kTail := powerOfTwoBits(len(from.TailSymbols))
+	hasTail := kTail > 0
+	rust := from.BinaryScheme == "rust2048"
+	swap := from.BinaryScheme == "qntm65536"
+
+	padRune := rune(-1)
+	if from.PadSymbol != "" {
+		padRune, _ = utf8.DecodeRuneInString(from.PadSymbol)
+	}
+
+	const bufSize = 1 << 16
+	inbuf := make([]byte, bufSize+utf8.UTFMax)
+	out := make([]byte, 0, bufSize+utf8.UTFMax)
+
+	var acc uint64
+	var accBits int
+	padSeen := false
+	symCount := 0
+
+	flush := func() {
+		for accBits >= 8 {
+			accBits -= 8
+			out = append(out, byte(acc>>accBits))
+			acc &= uint64(1)<<accBits - 1
+		}
+	}
+
+	feed := func(rn rune, last bool) error {
+		symCount++
+		if v, ok := from.runeValue[rn]; ok {
+			if padSeen {
+				return fmt.Errorf("cannot decode from %s: data after padding %q", from.Name(), from.PadSymbol)
+			}
+			bits := kIn
+			if swap {
+				v = swap16(v)
+			}
+			if rust && last {
+				bits = rustFinalBits(symCount, kIn)
+				if v >= (1 << bits) {
+					return fmt.Errorf("cannot decode from %s: final digit carries more bits than the input length allows", from.Name())
+				}
+			}
+			acc = acc<<bits | uint64(v)
+			accBits += bits
+			flush()
+			return nil
+		}
+		if hasTail {
+			ti, ok := from.tailValue[string(rn)]
+			if !ok {
+				return fmt.Errorf("cannot decode from %s: symbol %q is not in the base", from.Name(), string(rn))
+			}
+			if !last {
+				return fmt.Errorf("cannot decode from %s: tail symbol %q appears before the end", from.Name(), string(rn))
+			}
+			bits := kTail
+			if rust {
+				bits = 8 - accBits%8 // exact bits needed to finish the last byte
+				if bits == 0 || bits > kTail {
+					return fmt.Errorf("cannot decode from %s: misplaced tail symbol %q", from.Name(), string(rn))
+				}
+			}
+			if ti >= (1 << bits) {
+				return fmt.Errorf("cannot decode from %s: tail digit out of range", from.Name())
+			}
+			acc = acc<<bits | uint64(ti)
+			accBits += bits
+			flush()
+			return nil
+		}
+		return fmt.Errorf("symbol %q not in base %q", string(rn), from.Name())
+	}
+
+	var held rune
+	haveHeld := false
+	process := func(rn rune) error {
+		if padRune >= 0 && rn == padRune {
+			padSeen = true
+			return nil
+		}
+		if !hasTail {
+			return feed(rn, false)
+		}
+		if haveHeld {
+			if err := feed(held, false); err != nil {
+				return err
+			}
+		}
+		held, haveHeld = rn, true
+		return nil
+	}
+
+	carry := 0
+	for {
+		nn, err := r.Read(inbuf[carry:])
+		total := carry + nn
+		// Drop line breaks at the byte level, before any rune decoding. A wrapper
+		// counting bytes can split a multi-byte digit across the break, and CR/LF
+		// never appear inside a UTF-8 sequence, so removing them here rejoins the
+		// digit - which is what the buffered path's strip-then-tokenize does.
+		if nn > 0 {
+			keep := carry
+			for i := carry; i < total; i++ {
+				if c := inbuf[i]; c != '\n' && c != '\r' {
+					inbuf[keep] = c
+					keep++
+				}
+			}
+			total = keep
+		}
+		out = out[:0]
+		i := 0
+		for i < total {
+			if err == nil && !utf8.FullRune(inbuf[i:total]) {
+				break // rune split across the chunk edge; wait for the rest
+			}
+			rn, size := utf8.DecodeRune(inbuf[i:total])
+			if rn == utf8.RuneError && size <= 1 {
+				return fmt.Errorf("cannot decode from %s: input is not valid UTF-8", from.Name())
+			}
+			i += size
+			if perr := process(rn); perr != nil {
+				return perr
+			}
+		}
+		if len(out) > 0 {
+			if _, werr := w.Write(out); werr != nil {
+				return werr
+			}
+		}
+		carry = total - i
+		if carry > 0 {
+			copy(inbuf[:carry], inbuf[i:total])
+		}
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return err
+		}
+	}
+
+	out = out[:0]
+	if haveHeld {
+		if err := feed(held, true); err != nil {
+			return err
+		}
+	}
+	if len(out) > 0 {
+		if _, err := w.Write(out); err != nil {
+			return err
+		}
+	}
+
+	switch {
+	case !hasTail:
+		if accBits > 0 && acc != 0 {
+			return fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
+		}
+	case rust:
+		if accBits != 0 {
+			return fmt.Errorf("cannot decode from %s: input is not a whole number of bytes", from.Name())
+		}
+	default:
+		// qntm pads the tail with 1-bits; anything else is not a valid encoding.
+		if acc != uint64(1)<<accBits-1 {
+			return fmt.Errorf("cannot decode from %s: bad trailing padding", from.Name())
+		}
 	}
 	return nil
 }
@@ -1142,6 +1447,16 @@ func rfcPad(s string, to *Base) string {
 	return s + strings.Repeat(to.PadSymbol, group-rem)
 }
 
+// stripLineBreaks drops CR and LF. Binary decoding tolerates them so wrapped
+// encoder output reads back the same as an unwrapped stream; the number paths
+// never call this, where a stray newline should still be an error.
+func stripLineBreaks(s string) string {
+	if !strings.ContainsAny(s, "\r\n") {
+		return s
+	}
+	return strings.NewReplacer("\r", "", "\n", "").Replace(s)
+}
+
 func gcd(a, b int) int {
 	for b != 0 {
 		a, b = b, a%b
@@ -1219,7 +1534,7 @@ func encodeBigBaseNative(data string, big *Base) string {
 func decodeBigBaseNative(input string, big *Base) (string, error) {
 	kPrimary := powerOfTwoBits(len(big.Symbols))
 	kTail := powerOfTwoBits(len(big.TailSymbols))
-	runes := []rune(input)
+	runes := []rune(stripLineBreaks(input))
 	rust := big.BinaryScheme == "rust2048"
 
 	var out []byte

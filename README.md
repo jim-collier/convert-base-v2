@@ -206,6 +206,8 @@ Binary and text stream encoding is the part that benchmarks cleanly, so here is 
 
 Numbers are MiB/s. Mean of 10 runs, one process each, all I/O in a tmpfs (RAM) so disk speed doesn't enter into it. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and each format's own canonical text to decode. Each tool is single-threaded. Reproducible with `github/utility/bench-encoders.bash` (it auto-skips tools you don't have). Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
 
+Memory stays flat no matter how big the file is, and that holds for every base that can carry raw bytes, not just the ASCII ones. A 48 MB file encoded to `emoji64` or to base 65536 peaks around 20 MB, the same as base 64.
+
 Base 64 is the most compact way to store binary as UTF-8 text, which is why it is the usual default:
 
 - Modern operating systems use UTF-8. Best base for it: base 64.
@@ -373,6 +375,9 @@ These are the common, standard, and published bases, plus a set of [carefully de
 | 256   | 256jc1               | 256j1                                                 |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ ...to... óŕśúẃýźĀĒĪŌŪȲāēīōūȳǍČĎĚǦȞǨŇǑŘŠǓǎčďěǧȟǩňǒřšǔǝɹʇʌ₸᛬웃유ㅈㅊㅍㅎㅱㅸㅠソッゞぅぇォ
 | 256   | bytes                |                                                       |                                  |               | (256 raw bytes, 0x00-0xFF)
 | 288   | 288jc1               | 288j1                                                 |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzʞλ ...to... čďěǧȟǩňǒřšǔǝɹʇʌ₸᛬웃유ㅈㅊㅍㅎㅱㅸㅠソッゞぅぇォゲサじすスせちづでネビべぺまモゟヲ½⅓⅔¼¾⅕⅖⅗⅘⅙⅚⅛⅜⅝⅞
+| 512   | 512tt                |                                                       |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz¢£ ...to... 𐂃𐂆𐂇𐂊𐂌𐂓𐂔𐂕𐂘𐂙𐂚𐂛𐂜𐂠𐂡𐂥𐂦𐂪𐃃𐃋𐃡𐃢𐃨𐃫𐃭𐃮𐃯𐃰𐇐𐇑𐇒𐇓𐇔𐇚𐇛𐇝𐇞𐇟𐇠𐇣𐇤𐇥𐇦𐇩𐇪𐇬𐇭𐇮𐇯𐇰𐇲𐇶𐇷𐇸𐇹𐇻𐇼𐊀𐊁𐊄𐊙𐌈𐌐𐌞
+| 1024  | 1024tt               |                                                       |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz¢£ ...to... 俢俣俤俥俦俧俨俩俪俫俬俭修俯俰俱俲俴俵俶俷俸俹俺俻俼俽俾俿倀倁倃倄倅倆倇倈倉倊個倌倍倎倏倐們倒倓倔倕倖倗倘候倚倛倜倝倞借倠倡倢倣
+| 2048  | 2048tt               |                                                       |                                  |               | 0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz¢£ ...to... 呟呠呡呢呣呤呥呦呧呩呪呬呭呮呯呰呱呲味呴呵呶呷呸呹呺呻呼命呾呿咀咁咂咃咄咅咆咇咈咉咊咋和咍咎咏咐咑咒咓咔咕咖咗咘咙咚咛咜咝咟咠咡
 | 2048  | 2048twitter          | 2048x, 2048qntm                                       |                                  |               | 89ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyzÆÐØÞßæðøþĐ ...to... ྈྉྊྋྌကခဂဃငစဆဇဈဉညဋဌဍဎဏတထဒဓနပဖဗဘမယရလဝသဟဠအဢဣဤဥဧဨဩဪဿ၀၁၂၃၄၅၆၇၈၉ၐၑၒၓၔၕ
 | 2048  | 2048rust             | 2048llfourn                                           | Tightest binary-to-text encoding for Twitter. |               | ØµºÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÐÑÒÓÔÕÖÙÚÛÜÝÞßàáâãäåæçèéêëìíîïðñòóôõöøùúûüýþÿ ...to... ႫႬႭႮႯႰႱႲႳႴႵႶႷႸႹႺႻႼႽႾႿჀჁჂჃჄჅაბგდევზთიკლმნოპჟრსტუფქღყშჩცძწჭხჯჰჱჲჳ྾
 | 32768 | 32768qntm            | 32768utf16                                            | Tightest binary-to-text encoding for UTF-16.  |               | ҠҡҢңҤҥҦҧҨҩҪҫҬҭҮүҰұҲҳҴҵҶҷҸҹҺһҼҽҾҿԀԁԂԃԄԅԆԇԈԉԊԋԌԍԎԏԐԑԒԓԔԕԖԗԘԙԚԛԜԝԞԟ ...to... ꞀꞁꞂꞃꞄꞅꞆꞇꞈ꞉꞊ꞋꞌꞍꞎꞏꞐꞑꞒꞓꞔꞕꞖꞗꞘꞙꞚꞛꞜꞝꞞꞟꡀꡁꡂꡃꡄꡅꡆꡇꡈꡉꡊꡋꡌꡍꡎꡏꡐꡑꡒꡓꡔꡕꡖꡗꡘꡙꡚꡛꡜꡝꡞꡟ

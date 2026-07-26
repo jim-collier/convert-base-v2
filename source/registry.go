@@ -82,6 +82,8 @@ type Base struct {
 	value      map[string]int // symbol -> digit value (plus case-flipped ASCII letters for input leniency)
 	allOneByte bool           // every symbol has len(sym)==1 -> byte-iteration fast path
 	byteValue  [256]int       // populated when allOneByte; -1 means not a digit
+	allOneRune bool           // every symbol is exactly one rune -> wide streaming path
+	runeValue  map[rune]int   // populated when allOneRune; the wide path's decode table
 	negative   string         // effective negative marker ("" if disabled)
 	decimal    string         // effective decimal marker ("" if disabled)
 	maxByteLen int            // longest symbol in bytes (for slow-path tokenizing)
@@ -319,10 +321,59 @@ func (b *Base) finalize() error {
 			if _, dup := b.tailValue[s]; dup {
 				return fmt.Errorf("base %q: duplicate tail symbol %q", b.Name(), s)
 			}
+			// Decode looks a symbol up in the primary repertoire first, so a tail
+			// symbol that is also a digit could never be reached as a tail.
+			if _, isDigit := b.value[s]; isDigit {
+				return fmt.Errorf("base %q: tail symbol %q is also a digit", b.Name(), s)
+			}
 			b.tailValue[s] = i
+		}
+		if err := b.checkTailWidth(); err != nil {
+			return err
 		}
 	}
 
+	// Rune lookup for the wide streaming path. Checking b.value rather than
+	// b.Symbols covers the decode aliases too, so the streaming decoder accepts
+	// exactly what the buffered one does or the base doesn't qualify at all.
+	b.allOneRune = true
+	for sym := range b.value {
+		if utf8.RuneCountInString(sym) != 1 {
+			b.allOneRune = false
+			break
+		}
+	}
+	if b.allOneRune {
+		b.runeValue = make(map[rune]int, len(b.value))
+		for sym, v := range b.value {
+			r, _ := utf8.DecodeRuneInString(sym)
+			b.runeValue[r] = v
+		}
+	} else {
+		b.runeValue = nil
+	}
+
+	return nil
+}
+
+// checkTailWidth validates a native-binary tail repertoire against the primary.
+// The tail exists to absorb the final partial chunk of a byte stream: leftovers
+// of 1..k-1 bits, where padding a leftover of k-8 bits or fewer up to a whole
+// primary digit would invent a spare byte the decoder can't distinguish from
+// data. So the tail must be wide enough to cover those (2^(k-8) symbols) and
+// narrow enough that its own padding stays under a byte (2^8).
+func (b *Base) checkTailWidth() error {
+	kPrimary := powerOfTwoBits(len(b.Symbols))
+	if kPrimary <= 8 {
+		return fmt.Errorf("base %q: a tail repertoire only applies to a power-of-2 base above 256 symbols; this base has %d", b.Name(), len(b.Symbols))
+	}
+	kTail := powerOfTwoBits(len(b.TailSymbols))
+	if kTail == 0 {
+		return fmt.Errorf("base %q: tail repertoire has %d symbols; it must be a power of 2", b.Name(), len(b.TailSymbols))
+	}
+	if kTail < kPrimary-8 || kTail > 8 {
+		return fmt.Errorf("base %q: tail repertoire has %d symbols (%d bits); for a %d-bit base it must be between %d and 256", b.Name(), len(b.TailSymbols), kTail, kPrimary, 1<<(kPrimary-8))
+	}
 	return nil
 }
 
