@@ -47,10 +47,10 @@ func customBase(t testing.TB, reg *Registry, spec string) *Base {
 	return b
 }
 
-// mk builds a markerFlags the way flag parsing would. A nil neg/dec means the
+// mk builds a sideFlags the way flag parsing would. A nil neg/dec means the
 // flag was not given; a string (including "") means it was.
-func mk(prefix string, neg, dec interface{}) *markerFlags {
-	m := &markerFlags{prefix: prefix}
+func mk(prefix string, neg, dec interface{}) *sideFlags {
+	m := &sideFlags{prefix: prefix}
 	if s, ok := neg.(string); ok {
 		m.neg = optString{value: s, set: true}
 	}
@@ -539,6 +539,170 @@ func wrapBytes(s string, n int) string {
 		sb.WriteByte('\n')
 	}
 	return sb.String()
+}
+
+// cjkSymbols returns n distinct one-rune symbols from the CJK block, for building
+// a big custom base in tests.
+func cjkSymbols(n int) []string {
+	syms := make([]string, n)
+	for i := range syms {
+		syms[i] = string(rune(0x4E00 + i))
+	}
+	return syms
+}
+
+// tailSymbols returns n one-rune symbols from a block well clear of cjkSymbols,
+// so a tail built from it never collides with the digits.
+func tailSymbols(n int) []string {
+	syms := make([]string, n)
+	for i := range syms {
+		syms[i] = string(rune(0xA000 + i))
+	}
+	return syms
+}
+
+// A user-defined base above 8 bits streams only once it declares a tail; without
+// one it falls back to the length-prefixed packing, which can't stream-encode.
+// Both layouts must still round-trip at every awkward length.
+func TestUserDefinedTail(t *testing.T) {
+	reg := newReg(t)
+	bytesB := base(t, reg, "bytes")
+	rng := rand.New(rand.NewSource(0x7a11))
+
+	withTail := &Base{
+		Aliases:      []string{"custom512"},
+		Symbols:      cjkSymbols(512),
+		TailSymbols:  []string{"⸐", "⸑"},
+		BinaryScheme: "qntm",
+	}
+	noTail := &Base{Aliases: []string{"custom512nt"}, Symbols: cjkSymbols(512)}
+	for _, b := range []*Base{withTail, noTail} {
+		if err := b.finalize(); err != nil {
+			t.Fatalf("finalize %s: %v", b.Name(), err)
+		}
+	}
+
+	if !streamableWide(withTail) {
+		t.Error("a custom base with a tail should stream")
+	}
+	if streamableWide(noTail) {
+		t.Error("a custom base without a tail cannot stream; it has no way to write the length prefix")
+	}
+
+	for _, n := range []int{0, 1, 2, 3, 7, 8, 9, 15, 16, 17, 63, 64, 65, 1000} {
+		blob := make([]byte, n)
+		rng.Read(blob)
+		for _, b := range []*Base{withTail, noTail} {
+			enc, err := Convert(string(blob), bytesB, b, 0)
+			if err != nil {
+				t.Fatalf("%s encode %d bytes: %v", b.Name(), n, err)
+			}
+			got, err := Convert(enc, b, bytesB, 0)
+			if err != nil {
+				t.Fatalf("%s decode %d bytes: %v", b.Name(), n, err)
+			}
+			if got != string(blob) {
+				t.Errorf("%s round-trip lost %d bytes", b.Name(), n)
+			}
+		}
+		// The streaming path has to agree with the buffered one it replaces.
+		enc, err := Convert(string(blob), bytesB, withTail, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var se, sd bytes.Buffer
+		if ok, err := streamConvert(bytes.NewReader(blob), &se, bytesB, withTail); err != nil || !ok {
+			t.Fatalf("stream encode %d bytes: ok=%v err=%v", n, ok, err)
+		}
+		if se.String() != enc {
+			t.Errorf("stream encode differs from buffered at %d bytes", n)
+		}
+		if ok, err := streamConvert(strings.NewReader(enc), &sd, withTail, bytesB); err != nil || !ok {
+			t.Fatalf("stream decode %d bytes: ok=%v err=%v", n, ok, err)
+		}
+		if sd.String() != string(blob) {
+			t.Errorf("stream decode lost %d bytes", n)
+		}
+	}
+}
+
+// A codec name and a tail layout share Base.BinaryScheme, so clearing a tail
+// must leave a codec alone. Otherwise --to-tail "" would quietly stop base45
+// and friends doing binary at all.
+func TestEmptyTailSparesCodecs(t *testing.T) {
+	reg := newReg(t)
+	for _, name := range []string{"45", "85ps", "85z", "91bas"} {
+		b := base(t, reg, name)
+		scheme := b.BinaryScheme
+		if scheme == "" {
+			t.Fatalf("%s should carry a codec scheme", name)
+		}
+		clone := *b
+		flags := &sideFlags{prefix: "--to"}
+		if err := flags.tail.Set(""); err != nil {
+			t.Fatal(err)
+		}
+		if err := flags.set(&clone); err != nil {
+			t.Fatal(err)
+		}
+		if clone.BinaryScheme != scheme {
+			t.Errorf("%s: empty tail cleared codec scheme %q", name, scheme)
+		}
+		if !clone.RawCodec() {
+			t.Errorf("%s: empty tail stopped it being a raw codec", name)
+		}
+	}
+
+	// A real tail layout, on the other hand, is what the empty value clears.
+	b := base(t, reg, "512tt")
+	clone := *b
+	flags := &sideFlags{prefix: "--to"}
+	if err := flags.tail.Set(""); err != nil {
+		t.Fatal(err)
+	}
+	if err := flags.set(&clone); err != nil {
+		t.Fatal(err)
+	}
+	if clone.BinaryScheme != "" || len(clone.TailSymbols) != 0 {
+		t.Errorf("empty tail should have cleared 512tt's tail layout")
+	}
+}
+
+// A tail that could never work is rejected where it is declared, not silently
+// ignored at conversion time.
+func TestTailValidation(t *testing.T) {
+	cases := []struct {
+		name    string
+		symbols []string
+		tail    []string
+		want    string
+	}{
+		{"too few for the base", cjkSymbols(2048), tailSymbols(4), "must be between 8"},
+		{"not a power of 2", cjkSymbols(512), []string{"⸐", "⸑", "⸒"}, "power of 2"},
+		{"wider than a byte", cjkSymbols(512), tailSymbols(512), "must be between"},
+		{"base is only 8 bits", cjkSymbols(256), []string{"⸐", "⸑"}, "above 256 symbols"},
+		{"base is not a power of 2", cjkSymbols(300), []string{"⸐", "⸑"}, "above 256 symbols"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := &Base{Aliases: []string{"t"}, Symbols: tc.symbols, TailSymbols: tc.tail, BinaryScheme: "qntm"}
+			err := b.finalize()
+			if err == nil {
+				t.Fatalf("accepted a tail that cannot work")
+			}
+			if !strings.Contains(err.Error(), tc.want) {
+				t.Errorf("error %q does not mention %q", err, tc.want)
+			}
+		})
+	}
+
+	// A tail symbol that is also a digit could never be reached, since decode
+	// looks the primary repertoire up first.
+	syms := cjkSymbols(512)
+	b := &Base{Aliases: []string{"t"}, Symbols: syms, TailSymbols: []string{syms[0], "⸑"}, BinaryScheme: "qntm"}
+	if err := b.finalize(); err == nil || !strings.Contains(err.Error(), "also a digit") {
+		t.Errorf("a tail symbol that is also a digit should be rejected, got %v", err)
+	}
 }
 
 // The crown-jewel test: the streaming and buffered binary paths must produce

@@ -111,6 +111,17 @@ func (b *Base) RawCodec() bool {
 	return powerOfTwoBits(len(b.Symbols)) != 0 || b.BinaryScheme != ""
 }
 
+// isTailScheme reports whether a BinaryScheme is one of the tail layouts, as
+// opposed to a binary-to-text codec. Both live in the same field, so clearing a
+// tail must not take a codec down with it.
+func isTailScheme(scheme string) bool {
+	switch scheme {
+	case "qntm", "qntm65536", "rust2048":
+		return true
+	}
+	return false
+}
+
 // NegSym returns the effective negative marker (empty string if disabled).
 func (b *Base) NegSym() string { return b.negative }
 
@@ -369,7 +380,7 @@ func (b *Base) checkTailWidth() error {
 	}
 	kTail := powerOfTwoBits(len(b.TailSymbols))
 	if kTail == 0 {
-		return fmt.Errorf("base %q: tail repertoire has %d symbols; it must be a power of 2", b.Name(), len(b.TailSymbols))
+		return fmt.Errorf("base %q: tail repertoire has %d symbols; it must be a power of 2, at least 2", b.Name(), len(b.TailSymbols))
 	}
 	if kTail < kPrimary-8 || kTail > 8 {
 		return fmt.Errorf("base %q: tail repertoire has %d symbols (%d bits); for a %d-bit base it must be between %d and 256", b.Name(), len(b.TailSymbols), kTail, kPrimary, 1<<(kPrimary-8))
@@ -735,6 +746,35 @@ type configBase struct {
 	// a strip-only pad (accepted on decode but not written), like the builtin
 	// URL/hex variants. Absent means emit when a pad is set.
 	PadEmit *bool `yaml:"pademit,omitempty"`
+	// Tail is the secondary repertoire that absorbs the final partial chunk in
+	// binary mode, in the same string-or-list form as Symbols. Only meaningful
+	// above 8 bits per digit, where it is what makes encoding streamable: the
+	// alternative packing writes a length prefix, which cannot be known until
+	// the input has been read. finalize() checks the width.
+	Tail yaml.Node `yaml:"tail,omitempty"`
+}
+
+// symbolNode decodes a symbols-shaped YAML node: a whitespace-delimited string
+// or a list of literal symbols. field and baseName only appear in errors.
+func symbolNode(node yaml.Node, field, baseName string) ([]string, error) {
+	switch node.Kind {
+	case yaml.ScalarNode:
+		symbols, err := ParseSymbolSpec(node.Value)
+		if err != nil {
+			return nil, fmt.Errorf("base %q: %s: %w", baseName, field, err)
+		}
+		return symbols, nil
+	case yaml.SequenceNode:
+		var arr []string
+		if err := node.Decode(&arr); err != nil {
+			return nil, fmt.Errorf("base %q: %s list: %w", baseName, field, err)
+		}
+		return arr, nil
+	case 0:
+		return nil, nil // field absent
+	default:
+		return nil, fmt.Errorf("base %q: %q must be a string or list of strings", baseName, field)
+	}
 }
 
 // LoadConfig reads the YAML config at path and registers each base it defines.
@@ -773,23 +813,24 @@ func (cb configBase) toBase() (*Base, error) {
 		return nil, fmt.Errorf("config base has no aliases")
 	}
 	b := &Base{Aliases: cb.Aliases}
-	switch cb.Symbols.Kind {
-	case yaml.ScalarNode:
-		symbols, err := ParseSymbolSpec(cb.Symbols.Value)
-		if err != nil {
-			return nil, fmt.Errorf("base %q: %w", cb.Aliases[0], err)
-		}
-		b.Symbols = symbols
-	case yaml.SequenceNode:
-		var arr []string
-		if err := cb.Symbols.Decode(&arr); err != nil {
-			return nil, fmt.Errorf("base %q: symbols list: %w", cb.Aliases[0], err)
-		}
-		b.Symbols = arr
-	case 0:
+	if cb.Symbols.Kind == 0 {
 		return nil, fmt.Errorf("base %q: missing 'symbols' field", cb.Aliases[0])
-	default:
-		return nil, fmt.Errorf("base %q: 'symbols' must be a string or list of strings", cb.Aliases[0])
+	}
+	symbols, err := symbolNode(cb.Symbols, "symbols", cb.Aliases[0])
+	if err != nil {
+		return nil, err
+	}
+	b.Symbols = symbols
+	tail, err := symbolNode(cb.Tail, "tail", cb.Aliases[0])
+	if err != nil {
+		return nil, err
+	}
+	if len(tail) > 0 {
+		b.TailSymbols = tail
+		// A config tail always gets the qntm layout. It is the scheme that
+		// streams cleanly both ways, and picking it here keeps the config from
+		// having to name one. finalize() rejects a tail the base can't use.
+		b.BinaryScheme = "qntm"
 	}
 	if cb.Negative != nil {
 		b.Negative = cb.Negative

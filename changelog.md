@@ -33,6 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Six flags to set the markers directly: `--from-neg`, `--from-dec`, `--from-pad`, `--to-neg`, `--to-dec`, `--to-pad`. An empty value disables a marker, and an omitted flag leaves the base as it was.
 - Two bases between `512tt` and the published base 2048s: `1024tt` and `2048tt`.
 - Markers can now be set on any base, named or custom. `--from hex --from-neg '~'` reads `~ff` as -255. Previously only a hand-written alphabet could carry custom markers.
+- A `tail:` field in config files, and matching `--from-tail` and `--to-tail` flags, so a base of your own with more than 256 symbols can stream binary data. Without a tail such a base has to write a length count before the first digit, which means reading all the input first. Declaring one drops a 24 MB encode from 244 MB of memory to 21 MB.
 
 ### Changed
 

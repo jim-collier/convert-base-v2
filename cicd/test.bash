@@ -488,6 +488,30 @@ check errmsg "multi-char pad rejected" 'must be a single character' -- --from by
 check errmsg "pad above 8 bits rejected" 'at most 256 symbols' -- --from bytes --to 512tt --to-pad "=" 5
 check errmsg "pad on non-2^N rejected" 'at most 256 symbols' -- --from bytes --to 45 --to-pad "=" 5
 
+## A user-defined base above 8 bits streams only once it declares a tail. Without
+## one the packing writes a leading length, which can't be known while streaming.
+SYM512=""; for ((cp=0x4E00; cp<0x5000; cp++)); do SYM512+=$(printf "\\U$(printf '%08x' "$cp")")" "; done
+tailrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑" -n 2>/dev/null \
+	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --from-tail "⸐ ⸑" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1)
+tailwant=$(head -c 37 /bin/cat | md5sum | cut -d' ' -f1)
+[[ "$tailrt" == "$tailwant" ]] && _pass "custom tail round-trips" || _fail "custom tail round-trips" "got='$tailrt'"
+## The same base with no tail still round-trips, on the length-prefixed layout.
+ntrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$SYM512" -n 2>/dev/null \
+	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1)
+[[ "$ntrt" == "$tailwant" ]] && _pass "custom no-tail round-trips" || _fail "custom no-tail round-trips" "got='$ntrt'"
+## A tail that could never be used is rejected where it is declared.
+check errmsg "tail below 8 bits rejected" 'above 256 symbols' -- --from bytes --to 64 --to-tail "⸐ ⸑" 5
+check errmsg "tail not power of 2 rejected" 'power of 2' -- --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑ ⸒" 5
+check errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 2048tt --to-tail "⸐ ⸑" 5
+check errmsg "tail on bytes rejected" 'do not apply' -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
+
+## Same tail declared in a config file rather than on the command line.
+tailcfg="${CBT_TMP}/tail.conf"
+printf -- '- aliases: ["cfgtail"]\n  symbols: "%s"\n  tail: "⸐ ⸑"\n' "$SYM512" >"$tailcfg"
+cfgrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from bytes --to cfgtail -n 2>/dev/null \
+	| "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from cfgtail --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1)
+[[ "$cfgrt" == "$tailwant" ]] && _pass "config tail round-trips" || _fail "config tail round-trips" "got='$cfgrt'"
+
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
 check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to bytes ABC
 
