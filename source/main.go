@@ -53,6 +53,7 @@ func run() error {
 		numFlag       = flag.Bool("num", false, "alias for -number")
 		nCapFlag      = flag.Bool("N", false, "alias for -number")
 		list          = flag.Bool("list", false, "list all known bases and exit")
+		listCompat    = flag.Bool("list-compat", false, "list only the convert-base-v1/v1b compatibility bases and exit")
 		getIndexCount = flag.Bool("get-index-count", false, "print how many bases are defined, then exit; valid --by-index values run 0 to count-1")
 		getBaseName   = flag.Bool("get-base-name", false, "print a base's canonical name, then exit; pick the base with a name/alias argument or --by-index")
 		showSymbols   = flag.Bool("show-symbols", false, "print a base's symbols concatenated with no delimiters, then exit; pick the base with a name/alias argument or --by-index")
@@ -142,8 +143,18 @@ func run() error {
 		return nil
 	}
 
-	if *list {
-		reg.Print(os.Stdout)
+	// --list shows the everyday bases, --list-compat the v1/v1b compatibility
+	// ones. Both together print both tables, everyday first.
+	if *list || *listCompat {
+		if *list {
+			reg.Print(os.Stdout, false)
+		}
+		if *listCompat {
+			if *list {
+				fmt.Println()
+			}
+			reg.Print(os.Stdout, true)
+		}
 		return nil
 	}
 
@@ -751,6 +762,7 @@ Conversion mode:
 
 Base info (each prints one value, then exits):
   --list               List all known bases
+  --list-compat        List only the v1/v1b compatibility bases
   --get-index-count    Print how many bases are defined
   --get-base-name      Print a base's canonical name
   --show-symbols       Print a base's symbols, concatenated

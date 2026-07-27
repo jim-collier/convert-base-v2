@@ -151,7 +151,7 @@ enc2048twitter="$(run "${big}" 2048twitter)"
 c "# Arbitrary size, exotic bases"
 blank
 p "convert-base-v2 ${big} 62";       o "$(run "${big}" 62)"
-p "convert-base-v2 ${big} 256jc1";   o "$(run "${big}" 256jc1)"
+p "convert-base-v2 ${big} 256tt";     o "$(run "${big}" 256tt)"
 p "convert-base-v2 ${big} 2048twitter";     o "${enc2048twitter}"
 p "convert-base-v2 --from 2048twitter '${enc2048twitter}'"; o "$(run --from 2048twitter "${enc2048twitter}")"
 render "02-bignum" "convert-base-v2  -  arbitrary size, exotic bases"

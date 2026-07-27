@@ -51,6 +51,13 @@ type Base struct {
 	// and used by the --help output. Doesn't affect behavior.
 	Source string
 
+	// Compat marks a base that exists only to reproduce convert-base-v1 or
+	// convert-base-v1b output. It converts like any other base; it is just kept
+	// out of --list (--list-compat shows those instead) so the everyday listing
+	// isn't half legacy. Compat bases also sort after all the others, which
+	// keeps both listings contiguous in --by-index order.
+	Compat bool
+
 	// TailSymbols is a secondary, smaller repertoire used only by the native
 	// binary schemes (base 2048/32768/65536) to encode a final partial chunk.
 	// Empty means no native scheme: binary conversion falls back to the
@@ -651,11 +658,12 @@ func (r *Registry) liveAliases(b *Base) []string {
 	return live
 }
 
-// orderedBases returns all registered bases sorted by radix (stable). This is
-// the canonical index order: the same order --list prints, so --by-index=N
-// addresses the same base as the N-th --list row. Fully-shadowed bases (every
-// alias overridden by a later config base) are dropped, so the count and the
-// index don't include a base no name can reach.
+// orderedBases returns all registered bases sorted by radix (stable), with the
+// v1/v1b compatibility bases after all the others. This is the canonical index
+// order: the same order --list then --list-compat print, so --by-index=N
+// addresses the same base as the N-th listed row and neither listing has gaps.
+// Fully-shadowed bases (every alias overridden by a later config base) are
+// dropped, so the count and the index don't include a base no name can reach.
 func (r *Registry) orderedBases() []*Base {
 	bases := make([]*Base, 0, len(r.ordered))
 	for _, b := range r.ordered {
@@ -664,17 +672,24 @@ func (r *Registry) orderedBases() []*Base {
 		}
 	}
 	sort.SliceStable(bases, func(i, j int) bool {
+		if bases[i].Compat != bases[j].Compat {
+			return !bases[i].Compat
+		}
 		return len(bases[i].Symbols) < len(bases[j].Symbols)
 	})
 	return bases
 }
 
-// Print writes a human-readable listing to w.
-func (r *Registry) Print(w io.Writer) {
+// Print writes a human-readable listing to w. compatOnly picks which half of
+// orderedBases() to show: the everyday bases, or the v1/v1b compatibility ones.
+func (r *Registry) Print(w io.Writer, compatOnly bool) {
 	bases := r.orderedBases()
 	// The leading INDEX is the value --by-index takes (position in this order).
 	fmt.Fprintf(w, "%-5s  %-16s  %-6s  %-5s  %-5s  %-5s  %s\n", "INDEX", "NAME", "SIZE", "NEG", "DEC", "RAW", "ALIASES")
 	for i, b := range bases {
+		if b.Compat != compatOnly {
+			continue
+		}
 		neg := b.negative
 		if neg == "" {
 			neg = "(off)"

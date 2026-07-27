@@ -17,7 +17,6 @@ const (
 	base_62hex       = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z "
 	base_32ws        = " 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x "
 	rfc4648start_c62 = " A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 "
-	base_288jc1      = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ ゲ サ じ す ス せ ち づ で ネ ビ べ ぺ ま モ ゟ ヲ ½ ⅓ ⅔ ¼ ¾ ⅕ ⅖ ⅗ ⅘ ⅙ ⅚ ⅛ ⅜ ⅝ ⅞ "
 	base_2048tt      = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ¢ £ ¤ ¥ § © « ® ° ± µ · » ¿ Ø Þ ß æ ð ÷ ø þ ŋ ƌ ƨ Ʊ ƶ ƹ ƾ ǂ ǝ ȸ ȹ ɀ ɐ ɒ ɔ ɘ ɛ ɞ ɤ ɥ ɮ ɷ ɸ ɹ ʁ ʇ ʉ ʊ ʌ ʎ ʚ ʞ ʬ ʭ ͳ ͷ ͼ ͽ Δ Ω α δ ζ θ λ ξ π φ ψ ω ϑ ϖ ϝ ϟ Ϡ ϣ ϥ ϧ ϩ ϰ ϱ ϶ Ͼ Ͽ ѧ ѳ ҂ ҩ ԃ ԅ ԉ ԋ ԏ թ ժ ի կ ձ ճ մ ն չ վ ր ֏ ۲ ۳ ۴ ۶ ۸ ५ ६ ७ ८ ଌ ୧ ୫ ୬ ୯ ఠ వ ก ข ค ฅ ฆ ง จ ฉ ช ถ ท ธ ป ร ฤ ล ฦ ว ศ ษ ส ห อ ฮ ฯ ะ า ๑ ๓ ๖ ๙ ა ბ გ დ ე თ ი კ ჟ რ ს ტ უ ფ ქ ღ ყ შ ჩ ც წ ჭ ჯ ჰ ჲ ჵ ჶ ჸ ჹ ჺ ዓ ዖ ዛ ዞ የ ዶ ገ ጌ ግ ጎ ጓ ጻ ጾ ፀ ህ ለ ላ ል ረ ሪ ሬ ር ስ ባ ቦ ኣ ኦ ካ ኮ ᚠ ᚢ ᚣ ᚨ ᚬ ᚭ ᚮ ᚯ ᚳ ᚴ ᚸ ᚻ ᚼ ᚾ ᚿ ᛃ ᛄ ᛅ ᛆ ᛇ ᛉ ᛋ ᛎ ᛏ ᛓ ᛔ ᛗ ᛚ ᛛ ᛜ ᛝ ᛟ ᛠ ᛡ ᛢ ᛣ ᛦ ᛨ ᛩ ᛪ ᛮ ᛯ ᛳ ᛶ ᛷ ᛸ ᥛ ᥝ ᥢ ᥰ ᥳ ᨑ ᲆ ᲇ ᲈ ᴈ ᴒ ᴖ ᴗ ᴙ ᴚ ᴝ ᴟ ᴤ ᴨ ᴫ ᵷ ‣ ₢ ₣ € ₶ ₺ ℈ ℧ ℶ ℸ ⅃ ⅄ ⅋ ⅎ ↊ ↋ ← ↑ → ↓ ∂ ∃ ∇ ∩ ∻ ≈ ⊲ ⊳ ⋏ ⌂ ⌔ ⍢ ⍨ ⟂ ⟅ ⟠ ⦂ ⦅ ⦛ ⦠ ⧎ ⧖ ꓘ ꓞ ꓤ ꓨ ꓩ ꓭ ꓵ ꓶ ｦ ｧ ｨ ｩ ｫ ｬ ｯ ｶ ｸ ｹ ｻ ｼ ｽ ｾ ｿ ﾀ ﾁ ﾃ ﾄ ﾅ ﾇ ﾈ ﾏ ﾐ ﾓ ﾗ ﾘ ﾚ ﾜ ﾝ ﾣ ﾸ ﾹ ﾺ ﾻ ﾽ ﾾ 𐀀 𐀁 𐀂 𐀈 𐀍 𐀑 𐀒 𐀓 𐀔 𐀕 𐀖 𐀗 𐀘 𐀙 𐀚 𐀛 𐀣 𐂀 𐂁 𐂃 𐂆 𐂇 𐂊 𐂌 𐂓 𐂔 𐂕 𐂘 𐂙 𐂚 𐂛 𐂜 𐂠 𐂡 𐂥 𐂦 𐂪 𐃃 𐃋 𐃡 𐃢 𐃨 𐃫 𐃭 𐃮 𐃯 𐃰 𐇐 𐇑 𐇒 𐇓 𐇔 𐇚 𐇛 𐇝 𐇞 𐇟 𐇠 𐇣 𐇤 𐇥 𐇦 𐇩 𐇪 𐇬 𐇭 𐇮 𐇯 𐇰 𐇲 𐇶 𐇷 𐇸 𐇹 𐇻 𐇼 𐊀 𐊁 𐊄 𐊙 𐌈 𐌐 𐌞 𐌯 𐌰 𐌱 𐌸 𐎉 𐎙 𐏔 𐐱 𐑙 𐑺 𐑻 𐒀 𐒂 𐒄 𐒅 𐒊 𐒑 𐒔 丂 七 丆 万 丈 三 上 下 丌 与 丏 丐 丑 丒 专 且 丕 世 丗 丘 丙 业 丛 东 丝 丞 丟 丠 両 丢 丣 两 严 丧 中 丮 丯 丰 丳 丵 为 主 丼 举 乂 乃 久 乆 乇 么 义 乊 之 乌 乍 乎 乏 乐 乑 乒 乓 乔 乕 乖 乗 乘 乜 九 乞 也 习 乡 乤 乥 书 乧 乨 乩 乪 乫 乬 乭 乮 乯 买 乱 乲 乴 乵 乶 乷 乸 乹 乺 乻 乼 乽 乾 乿 亁 亃 亄 亇 予 争 亊 事 亍 于 亏 亐 云 互 亓 五 井 亖 亗 亘 亙 亚 些 亜 亝 亞 亟 亡 亢 亣 交 亥 亦 产 亨 亩 亪 享 京 亭 亯 亰 亱 亲 亳 亴 亵 亶 亷 亸 亹 亼 亽 亾 亿 仁 仂 仃 仄 仅 仇 仉 今 介 仍 从 仏 仐 仑 仒 仓 仔 仕 他 仗 付 仙 仚 仛 仜 仝 仞 仟 仠 仡 仢 代 以 仦 仧 仨 仩 仪 仫 们 仭 仮 仯 仰 仱 仲 仳 仴 仵 件 价 仸 仹 仺 任 仼 份 仾 仿 伀 企 伂 伃 伄 伅 伆 伇 伈 伉 伊 伋 伌 伍 伎 伏 伐 休 伒 伓 伔 伕 伖 众 优 伙 会 伛 伜 伝 伞 伟 传 伡 伢 伣 伤 伥 伦 伧 伨 伩 伪 伫 伬 伭 伮 伯 估 伱 伲 伳 伴 伵 伶 伷 伸 伹 伺 伻 似 伽 伾 伿 佀 佁 佂 佃 佄 佅 但 佇 佈 佉 佊 佋 佌 位 低 住 佐 佑 佒 体 佔 何 佖 佗 佘 余 佚 佛 作 佝 佞 佟 佡 佢 佣 佤 佥 佦 佧 佨 佩 佪 佫 佬 佭 佮 佯 佰 佱 佲 佳 佴 佶 佷 佸 佹 佺 佼 佽 佾 使 侁 侂 侃 侄 侅 侇 侈 侉 侊 侌 侍 侎 侏 侐 侑 侒 侓 侔 侕 侖 侗 侘 侙 侚 供 侜 依 侞 侟 侠 価 侢 侣 侤 侥 侦 侧 侨 侩 侪 侫 侬 侭 侯 侰 侱 侲 侳 侴 侵 侶 侷 侸 侹 侺 侼 侽 侾 俀 俁 係 促 俄 俅 俆 俇 俈 俉 俊 俋 俌 俍 俎 俏 俐 俑 俒 俓 俔 俕 俖 俗 俘 俙 俚 俛 俜 保 俞 俟 俠 信 俢 俣 俤 俥 俦 俧 俨 俩 俪 俫 俬 俭 修 俯 俰 俱 俲 俴 俵 俶 俷 俸 俹 俺 俻 俼 俽 俾 俿 倀 倁 倃 倄 倅 倆 倇 倈 倉 倊 個 倌 倍 倎 倏 倐 們 倒 倓 倔 倕 倖 倗 倘 候 倚 倛 倜 倝 倞 借 倠 倡 倢 倣 倥 倦 倧 倨 倩 倪 倬 倭 倮 倯 倰 倱 倲 倳 倴 倵 倶 倷 倸 倹 债 倻 倽 倾 倿 偀 偁 偂 偃 偄 偅 偆 假 偈 偉 偊 偋 偌 偍 偎 偏 偐 偑 偒 偓 偔 偕 偖 偗 偘 偙 做 偛 停 偝 偞 偟 偠 偡 偢 偣 偤 健 偦 偧 偨 偩 偪 偫 偬 偭 偮 偯 偰 偱 偲 偳 側 偵 偶 偷 偸 偹 偻 偼 偽 偾 偿 傀 傁 傂 傃 傄 傅 傆 傇 傈 傉 傊 傋 傌 傍 傎 傏 傐 傑 傒 傓 傔 傕 傖 傗 傘 傚 傛 傜 傝 傞 傟 傠 傡 傢 傣 傤 傥 傦 傧 储 傩 傪 傫 催 傭 傮 傯 傰 傱 傲 傳 傴 債 傶 傷 傸 傹 傺 傻 傼 傽 傾 傿 僀 僁 僂 僃 僄 僅 僆 僇 僈 僉 僊 僋 僌 働 僎 僐 僑 僒 僓 僔 僕 僖 僗 僘 僙 僛 僜 僝 僞 僟 僠 僡 僢 僣 僤 僥 僦 僨 僩 僪 僫 僬 僭 僮 僯 僰 僱 僲 僳 僴 僵 僶 僷 僸 價 僺 僻 僼 僽 僾 僿 儀 儁 儂 儃 億 儅 儆 儇 儈 儉 儊 儋 儌 儍 儎 儏 儐 儑 儒 儓 儔 儕 儖 儗 儘 儙 儚 儛 儜 儝 儞 償 儠 儡 儢 儣 儤 儥 儦 儧 儨 儩 優 儫 儬 儭 儮 儯 儰 儱 儲 儳 儴 儵 儶 儷 儸 儹 儺 儻 儼 儽 儾 允 兂 元 兄 兇 先 光 兊 克 兌 兎 兏 児 兑 兒 兓 兕 兖 兗 兘 兙 党 兛 兜 兝 兞 兟 兠 兡 兢 兣 兦 兪 公 兮 兯 兰 共 兲 关 兴 兵 其 典 兹 兺 养 兼 兽 兾 兿 冁 冃 冄 内 円 冇 冈 冉 冊 冋 册 冎 冏 冐 冑 冓 冔 冘 写 冚 军 农 冝 冞 冟 冠 冡 冢 冣 冥 冦 冧 冨 冩 冪 冭 冮 冯 冰 冱 冲 决 冴 冶 冸 冹 冺 冻 冼 冽 冾 冿 净 凁 凂 凃 凄 凅 准 凇 凈 凊 凋 凍 凎 减 凐 凑 凒 凓 凔 凕 凖 凗 凘 凙 凚 凛 凝 凟 凡 凢 凣 凤 凥 処 凧 凨 凩 凪 凫 凬 凭 凮 凯 凰 凱 凲 凳 凴 凶 凷 凸 凹 出 击 凼 函 凾 凿 刄 刅 分 刉 刊 刋 刌 刍 刎 刏 刐 刑 划 刓 刔 刕 刘 则 创 刜 初 刞 删 刡 刢 刣 判 刦 刧 刨 刪 刬 刭 刮 刯 到 刱 刲 刳 刴 刵 制 刷 券 刹 刼 刽 刾 剁 剂 剃 剄 剅 則 剈 剉 剋 剌 前 剎 剏 剐 剑 剒 剓 剔 剖 剘 剙 剚 剛 剜 剝 剞 剟 剠 剡 剢 剣 剤 剥 剦 剧 剨 剪 剫 剬 剭 剮 副 剰 剱 剳 創 剶 剸 剹 剺 剻 剼 剽 剾 剿 劀 劁 劂 劃 劄 劅 劆 劇 劈 劊 劋 劌 劍 劎 劏 劐 劑 劒 劓 劔 劕 劖 劗 劘 劙 劚 劝 办 功 务 劢 劤 劥 劦 劧 动 助 努 劫 劬 劭 劮 劯 劰 励 劲 労 劵 劶 劷 劸 効 劺 劻 劼 劽 劾 势 勀 勁 勂 勃 勄 勅 勆 勈 勊 勋 勌 勍 勎 勏 勐 勑 勓 勔 動 勖 勗 勘 務 勚 勛 勜 勝 募 勠 勡 勢 勣 勥 勦 勧 勨 勩 勪 勫 勬 勭 勮 勯 勰 勱 勲 勳 勴 勶 勷 勸 勻 勼 勽 勾 勿 匀 匁 匂 匃 匄 匇 匈 匉 匊 匋 匌 匍 匎 匏 匐 匑 匒 匓 匔 化 匘 匙 匛 匜 匝 匞 匟 匠 匡 匢 匣 匤 匥 匦 匧 匨 匩 匪 匫 匬 匭 匮 匯 匰 匱 匲 匳 匴 匵 匶 匷 匹 区 医 匼 匽 匾 區 卂 千 卆 升 午 半 卋 卌 华 协 卒 卓 協 单 卖 南 単 卙 卛 卞 占 卡 卢 卣 卤 卥 卦 卧 卨 卪 卫 卭 卮 印 危 卲 却 卶 卷 卸 卹 卺 卻 卼 卾 厀 厁 厃 厄 厅 历 厇 厈 厉 厊 压 厌 厍 厎 厏 厐 厑 厒 厓 厔 厕 厖 厗 厘 厙 厚 厛 厜 厝 厞 原 厠 厡 厢 厣 厤 厥 厦 厧 厨 厩 厪 厫 厬 厭 厮 厯 厰 厱 厲 厳 厴 厵 厷 厸 厹 厺 去 厼 厽 厾 县 叀 叁 参 叄 叅 叆 叇 叉 友 双 反 収 叏 叐 发 叒 叓 叔 叕 取 受 变 叙 叚 叛 叜 叝 叞 叠 叡 叢 古 另 叧 叨 只 召 叮 可 台 史 右 叴 叵 叶 号 司 叹 叺 叻 叼 叽 叾 叿 吀 吁 吂 吃 各 吅 吇 合 吉 吊 吋 同 名 后 吐 向 吒 吓 吔 吕 吖 吗 吘 吙 吚 君 吜 吞 吟 吠 吡 吢 吣 吤 吥 否 吧 吨 吩 吪 含 听 吭 吮 启 吰 吱 吳 吴 吵 吶 吷 吹 吺 吻 吼 吽 吾 吿 呀 呁 呃 呄 呅 呆 呇 呉 告 呋 呌 呍 呎 呏 呐 呑 呒 呓 呔 呕 呖 呗 员 呙 呚 呛 呜 呝 呞 呟 呠 呡 呢 呣 呤 呥 呦 呧 呩 呪 呬 呭 呮 呯 呰 呱 呲 味 呴 呵 呶 呷 呸 呹 呺 呻 呼 命 呾 呿 咀 咁 咂 咃 咄 咅 咆 咇 咈 咉 咊 咋 和 咍 咎 咏 咐 咑 咒 咓 咔 咕 咖 咗 咘 咙 咚 咛 咜 咝 咟 咠 咡 "
 )
 
@@ -46,25 +45,25 @@ func predefinedBases() []*Base {
 		// Base-2
 		mkSpec(SpecOpts{
 			BaseSymbols: "01",
-			Aliases:     []string{"2", "deux"},
+			Aliases:     []string{"2"},
 		}),
 
 		// Base-3
 		mkSpec(SpecOpts{
 			BaseSymbols: "012",
-			Aliases:     []string{"3", "ternary", "tern"},
+			Aliases:     []string{"3", "ternary"},
 		}),
 
 		// Base-4
 		mkSpec(SpecOpts{
 			BaseSymbols: "0123",
-			Aliases:     []string{"4", "quarternary", "quart"},
+			Aliases:     []string{"4", "quarternary"},
 		}),
 
 		// Base-5 aka Quinary. A historical counting system that used different glyphs.
 		mkSpec(SpecOpts{
 			BaseSymbols: "01234",
-			Aliases:     []string{"5", "quinary", "quin"},
+			Aliases:     []string{"5", "quinary"},
 		}),
 
 		// Base-6 aka Senary/Seximal. Used by the Fore (not Six) people of New Guinea.
@@ -101,22 +100,14 @@ func predefinedBases() []*Base {
 			Aliases:     []string{"10", "decimal", "dec", "arabic"},
 		}),
 
-		// Base-10 in Japanese Kanji
-		// Same unicode points as Chinese Hanzi, except for a different 0.
+		// Base-10 in CKJ (Korean typically uses arabic digits)
+		// Chinese and Japanese.
 		// Japanese also uses '零' for 0, but traditionally to mean the "concept" of 0, not in positional number notation.
+		// Chinese also uses '〇' for positional 0 notation, but '零' is allegedly more common. Unified for this purpose.
 		// Spaces are required for symbol sets with Unicode characters.
 		mkSpec(SpecOpts{
 			BaseSymbols: "〇 一 二 三 四 五 六 七 八 九",
-			Aliases:     []string{"Kanji", "10kanji", "Japan", "Nippon", "日本"},
-		}),
-
-		// Base-10 in Chinese Hanzi
-		// Chinese also uses '〇' for positional 0 notation, but '零' is allegedly more common.
-		// Note: In South Korea, Hanja (same as Hanzi) has been mostly phased-out. Hangul is not used for positional notation, arabic numerals are.
-		// Spaces are required for symbol sets with Unicode characters.
-		mkSpec(SpecOpts{
-			BaseSymbols: "零 一 二 三 四 五 六 七 八 九",
-			Aliases:     []string{"Hanzi", "10hanzi", "China", "Zhōngguó", "中国"},
+			Aliases:     []string{"Hanzi", "Kanji", "10hanzi", "10kanji", "China", "Japan", "Zhōngguó", "Nippon", "中国", "日本"},
 		}),
 
 		// Base-10 in Hindi Devanagari numerals
@@ -143,6 +134,7 @@ func predefinedBases() []*Base {
 		}),
 
 		// Base-10 in ANSI blocks
+		// Created by Jim Collier ~2026-04-19, published with this code.
 		mkSpec(SpecOpts{
 			BaseSymbols: "▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▒ ▓",
 			Aliases:     []string{"blocks10"},
@@ -150,7 +142,7 @@ func predefinedBases() []*Base {
 			DecSymbol:   "●",
 		}),
 
-		// Base-10 in emoji (custom hand-picked)
+		// Base-10 in emoji (custom hand-picked to convey the widest range of emotions)
 		mkSpec(SpecOpts{
 			BaseSymbols: "😀 😑 😔 😘 😜 😠 😬 😮 🙄 🤔",
 			Aliases:     []string{"emoji10"},
@@ -165,26 +157,27 @@ func predefinedBases() []*Base {
 		// Base-12, aka Duodecimal, aka Dozenal (a historical and useful counting system - more evenly divisible by more integers than base-10)
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 12),
-			Aliases:     []string{"12", "12h", "12hex", "dozenal", "duodecimal"},
+			Aliases:     []string{"12", "12h", "dozenal", "duodecimal"},
 		}),
 
 		// Base-16, aka Hexadecimal
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 16),
-			Aliases:     []string{"16", "16h", "16hex", "hex", "hexadecimal", "NerdNumber", "OnePounder"},
+			Aliases:     []string{"16", "16h", "16hex", "hex", "hexadecimal", "nerd"},
 		}),
 
 		// Base-20, aka Vigesimal
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 20),
-			Aliases:     []string{"20", "20h", "20hex", "vigesimal", "venti"},
+			Aliases:     []string{"20", "20h", "vigesimal", "venti"},
 		}),
 
 		// Word-safe base-20; not a standard, but published.
+		// "20w" is not in convert-base-v1[b], but "32w" is, using the same subset, so keep it in by convention.
 		// https://github.com/google/open-location-code
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_32ws, 20),
-			Aliases:     []string{"20ws", "20wordsafe", "20google", "20g", "20nofks", "20w"},
+			Aliases:     []string{"20ws", "20w", "20wordsafe", "20google", "20g"},
 		}),
 
 		// Ancient Mayan base-20
@@ -201,7 +194,7 @@ func predefinedBases() []*Base {
 		//   As all such schemes notate. Not for "24 hour", which is an OK assumption.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 24),
-			Aliases:     []string{"24", "24h", "24hex"},
+			Aliases:     []string{"24", "24h"},
 		}),
 
 		// Base-26 - the alphabet, an obvious pseudostandard
@@ -230,7 +223,7 @@ func predefinedBases() []*Base {
 		// While listed first in the standard, it's kind of backwards compared to every base so far and most to come.
 		//   (But at least consistent with the backward RFC 4648 §4 64-bit scheme.)
 		// 0 and 1 are excluded for human-read disambiguity.
-		// Alias "32r" is backwards-compatable with convert-base-v1, don't remove.
+		// Alias "32r" is required for backward-compatibility with convert-base-v1[b], don't delete it.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-6
 		mkSpec(SpecOpts{
 			BaseSymbols: upperAZ_c26 + " 2 3 4 5 6 7 ",
@@ -241,34 +234,36 @@ func predefinedBases() []*Base {
 
 		// Base-32hex (numbers first), RFC 4648 §7.
 		// Although listed second in the RFC base-32 standard, it is more consistent (hexadecimal-like) with other bases.
-		// Alias "32h" is backwards-compatable with convert-base-v1, don't remove.
-		// Alias "32tt" is a subset of 512tt.
+		// Alias "32h" is required for backward-compatibility with convert-base-v1[b], don't delete it.
+		// Alias "32tt" is the first subset of 512tt.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-7
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 32),
-			Aliases:     []string{"32h", "32hex", "32rfc4648s7", "RFC4648s7", "32tt"},
+			Aliases:     []string{"32h", "32rfc4648s7", "RFC4648s7", "32tt"},
 			Pad:         "=",  // RFC 4648 s3.2 mandates padding by default
 			PadEmit:     true, // codec/binary output is padded; number output never is
 		}),
 
 		// Crockford's base-32; designed for less human-read ambiguity, no I, L, O, U
 		// Not a standard, but published by the legendary programmer, and widely-used.
-		// Alias "32c" is backwards-compatable with convert-base-v1, don't remove.
-		// Asymmetric: emits the strict alphabet but reads O as 0 and I/L as 1
-		// (case-insensitive), per the spec's decode rules.
+		// Alias "32c" is required for backward-compatibility with convert-base-v1[b], don't delete it.
+		// Asymmetric: emits the strict alphabet but reads O as 0, and I/L as 1.
+		// Case-insensitive, per the spec's decode rules.
+		// Most implementations default to upper-case, but this one uses lower-case
+		//   for better legibility, which is Crockford's whole jam.
 		// https://www.crockford.com/base32.html
 		mkSpec(SpecOpts{
-			BaseSymbols:   base_10 + " A B C D E F G H J K M N P Q R S T V W X Y Z ",
+			BaseSymbols:   base_10 + " a b c d e f g h j k m n p q r s t v w x y z ",
 			Aliases:       []string{"32c", "32crock", "32crockford", "Crockford"},
 			DecodeAliases: map[string]string{"O": "0", "I": "1", "L": "1"},
 		}),
 
 		// Word-safe base-32. Not a standard, but published.
-		// Alias "32w" is backwards-compatable with convert-base-v1, don't remove.
+		// Alias "32w" is required for backward-compatibility with convert-base-v1[b], don't delete it.
 		// https://github.com/google/open-location-code
 		mkSpec(SpecOpts{
 			BaseSymbols: base_32ws,
-			Aliases:     []string{"32ws", "32wordsafe", "32google", "32g", "32nofks", "32w"},
+			Aliases:     []string{"32ws", "32w", "32wordsafe", "32google", "32g"},
 		}),
 
 		// z-base-32 by Zooko Wilcox-O'Hearn
@@ -278,14 +273,17 @@ func predefinedBases() []*Base {
 			Aliases:     []string{"32z", "32zbase", "ZBase32"},
 		}),
 
-		// Bech32/Bech32m, BIP-173/350. Used for Bitcoin SegWit v0, v1 addresses. Human-readable, excludes 1, b, i, o.
-		// The random-looking order is so that common typos map to small numerical differences, which maximizes the error-detection strength of the BCH checksum.
-		// This converter cannot generate actual bitcoin addresses!
-		// https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
-		mkSpec(SpecOpts{
-			BaseSymbols: "qpzry9x8gf2tvdw0s3jn54khce6mua7l",
-			Aliases:     []string{"32bip", "32btc", "32bitcoin", "32segwit", "Bech32", "Bech32m"},
-		}),
+		//	// Bech32/Bech32m, BIP-173/350. Used for Bitcoin SegWit v0, v1 addresses. Human-readable, excludes 1, b, i, o.
+		//	// This converter cannot generate actual bitcoin addresses!
+		//	// NOTE: Removed, because the inclusion of this base is misleading:
+		//	// 	- It requires more processing than just base conversion.
+		//	//	- It's only valid when the input is binary.
+		//	// The random-looking order is so that common typos map to small numerical differences, which maximizes the error-detection strength of the BCH checksum.
+		//	// https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
+		//	mkSpec(SpecOpts{
+		//		BaseSymbols: "qpzry9x8gf2tvdw0s3jn54khce6mua7l",
+		//		Aliases:     []string{"32bip", "32btc", "32bitcoin", "32segwit", "Bech32", "Bech32m"},
+		//	}),
 
 		//
 		// [end of base-32 empire]
@@ -297,6 +295,31 @@ func predefinedBases() []*Base {
 			Aliases:     []string{"36", "36h", "36hex", "alphanum", "alphanumeric"},
 		}),
 
+		// Base-38 hostnames
+		// Hostnames: "." and "-" are both base_10, so both sign and fractionare explicitly disabled.
+		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1[b].
+		mkSpec(SpecOpts{
+			BaseSymbols: base_10 + lowerAZ_c26 + " - .",
+			Aliases:     []string{"hostname", "38hostname", "38jc1"},
+			// Negative or decimal makes no sense in this context.
+			DisallowNeg: true,
+			DisallowDec: true,
+		}),
+
+		// Base-39 usernames
+		// Usernames: "-" and "_" are valid base_10. Default "-" collides, so we
+		//   explicitly disable negative. "." isn't a digit so decimal works (not
+		// that fractional usernames are meaningful).
+		// Not an official standard. Created by Jim Collier 2023-09-01, updated 20260419.
+		// Base 64r would also work, but having a smaller base translates to smaller values.
+		mkSpec(SpecOpts{
+			BaseSymbols: base_10 + lowerAZ_c26 + " - _ .",
+			Aliases:     []string{"username", "39username", "39un"},
+			// Negative or decimal makes no sense in this context.
+			DisallowNeg: true,
+			DisallowDec: true,
+		}),
+
 		// Base-42
 		// One of a limited set of higher bases for which the complete list of minimal primes has been enumerated.
 		//   Minimal primes are prime numbers in that base having no proper subsequence of digits that forms a prime in the same base.
@@ -305,7 +328,7 @@ func predefinedBases() []*Base {
 		// https://grokipedia.com/page/Base_42
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 42),
-			Aliases:     []string{"42", "42h", "42hex", "TheUltimateAnswer"},
+			Aliases:     []string{"42", "42h", "TheUltimateAnswer"},
 		}),
 
 		// Base-45, RFC 9285
@@ -320,35 +343,32 @@ func predefinedBases() []*Base {
 			BinaryScheme: "base45",
 		}),
 
-		// Base-48
-		// Extends base-36hex with lower-case letters.
-		// A truncated base-62.
-		// Not an official standard but reasonably obvious.
-		// Created by Jim Collier 2026-04-19, published with this code.
+		// Base 45email
+		// "Valid" email address characters: This is a hornets nest, as a ton of weird stuff is legal in RFC 5321 (SMTP), and RFC 5322 (Internet Message Format), EAI, and RFC 6531/6532.
+		// So we're going to stick with a "commonly used internationally" subset, appoximately HTML5's <input type="email">.
+		// RFC 5321 strongly encourages case-insensitivity, so to make resulting values as compact as possible, we'll treat it all as lower-case.
+		// Generally, "^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$" but also the domain can be IPv6 such as "user@[IPv6:2001:db8::1]"
+		// The fist part of the alphabet is like regular base 64, and the rest is sorted in ASCII order.
+		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1[b].
+		// Negative or decimal values don't make sense.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_62hex, 48),
-			Aliases:     []string{"48", "48h", "48hex"},
+			BaseSymbols: base_10 + lowerAZ_c26 + " - _ % + . : @ [ ]",
+			Aliases:     []string{"email", "45email", "45jc1"},
+			// Negative or decimal makes no sense in this context.
+			DisallowNeg: true,
+			DisallowDec: true,
 		}),
 
-		// Word-safe base-48:
-		// Extends word-safe base-32, with unicode characters.
-		// "48w" is backwards-compatible with v1b.
-		// Not an official standard. Created by Jim Collier 2026-04-19, published with this code.
-		mkSpec(SpecOpts{
-			BaseSymbols: base_32ws + midTokens(base_288jc1, 63, 16),
-			Aliases:     []string{"48ws", "48WordSafe", "48jc1ws", "48nofks", "48w"},
-		}),
-
-		// Deprecated word-safe base-48 "48v1compat"
-		// Subset of base "64v1compat" and "128v1compat".
-		// Exists for backwards-compatability with convert-base-v1. Use base-48ws above instead.
-		// Word-safe base with the same letter selection as "Word-safe base-32", but more numbers, and unicode to finish out the rest.
-		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
-		// Alias "48j1" is backwards-compatable with convert-base-v1, don't remove.
-		mkSpec(SpecOpts{
-			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑",
-			Aliases:     []string{"48v1compat", "48depr", "48j1"},
-		}),
+		//	// Not very useful, removed. Didn't exist in v1 or v1b.
+		//	// Base-48h
+		//	// Extends base-36hex with lower-case letters.
+		//	// Also a truncated base-62.
+		//	// Not an official standard but reasonably obvious.
+		//	// Created by Jim Collier 2026-04-19, published with this code.
+		//	mkSpec(SpecOpts{
+		//		BaseSymbols: leftTokens(base_62hex, 48),
+		//		Aliases:     []string{"48", "48h"},
+		//	}),
 
 		// Base-52, all upper and lower-case english letters
 		// An obvious pseudo-standard
@@ -357,28 +377,30 @@ func predefinedBases() []*Base {
 			Aliases:     []string{"52", "upperlower"},
 		}),
 
-		// Base-58, e.g. for pre-SegWit Bitcoin addresses. Designed to be human-readable; no 0, O, I, L.
-		// This converter cannot generate actual bitcoin addresses!
-		// https://learnmeabitcoin.com/technical/keys/base58/
-		mkSpec(SpecOpts{
-			BaseSymbols: "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz",
-			Aliases:     []string{"58btc", "58bitcoin"},
-		}),
+		//	// Base-58, e.g. for pre-SegWit Bitcoin addresses. Designed to be human-readable; no 0, O, I, L.
+		//	// This converter cannot generate actual bitcoin addresses!
+		//	// NOTE: Removed, because the inclusion of this base is misleading:
+		//	// 	- It requires more processing than just base conversion.
+		//	// https://learnmeabitcoin.com/technical/keys/base58/
+		//	mkSpec(SpecOpts{
+		//		BaseSymbols: "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz",
+		//		Aliases:     []string{"58btc", "58bitcoin"},
+		//	}),
 
 		// Base-60 - Sexagesimal, Hexagesimal - used by Sumerians and Babylonians. Highly divisible by even integers.
 		// There is no "standard" notation, when used in a regular positional notation system.
 		// This one just takes base 62 and drops both letter "Z"s (which conveniently are good canditades to disambiguate with "2").
-		// (Arguably) "created" by Jim Collier, 2026-04-19.
+		// "Created" (arguably) by Jim Collier, 2026-04-19.
 		mkSpec(SpecOpts{
 			BaseSymbols: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy",
-			Aliases:     []string{"60jc", "60jc1", "sexagesimal", "hexagesimal"},
+			Aliases:     []string{"Sumerian", "Babylonian", "sexagesimal", "hexagesimal", "60jc"},
 		}),
 
 		// Base-60 - Tantek Çelik's NewBase60
 		// http://tantek.pbworks.com/w/page/19402946/NewBase60
 		mkSpec(SpecOpts{
 			BaseSymbols: "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ_abcdefghijkmnopqrstuvwxyz",
-			Aliases:     []string{"60tc", "newbase60"},
+			Aliases:     []string{"NewBase60", "60tc"},
 		}),
 
 		// Base-62 - numbers, upper-case letters, lower-case letters. Correct sorting with LANG=C.
@@ -386,7 +408,7 @@ func predefinedBases() []*Base {
 		// https://en.wikipedia.org/wiki/Base62
 		mkSpec(SpecOpts{
 			BaseSymbols: base_62hex,
-			Aliases:     []string{"62", "62h", "62hex"},
+			Aliases:     []string{"62", "62h"},
 		}),
 
 		//
@@ -418,44 +440,24 @@ func predefinedBases() []*Base {
 		// FYI: Base-64 has the highest average binary-to-UTF8 density of any encoding scheme.
 		// Not an official standard, but the obvious heir to the hex-style base dynasty. Especially since
 		//  the official base 62 is in this style.
-		// (Arguably) "created" by Jim Collier, 2026-04-19.
+		// "Created" (arguably) by Jim Collier, 2026-04-19.
 		mkSpec(SpecOpts{
 			BaseSymbols: base_62hex + " - _",
-			Aliases:     []string{"64h", "64hex", "64hexurl", "64hu"},
+			Aliases:     []string{"64h", "64hu", "64hurl"},
 			NegSymbol:   "~",  // tilde; '-' is a base symbol here
 			Pad:         "=",  // RFC 4648 s3.2 mandates padding by default
 			PadEmit:     true, // codec/binary output is padded; number output never is
 		}),
 
 		// Base 64p: Programmer-friendly base-64.
-		// Same as standard base 64 and 64url, except the additional two non-alphanumeric characters at the end are unicode, rather than potentially illegal characters in some contexts.
+		// Same as standard base 64 and 64url, except the additional two non-alphanumeric characters at the end are unicode, rather than potentially illegal characters in some contexts (e.g. variable names).
 		// The two additional characters were selected for their non-"exotic" look, ability to fit in fixed-width display, and disambiguity with existing characters.
 		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
-		// Alias "64j1u" is backwards-compatabile with convert-base-v1, don't remove it.
+		// Alias "64j1u" is backwards-compatabile with convert-base-v1 and convert-base-v1b, don't remove it.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_288jc1, 64),
-			Aliases:     []string{"64jc1", "64j1u"},
-		}),
-
-		// Word-safe base-64
-		// Extends base-48ws (which is base-32ws with all the numbers plus some unicode characters),
-		//   but also with lower-case letters and more unicode characters.
-		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
-		// Not an official standard. Created by Jim Collier 20260419, originally published with this code.
-		mkSpec(SpecOpts{
-			BaseSymbols: base_32ws + midTokens(base_288jc1, 63, 32),
-			Aliases:     []string{"64w", "64ws", "64wordsafe", "64jc1ws", "64nofks"},
-		}),
-
-		// Deprecated word-safe base-64 "64v1compat"
-		// Exists for backwards-compatability with convert-base-v1.
-		// Extends base "48v1compat", subset of base "128v1compat"
-		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
-		// Alias "64j1uw" is backwards-compatable with convert-base-v1, don't remove.
-		mkSpec(SpecOpts{
-			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠",
-			Aliases:     []string{"64v1compat", "64depr", "64j1uw"},
+			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ",
+			Aliases:     []string{"64programmer", "64p", "64j1u"},
 		}),
 
 		// Base-64 of emoji: the Unicode "Emoticons" block, U+1F600..1F63F - the 56
@@ -471,7 +473,7 @@ func predefinedBases() []*Base {
 		}),
 
 		// 64tt
-		// A shorter version of 512tt (and longer than 32tt).
+		// A subset of 512tt (and longer than 32tt).
 		// Created by Jim Collier 2026-07-13, published with this code.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 64),
@@ -482,16 +484,32 @@ func predefinedBases() []*Base {
 		// [end of the base-64 domain]
 		//
 
-		// Base-69: The nice radix.
-		// It was debated on including a childish base like this.
-		// But in the spirit of being comprehensive, it was included.
-		// Not an official standard, but published. It's based on the awkward RFC 4648 §4.
-		// https://github.com/pshihn/base69
+		// Base-69: The "nice" base.
+		// Created by Jim Collier 2026-07-27, published with this code.
 		mkSpec(SpecOpts{
-			BaseSymbols: rfc4648start_c62 + " + / - * < > |",
-			Aliases:     []string{"69prsh", "69pshihn", "69nice"},
-			NegSymbol:   "~", // tilde; '-' is a base symbol here
+			BaseSymbols: base_10 + lowerAZ_c26 + " ȸ ȹ ɷ ʘ ʬ ͼ ͽ Ͼ Ͽ ֏ ఠ ᨑ ᴒ ∇ ≊ ≋ ≔ ≕ ≶ ≷ ⍢ ⏼ ♀ ⚢ ⚣ ⚤ ⚥ ⚦ ⧎ ｼ 𐌸 🛉 🛊 ",
+			Aliases:     []string{"69nice"},
 		}),
+
+		// Base-69: The "nice" emoji base.
+		// The arrow carries its emoji-presentation selector (U+FE0F), so that digit is
+		//   two code points. Splitting them would leave an invisible digit of its own.
+		// Created by Jim Collier 2026-07-27, published with this code.
+		mkSpec(SpecOpts{
+			BaseSymbols: " ♈ ♋ ⛳ ✂ ❤ ⤴️ 🌈 🌊 🌋 🌭 🌮 🌹 🍆 🍈 🍑 🍒 🎩 🏩 🐓 🐻 👈 👉 👌 👨 👩 👫 👬 👭 👯 💄 💋 💌 💓 💕 💘 💥 💦 🔀 🔁 🔃 🔄 🔥 🔩 🔻 😈 😍 😏 😗 😘 😛 🙃 🚻 🛏 🤟 🤠 🤤 🤩 🥂 🥖 🥜 🥞 🥰 🦫 🧍 🧗 🪛 🪵 🫦 🫶 ",
+			Aliases:     []string{"69emoji"},
+		}),
+
+		//	// Base-69: The "nice" radix.
+		//	// It was debated on including a childish base like this.
+		//	// But in the spirit of being comprehensive, it was included.
+		//	// Not an official standard, but published. It's based on the awkward RFC 4648 §4.
+		//	// https://github.com/pshihn/base69
+		//	mkSpec(SpecOpts{
+		//		BaseSymbols: rfc4648start_c62 + " + / - * < > |",
+		//		Aliases:     []string{"69prsh", "69pshihn", "69nice"},
+		//		NegSymbol:   "~", // tilde; '-' is a base symbol here
+		//	}),
 
 		// Base-85, "Z85 - ZeroMQ RFC 32"
 		// "Safer" or at least easier to deal with than Ascii85/PostScript, besause of no quote or backslash.
@@ -513,7 +531,7 @@ func predefinedBases() []*Base {
 			// The backslash symbol needs '\\\\' here: '\\' would reach the spec parser as a
 			// single '\', which then escapes the following space and drops the symbol.
 			BaseSymbols: "! \" # $ % & ' ( ) * + , - . /" + base_10 + " : ; < = > ? @ " + upperAZ_c26 + " [ \\\\ ] ^ _ ` " + leftTokens(lowerAZ_c26, 21),
-			Aliases:     []string{"85ps", "85postscript", "85adobe", "postscript"},
+			Aliases:     []string{"PostScript", "85postscript", "85ps", "85adobe"},
 			// Wasn't designed for positional notation
 			DisallowNeg:  true,
 			DisallowDec:  true,
@@ -521,12 +539,12 @@ func predefinedBases() []*Base {
 		}),
 
 		// Base 85, RFC 1924, "A Compact Representation of IPv6 Addresses," published April 1, 1996 by Robert Elz.
-		// An April Fools' Day RFC that has actually caught on, but was never seriously adopted for IPv6 representation.
+		// An alleged April Fools' Day RFC that has actually caught on, but was never seriously adopted for IPv6 representation.
 		// Negative and decimal disabled, as both are used, and neither make sense for intended IPv6 encoding.
 		// https://www.rfc-editor.org/rfc/rfc1924.html
 		mkSpec(SpecOpts{
 			BaseSymbols: base_62hex + "! # $ % & ( ) * + - ; < = > ? @ ^ _ ` { | } ~",
-			Aliases:     []string{"85ipv6", "85rfc1924", "85aprilfools", "85fools", "85elz"},
+			Aliases:     []string{"85ipv6", "85rfc1924", "85elz"},
 			// Wasn't designed for positional notation
 			DisallowNeg: true,
 			DisallowDec: true,
@@ -538,12 +556,16 @@ func predefinedBases() []*Base {
 		// https://thetexttool.com/blog/base91-encode-decode-complete-guide
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " ! # $ % & ( ) * + , . / : ; < = > ? @ [ ] ^ _ ` { | } ~ \"",
-			Aliases:     []string{"91hk", "91bas"},
+			Aliases:     []string{"91hk", "basE91"},
 			// Wasn't designed for positional notation
 			DisallowNeg:  true,
 			DisallowDec:  true,
 			BinaryScheme: "base91",
 		}),
+
+		// Base 98: Every printable keyboard character of a plain-text document.
+		// Created by Jim Collier 2026-07-13, published with this code.
+		keyboardBase(),
 
 		// Base 122
 		// Includes non-printable characters, so not useful for here.
@@ -551,76 +573,30 @@ func predefinedBases() []*Base {
 		// Proquints
 		// A mixed-radix scheme, not a base encoding. Designed for pronounceable quintuplets. Proposed by Daniel Shawcross Wilkerson. Not useful here.
 
-		// Base-128jc1
-		// Extends base-64p with (a lot) more unicode characters.
-		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
-		// Not an official standard. Created by Jim Collier 2026-04-17, published with this code.
-		// Spaces are required for symbol sets with Unicode characters.
-		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_288jc1, 128),
-			Aliases:     []string{"128jc1"},
-		}),
-
-		// Word-safe base-128
-		// Extends base-64ws, plus some unicode characters.
-		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
-		// Not an official standard. Created by Jim Collier 20260419, originally published with this code.
-		mkSpec(SpecOpts{
-			BaseSymbols: base_32ws + midTokens(base_288jc1, 63, 96),
-			Aliases:     []string{"128w", "128ws", "128wordsafe", "128jc1ws", "128nofks"},
-		}),
-
-		// Deprecated word-safe base-128 "128v1compat"
-		// Exists for backwards-compatability with convert-base-v1, including preserving a consistency mistake in the alphabet.
-		// Extends base "64v1compat" with more unicode characters.
-		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
-		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
-		// Spaces are required for symbol sets with Unicode characters.
-		// NOTE: This alphabet has a one-character inconsistency with others almost identical to it.
-		mkSpec(SpecOpts{
-			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Ĵ Ŝ Ŵ Ŷ â ĉ ê ĝ ĥ ĵ ŝ ŵ ŷ Ã Ẽ Ñ Ỹ ã ẽ ñ ỹ Ä Ë Ẅ Ẍ Ÿ ä ë ẅ ẍ ÿ Á Ć É",
-			Aliases:     []string{"128v1compat", "128depr"},
-		}),
-
 		// 128tt
-		// A shorter version of 512tt.
+		// A subset of 2048tt
 		// Created by Jim Collier 2026-07-13, published with this code.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 128),
 			Aliases:     []string{"128tt"},
 		}),
 
-		// Base-256jc1: Extends base-128 with more unicode characters.
-		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
-		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
-		// Alias "256j1" is backwards-compatable with convert-base-v1, don't remove.
-		// Spaces are required for symbol sets with Unicode characters.
-		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_288jc1, 256),
-			Aliases:     []string{"256jc1", "256j1"},
-		}),
+		// 256 raw binary bytes, for bit-perfect roundtrip mode.
+		// Each digit is one of the 256 byte values. See Base.Binary and
+		// convertBitPacked in convert.go. Distinct from base "2" - base 2
+		// is the text characters "0" / "1".
+		bytesBase(),
 
 		// 256tt
-		// A shorter version of 512tt.
+		// A subset of 2048tt
 		// Created by Jim Collier 2026-07-13, published with this code.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 256),
 			Aliases:     []string{"256tt"},
 		}),
 
-		// Base-288jc1: Extends base-256 with more unicode characters.
-		// Additional characters were selected in unicode order, for their ability to fit in fixed-width display, and disambiguity with existing characters.
-		// Not really worth it over base-256, but left in for backward-compatibility with convert-base-v1.
-		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
-		// Alias "288j1" is backwards-compatable with convert-base-v1, don't remove.
-		// Spaces are required for symbol sets with Unicode characters.
-		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_288jc1, 288),
-			Aliases:     []string{"288jc1", "288j1"},
-		}),
-
 		// 512tt
-		// A shorter version of 512tt.
+		// A subset of 2048tt
 		// Created by Jim Collier 2026-07-13, published with this code.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 512), // Just to keep the pattern, but this is the full set of symbols.
@@ -706,57 +682,128 @@ func predefinedBases() []*Base {
 		}),
 
 		//
-		// Special-purpose
-		// Allows conversion to-an-from specific types of data in the most compact way possible for each
+		//
+		// Compatibility bases
+		// Don't remove, not "deprecated". Just not advertised in main help.
+		// Required for backwards-compatibility with v1 and v1b.
+		//
 		//
 
-		// Email addresses: This is a hornets nest, as a ton of weird stuff is legal in RFC 5321 (SMTP), and RFC 5322 (Internet Message Format), EAI, and RFC 6531/6532.
-		// So we're going to stick with a "commonly used internationally" subset, appoximately HTML5's <input type="email">.
-		// RFC 5321 strongly encourages case-insensitivity, so to make resulting values as compact as possible, we'll treat it all as lower-case.
-		// Generally, "^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$" but also the domain can be IPv6 such as "user@[IPv6:2001:db8::1]"
-		// The fist part of the alphabet is like regular base 64, and the rest is sorted in ASCII order.
+		//
+		// v1 compatibility only
+		// These bases had inconsistencies with other similar bases.
+		// They have backward-compatiable aliases in v1b (and so now also v2),
+		//   but the original names were redefined in v1b to fix the error.
+		//
+
+		// Compatibility: 48ws_compat_v1
+		// Exists for backward-compatibility with convert-base-v1.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
-		// Negative or decimal values don't make sense.
+		// Alias "48j1" is required for backward-compatibility with convert-base-v1 (but not convert-base-v1b), don't delete it.
+		// Alias "48v1compat" is required for backward-compatibility with convert-base-v1b (but not convert-base-v1), don't delete it.
 		mkSpec(SpecOpts{
-			BaseSymbols: base_10 + lowerAZ_c26 + " - _ % + . : @ [ ]",
-			Aliases:     []string{"email", "45email", "45jc1"},
-			// Negative or decimal makes no sense in this context.
-			DisallowNeg: true,
-			DisallowDec: true,
+			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑",
+			Aliases:     []string{"48ws_compat_v1", "48j1", "48v1compat"},
+			Compat:      true,
 		}),
 
-		// Usernames: "-" and "_" are valid base_10. Default "-" collides, so we
-		// explicitly disable negative. "." isn't a digit so decimal works (not
-		// that fractional usernames are meaningful).
-		// Not an official standard. Created by Jim Collier 2023-09-01, updated 20260419.
-		// Base 64r would also work, but having a smaller base translates to smaller values.
-		mkSpec(SpecOpts{
-			BaseSymbols: base_10 + lowerAZ_c26 + " - _ .",
-			Aliases:     []string{"username", "39username", "39jc1"},
-			// Negative or decimal makes no sense in this context.
-			DisallowNeg: true,
-			DisallowDec: true,
-		}),
-
-		// Hostnames: "." and "-" are both base_10, so both sign and fractionare explicitly disabled.
+		// Compatibility: 64ws_compat_v1
+		// Exists for backward-compatibility with convert-base-v1.
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
+		// Alias "64j1uw" is required for backward-compatibility with convert-base-v1, don't delete it.
+		// Alias "64v1compat" is required for backward-compatibility with convert-base-v1b, don't delete it.
 		mkSpec(SpecOpts{
-			BaseSymbols: base_10 + lowerAZ_c26 + " - .",
-			Aliases:     []string{"hostname", "38hostname", "38jc1"},
-			// Negative or decimal makes no sense in this context.
-			DisallowNeg: true,
-			DisallowDec: true,
+			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠",
+			Aliases:     []string{"64ws_compat_v1", "64j1uw", "64v1compat"},
+			Compat:      true,
 		}),
 
-		// Base 98: Every printable keyboard character of a plain-text document.
-		// Created by Jim Collier 2026-07-13, published with this code.
-		keyboardBase(),
+		// Compatibility: 128_compat_v1
+		// Exists for backward-compatibility with convert-base-v1.
+		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
+		// "128j1"  is required for backward-compatibility with convert-base-v1, don't remove it.
+		// "128v1compat" is required for backward-compatibility with convert-base-v1b, don't remove it.
+		mkSpec(SpecOpts{
+			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Ĵ Ŝ Ŵ Ŷ â ĉ ê ĝ ĥ ĵ ŝ ŵ ŷ Ã Ẽ Ñ Ỹ ã ẽ ñ ỹ Ä Ë Ẅ Ẍ Ÿ ä ë ẅ ẍ ÿ Á Ć É",
+			Aliases:     []string{"128_compat_v1", "128j1", "128v1compat"},
+			Compat:      true,
+		}),
 
-		// Raw binary bytes (bit-perfect roundtrip mode)
-		// Each digit is one of the 256 byte values. See Base.Binary and
-		// convertBitPacked in convert.go. Distinct from base "2" - base 2
-		// is the text characters "0" / "1".
-		bytesBase(),
+		//
+		// v1b compatibility only. These bases fixed the inconsistencies in v1, and don't exist in v1.
+		//     Wordsafe:
+		//         v1:  0 1 2 3 4 5 6 7 8 9 c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑
+		//         v1b:     2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥
+		//
+
+		// Compatibility: 48ws_compat_v1b
+		// Exists for backward-compatibility with convert-base-v1b.
+		// Not an official standard. Created by Jim Collier 2026-04-19, published with this code.
+		// "48jc1ws" and "48jc1w" are required for backward-compatibility with convert-base-v1b, don't delete them.
+		//   v1b matched a prefix glob, so both spellings reached the same base there; here they are two aliases.
+		mkSpec(SpecOpts{
+			BaseSymbols: "2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥",
+			Aliases:     []string{"48ws_compat_v1b", "48jc1ws", "48jc1w"},
+			Compat:      true,
+		}),
+
+		// Compatibility: 64ws_compat_v1b
+		// Exists for backward-compatibility with convert-base-v1b.
+		// Not an official standard. Created by Jim Collier, originally published with convert-base-v1b.
+		// "64jc1ws" is required for backward-compatibility with convert-base-v1b, don't delete it.
+		mkSpec(SpecOpts{
+			BaseSymbols: "2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ",
+			Aliases:     []string{"64ws_compat_v1b", "64jc1ws"},
+			Compat:      true,
+		}),
+
+		// Compatibility: 128ws_compat_v1b
+		// Exists for backward-compatibility with convert-base-v1b.
+		// Not an official standard. Created by Jim Collier 2026-04-19, originally published with this code.
+		// "128jc1ws" is required for backward-compatibility with convert-base-v1b, don't remove it.
+		mkSpec(SpecOpts{
+			BaseSymbols: "2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä",
+			Aliases:     []string{"128ws_compat_v1b", "128jc1ws"},
+			Compat:      true,
+		}),
+
+		// Compatibility: 128_compat_v1b (non-wordsafe)
+		// Exists for backward-compatibility with convert-base-v1b.
+		// Has no counterpart in v1 (which only had a wordsafe Base-128).
+		// Not an official standard. Created by Jim Collier 2026-04-17, published with this code.
+		// "128jc1" is required for backward-compatibility with convert-base-v1b, don't remove it.
+		mkSpec(SpecOpts{
+			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ",
+			Aliases:     []string{"128_compat_v1b", "128jc1"},
+			Compat:      true,
+		}),
+
+		//
+		// v1 AND v1b compatibility
+		// These managed to define exactly the same bases by name and symbols,
+		//   with no deviation or need for a v1-compatitible base in v1b.
+		//
+
+		// Compatibility: 256_compat_v1, 256_compat_v1b
+		// Exists for backward-compatibility with convert-base-v1 and convert-base-v1b.
+		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
+		// Alias "256j1" is required for backward-compatibility with convert-base-v1 and convert-base-v1b, don't delete it.
+		mkSpec(SpecOpts{
+			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ",
+			Aliases:     []string{"256_compat_v1", "256_compat_v1b", "256j1"},
+			Compat:      true,
+		}),
+
+		// Compatibility: 288_compat_v1, 288_compat_v1b
+		// Exists for backward-compatibility with convert-base-v1 and convert-base-v1b.
+		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1.
+		// Alias "288j1" is required for backward-compatibility with convert-base-v1 and convert-base-v1b, don't delete it.
+		// Spaces are required for symbol sets with Unicode characters.
+		mkSpec(SpecOpts{
+			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ Ŷ Ẑ â ĉ ê ĝ ĥ î ĵ ô ŝ û ŵ ŷ ẑ Ã Ẽ Ĩ Ñ Õ Ũ Ỹ ã ẽ ĩ ñ õ ũ ỹ Ä Ë Ï Ö Ü Ẅ Ẍ Ÿ ä ë ï ö ü ẅ ẍ ÿ Á Ć É Ǵ Í Ń Ó Ŕ Ś Ú Ẃ Ý Ź á ć é ǵ í ń ó ŕ ś ú ẃ ý ź Ā Ē Ī Ō Ū Ȳ ā ē ī ō ū ȳ Ǎ Č Ď Ě Ǧ Ȟ Ǩ Ň Ǒ Ř Š Ǔ ǎ č ď ě ǧ ȟ ǩ ň ǒ ř š ǔ ǝ ɹ ʇ ʌ ₸ ᛬ 웃 유 ㅈ ㅊ ㅍ ㅎ ㅱ ㅸ ㅠ ソ ッ ゞ ぅ ぇ ォ ゲ サ じ す ス せ ち づ で ネ ビ べ ぺ ま モ ゟ ヲ ½ ⅓ ⅔ ¼ ¾ ⅕ ⅖ ⅗ ⅘ ⅙ ⅚ ⅛ ⅜ ⅝ ⅞",
+			Aliases:     []string{"288_compat_v1", "288_compat_v1b", "288j1"},
+			Compat:      true,
+		}),
 	}
 }
 
@@ -786,6 +833,8 @@ type SpecOpts struct {
 	PadEmit bool   // also emit padding on encode (strict RFC base32 s6 / base64 s4)
 
 	DecodeAliases map[string]string // input-only symbol -> digit it reads as (Crockford O->0, I/L->1)
+
+	Compat bool // v1/v1b compatibility base: hidden from --list, shown by --list-compat
 }
 
 // mkSpec builds a *Base from a SpecOpts. It panics on errors because this is
@@ -815,6 +864,7 @@ func mkSpec(opts SpecOpts) *Base {
 		PadSymbol:     opts.Pad,
 		PadEmit:       opts.PadEmit,
 		DecodeAliases: opts.DecodeAliases,
+		Compat:        opts.Compat,
 	}
 
 	switch {
@@ -903,17 +953,6 @@ func runeRange(lo, hi rune) []string {
 		out = append(out, string(r))
 	}
 	return out
-}
-
-// midTokens returns n tokens starting at 1-based position start, joined and
-// space-padded like leftTokens.
-func midTokens(s string, start, n int) string {
-	tokens := strings.Fields(s)
-	i := start - 1
-	if i < 0 || i+n > len(tokens) {
-		panic(fmt.Sprintf("midTokens: want %d..%d, only %d available", start, start+n-1, len(tokens)))
-	}
-	return " " + strings.Join(tokens[i:i+n], " ") + " "
 }
 
 // leftTokens returns the first n whitespace-separated tokens from s, joined

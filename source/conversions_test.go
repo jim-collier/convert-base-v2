@@ -499,7 +499,7 @@ func TestWrappedBinaryDecode(t *testing.T) {
 	blob := make([]byte, 300)
 	rng.Read(blob)
 
-	for _, name := range []string{"64", "64w", "emoji64", "128tt", "512tt", "2048rust", "65536qntm"} {
+	for _, name := range []string{"64", "64ws_compat_v1b", "emoji64", "128tt", "512tt", "2048rust", "65536qntm"} {
 		to := base(t, reg, name)
 		enc, err := Convert(string(blob), bytesB, to, 0)
 		if err != nil {
@@ -631,7 +631,7 @@ func TestUserDefinedTail(t *testing.T) {
 // and friends doing binary at all.
 func TestEmptyTailSparesCodecs(t *testing.T) {
 	reg := newReg(t)
-	for _, name := range []string{"45", "85ps", "85z", "91bas"} {
+	for _, name := range []string{"45", "85ps", "85z", "basE91"} {
 		b := base(t, reg, name)
 		scheme := b.BinaryScheme
 		if scheme == "" {
@@ -716,7 +716,7 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 	// single-byte ones on the tuned path, the rest on the wide path.
 	targets := []string{
 		"2", "4", "8", "16", "32", "32h", "64", "64u", "64h",
-		"64jc1", "64w", "64tt", "emoji64", "128jc1", "128w", "128tt", "256jc1", "256tt",
+		"64programmer", "64ws_compat_v1b", "64tt", "emoji64", "128_compat_v1b", "128ws_compat_v1b", "128tt", "256_compat_v1", "256tt",
 		"512tt", "1024tt", "2048tt", "2048twitter", "2048rust", "32768qntm", "65536qntm",
 	}
 	lengths := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 31, 63, 64, 100, 255, 256, 257, 1000, 4096, 65537}
@@ -784,7 +784,7 @@ func TestRoundTripNumber(t *testing.T) {
 	reg := newReg(t)
 	dec10 := base(t, reg, "10")
 	rng := rand.New(rand.NewSource(1))
-	targets := []string{"2", "8", "16", "36", "62", "64u", "85z", "288jc1"}
+	targets := []string{"2", "8", "16", "36", "62", "64u", "85z", "288_compat_v1"}
 	for _, name := range targets {
 		to := base(t, reg, name)
 		for i := 0; i < 50; i++ {
