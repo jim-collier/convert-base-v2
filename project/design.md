@@ -77,6 +77,10 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 - **Custom alphabets must be prefix-free.** For multi-character symbols, no symbol may be a prefix of another, and a marker may not appear inside a digit. That keeps the simple left-to-right tokenizer provably correct, so the fix is validation, not a more complex parser.
 
+- **Compatibility bases are a separate group, not deprecated entries.** A handful of bases exist only to reproduce the output of the older `convert-base-v1` and `convert-base-v1b`. Mixing them into the main listing made half of it legacy, so they are marked, sorted last, and shown by `--list-compat` instead of `--list`. They are ordinary bases in every other respect, and every legacy name still resolves. Sorting them last is what keeps both listings contiguous, so selecting a base by index is unaffected.
+
+- **A base can be dropped when its presence is misleading.** Bitcoin's Bech32 and base 58 were removed because neither is a plain base conversion, so this tool could never produce a real address with them. Keeping them invited the wrong conclusion.
+
 - **Config override keeps the base list truthful.** When a config base shadows a built-in one, the shadowed entry is dropped or loses only the stolen aliases, so `--list` and the index space stay accurate.
 
 - **The version is a `var`, not a `const`.** The release build patches it through a linker flag, which only works on a var. The source value is the single source of truth for what version ships.

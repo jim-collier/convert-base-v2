@@ -64,6 +64,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### Done
 
+#### Done - New features and enhancements
+
+- ✅ Base set overhaul: bases and aliases added, renamed, and removed, and the v1/v1b compatibility bases split out into their own group.
+	- Note: `Base.Compat` marks them; `--list` skips them and the new `--list-compat` shows only them. Both listings stay contiguous because compatibility bases sort last, so `--by-index` still reaches every base.
+	- Verified: every compatibility alphabet matches the bundled `convert-base-v1` and `convert-base-v1b` scripts symbol for symbol, and the harness now cross-checks against both binaries instead of just v1b.
+	- Fixed: `69emoji` was one emoji short, with a stray presentation selector standing in as an invisible digit.
+	- Note: three legacy bases are deliberately uncovered - v1's 38-symbol username, v1's hex-ordered base 64, and the case difference in Crockford base 32.
+
 #### Done - Bugs
 
 - ✅ Piped stdin silently ignored when a positional is given. (BxZNl-1) Kept argv-wins semantics (changing it would break `prog NUMBER` in scripts whose stdin is an inherited pipe, and could consume a pipe it should not touch). Instead: a real pipe with data plus one positional that names a known base now prints a stderr note pointing at `-`, and the synopsis is corrected to require `-` for the pipe form.

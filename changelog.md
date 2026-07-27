@@ -26,10 +26,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Notes
 
+- Breaking: some bases and aliases were removed or renamed, listed under Changed and Removed below. Every name the older `convert-base-v1` and `convert-base-v1b` accepted still works, so scripts written against those are safe; a script that used one of the dropped v2 spellings needs the new name.
 - Breaking: the `neg=`, `dec=`, and `pad=` tokens are gone from symbol specs. A spec that still carries one is now an error naming its replacement, so nothing changes meaning silently. Update any script or config file that used the old form.
 
 ### Added
 
+- Two base 69s, `69nice` and `69emoji`.
+- A `--list-compat` flag, which lists the compatibility bases that `--list` no longer shows.
+- Compatibility bases covering both older tools, named after what they match: `48ws_compat_v1`, `64ws_compat_v1`, `128_compat_v1`, `48ws_compat_v1b`, `64ws_compat_v1b`, `128ws_compat_v1b`, `128_compat_v1b`, `256_compat_v1`, and `288_compat_v1`. Every name the older tools accepted still resolves.
 - Six flags to set the markers directly: `--from-neg`, `--from-dec`, `--from-pad`, `--to-neg`, `--to-dec`, `--to-pad`. An empty value disables a marker, and an omitted flag leaves the base as it was.
 - Two bases between `512tt` and the published base 2048s: `1024tt` and `2048tt`.
 - Markers can now be set on any base, named or custom. `--from hex --from-neg '~'` reads `~ff` as -255. Previously only a hand-written alphabet could carry custom markers.
@@ -37,6 +41,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Changed
 
+- `--list` no longer shows the compatibility bases, so the everyday listing is not half legacy. They still convert, and still answer to every old name.
+- Base `64jc1` is now `64programmer` (aliases `64p` and `64j1u`).
+- Base 60 `60jc` is now `Sumerian` (aliases `Babylonian`, `sexagesimal`, `hexagesimal`, `60jc`), and `60tc` is now `NewBase60` (alias `60tc`). Base 85 `85ps` is now `PostScript` (aliases `85postscript`, `85ps`, `85adobe`).
+- The Kanji and Hanzi base-10s are now one base, `Hanzi`, since they share the same digits.
+- Crockford base 32 (`32c`) now writes lower case, which is easier to read and is the point of that alphabet. Reading is unchanged and still case-insensitive.
+- Several redundant aliases are gone, mostly the `Nhex` spellings that duplicate `Nh`: `12hex`, `20hex`, `24hex`, `32hex`, `42hex`, `48hex`, `62hex`, `64hex`, `64hexurl`, plus `deux`, `tern`, `quart`, `quin`, `NerdNumber`, `OnePounder`, `20nofks`, `32nofks`, `85fools`, `85aprilfools`, `91bas`, and `60jc1`. Base 16 gained `nerd`, base 91 gained `basE91`, base 64 hex gained `64hurl`, and the username base gained `39un`.
 - Raw binary now streams through every base that can carry it, not just the single-character ones. A large file through one of the multi-byte bases holds steady near 20 MB of memory instead of growing with the file, and decoding runs about three times faster. Encoding a 48 MB file to `emoji64` used to peak at 1.2 GB.
 - `512tt`, `1024tt`, and `2048tt` now end a byte stream with a tail character, the same approach the published big bases use, which is what lets them stream. Their binary layout changed as a result. None of the three has been in a release, so no existing data is affected.
 - Binary decoding of a base with multi-character digits now accepts line breaks, so wrapped output reads back. The single-character bases already did.
@@ -46,6 +56,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 - The `neg=`, `dec=`, and `pad=` tokens inside symbol specs, on the command line and in config files. Config files keep their `negative:`, `decimal:`, and `pad:` fields, which are unchanged.
+- Bech32 (`32bip`) and base 58 (`58btc`). Both are misleading here: neither is a plain base conversion, so this tool could never produce a real address with them.
+- Base 69 `69prsh`, replaced by `69nice`.
+- The base-48 hex variant, and the word-safe 48, 64, and 128 bases. The word-safe alphabets remain available through the compatibility bases.
 
 ### Other work
 

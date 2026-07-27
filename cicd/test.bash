@@ -43,8 +43,9 @@ export LANG="C.UTF-8" LC_ALL="C.UTF-8"
 
 meDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-## Binary under test, and the optional v1 binary for back-compat cross-checks.
+## Binary under test, and the optional legacy binaries for back-compat cross-checks.
 EXE="${CICDTEST_EXE:-${meDir}/../source/bin/convert-base-v2}"
+EXE_V1="${meDir}/utility/convert-base-v1"
 EXE_V1B="${meDir}/utility/convert-base-v1b"
 doLong=0; [[ "${CICDTEST_DO_LONGTEST:-0}" == "1" ]] && doLong=1
 ## Performance section runs on any long run, or whenever the engine asks for it
@@ -134,6 +135,17 @@ _run --list
 list_idx0="$("${EXE}" --list 2>/dev/null | awk 'NR==2{print $2}')"
 byidx0="$("${EXE}" --get-base-name --by-index=0 2>/dev/null)"
 [[ "$list_idx0" == "$byidx0" && -n "$byidx0" ]] && _pass "--list INDEX 0 matches --by-index=0" || _fail "--list INDEX 0 matches --by-index=0" "list=[$list_idx0] byidx=[$byidx0]"
+## --list-compat shows only the v1/v1b compatibility bases, --list only the rest,
+## and the two together cover every index exactly once. A compat base must still
+## be reachable by name, it just isn't advertised in the everyday listing.
+list_n="$("${EXE}" --list 2>/dev/null | awk '$1 ~ /^[0-9]+$/' | wc -l)"
+compat_n="$("${EXE}" --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/' | wc -l)"
+total_n="$("${EXE}" --get-index-count 2>/dev/null)"
+(( compat_n > 0 )) && _pass "--list-compat lists compatibility bases (${compat_n})" || _fail "--list-compat lists compatibility bases" "got ${compat_n}"
+(( list_n + compat_n == total_n )) && _pass "--list plus --list-compat covers every index" || _fail "--list plus --list-compat covers every index" "list=${list_n} compat=${compat_n} total=${total_n}"
+_run --list
+{ ((_rc == 0)) && [[ "$_out" != *_compat_* ]]; } && _pass "--list hides compatibility bases" || _fail "--list hides compatibility bases" "rc=$_rc"
+check eq  "compat base still resolves" 128_compat_v1 -- --get-base-name 128v1compat
 ## --by-index outside a query mode is ignored, with a stderr note.
 _run --by-index 3 255 16
 { ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"--by-index is ignored"* ]]; } && _pass "--by-index note in conversion mode" || _fail "--by-index note in conversion mode" "rc=$_rc out=[$_out] err=[$_err]"
@@ -177,7 +189,7 @@ check eq  "32c decode o->0"          1         -- --from 32c --to 10 -- o1
 check eq  "32c decode I->1"          33        -- --from 32c --to 10 -- I1
 check eq  "32c decode L->1"          33        -- --from 32c --to 10 -- L1
 check eq  "32c decode l->1"          33        -- --from 32c --to 10 -- l1
-check eq  "32c encode stays strict"  R         -- --from 10 --to 32c -- 24
+check eq  "32c encode stays strict"  r         -- --from 10 --to 32c -- 24
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -210,11 +222,12 @@ check eq  "auto 288 -> 10"            0.0035    -- --from 288j1 --to 10 0.1
 check eq  "auto tiny 0.000001 -> 16"  0.000011  -- --number 0.000001 16
 ## Independent (non-round-trip) known-value pins for bases that otherwise only
 ## get self-round-trip fuzz, so a bug mirrored in encode+decode can't hide.
-check eq  "pin 1000000 -> 58btc"     68GP      -- --number 1000000 58btc
-check eq  "pin 1000000 -> 62hex"     4C92      -- --number 1000000 62hex
+check eq  "pin 1000000 -> 60tc"      4cmf      -- --number 1000000 60tc
+check eq  "pin 65535 -> 60tc"        JCF       -- --number 65535 60tc
+check eq  "pin 1000000 -> 62"        4C92      -- --number 1000000 62
 check eq  "pin 1000000 -> 36"        LFLS      -- --number 1000000 36
 check eq  "pin 1000000 -> 85ipv6"    1rYy      -- --number 1000000 85ipv6
-check eq  "pin 65535 -> 62hex"       H31       -- --number 65535 62hex
+check eq  "pin 65535 -> 62"          H31       -- --number 65535 62
 check eq  "--lower on hex"          ff        -- --lower 255 16
 check errmsg "--lower on mixed-case" "--lower is invalid for mixed-case" -- --lower 9 62
 ## --no-newline: exact bytes, no trailing newline.
@@ -352,12 +365,14 @@ done
 ## so padding/tail handling is exercised; Z85 requires 4-aligned input, so its
 ## lengths are rounded down. --no-newline both ways stays byte-exact for bases that carry
 ## newline as a digit. Codec bases are read from --list, so a new one is covered
-## with no edit here.
+## with no edit here. Both listings are scraped, since the compatibility bases
+## carry raw bytes just like the rest; the index filter drops the header rows.
 declare -a RAW_BASES=()
 ## Columns: INDEX NAME SIZE NEG DEC RAW ALIASES
-while read -r _ bname _ _ _ rawcol _; do
+while read -r idx bname _ _ _ rawcol _; do
+	[[ "$idx" =~ ^[0-9]+$ ]] || continue
 	[[ "$rawcol" == "yes" && "$bname" != "bytes" ]] && RAW_BASES+=("$bname")
-done < <("${EXE}" --list 2>/dev/null | tail -n +2)
+done < <("${EXE}" --list --list-compat 2>/dev/null)
 ## Guard the scrape itself: if the --list format ever shifts and this parses
 ## nothing, the round-trip loop below would pass vacuously. Assert a floor.
 (( ${#RAW_BASES[@]} >= 8 )) && _pass "raw-base scrape found bases (${#RAW_BASES[@]})" || _fail "raw-base scrape found bases" "only ${#RAW_BASES[@]} scraped (--list format changed?)"
@@ -380,7 +395,7 @@ done
 ## Wrapped output must decode back, on both the piped and the argv path, at wrap
 ## widths that land inside a multi-byte digit. Line breaks have to be dropped
 ## before the bytes are read as characters, or a split digit looks like bad UTF-8.
-for base in 64 64w emoji64 128tt 512tt 2048rust 65536qntm; do
+for base in 64 64ws_compat_v1b emoji64 128tt 512tt 2048rust 65536qntm; do
 	wrapfail=0
 	src="${CBT_TMP}/wr_src"; enc="${CBT_TMP}/wr_enc"; out="${CBT_TMP}/wr_out"
 	head -c 300 /dev/urandom >"$src"
@@ -396,9 +411,8 @@ done
 
 ## A base the tool does NOT advertise as a codec (RAW column "-") must refuse raw
 ## binary, not silently mis-handle it. Spot-check a spread, including the two
-## whole-value base-N encodings (base58btc, base85-RFC1924) that deliberately
-## don't stream.
-for base in 10 62 keyboard 58btc 85ipv6 26 36; do
+## whole-value base-N encoding (base85-RFC1924) that deliberately doesn't stream.
+for base in 10 62 keyboard 60tc 85ipv6 26 36; do
 	rc=0; printf 'hi' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" >/dev/null 2>"${CBT_ERR}" || rc=$?
 	((rc != 0)) && _pass "non-codec base ${base} refuses raw binary" || _fail "non-codec base ${base} refuses raw binary" "expected error, got rc=0"
 done
@@ -604,8 +618,9 @@ done
 ## Fuzz: random values round-tripped through every defined base
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Fuzz round-trips (all bases)"
-## Column 2 is NAME (column 1 is the INDEX).
-mapfile -t BASE_NAMES < <("${EXE}" --list 2>/dev/null | tail -n +2 | awk '{print $2}')
+## Column 2 is NAME (column 1 is the INDEX). Both listings, so the compatibility
+## bases get fuzzed too; the index filter drops the header rows.
+mapfile -t BASE_NAMES < <("${EXE}" --list --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/ {print $2}')
 ## Floor check so a --list format change can't silently empty the fuzz set.
 (( ${#BASE_NAMES[@]} >= 50 )) && _pass "base-name scrape found bases (${#BASE_NAMES[@]})" || _fail "base-name scrape found bases" "only ${#BASE_NAMES[@]} scraped (--list format changed?)"
 declare -a FUZZ_BASES=()
@@ -709,47 +724,78 @@ done
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## Back-compat against the bundled v1 binary (gating, byte-for-byte)
+## Back-compat against the bundled v1 and v1b binaries (gating, byte-for-byte)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## Each pair is "v2-base:v1-base". For a shared base, v2 must reproduce v1 output
-## byte-for-byte (encode side), and must read v1 output back to the original
-## (decode side). v1 only accepts base 10 (among a few) as input, so tests feed
-## base-10 values. These pairs were confirmed to agree across a range of values.
+## Each entry is "v2-base:legacy-base[:extra-v2-flag]". For a shared base, v2 must
+## reproduce the legacy output byte-for-byte (encode side), and must read that
+## output back to the original (decode side). The legacy tools only accept base 10
+## (among a few) as input, so the tests feed base-10 values.
+##
+## v1 and v1b disagree on several alphabets, which is what the compatibility bases
+## exist for, so each legacy binary gets its own map.
 V1_MAP=(
 	2:2  8:8  10:10  16:16  26:26  36:36  52:52  62:62
-	32:32  32h:32h  32c:32c  32ws:32ws
-	64:64  64u:64u  64h:64h  64jc1:64jc1
-	128jc1:128jc1  256jc1:256jc1  288jc1:288jc1
-	48v1compat:48v1compat  64v1compat:64v1compat  128v1compat:128v1compat
-	hostname:38host  username:39user  email:45email
-	48ws:48jc1ws  64w:64jc1ws  128w:128jc1ws
+	32:32  32h:32h  32c:32c:--upper  32ws:32w
+	64h:64u  64programmer:64j1u
+	hostname:38ho
+	48ws_compat_v1:48j1  64ws_compat_v1:64j1uw  128_compat_v1:128j1
+	256_compat_v1:256j1  288_compat_v1:288j1
 )
-## Best-guess pairs that did NOT agree, left off until sorted out.
-## Double-check the correct mapping for these:
-#	45:45email   ## v2 base-45 (RFC 4648) uses a different alphabet than v1 45email; v1 has no plain base-45.
+V1B_MAP=(
+	2:2  8:8  10:10  16:16  26:26  36:36  52:52  62:62
+	32:32  32h:32h  32c:32c:--upper  32ws:32w
+	64:64  64u:64u  64h:64h  64programmer:64jc1
+	hostname:38ho  username:39us  email:45em
+	48ws_compat_v1:48v1compat  64ws_compat_v1:64v1compat  128_compat_v1:128v1compat
+	48ws_compat_v1b:48jc1ws  64ws_compat_v1b:64jc1ws  128ws_compat_v1b:128jc1ws
+	128_compat_v1b:128jc1  256_compat_v1:256jc1  288_compat_v1:288jc1
+)
+## Left uncovered on the v1 side, for want of a v2 base with the same alphabet:
+##   - v1 "38us" is 38 symbols (0-9 a-z - _); v1b's and v2's username is 39 (adds ".").
+##   - v1 "64" is hex-ordered (0-9 A-Z a-z + /), not RFC 4648 §4; v1b fixed that.
+##     v1 "64u" is the one that matches a v2 base, and it is v2's 64h.
+## v2 base-45 is RFC 9285, a different alphabet than the legacy "45em"; neither
+## legacy tool has a plain base-45.
+##
+## 32c encodes with --upper: v2 emits Crockford's alphabet in lower case for
+## legibility, and both legacy tools emit upper case. Same digits, same order.
 
-if [[ -x "${EXE_V1B}" ]]; then
-	section "Back-compat vs v1 (byte-for-byte + round-trip)"
-	reps=3; ((doLong)) && reps=20
-	for pair in "${V1_MAP[@]}"; do
-		v2n="${pair%%:*}"; v1n="${pair##*:}"
+## fCheckLegacy BINARY LABEL MAP...
+fCheckLegacy(){
+	local exe="$1" label="$2"; shift 2
+	local pair v2n lgn extra enc_fail rt_fail detail val o2 o1 back r
+	local reps=3; ((doLong)) && reps=20
+	for pair in "$@"; do
+		v2n="${pair%%:*}"; lgn="${pair#*:}"; extra="${lgn#*:}"; lgn="${lgn%%:*}"
+		[[ "$extra" == "$lgn" ]] && extra=""
 		enc_fail=0; rt_fail=0; detail=""
 		for ((r=0; r<reps; r++)); do
 			val="$(_rand_int 30)"
-			o2="$("${EXE}"     --from 10 --to "$v2n" -- "$val" 2>/dev/null || true)"
-			o1="$("${EXE_V1B}" --ibase 10 "$val" "$v1n"       2>/dev/null || true)"
-			if [[ -z "$o1" || "$o2" != "$o1" ]]; then enc_fail=1; detail="val=[$val] v2=[$o2] v1=[$o1]"; fi
+			o2="$("${EXE}" ${extra} --from 10 --to "$v2n" -- "$val" 2>/dev/null || true)"
+			o1="$("${exe}" --ibase 10 "$val" "$lgn"                 2>/dev/null || true)"
+			if [[ -z "$o1" || "$o2" != "$o1" ]]; then enc_fail=1; detail="val=[$val] v2=[$o2] ${label}=[$o1]"; fi
 			back="$("${EXE}" --from "$v2n" --to 10 -- "$o1" 2>/dev/null || true)"
-			[[ -n "$o1" && "$back" == "$val" ]] || { rt_fail=1; detail="val=[$val] v1enc=[$o1] v2dec=[$back]"; }
+			[[ -n "$o1" && "$back" == "$val" ]] || { rt_fail=1; detail="val=[$val] ${label}enc=[$o1] v2dec=[$back]"; }
 		done
-		((enc_fail == 0)) && _pass "v2==v1 encode: ${v2n} (== v1 ${v1n})" || _fail "v2==v1 encode: ${v2n} (== v1 ${v1n})" "$detail"
-		((rt_fail == 0))  && _pass "v1->v2 round-trip: ${v2n} (from v1 ${v1n})" || _fail "v1->v2 round-trip: ${v2n} (from v1 ${v1n})" "$detail"
+		((enc_fail == 0)) && _pass "v2==${label} encode: ${v2n} (== ${label} ${lgn})" || _fail "v2==${label} encode: ${v2n} (== ${label} ${lgn})" "$detail"
+		((rt_fail == 0))  && _pass "${label}->v2 round-trip: ${v2n} (from ${label} ${lgn})" || _fail "${label}->v2 round-trip: ${v2n} (from ${label} ${lgn})" "$detail"
 	done
+}
+
+## Don't skip silently: a missing legacy binary means that back-compat suite did
+## not run, which is easy to mistake for "passed".
+section "Back-compat vs v1 (byte-for-byte + round-trip)"
+if [[ -x "${EXE_V1}" ]]; then
+	fCheckLegacy "${EXE_V1}" v1 "${V1_MAP[@]}"
 else
-	## Don't skip silently: a missing v1 binary means the back-compat suite did
-	## not run, which is easy to mistake for "passed".
-	section "Back-compat vs v1"
-	printf '%s  SKIPPED  v1 back-compat: bundled binary not found at %s%s\n' "${ylw}" "${EXE_V1B}" "${rst}"
+	printf '%s  SKIPPED  v1 back-compat: bundled binary not found at %s%s\n' "${ylw}" "${EXE_V1}" "${rst}"
+fi
+
+section "Back-compat vs v1b (byte-for-byte + round-trip)"
+if [[ -x "${EXE_V1B}" ]]; then
+	fCheckLegacy "${EXE_V1B}" v1b "${V1B_MAP[@]}"
+else
+	printf '%s  SKIPPED  v1b back-compat: bundled binary not found at %s%s\n' "${ylw}" "${EXE_V1B}" "${rst}"
 fi
 
 
