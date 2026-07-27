@@ -150,6 +150,16 @@ convert-base-v2 --show-symbols emoji64
 
 Run `convert-base-v2 --help` for the full flag list, or `--examples` for more.
 
+To avoid confusion when working with binary data, you can add these aliases to your shell startup script:
+
+~~~bash
+## Streaming binary/text codec
+alias convert-base-v2-bin="convert-base-v2 --binary"
+
+## Positional notation base conversion
+alias convert-base-v2-num="convert-base-v2 --number"
+~~~
+
 ## Why convert a number to a large base
 
 Plenty of everyday tasks are easier in a bigger base, and they usually mean chaining several tools together or reaching for a web page that can't be scripted.

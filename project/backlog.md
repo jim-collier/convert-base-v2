@@ -44,17 +44,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### Todo
 
-- 🔘 Add this to README.md:
-	- To avoid confusion when working with binary data, you can add these aliases to your shell startup script:
-
-		~~~bash
-		## Streaming binary/text codec
-		alias convert-base-v2-bin="convert-base-v2 --binary"
-
-		## Positional notation base conversion
-		alias convert-base-v2-num="convert-base-v2 --number"
-		~~~
-
 ### Bugs
 
 ### New features and enhancements
@@ -108,6 +97,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ Document the shell aliases that keep binary mode and number mode apart.
+	- Done: added to the end of the README Usage section, right after the help pointer, so it reads as a follow-on to the examples.
+	- Verified: both aliases do what the note says. `--binary` encodes and round-trips through base 64, `--number` converts positionally and silences the mode note.
 
 - ✅ Stream binary encode and decode for the multi-byte bases, not just the single-character ones.
 	- Cause: the tuned path is a byte-table design end to end, so it can only hold one-byte digits. Everything else buffered the whole input and the whole output.
