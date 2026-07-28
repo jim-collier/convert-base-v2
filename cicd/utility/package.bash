@@ -93,7 +93,7 @@ for p in "${platforms[@]}"; do
 	binpath="${bindir}/${EXE}${ext}"
 
 	( cd "${src}" && CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" \
-		go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "${binpath}" ./... )
+		go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "${binpath}" . )
 
 	if [[ "${os}" == windows ]]; then
 		( cd "${bindir}" && zip -qr "${OUT}/${PKG}-${os}-${label}.zip" "${EXE}${ext}" )

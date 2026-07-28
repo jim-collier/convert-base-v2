@@ -76,6 +76,7 @@ It's a single, fast, cross-platform static binary written in Go.
 - [Features](#features)
 - [Install](#install)
 - [Usage](#usage)
+- [Configuration](#configuration)
 - [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
 	- [Also why the -v2?](#also-why-the--v2)
 - [Speed](#speed)
@@ -158,6 +159,21 @@ alias convert-base-v2-bin="convert-base-v2 --binary"
 ## Positional notation base conversion
 alias convert-base-v2-num="convert-base-v2 --number"
 ~~~
+
+## Configuration
+
+The first run writes `~/.config/convert-base-v2/convert-base-v2.shcl`, a commented file for defining bases of your own. Nothing rewrites it after that. A system-wide `/etc/convert-base-v2/convert-base-v2.shcl` is read first, so the user file wins over it, and both win over the built-in bases: reuse a built-in name and your definition replaces it.
+
+A base is a name and its digits, plus whatever markers it needs.
+
+~~~text
+base: emoji10
+	symbols: "😀 😑 😔 😘 😜 😠 😬 😮 🙄 🤔"
+	negative: "🥕"
+	decimal: "⚽"
+~~~
+
+That one ships in the file as a working example to copy from. The format is [SHCL](https://github.com/jim-collier/shcl), and the file itself documents every field.
 
 ## Why convert a number to a large base
 
@@ -267,7 +283,6 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 10 | ArabicIndic | 10arabicindic, 10easternarabic, EasternArabic |  |  | 31 | ٢٠٢٣٠٩٠٦١٣٤٢٥٩٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠١
 | 10 | Rods | 10rods |  |  | 31 | 𝍡〇𝍡𝍢〇𝍨〇𝍥𝍠𝍢𝍣𝍡𝍤𝍨〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇𝍠
 | 10 | blocks10 |  |  |  | 31 | ▃▁▃▄▁▓▁▇▂▄▅▃▆▓▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂
-| 10 | emoji10 |  | Base-10 in emoji (neg 🥕, dec ⚽) |  | 31 | 😔😀😔😘😀🤔😀😬😑😘😜😔😠🤔😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😀😑
 | 12 | 12 | 12h, dozenal, duodecimal |  |  | 29 | 12888834200A750490B5219507855
 | 16 | 16 | 16h, 16hex, hex, hexadecimal, nerd |  |  | 26 | 1988F5553691D3492235FE0001
 | 20 | 20 | 20h, vigesimal, venti |  |  | 24 | 284DDI4C93BCC6HA00000001

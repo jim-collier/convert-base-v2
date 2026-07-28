@@ -203,11 +203,12 @@ render "04-binary" "convert-base-v2  -  binary streaming round-trip"
 reset_markup
 c "# User config adds your own bases; --list shows them all"
 blank
-p "cat ~/.config/convert-base-v2/convert-base-v2.conf"
-o "- aliases: [pentary, myfive]"
-o "  symbols: \"0 1 2 3 4\""
-o "- aliases: [moon8]"
-o "  symbols: \"🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘\""
+p "cat ~/.config/convert-base-v2/convert-base-v2.shcl"
+o "base: pentary"
+o "	aliases: myfive"
+o "	symbols: \"0 1 2 3 4\""
+o "base: moon8"
+o "	symbols: \"🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘\""
 blank
 p "convert-base-v2 --list | head -10"
 while IFS= read -r line; do o "${line}"; done < <(run --list | head -10)

@@ -26,7 +26,7 @@ const (
 	author        = "Jim Collier (ID: 1cv◂‡Vᛦ)"
 )
 
-const etcConfigPath = "/etc/convert-base-v2/convert-base-v2.conf"
+const etcConfigPath = "/etc/convert-base-v2/convert-base-v2.shcl"
 
 func main() {
 	if err := run(); err != nil {
@@ -59,7 +59,7 @@ func run() error {
 		showSymbols   = flag.Bool("show-symbols", false, "print a base's symbols concatenated with no delimiters, then exit; pick the base with a name/alias argument or --by-index")
 		showSymbols0  = flag.Bool("show-symbols-0", false, "like --show-symbols but NUL-separated, for machine parsing of multi-char symbols")
 		byIndex       = flag.Int("by-index", -1, "pick a base by its INDEX column in --list (0-based); used with --get-base-name / --show-symbols")
-		configFile    = flag.String("config", userConfigPath(), "user-level YAML config file; /etc is always tried too (missing file is OK)\n        ")
+		configFile    = flag.String("config", userConfigPath(), "user-level SHCL config file; /etc is always tried too (missing file is OK)\n        ")
 		showVersion   = flag.Bool("version", false, "print version and exit")
 		helpFlag      = flag.Bool("help", false, "show help and exit")
 		hFlag         = flag.Bool("h", false, "alias for -help")
@@ -123,6 +123,15 @@ func run() error {
 		if configExplicit {
 			if _, statErr := os.Stat(userPath); statErr != nil {
 				return fmt.Errorf("config %s: %w", userPath, statErr)
+			}
+		} else if ensureUserConfig(userPath) {
+			// First run: there is now a real file at the path the help text
+			// names, with a working example base in it.
+			fmt.Fprintf(os.Stderr, "note: created default config %s\n", userPath)
+			if legacy := legacyConfigPath(userPath); legacy != userPath {
+				if _, statErr := os.Stat(legacy); statErr == nil {
+					fmt.Fprintf(os.Stderr, "note: %s is the older YAML config and is no longer read\n", legacy)
+				}
 			}
 		}
 		if err := reg.LoadConfig(userPath); err != nil {
@@ -707,10 +716,10 @@ func isNamedPipe(f *os.File) bool {
 // userConfigPath returns the default path for the user-level config file.
 func userConfigPath() string {
 	if x := os.Getenv("XDG_CONFIG_HOME"); x != "" {
-		return filepath.Join(x, "convert-base-v2", "convert-base-v2.conf")
+		return filepath.Join(x, "convert-base-v2", "convert-base-v2.shcl")
 	}
 	if h, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(h, ".config", "convert-base-v2", "convert-base-v2.conf")
+		return filepath.Join(h, ".config", "convert-base-v2", "convert-base-v2.shcl")
 	}
 	return ""
 }
@@ -770,7 +779,8 @@ Base info (each prints one value, then exits):
   --by-index N         Select the base by its INDEX column in --list (0-based)
 
 Other:
-  --config FILE        User YAML config; /etc is always tried too
+  --config FILE        User SHCL config; /etc is always tried too. Written with
+                       a commented example on first run.
                        [default %s]
   --examples           Show usage examples and exit
   --version            Print version and exit

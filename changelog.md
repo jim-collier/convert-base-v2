@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Breaking: some bases and aliases were removed or renamed, listed under Changed and Removed below. Every name the older `convert-base-v1` and `convert-base-v1b` accepted still works, so scripts written against those are safe; a script that used one of the dropped v2 spellings needs the new name.
 - Breaking: the `neg=`, `dec=`, and `pad=` tokens are gone from symbol specs. A spec that still carries one is now an error naming its replacement, so nothing changes meaning silently. Update any script or config file that used the old form.
+- Breaking: config files are SHCL now, not YAML, and are named `convert-base-v2.shcl`. An old `convert-base-v2.conf` is no longer read. The fields are the same, so rewriting one is mostly a matter of spelling; the new file created on first run shows the shape.
 
 ### Added
 
@@ -38,6 +39,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Two bases between `512tt` and the published base 2048s: `1024tt` and `2048tt`.
 - Markers can now be set on any base, named or custom. `--from hex --from-neg '~'` reads `~ff` as -255. Previously only a hand-written alphabet could carry custom markers.
 - A `tail:` field in config files, and matching `--from-tail` and `--to-tail` flags, so a base of your own with more than 256 symbols can stream binary data. Without a tail such a base has to write a length count before the first digit, which means reading all the input first. Declaring one drops a 24 MB encode from 244 MB of memory to 21 MB.
+- The first run writes a commented config file at `~/.config/convert-base-v2/convert-base-v2.shcl`, so there is a real file to edit instead of a documented path that does not exist yet. It is never rewritten afterwards.
+- A config file that names a field the program does not know is now an error, rather than being loaded with that field ignored. A typo in an alphabet is not something the output would ever reveal.
+- An extra base name no longer has to be the first of a list: the `base:` line carries the canonical name and an optional `aliases:` field adds the rest.
 
 ### Changed
 
@@ -51,6 +55,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `512tt`, `1024tt`, and `2048tt` now end a byte stream with a tail character, the same approach the published big bases use, which is what lets them stream. Their binary layout changed as a result. None of the three has been in a release, so no existing data is affected.
 - Binary decoding of a base with multi-character digits now accepts line breaks, so wrapped output reads back. The single-character bases already did.
 - A symbol spec is digit symbols and nothing else, matching how the predefined bases and the config file fields already worked.
+- The config format is SHCL, which reads and writes closer to how the rest of the tool is described. YAML was the last external dependency, so the program now builds from its own source and the standard library alone.
 - A padding character that could never take effect is now an error where it is defined, instead of being accepted and quietly ignored. Padding must be a single character, and only applies to power-of-2 bases of at most 256 symbols, which is the only place it is ever emitted. Fixes a multi-character pad overshooting the group boundary on encode.
 
 ### Removed
@@ -59,6 +64,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bech32 (`32bip`) and base 58 (`58btc`). Both are misleading here: neither is a plain base conversion, so this tool could never produce a real address with them.
 - Base 69 `69prsh`, replaced by `69nice`.
 - The base-48 hex variant, and the word-safe 48, 64, and 128 bases. The word-safe alphabets remain available through the compatibility bases.
+- Base `emoji10` is no longer built in. It ships in the config file created on first run, as the worked example, and works exactly as before.
 
 ### Other work
 

@@ -8,13 +8,10 @@ package main
 import (
 	"fmt"
 	"io"
-	"os"
 	"sort"
 	"strconv"
 	"strings"
 	"unicode/utf8"
-
-	"gopkg.in/yaml.v3"
 )
 
 // Base describes a numeric base: an ordered list of symbols (each one "digit"),
@@ -739,132 +736,3 @@ func isDigitByte(b byte) bool { return b >= '0' && b <= '9' }
 // strPtr is a short helper for Base.Negative / Base.Decimal struct literals
 // where you need a *string value (e.g. strPtr("") to mean "explicitly disabled").
 func strPtr(s string) *string { return &s }
-
-// --- YAML config loading ----------------------------------------------------
-
-// configBase is the YAML shape of one base entry. The top-level config file
-// is a YAML list of these.
-//
-//	`symbols` may be either:
-//	   * a string - parsed via ParseSymbolSpec (whitespace-delimited digits); or
-//	   * a YAML list of strings - each list entry is one literal digit
-//	     symbol (convenient for symbols containing "=" or similar).
-//	`negative`, `decimal`, and `pad` set the markers. They are separate from
-//	the symbols, which carry digits only.
-type configBase struct {
-	Aliases  []string  `yaml:"aliases"`
-	Symbols  yaml.Node `yaml:"symbols"`
-	Negative *string   `yaml:"negative,omitempty"`
-	Decimal  *string   `yaml:"decimal,omitempty"`
-	Pad      *string   `yaml:"pad,omitempty"`
-	// PadEmit, if present, overrides the emit-on-encode default. Set it false for
-	// a strip-only pad (accepted on decode but not written), like the builtin
-	// URL/hex variants. Absent means emit when a pad is set.
-	PadEmit *bool `yaml:"pademit,omitempty"`
-	// Tail is the secondary repertoire that absorbs the final partial chunk in
-	// binary mode, in the same string-or-list form as Symbols. Only meaningful
-	// above 8 bits per digit, where it is what makes encoding streamable: the
-	// alternative packing writes a length prefix, which cannot be known until
-	// the input has been read. finalize() checks the width.
-	Tail yaml.Node `yaml:"tail,omitempty"`
-}
-
-// symbolNode decodes a symbols-shaped YAML node: a whitespace-delimited string
-// or a list of literal symbols. field and baseName only appear in errors.
-func symbolNode(node yaml.Node, field, baseName string) ([]string, error) {
-	switch node.Kind {
-	case yaml.ScalarNode:
-		symbols, err := ParseSymbolSpec(node.Value)
-		if err != nil {
-			return nil, fmt.Errorf("base %q: %s: %w", baseName, field, err)
-		}
-		return symbols, nil
-	case yaml.SequenceNode:
-		var arr []string
-		if err := node.Decode(&arr); err != nil {
-			return nil, fmt.Errorf("base %q: %s list: %w", baseName, field, err)
-		}
-		return arr, nil
-	case 0:
-		return nil, nil // field absent
-	default:
-		return nil, fmt.Errorf("base %q: %q must be a string or list of strings", baseName, field)
-	}
-}
-
-// LoadConfig reads the YAML config at path and registers each base it defines.
-// A missing file is not an error. Each base's Source is set to the full path.
-func (r *Registry) LoadConfig(path string) error {
-	if path == "" {
-		return nil
-	}
-	data, err := os.ReadFile(path)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return nil
-		}
-		return err
-	}
-	var cfg []configBase
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
-		return fmt.Errorf("parsing %s: %w", path, err)
-	}
-	for i, cb := range cfg {
-		b, err := cb.toBase()
-		if err != nil {
-			return fmt.Errorf("%s[%d]: %w", path, i, err)
-		}
-		b.Source = path
-		if err := r.Register(b); err != nil {
-			return fmt.Errorf("%s[%d]: %w", path, i, err)
-		}
-	}
-	r.LoadedConfigs = append(r.LoadedConfigs, path)
-	return nil
-}
-
-func (cb configBase) toBase() (*Base, error) {
-	if len(cb.Aliases) == 0 {
-		return nil, fmt.Errorf("config base has no aliases")
-	}
-	b := &Base{Aliases: cb.Aliases}
-	if cb.Symbols.Kind == 0 {
-		return nil, fmt.Errorf("base %q: missing 'symbols' field", cb.Aliases[0])
-	}
-	symbols, err := symbolNode(cb.Symbols, "symbols", cb.Aliases[0])
-	if err != nil {
-		return nil, err
-	}
-	b.Symbols = symbols
-	tail, err := symbolNode(cb.Tail, "tail", cb.Aliases[0])
-	if err != nil {
-		return nil, err
-	}
-	if len(tail) > 0 {
-		b.TailSymbols = tail
-		// A config tail always gets the qntm layout. It is the scheme that
-		// streams cleanly both ways, and picking it here keeps the config from
-		// having to name one. finalize() rejects a tail the base can't use.
-		b.BinaryScheme = "qntm"
-	}
-	if cb.Negative != nil {
-		b.Negative = cb.Negative
-	}
-	if cb.Decimal != nil {
-		b.Decimal = cb.Decimal
-	}
-	if cb.Pad != nil {
-		if *cb.Pad == "" {
-			b.PadSymbol = ""
-			b.PadEmit = false
-		} else {
-			b.PadSymbol = *cb.Pad
-			b.PadEmit = true
-		}
-	}
-	// pademit lets a config define a strip-only pad (accepted but not emitted).
-	if cb.PadEmit != nil {
-		b.PadEmit = *cb.PadEmit
-	}
-	return b, nil
-}

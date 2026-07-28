@@ -63,6 +63,12 @@ declare -a FAILURES=()
 CBT_OUT="$(mktemp)"; CBT_ERR="$(mktemp)"; CBT_TMP="$(mktemp -d)"
 cleanup(){ rm -rf "${CBT_OUT}" "${CBT_ERR}" "${CBT_TMP}"; }
 trap cleanup EXIT
+
+## Sandbox the user config: the binary writes a default one on its first run,
+## and that must land here, not in whoever's home is running the tests. The
+## warm-up run does the creating, so no later check sees the one-time note.
+export XDG_CONFIG_HOME="${CBT_TMP}/xdg"
+"${TIMEOUT[@]}" "${EXE}" --get-index-count >/dev/null 2>&1 || true
 trap 'rc=$?; printf "\n%sHARNESS ABORTED (exit %s) at line %s: %s%s\n" "${red}" "$rc" "$LINENO" "$BASH_COMMAND" "${rst}" >&2; exit $rc' ERR
 
 section(){ printf '\n%s>>> %s%s\n' "${b}" "$*" "${rst}"; }
@@ -268,12 +274,39 @@ sym85=$("${EXE}" --show-symbols-0 85ps 2>/dev/null | tr '\0' '\n' | grep -c .)
 ## Config file loading (a user-defined base via --config)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Config file"
-cfg="${CBT_TMP}/bases.conf"
-printf -- '- aliases: ["myb"]\n  symbols: "z y x w"\n' >"$cfg"
+cfg="${CBT_TMP}/bases.shcl"
+{
+	printf 'base: myb\n\taliases: mybase, mb\n\tsymbols: "z y x w"\n\n'
+	printf 'base: u12\n\tsymbols: "0123456789-_"\n\tnegative: N\n\n'
+	printf 'base: nodec\n\tsymbols: 0123456789\n\tdecimal:\n\n'
+	printf 'base: fruit4\n\tsymbols:\n\t\t* 🍎\n\t\t* 🍊\n\t\t* 🍋\n\t\t* 🍌\n\n'
+	printf 'base: spacey\n\tsymbols: "a b", c, d, e\n'
+} >"$cfg"
 ## The custom 4-symbol base "myb" resolves only when the config is loaded.
 check eq  "config base loads"        yx        -- --config "$cfg" --from 10 --to myb 6
 check errmsg "config base absent otherwise" 'unknown base' -- --from 10 --to myb 6
-check errmsg "explicit missing config errors" 'no such file' -- --config "${CBT_TMP}/nope.conf" 255 16
+check errmsg "explicit missing config errors" 'no such file' -- --config "${CBT_TMP}/nope.shcl" 255 16
+## Extra names from the aliases field; the "base:" line stays canonical.
+check eq  "config alias resolves"    yx        -- --config "$cfg" --from 10 --to mb 6
+check eq  "config canonical name"    myb       -- --config "$cfg" --get-base-name mybase
+## A marker set, and a marker switched off on purpose by leaving it empty.
+check eq  "config negative marker"   N11       -- --config "$cfg" --from 10 --to u12 -- -13
+check errmsg "config empty marker disables" 'no decimal marker' -- --config "$cfg" --from 10 --to nodec 12.5
+## Both list spellings: stacked one per line, and inline with a symbol that
+## carries a space of its own.
+check eq  "config stacked list"      '🍊🍋'    -- --config "$cfg" --from 10 --to fruit4 6
+spacesym=$("${EXE}" --config "$cfg" --show-symbols-0 spacey 2>/dev/null | tr '\0' '|')
+[[ "$spacesym" == 'a b|c|d|e' ]] && _pass "config symbol with a space" || _fail "config symbol with a space" "got='$spacesym'"
+## A typo has to fail loudly: silently dropping a field means the wrong alphabet.
+printf 'base: x\n\tsybmols: abc\n' >"${CBT_TMP}/typo.shcl"
+check errmsg "config typo rejected"  'unknown base field' -- --config "${CBT_TMP}/typo.shcl" 255 16
+printf 'base: x\n\tsymbols: abc\n  bogus indent\n' >"${CBT_TMP}/bad.shcl"
+check errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
+## First run writes the default config, and emoji10 comes from it rather than
+## from the built-in set. XDG_CONFIG_HOME was sandboxed at the top of the run.
+usercfg="${XDG_CONFIG_HOME}/convert-base-v2/convert-base-v2.shcl"
+[[ -s "$usercfg" ]] && _pass "first run creates the user config" || _fail "first run creates the user config" "missing $usercfg"
+check eq  "emoji10 comes from config" '😑😔😘😜' -- --from 10 --to emoji10 1234
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -520,8 +553,8 @@ check errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 2
 check errmsg "tail on bytes rejected" 'do not apply' -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
 
 ## Same tail declared in a config file rather than on the command line.
-tailcfg="${CBT_TMP}/tail.conf"
-printf -- '- aliases: ["cfgtail"]\n  symbols: "%s"\n  tail: "⸐ ⸑"\n' "$SYM512" >"$tailcfg"
+tailcfg="${CBT_TMP}/tail.shcl"
+printf -- 'base: cfgtail\n\tsymbols: "%s"\n\ttail: "⸐ ⸑"\n' "$SYM512" >"$tailcfg"
 cfgrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from bytes --to cfgtail -n 2>/dev/null \
 	| "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from cfgtail --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1)
 [[ "$cfgrt" == "$tailwant" ]] && _pass "config tail round-trips" || _fail "config tail round-trips" "got='$cfgrt'"
