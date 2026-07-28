@@ -5,6 +5,11 @@ version: "2"
 
 linters:
   default: standard
+  exclusions:
+    # shcl/ is a verbatim copy of an upstream file. Findings there belong
+    # upstream, and editing the copy would break the copy-over update.
+    paths:
+      - shcl/
   settings:
     errcheck:
       # Diagnostic/help/usage output goes to os.Stderr via the fmt.Fprint family,

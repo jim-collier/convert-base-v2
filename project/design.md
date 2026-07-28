@@ -37,7 +37,7 @@ It should cover the everyday standards (base 10, 16, RFC 4648 base 32 and 64) an
 
 - Go, module `github.com/jim-collier/convert-base-v2`, one `main` package under `source/`.
 
-- One dependency, `gopkg.in/yaml.v3`, for optional config files.
+- No external dependencies. The config parser is SHCL, whose Go binding is one file copied into `source/shcl/`; everything else is the standard library.
 
 - Ships as a single static binary. Release builds are stripped and trimmed with `CGO_ENABLED=0`.
 
@@ -47,7 +47,9 @@ It should cover the everyday standards (base 10, 16, RFC 4648 base 32 and 64) an
 
 - `convert.go` is the conversion core. It has two paths: an arbitrary-precision path (handles sign and fractions) and a fast bit-packing path used when a base is a power of two.
 
-- `registry.go` defines the `Base` type, the lookup registry, and config loading.
+- `registry.go` defines the `Base` type and the lookup registry.
+
+- `config.go` reads config files and writes the default one on first run. `default-config.shcl` is the file it writes, embedded in the binary.
 
 - `bases.go` lists the predefined named bases and their alphabets. A new base is one more entry here.
 
@@ -82,6 +84,14 @@ The rationale behind the choices most likely to be questioned later. Each was se
 - **A base can be dropped when its presence is misleading.** Bitcoin's Bech32 and base 58 were removed because neither is a plain base conversion, so this tool could never produce a real address with them. Keeping them invited the wrong conclusion.
 
 - **Config override keeps the base list truthful.** When a config base shadows a built-in one, the shadowed entry is dropped or loses only the stolen aliases, so `--list` and the index space stay accurate.
+
+- **The config format is SHCL, and its parser is a copied file.** SHCL ships as one drop-in source file per language, so vendoring it is the intended way to use it rather than a shortcut. It also leaves the program with no external dependencies, which matters for a tool whose whole promise is a single static binary. The copy stays byte-identical to upstream so a fix there lands here as a file copy.
+
+- **The config is written, not just documented.** The first run creates the user file with a commented example in it. A documented path that does not exist is a feature most people never find, and there is no example to copy from until they have already worked out the syntax. The file is embedded in the binary, so the shipped example and the real file cannot disagree.
+
+- **`emoji10` lives in the config rather than in the code.** It was the most decorative of the built-in bases and the most obvious thing to imitate, which makes it a better example than a placeholder alphabet. Anyone who wants it keeps it; anyone who wants their own edits it in place.
+
+- **An unrecognized config field is an error.** Loading the file with a misspelled field ignored would produce a base with the wrong markers or the wrong digits, and nothing about the output would ever look wrong. The same reasoning applies to a line SHCL could not parse: the parser is designed to skip and carry on, which is right for a log and wrong for an alphabet.
 
 - **The version is a `var`, not a `const`.** The release build patches it through a linker flag, which only works on a var. The source value is the single source of truth for what version ships.
 

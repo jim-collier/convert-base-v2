@@ -76,7 +76,7 @@ VET_CMD=(go vet ./...)
 LINT_PROBE=(golangci-lint version)
 LINT_CMD=(golangci-lint run --concurrency="${CPU_CAP:-1}" ./...)
 STATICCHECK_PROBE=(staticcheck -version)
-STATICCHECK_CMD=(staticcheck ./...)
+STATICCHECK_CMD=(staticcheck .)
 
 ## Stage 4a: unit tests (Go, run inside SRC_DIR) plus the integration harness
 ## (cicd/test.bash, run from root against the staged binary via CICDTEST_EXE).

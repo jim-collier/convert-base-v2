@@ -60,11 +60,17 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- For twitter output, give more detail of the processing in leading comment.
 	- Note: save `--list` for the end of the demo.
 
-- ✋ Switch config engine from YAML to SHCL.
-
 ### Done
 
 #### Done - New features and enhancements
+
+- ✅ Switch the config engine from YAML to SHCL, create a user config on first run, and move `emoji10` into it as the worked example.
+	- Note: SHCL ships as one drop-in source file per language, so its Go binding is copied verbatim into `source/shcl/`. That leaves the program with no external dependencies at all, since YAML was the last one.
+	- Note: a base is now a named block (`base: hex`) with an optional `aliases:` field, instead of a list entry whose first alias was the canonical name.
+	- Note: SHCL distinguishes a missing field from an empty one, which is exactly the tri-state the markers already used, so an empty `negative:` still means "switched off on purpose".
+	- Note: the default config is embedded in the binary and written on first run, so the shipped example and the file people edit cannot drift apart. `example.conf` is gone.
+	- Note: an unknown field is now an error. A typo that silently dropped a marker would give a wrong alphabet, and no output would ever reveal it.
+	- Verified: harness at 306 checks, including both list spellings, an alias, a disabled marker, a symbol carrying a space, two rejected typos, and the first-run creation itself.
 
 - ✅ Base set overhaul: bases and aliases added, renamed, and removed, and the v1/v1b compatibility bases split out into their own group.
 	- Note: `Base.Compat` marks them; `--list` skips them and the new `--list-compat` shows only them. Both listings stay contiguous because compatibility bases sort last, so `--by-index` still reaches every base.

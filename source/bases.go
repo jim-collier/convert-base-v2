@@ -142,13 +142,8 @@ func predefinedBases() []*Base {
 			DecSymbol:   "●",
 		}),
 
-		// Base-10 in emoji (custom hand-picked to convey the widest range of emotions)
-		mkSpec(SpecOpts{
-			BaseSymbols: "😀 😑 😔 😘 😜 😠 😬 😮 🙄 🤔",
-			Aliases:     []string{"emoji10"},
-			NegSymbol:   "🥕",
-			DecSymbol:   "⚽",
-		}),
+		// Base-10 in emoji lives in the default config file instead, as the
+		// worked example a new user can copy from.
 
 		//
 		// [end of base-10]

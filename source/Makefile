@@ -21,11 +21,11 @@ all: local
 
 # Optimized native build (dogfood + hand use).
 local:
-	go build -ldflags '$(LDFLAGS)' -o $(BINARY) ./...
+	go build -ldflags '$(LDFLAGS)' -o $(BINARY) .
 
 # Debug native build: symbols kept, for the test + profiler stages.
 debug:
-	go build -ldflags '$(LDFLAGS_DEBUG)' -o $(BINARY) ./...
+	go build -ldflags '$(LDFLAGS_DEBUG)' -o $(BINARY) .
 
 # Cross-compile + package every shipping platform into ./dist/. The whole
 # release pipeline (build, archive, deb/rpm, Windows installer, checksums)
