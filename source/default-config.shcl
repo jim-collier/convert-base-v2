@@ -1,15 +1,27 @@
+# SHCL: Simple Hierarchical Config Language.
+#
+# Forgiving to write, predictable to read. The parser does the work instead of
+# you: a typo on one line does not take the rest of the file down with it, and a
+# value means what it looks like rather than whatever a type guess makes of it.
+#
+#	Home     https://github.com/jim-collier/shcl
+#	Syntax   https://github.com/jim-collier/shcl/blob/main/project/spec.md
+#	License  MIT. Copyright © 2026 Jim Collier.
+#
+#
 # convert-base-v2 configuration.
 #
 # Created on the first run and never rewritten afterwards, so anything you put
 # here is safe. Delete it and it comes back with these defaults.
 #
-# There is also a system-wide file at /etc/convert-base-v2/convert-base-v2.shcl.
-# It is read first, so anything here wins over it. Both override the built-in
-# bases: reuse a built-in name and your definition replaces it.
+# You may also create a system-wide file at
+# /etc/convert-base-v2/convert-base-v2.shcl. It is read first, so anything here
+# wins over it. Both override the built-in bases: reuse a built-in name and your
+# definition replaces it.
 #
-# The format is SHCL. Field names are case insensitive, indentation is tabs or
-# spaces, and a value only needs quotes when it contains a space, a comma, a
-# colon, a "#", or a quote character.
+# Field names are case insensitive, indentation is tabs or spaces, and a value
+# only needs quotes when it contains a space, a comma, a colon, a "#", or a
+# quote character.
 #
 #
 # Defining a base
@@ -71,12 +83,6 @@ base: emoji10
 
 # Everything below is commented out. Uncomment a block to try it.
 
-# Lowercase hex. Replaces the built-in "hex" and "hexadecimal" names. The "16"
-# alias is untouched, because it is not listed here.
-#base: hex
-#	aliases: hexadecimal
-#	symbols: 0123456789abcdef
-
 # A toy base 4.
 #base: abcd
 #	aliases: 4abc
@@ -86,12 +92,6 @@ base: emoji10
 #base: u12
 #	symbols: "0123456789-_"
 #	negative: N
-
-# Custom markers on a base that leaves "-" and "." free anyway.
-#base: b8alt
-#	symbols: "0 1 2 3 4 5 6 7"
-#	negative: "~"
-#	decimal: ","
 
 # List form: one entry per digit.
 #base: emoji4
