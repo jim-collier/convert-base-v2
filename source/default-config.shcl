@@ -1,3 +1,5 @@
+# convert-base-v2 configuration is written in:
+#
 # SHCL: Simple Hierarchical Config Language.
 #
 # Forgiving to write, predictable to read. The parser does the work instead of
@@ -9,15 +11,12 @@
 #	License  MIT. Copyright © 2026 Jim Collier.
 #
 #
-# convert-base-v2 configuration.
+# convert-base-v2 creates this file on the first run and never rewritten afterwards,
+# so anything you put here is safe. Delete it and it comes back with these defaults.
 #
-# Created on the first run and never rewritten afterwards, so anything you put
-# here is safe. Delete it and it comes back with these defaults.
-#
-# You may also create a system-wide file at
-# /etc/convert-base-v2/convert-base-v2.shcl. It is read first, so anything here
-# wins over it. Both override the built-in bases: reuse a built-in name and your
-# definition replaces it.
+# You can create a system-wide file at '/etc/convert-base-v2/convert-base-v2.shcl'.
+# It is read first, so anything here wins over it. Both override the built-in bases:
+# reuse a built-in name and your definition replaces it.
 #
 # Field names are case insensitive, indentation is tabs or spaces, and a value
 # only needs quotes when it contains a space, a comma, a colon, a "#", or a
