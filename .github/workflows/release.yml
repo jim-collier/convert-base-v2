@@ -30,7 +30,8 @@ jobs:
       - uses: actions/setup-go@v6
         with:
           go-version-file: .go-version
-          cache-dependency-path: source/go.sum
+          # standard library only, so there is no go.sum and nothing to cache
+          cache: false
 
       - name: install packaging tools
         run: |
