@@ -21,11 +21,11 @@
 ##			- Deterministic conversions, base-name aliases, negatives, fractionals, precision, lower, raw.
 ##			- Custom symbol specs, including neg/dec markers.
 ##			- Errors and robustness: bad bases, bad digits, malformed input, shell-metachar input, oversized input.
-##			- Binary/streaming: bit-perfect raw round-trips through every raw-capable base (power-of-2 via bit-packing, plus the base45/ascii85/z85/base91 codecs), fixed spec vectors for each codec, the byte-alignment guard, and a check that non-codec bases refuse raw binary.
-##			- Performance and profiling (unless --quick): streaming throughput, peak-memory/wall-time resource profile, and a codec throughput guard.
+##			- Binary/streaming: bit-perfect raw round-trips through every raw-capable base (power-of-2 via bit-packing, plus the base45/ascii85/z85/base91 codecs), fixed spec vectors for each codec, the byte-alignment guard, wrapped-input decoding, and a check that non-codec bases refuse raw binary. The base lists come from --list, so a base that is added or renamed is covered with no edit here.
+##			- Performance and profiling (unless --quick): streaming throughput, a peak-memory ceiling on every power-of-2 base, and a codec throughput guard.
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
-##			- Optional cross-check against the bundled v1 binary when present.
+##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
 ##			- CICDTEST_EXE ..........: path to the binary under test (default: ../source/bin/convert-base-v2).
 ##			- CICDTEST_DO_LONGTEST ..: 1 for the exhaustive run (more fuzz iterations, larger inputs).
@@ -58,7 +58,7 @@ TIMEOUT=(); command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout 60)
 ## Colors + counters.
 b=$'\e[1m'; dim=$'\e[2m'; grn=$'\e[32m'; red=$'\e[31m'; ylw=$'\e[33m'; rst=$'\e[0m'
 declare -i TOTAL=0 PASS=0 FAIL=0
-declare -a FAILURES=()
+declare -a FAILURES=() WARNINGS=()
 
 CBT_OUT="$(mktemp)"; CBT_ERR="$(mktemp)"; CBT_TMP="$(mktemp -d)"
 cleanup(){ rm -rf "${CBT_OUT}" "${CBT_ERR}" "${CBT_TMP}"; }
@@ -80,6 +80,9 @@ _run_in(){ local f="$1"; shift; _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@" <"$f" >"${C
 
 _pass(){ PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); printf '%s  ok  %s%s\n' "${dim}" "$1" "${rst}"; }
 _fail(){ FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); printf '%s FAIL %s%s\n       %s\n' "${red}" "$1" "${rst}" "$2"; FAILURES+=("$1 :: $2"); }
+## A suite that did not run at all. Not a failure, but it must not read as one
+## more quiet line either, so the summary repeats every one of these.
+_warn(){ printf '%s SKIP %s%s\n' "${ylw}" "$1" "${rst}"; WARNINGS+=("$1"); }
 
 ## Assert against the last _run/_run_in result.
 ##   _assert MODE LABEL EXPECTED
@@ -152,6 +155,21 @@ total_n="$("${EXE}" --get-index-count 2>/dev/null)"
 _run --list
 { ((_rc == 0)) && [[ "$_out" != *_compat_* ]]; } && _pass "--list hides compatibility bases" || _fail "--list hides compatibility bases" "rc=$_rc"
 check eq  "compat base still resolves" 128_compat_v1 -- --get-base-name 128v1compat
+## The README bases table is generated from the binary, so a renamed base leaves
+## it pointing at a name that no longer exists. Nothing else notices that.
+README_MD="${meDir}/../README.md"
+if [[ -r "${README_MD}" ]]; then
+	readme_stale=""; readme_n=0
+	while read -r rname; do
+		readme_n=$((readme_n + 1))
+		"${TIMEOUT[@]}" "${EXE}" --get-base-name "$rname" >/dev/null 2>&1 || readme_stale+=" ${rname}"
+	done < <(grep -oP '^\| *[0-9]+ \| *\K[^ |]+' "${README_MD}" | sort -u)
+	{ (( readme_n >= 20 )) && [[ -z "$readme_stale" ]]; } \
+		&& _pass "README bases table resolves (${readme_n} names)" \
+		|| _fail "README bases table resolves" "scraped=${readme_n} stale:${readme_stale:- none}"
+else
+	_warn "README bases table not checked: no readable file at ${README_MD}"
+fi
 ## --by-index outside a query mode is ignored, with a stderr note.
 _run --by-index 3 255 16
 { ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"--by-index is ignored"* ]]; } && _pass "--by-index note in conversion mode" || _fail "--by-index note in conversion mode" "rc=$_rc out=[$_out] err=[$_err]"
@@ -364,51 +382,46 @@ _run_in "${CBT_TMP}/badutf8" --from 2048twitter -
 ## Binary / streaming: bit-perfect round-trips + the byte-alignment guard
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Binary / streaming"
-mkbin(){ head -c "$1" /dev/urandom >"$2"; }
-for pair in "16" "64u" "32h" "64"; do
-	src="${CBT_TMP}/bin_src"; mid="${CBT_TMP}/bin_mid"; out="${CBT_TMP}/bin_out"
-	mkbin 777 "$src"
-	rc1=0; rc2=0
-	"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$pair" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
-	"${TIMEOUT[@]}" "${EXE}" --from "$pair" --to bytes <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
-	if ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; then
-		_pass "binary round-trip via ${pair} (bit-perfect)"
-	else
-		_fail "binary round-trip via ${pair}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"
-	fi
-done
-## Big bases (more than 8 bits per char) round-trip at every input length,
-## including the odd lengths a zero-padded tail used to corrupt. Sweep edge
-## lengths for each.
-for pair in "512tt" "1024tt" "2048tt" "2048twitter" "2048rust" "32768qntm" "65536qntm"; do
-	bigfail=0
-	for n in 0 1 2 3 4 5 7 8 15 16 17 31 32 33 64 333; do
+## Every raw-capable base comes from the RAW column of --list, so a base that is
+## added or renamed is covered with no edit here. Both listings are scraped: the
+## compatibility bases carry raw bytes like the rest, and the index filter drops
+## the header rows. The power-of-2 bases are split out because they convert by
+## bit-packing; what is left is the binary-to-text codecs.
+## Columns: INDEX NAME SIZE NEG DEC RAW ALIASES
+declare -a RAW_BASES=() POW2_BASES=()
+while read -r idx bname bsize _ _ rawcol _; do
+	[[ "$idx" =~ ^[0-9]+$ ]] || continue
+	[[ "$rawcol" == "yes" && "$bname" != "bytes" ]] || continue
+	RAW_BASES+=("$bname")
+	(( (bsize & (bsize - 1)) == 0 )) && POW2_BASES+=("$bname")
+done < <("${EXE}" --list --list-compat 2>/dev/null)
+## Guard the scrapes themselves: if the --list format ever shifts and these parse
+## nothing, every loop below passes vacuously. Assert a floor on each.
+(( ${#RAW_BASES[@]} >= 8 ))   && _pass "raw-base scrape found bases (${#RAW_BASES[@]})"          || _fail "raw-base scrape found bases" "only ${#RAW_BASES[@]} scraped (--list format changed?)"
+(( ${#POW2_BASES[@]} >= 20 )) && _pass "power-of-2 scrape found bases (${#POW2_BASES[@]})" || _fail "power-of-2 scrape found bases" "only ${#POW2_BASES[@]} scraped (--list format changed?)"
+
+## Every power-of-2 base round-trips raw bytes at every input length: the small
+## ones through the bit-packed path, the ones above 8 bits per digit through
+## native chunking and a tail. Odd lengths are the ones a zero-padded tail used
+## to corrupt, and the last blob is big enough to cross the streaming buffer.
+for base in "${POW2_BASES[@]}"; do
+	p2fail=0; p2detail=""
+	for n in 0 1 2 3 4 5 7 8 15 16 17 31 32 33 64 333 777; do
 		src="${CBT_TMP}/bp_src"; mid="${CBT_TMP}/bp_mid"; out="${CBT_TMP}/bp_out"
 		head -c "$n" /dev/urandom >"$src"
 		rc1=0; rc2=0
-		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$pair" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
-		"${TIMEOUT[@]}" "${EXE}" --from "$pair" --to bytes <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
-		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || bigfail=$((bigfail+1))
+		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
+		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { p2fail=$((p2fail+1)); p2detail="n=${n} rc1=${rc1} rc2=${rc2} err=[$(cat "${CBT_ERR}")]"; }
 	done
-	((bigfail == 0)) && _pass "binary round-trip via ${pair} (all lengths)" || _fail "binary round-trip via ${pair}" "${bigfail} lengths mismatched"
+	((p2fail == 0)) && _pass "binary round-trip via ${base} (all lengths, bit-perfect)" || _fail "binary round-trip via ${base}" "${p2fail} lengths mismatched, last: ${p2detail}"
 done
 ## Raw binary round-trips through every base the tool advertises as a codec (the
 ## RAW column of --list): power-of-2 bases via bit-packing, plus base45, ascii85,
 ## z85, and base91 via their own schemes. Blob lengths force partial final chunks
 ## so padding/tail handling is exercised; Z85 requires 4-aligned input, so its
 ## lengths are rounded down. --no-newline both ways stays byte-exact for bases that carry
-## newline as a digit. Codec bases are read from --list, so a new one is covered
-## with no edit here. Both listings are scraped, since the compatibility bases
-## carry raw bytes just like the rest; the index filter drops the header rows.
-declare -a RAW_BASES=()
-## Columns: INDEX NAME SIZE NEG DEC RAW ALIASES
-while read -r idx bname _ _ _ rawcol _; do
-	[[ "$idx" =~ ^[0-9]+$ ]] || continue
-	[[ "$rawcol" == "yes" && "$bname" != "bytes" ]] && RAW_BASES+=("$bname")
-done < <("${EXE}" --list --list-compat 2>/dev/null)
-## Guard the scrape itself: if the --list format ever shifts and this parses
-## nothing, the round-trip loop below would pass vacuously. Assert a floor.
-(( ${#RAW_BASES[@]} >= 8 )) && _pass "raw-base scrape found bases (${#RAW_BASES[@]})" || _fail "raw-base scrape found bases" "only ${#RAW_BASES[@]} scraped (--list format changed?)"
+## newline as a digit.
 raw_all_fail=0; raw_all_n=0
 for base in "${RAW_BASES[@]}"; do
 	for n in 1 2 3 4 5 7 8 11 13 16 17 31 63 100 255 257 $(( 1 + $(_rand16) % 512 )); do
@@ -428,7 +441,11 @@ done
 ## Wrapped output must decode back, on both the piped and the argv path, at wrap
 ## widths that land inside a multi-byte digit. Line breaks have to be dropped
 ## before the bytes are read as characters, or a split digit looks like bad UTF-8.
-for base in 64 64ws_compat_v1b emoji64 128tt 512tt 2048rust 65536qntm; do
+## Every raw base is swept, so a codec that quietly stops tolerating wraps shows
+## up here. 300 bytes keeps Z85 on its 4-byte boundary. The argv leg needs "--":
+## several of these bases carry "-" as a digit, so an encoding can start with one
+## and would otherwise be read as a flag.
+for base in "${RAW_BASES[@]}"; do
 	wrapfail=0
 	src="${CBT_TMP}/wr_src"; enc="${CBT_TMP}/wr_enc"; out="${CBT_TMP}/wr_out"
 	head -c 300 /dev/urandom >"$src"
@@ -436,7 +453,7 @@ for base in 64 64ws_compat_v1b emoji64 128tt 512tt 2048rust 65536qntm; do
 	for width in 7 13 40; do
 		fold -w "$width" <"$enc" | "${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes >"$out" 2>"${CBT_ERR}" || wrapfail=$((wrapfail+1))
 		cmp -s "$src" "$out" || wrapfail=$((wrapfail+1))
-		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes "$(fold -w "$width" <"$enc")" >"$out" 2>"${CBT_ERR}" || wrapfail=$((wrapfail+1))
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes -- "$(fold -w "$width" <"$enc")" >"$out" 2>"${CBT_ERR}" || wrapfail=$((wrapfail+1))
 		cmp -s "$src" "$out" || wrapfail=$((wrapfail+1))
 	done
 	((wrapfail == 0)) && _pass "wrapped input decodes via ${base}" || _fail "wrapped input decodes via ${base}" "${wrapfail} failures"
@@ -766,10 +783,12 @@ done
 ##
 ## v1 and v1b disagree on several alphabets, which is what the compatibility bases
 ## exist for, so each legacy binary gets its own map.
+## A base both tools share is listed in both maps, so it is checked against both.
+## A base only one tool has is listed only there.
 V1_MAP=(
 	2:2  8:8  10:10  16:16  26:26  36:36  52:52  62:62
 	32:32  32h:32h  32c:32c:--upper  32ws:32w
-	64h:64u  64programmer:64j1u
+	64h:64u  code64:64j1u
 	hostname:38ho
 	48ws_compat_v1:48j1  64ws_compat_v1:64j1uw  128_compat_v1:128j1
 	256_compat_v1:256j1  288_compat_v1:288j1
@@ -777,21 +796,50 @@ V1_MAP=(
 V1B_MAP=(
 	2:2  8:8  10:10  16:16  26:26  36:36  52:52  62:62
 	32:32  32h:32h  32c:32c:--upper  32ws:32w
-	64:64  64u:64u  64h:64h  64programmer:64jc1
+	64:64  64u:64u  64h:64h  code64:64jc1
 	hostname:38ho  username:39us  email:45em
 	48ws_compat_v1:48v1compat  64ws_compat_v1:64v1compat  128_compat_v1:128v1compat
 	48ws_compat_v1b:48jc1ws  64ws_compat_v1b:64jc1ws  128ws_compat_v1b:128jc1ws
 	128_compat_v1b:128jc1  256_compat_v1:256jc1  288_compat_v1:288jc1
 )
+## Every output base each tool offers, one entry per distinct alphabet (the tools
+## take several spellings of each; these are the canonical ones). The coverage
+## check below fails on anything here that neither the map nor the excused list
+## accounts for, so a v2 base that could close a gap gets noticed.
+V1_BASES=(2 8 10 16 26 32 32h 32c 32w 36 38us 38ho 48j1 52 62 64 64u 64j1u 64j1uw 128j1 256j1 288j1)
+V1B_BASES=(2 8 10 16 26 32 32h 32c 32w 36 38ho 39us 45em 48jc1ws 48v1compat 52 62 64 64u 64h
+           64jc1 64jc1ws 64v1compat 128jc1 128jc1ws 128v1compat 256jc1 288jc1)
 ## Left uncovered on the v1 side, for want of a v2 base with the same alphabet:
 ##   - v1 "38us" is 38 symbols (0-9 a-z - _); v1b's and v2's username is 39 (adds ".").
 ##   - v1 "64" is hex-ordered (0-9 A-Z a-z + /), not RFC 4648 §4; v1b fixed that.
 ##     v1 "64u" is the one that matches a v2 base, and it is v2's 64h.
+V1_EXCUSED=(38us 64)
+V1B_EXCUSED=()
 ## v2 base-45 is RFC 9285, a different alphabet than the legacy "45em"; neither
 ## legacy tool has a plain base-45.
 ##
 ## 32c encodes with --upper: v2 emits Crockford's alphabet in lower case for
 ## legibility, and both legacy tools emit upper case. Same digits, same order.
+
+## fCheckCoverage LABEL MAPVAR ALLVAR EXCUSEDVAR
+## A legacy base that no map reaches is a silent hole, and a map entry naming a
+## base the tool doesn't have is a stale entry, so both directions are checked.
+fCheckCoverage(){
+	local label="$1"; local -n _map="$2" _all="$3" _excused="$4"
+	local pair tok missing="" stale=""
+	local -A covered=()
+	for pair in "${_map[@]}"; do tok="${pair#*:}"; covered["${tok%%:*}"]=1; done
+	for tok in "${_all[@]}"; do
+		[[ -n "${covered[$tok]:-}" ]] && continue
+		[[ " ${_excused[*]} " == *" ${tok} "* ]] || missing+=" ${tok}"
+	done
+	for tok in "${!covered[@]}"; do
+		[[ " ${_all[*]} " == *" ${tok} "* ]] || stale+=" ${tok}"
+	done
+	{ [[ -z "$missing" ]] && [[ -z "$stale" ]]; } \
+		&& _pass "${label} base coverage (${#_all[@]} bases, ${#_excused[@]} excused)" \
+		|| _fail "${label} base coverage" "unmapped:${missing:- none} stale:${stale:- none}"
+}
 
 ## fCheckLegacy BINARY LABEL MAP...
 fCheckLegacy(){
@@ -801,12 +849,23 @@ fCheckLegacy(){
 	for pair in "$@"; do
 		v2n="${pair%%:*}"; lgn="${pair#*:}"; extra="${lgn#*:}"; lgn="${lgn%%:*}"
 		[[ "$extra" == "$lgn" ]] && extra=""
+		## A renamed v2 base would otherwise read as a byte mismatch on every
+		## single value, which says nothing about what actually went wrong.
+		if ! "${TIMEOUT[@]}" "${EXE}" --get-base-name "$v2n" >/dev/null 2>&1; then
+			_fail "v2 base ${v2n} exists (mapped to ${label} ${lgn})" "unknown base - renamed or removed?"
+			continue
+		fi
 		enc_fail=0; rt_fail=0; detail=""
 		for ((r=0; r<reps; r++)); do
 			val="$(_rand_int 30)"
 			o2="$("${EXE}" ${extra} --from 10 --to "$v2n" -- "$val" 2>/dev/null || true)"
 			o1="$("${exe}" --ibase 10 "$val" "$lgn"                 2>/dev/null || true)"
 			if [[ -z "$o1" || "$o2" != "$o1" ]]; then enc_fail=1; detail="val=[$val] v2=[$o2] ${label}=[$o1]"; fi
+			## A lone "-" encoding (hostname value 36, and others carrying "-" as
+			## a digit) is the read-stdin sentinel as a positional, so it can't be
+			## fed back through argv. Skip just that one value; anything longer is
+			## unambiguous. Same guard the fuzz loops use.
+			[[ "$o1" == "-" ]] && continue
 			back="$("${EXE}" --from "$v2n" --to 10 -- "$o1" 2>/dev/null || true)"
 			[[ -n "$o1" && "$back" == "$val" ]] || { rt_fail=1; detail="val=[$val] ${label}enc=[$o1] v2dec=[$back]"; }
 		done
@@ -815,20 +874,22 @@ fCheckLegacy(){
 	done
 }
 
-## Don't skip silently: a missing legacy binary means that back-compat suite did
-## not run, which is easy to mistake for "passed".
+## Don't skip silently: a missing legacy script means that back-compat suite did
+## not run, which is easy to mistake for "passed". The summary repeats it.
 section "Back-compat vs v1 (byte-for-byte + round-trip)"
 if [[ -x "${EXE_V1}" ]]; then
+	fCheckCoverage v1 V1_MAP V1_BASES V1_EXCUSED
 	fCheckLegacy "${EXE_V1}" v1 "${V1_MAP[@]}"
 else
-	printf '%s  SKIPPED  v1 back-compat: bundled binary not found at %s%s\n' "${ylw}" "${EXE_V1}" "${rst}"
+	_warn "v1 back-compat skipped: script not found at ${EXE_V1}"
 fi
 
 section "Back-compat vs v1b (byte-for-byte + round-trip)"
 if [[ -x "${EXE_V1B}" ]]; then
+	fCheckCoverage v1b V1B_MAP V1B_BASES V1B_EXCUSED
 	fCheckLegacy "${EXE_V1B}" v1b "${V1B_MAP[@]}"
 else
-	printf '%s  SKIPPED  v1b back-compat: bundled binary not found at %s%s\n' "${ylw}" "${EXE_V1B}" "${rst}"
+	_warn "v1b back-compat skipped: script not found at ${EXE_V1B}"
 fi
 
 
@@ -881,7 +942,10 @@ if ((doPerf)); then
 		mem_mib=24
 		mem_ceiling=120000 # KiB; streaming sits near 20 MiB, buffered runs 10-25x the input
 		head -c "$((mem_mib * 1024 * 1024))" /dev/urandom >"$memsrc"
-		for base in 64u emoji64 128tt 512tt 65536qntm; do
+		## Every power-of-2 base, since which of the two streaming paths a base
+		## takes depends on its symbol widths, and that is exactly what a new or
+		## renamed base changes. The codecs are left out: they still buffer.
+		for base in "${POW2_BASES[@]}"; do
 			/usr/bin/time -f '%M' "${EXE}" --from bytes --to "$base" --no-newline <"$memsrc" >"$memenc" 2>"$memprof" || true
 			encpeak=$(tail -1 "$memprof")
 			/usr/bin/time -f '%M' "${EXE}" --from "$base" --to bytes <"$memenc" >/dev/null 2>"$memprof" || true
@@ -919,6 +983,7 @@ fi
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 printf '\n%s' "${b}"
 printf '========================================================================%s\n' "${rst}"
+for w in "${WARNINGS[@]}"; do printf '%s  SKIPPED  %s%s\n' "${ylw}" "$w" "${rst}"; done
 if ((FAIL == 0)); then
 	printf '%s  PASS  %d/%d checks%s\n' "${grn}${b}" "$PASS" "$TOTAL" "${rst}"
 	exit 0
