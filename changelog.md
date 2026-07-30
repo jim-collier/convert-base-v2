@@ -32,7 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Two base 69s, `69nice` and `69emoji`.
+- Two base 69s, `nice69` and `emoji69`.
 - A `--list-compat` flag, which lists the compatibility bases that `--list` no longer shows.
 - Compatibility bases covering both older tools, named after what they match: `48ws_compat_v1`, `64ws_compat_v1`, `128_compat_v1`, `48ws_compat_v1b`, `64ws_compat_v1b`, `128ws_compat_v1b`, `128_compat_v1b`, `256_compat_v1`, and `288_compat_v1`. Every name the older tools accepted still resolves.
 - Six flags to set the markers directly: `--from-neg`, `--from-dec`, `--from-pad`, `--to-neg`, `--to-dec`, `--to-pad`. An empty value disables a marker, and an omitted flag leaves the base as it was.
@@ -46,7 +46,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - `--list` no longer shows the compatibility bases, so the everyday listing is not half legacy. They still convert, and still answer to every old name.
-- Base `64jc1` is now `64programmer` (aliases `64p` and `64j1u`).
+- Base `64jc1` is now `code64` (aliases `programmer`, `64p`, and `64j1u`).
 - Base 60 `60jc` is now `Sumerian` (aliases `Babylonian`, `sexagesimal`, `hexagesimal`, `60jc`), and `60tc` is now `NewBase60` (alias `60tc`). Base 85 `85ps` is now `PostScript` (aliases `85postscript`, `85ps`, `85adobe`).
 - The Kanji and Hanzi base-10s are now one base, `Hanzi`, since they share the same digits.
 - Crockford base 32 (`32c`) now writes lower case, which is easier to read and is the point of that alphabet. Reading is unchanged and still case-insensitive.
@@ -54,6 +54,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Raw binary now streams through every base that can carry it, not just the single-character ones. A large file through one of the multi-byte bases holds steady near 20 MB of memory instead of growing with the file, and decoding runs about three times faster. Encoding a 48 MB file to `emoji64` used to peak at 1.2 GB.
 - `512tt`, `1024tt`, and `2048tt` now end a byte stream with a tail character, the same approach the published big bases use, which is what lets them stream. Their binary layout changed as a result. None of the three has been in a release, so no existing data is affected.
 - Binary decoding of a base with multi-character digits now accepts line breaks, so wrapped output reads back. The single-character bases already did.
+- Base-45 decoding accepts line breaks too, so wrapped base-45 reads back like every other base that carries raw bytes. Spaces are still digits there, and still meaningful.  [20260730]
 - A symbol spec is digit symbols and nothing else, matching how the predefined bases and the config file fields already worked.
 - The config format is SHCL, which reads and writes closer to how the rest of the tool is described. YAML was the last external dependency, so the program now builds from its own source and the standard library alone.
 - A padding character that could never take effect is now an error where it is defined, instead of being accepted and quietly ignored. Padding must be a single character, and only applies to power-of-2 bases of at most 256 symbols, which is the only place it is ever emitted. Fixes a multi-character pad overshooting the group boundary on encode.
@@ -62,13 +63,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The `neg=`, `dec=`, and `pad=` tokens inside symbol specs, on the command line and in config files. Config files keep their `negative:`, `decimal:`, and `pad:` fields, which are unchanged.
 - Bech32 (`32bip`) and base 58 (`58btc`). Both are misleading here: neither is a plain base conversion, so this tool could never produce a real address with them.
-- Base 69 `69prsh`, replaced by `69nice`.
+- Base 69 `69prsh`, replaced by `nice69`.
 - The base-48 hex variant, and the word-safe 48, 64, and 128 bases. The word-safe alphabets remain available through the compatibility bases.
 - Base `emoji10` is no longer built in. It ships in the config file created on first run, as the worked example, and works exactly as before.
 
 ### Other work
 
 - The vendored config-parser source is pinned to an upstream release, and the pipeline verifies it still matches that release before building. A copy that has drifted stops the build; a newer upstream release is reported without stopping anything.  [20260729]
+- The test suite builds its base lists from the tool itself instead of naming them, so an added or renamed base is covered everywhere without editing the tests. Both older tools are cross-checked against every base they offer, and anything left uncovered has to be listed as such.  [20260730]
 
 ## v2.0.0 - 2026-07-13
 

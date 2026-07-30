@@ -309,11 +309,11 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 64 | 64 | 64r, 64rfc, 64rfc4648s4, rfc4648s4 | Tied for tightest binary-to-text encoding for UTF-8 | RFC 4648 §4 | 17 | ZiPVVNpHTSSI1/gAB
 | 64 | 64u | 64url, 64ru, 64rfc4648s5, rfc4648s5 |  | RFC 4648 §5 | 17 | ZiPVVNpHTSSI1_gAB
 | 64 | 64h | 64hu, 64hurl | Tightest binary-to-text encoding for UTF-8 (Linux, macOS, Windows) |  | 17 | PYFLLDf7JII8r_W01
-| 64 | 64programmer | 64p, 64j1u | Almost tightest binary-to-text encoding for UTF-8, and legal in most identifiers |  | 17 | PYFLLDf7JII8rλW01
+| 64 | code64 | programmer, 64p, 64j1u | Almost tightest binary-to-text encoding for UTF-8, and legal in most identifiers |  | 17 | PYFLLDf7JII8rλW01
 | 64 | emoji64 |  | Emoji faces (U+1F600..1F63F); also encodes binary |  | 17 | 😙😢😏😕😕😍😩😇😓😒😒😈😵😿😠😀😁
 | 64 | 64tt |  |  |  | 17 | PYFLLDf7JII8r£W01
-| 69 | 69nice |  | The nice base |  | 17 | 7֏≶ayoxgg3⚣aｼxiͽᨑ
-| 69 | 69emoji |  | The nice base, in emoji |  | 17 | 🌊😍🤠🌮💘👩💕🎩🎩✂🥞🌮🪛💕🐓🔩😗
+| 69 | nice69 |  | The nice base |  | 17 | 7֏≶ayoxgg3⚣aｼxiͽᨑ
+| 69 | emoji69 |  | The nice base, in emoji |  | 17 | 🌊😍🤠🌮💘👩💕🎩🎩✂🥞🌮🪛💕🐓🔩😗
 | 85 | 85z | z85, 85zeromq |  | ZeroMQ RFC 32 | 16 | ndMmoZum[KT@d01F
 | 85 | PostScript | 85postscript, 85ps, 85adobe |  | Adobe Ascii85 | 16 | 8.Q79^?7nOXr.!"J
 | 85 | 85ipv6 | 85rfc1924, 85elz |  | RFC 1924 | 16 | NDmMOzUM@kt{D01f

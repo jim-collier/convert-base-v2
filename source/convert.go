@@ -1178,12 +1178,18 @@ func encodeBase45(data string, b *Base) string {
 }
 
 func decodeBase45(input string, b *Base) (string, error) {
-	// base45 has space as a digit, so nothing is treated as skippable whitespace.
+	// base45 has space as a digit, so whitespace in general can't be skipped.
+	// CR and LF are not digits though, and every other raw base here tolerates
+	// them, so wrapped input decodes the same way it does everywhere else.
 	vals := make([]int, 0, len(input))
 	for i := 0; i < len(input); i++ {
-		v := b.byteValue[input[i]]
+		c := input[i]
+		if c == '\n' || c == '\r' {
+			continue
+		}
+		v := b.byteValue[c]
 		if v < 0 {
-			return "", fmt.Errorf("cannot decode from %s: byte %#02x (%q) is not a base-45 symbol", b.Name(), input[i], string(input[i]))
+			return "", fmt.Errorf("cannot decode from %s: byte %#02x (%q) is not a base-45 symbol", b.Name(), c, string(c))
 		}
 		vals = append(vals, v)
 	}

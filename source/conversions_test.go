@@ -713,11 +713,18 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 	bytesB := base(t, reg, "bytes")
 	rng := rand.New(rand.NewSource(0x5eed))
 	// Every base that can carry raw bytes through a power-of-2 packing: the
-	// single-byte ones on the tuned path, the rest on the wide path.
-	targets := []string{
-		"2", "4", "8", "16", "32", "32h", "64", "64u", "64h",
-		"64programmer", "64ws_compat_v1b", "64tt", "emoji64", "128_compat_v1b", "128ws_compat_v1b", "128tt", "256_compat_v1", "256tt",
-		"512tt", "1024tt", "2048tt", "2048twitter", "2048rust", "32768qntm", "65536qntm",
+	// single-byte ones on the tuned path, the rest on the wide path. Taken from
+	// the registry rather than listed here, so a base that is added or renamed
+	// is covered without touching this test.
+	var targets []string
+	for _, b := range reg.orderedBases() {
+		if b.Binary || powerOfTwoBits(len(b.Symbols)) == 0 {
+			continue
+		}
+		targets = append(targets, b.Name())
+	}
+	if len(targets) < 20 {
+		t.Fatalf("only %d power-of-2 bases found; the registry scan is wrong", len(targets))
 	}
 	lengths := []int{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 15, 16, 17, 31, 63, 64, 100, 255, 256, 257, 1000, 4096, 65537}
 

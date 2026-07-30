@@ -64,6 +64,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Cover the added and renamed power-of-2 bases in the tests, and cross-check the compatibility bases against both older tools.
+	- Cause: the test lists named bases by hand, so a base added or renamed after they were written was simply never tested. `64tt` and `256tt` were missing from the length sweeps, and the rename to `code64` had already broken the cross-checks against both older tools.
+	- Fixed: the power-of-2 and raw base lists now come from `--list`, and the equivalence test reads them from the registry. Adding or renaming a base needs no test edit.
+	- Fixed: the memory ceiling, which is the only check that catches a base quietly falling back to buffering, now covers every power-of-2 base instead of five of them.
+	- Fixed: wrapped-input decoding is checked on every base that carries raw bytes, not seven of them.
+	- Done: a base each older tool shares is checked against both, one only a single tool has is checked against that one, and every output base either tool offers must be mapped or listed as excused.
+	- Done: a missing older script skips its suite and warns, and the summary repeats the warning so it can't read as a pass.
+	- Verified: 389 checks pass; the coverage guard and the skip path were both exercised deliberately.
+
 - ✅ Pin the vendored SHCL binding to an upstream release and check it on every pipeline run.
 	- Note: SHCL reached v1.0.0, so the question was whether to depend on it as a Go module instead of keeping the copy.
 	- Done: kept the copy. It leaves the program at standard library plus its own source, and upstream declares a higher `go` version than this project needs.
@@ -86,6 +95,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: three legacy bases are deliberately uncovered - v1's 38-symbol username, v1's hex-ordered base 64, and the case difference in Crockford base 32.
 
 #### Done - Bugs
+
+- ✅ Wrapped base-45 would not decode.
+	- Reproduced: encode to base 45, wrap the text at any width, decode it back, and the newline is reported as not a base-45 symbol. Every other base that carries raw bytes tolerates wraps.
+	- Cause: base-45 has space as a digit, so it skipped no whitespace at all. CR and LF are not digits, so there was never a reason to include them in that.
+	- Fixed: base-45 decoding drops CR and LF and nothing else. Space still means what it always did.
+
+- ✅ Stale base names in the README table, the changelog, and the tests.
+	- Cause: `64programmer`, `69nice`, and `69emoji` were renamed, and nothing checked that a documented name still resolves.
+	- Fixed: names corrected, and the test suite now fails if any base named in the README table no longer resolves.
 
 - ✅ Piped stdin silently ignored when a positional is given. (BxZNl-1) Kept argv-wins semantics (changing it would break `prog NUMBER` in scripts whose stdin is an inherited pipe, and could consume a pipe it should not touch). Instead: a real pipe with data plus one positional that names a known base now prints a stderr note pointing at `-`, and the synopsis is corrected to require `-` for the pipe form.
 
