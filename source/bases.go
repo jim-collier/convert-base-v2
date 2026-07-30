@@ -134,7 +134,7 @@ func predefinedBases() []*Base {
 		}),
 
 		// Base-10 in ANSI blocks
-		// Created by Jim Collier ~2026-04-19, published with this code.
+		// Created by Jim Collier ~2026-04-19, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: "▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▒ ▓",
 			Aliases:     []string{"blocks10"},
@@ -202,7 +202,7 @@ func predefinedBases() []*Base {
 		// It's RFC 4648 §7 base-32hex, but with the ending U and V chopped off.
 		//   (Which conveniently also happen to be among the more ambiguous characters in the alphabet.)
 		// And unlike starting with, say, Crockford or word-safe as the base, the letters "ROCK" are in this base.
-		// Not an official standard. Created by Jim Collier 2026-04-19, published with this code.
+		// Not an official standard. Created by Jim Collier 2026-04-19, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 30),
 			Aliases:     []string{"30rock", "30h", "30hex"},
@@ -359,7 +359,7 @@ func predefinedBases() []*Base {
 		//	// Extends base-36hex with lower-case letters.
 		//	// Also a truncated base-62.
 		//	// Not an official standard but reasonably obvious.
-		//	// Created by Jim Collier 2026-04-19, published with this code.
+		//	// Created by Jim Collier 2026-04-19, first published with this code on github.
 		//	mkSpec(SpecOpts{
 		//		BaseSymbols: leftTokens(base_62hex, 48),
 		//		Aliases:     []string{"48", "48h"},
@@ -452,7 +452,7 @@ func predefinedBases() []*Base {
 		// Alias "64j1u" is backwards-compatabile with convert-base-v1 and convert-base-v1b, don't remove it.
 		mkSpec(SpecOpts{
 			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ",
-			Aliases:     []string{"64programmer", "64p", "64j1u"},
+			Aliases:     []string{"code64", "programmer", "64p", "64j1u"},
 		}),
 
 		// Base-64 of emoji: the Unicode "Emoticons" block, U+1F600..1F63F - the 56
@@ -469,7 +469,7 @@ func predefinedBases() []*Base {
 
 		// 64tt
 		// A subset of 512tt (and longer than 32tt).
-		// Created by Jim Collier 2026-07-13, published with this code.
+		// Created by Jim Collier 2026-07-13, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 64),
 			Aliases:     []string{"64tt"},
@@ -480,26 +480,24 @@ func predefinedBases() []*Base {
 		//
 
 		// Base-69: The "nice" base.
-		// Created by Jim Collier 2026-07-27, published with this code.
+		// Created by Jim Collier 2026-07-27, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: base_10 + lowerAZ_c26 + " ȸ ȹ ɷ ʘ ʬ ͼ ͽ Ͼ Ͽ ֏ ఠ ᨑ ᴒ ∇ ≊ ≋ ≔ ≕ ≶ ≷ ⍢ ⏼ ♀ ⚢ ⚣ ⚤ ⚥ ⚦ ⧎ ｼ 𐌸 🛉 🛊 ",
-			Aliases:     []string{"69nice"},
+			Aliases:     []string{"nice69"},
 		}),
 
 		// Base-69: The "nice" emoji base.
-		// The arrow carries its emoji-presentation selector (U+FE0F), so that digit is
-		//   two code points. Splitting them would leave an invisible digit of its own.
-		// Created by Jim Collier 2026-07-27, published with this code.
+		// Created by Jim Collier 2026-07-27, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: " ♈ ♋ ⛳ ✂ ❤ ⤴️ 🌈 🌊 🌋 🌭 🌮 🌹 🍆 🍈 🍑 🍒 🎩 🏩 🐓 🐻 👈 👉 👌 👨 👩 👫 👬 👭 👯 💄 💋 💌 💓 💕 💘 💥 💦 🔀 🔁 🔃 🔄 🔥 🔩 🔻 😈 😍 😏 😗 😘 😛 🙃 🚻 🛏 🤟 🤠 🤤 🤩 🥂 🥖 🥜 🥞 🥰 🦫 🧍 🧗 🪛 🪵 🫦 🫶 ",
-			Aliases:     []string{"69emoji"},
+			Aliases:     []string{"emoji69"},
 		}),
 
 		// Reason for removal: Not for the childishness, but:
 		// 1. It's reference base is highly problematic, with lots of reserved characters in multiple contexts.
 		// 2. The additional characters over base 62 don't really add any humor. If we're going to be childish with the base name, then really commit with the symbols too.
 		//    Granted, the symbols are ASCII, but that's mostly irrelevant for a novelty base that has no real-world practical use.
-		// 3. The new 69
+		// 3. The new 69* bases above meet that last point head-on.
 		//	// Base-69: The "nice" radix.
 		//	// It was debated on including a childish base like this.
 		//	// But in the spirit of being comprehensive, it was included.
@@ -564,7 +562,7 @@ func predefinedBases() []*Base {
 		}),
 
 		// Base 98: Every printable keyboard character of a plain-text document.
-		// Created by Jim Collier 2026-07-13, published with this code.
+		// Created by Jim Collier 2026-07-13, first published with this code on github.
 		keyboardBase(),
 
 		// Base 122
@@ -575,7 +573,7 @@ func predefinedBases() []*Base {
 
 		// 128tt
 		// A subset of 2048tt
-		// Created by Jim Collier 2026-07-13, published with this code.
+		// Created by Jim Collier 2026-07-13, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 128),
 			Aliases:     []string{"128tt"},
@@ -589,7 +587,7 @@ func predefinedBases() []*Base {
 
 		// 256tt
 		// A subset of 2048tt
-		// Created by Jim Collier 2026-07-13, published with this code.
+		// Created by Jim Collier 2026-07-13, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 256),
 			Aliases:     []string{"256tt"},
@@ -597,7 +595,7 @@ func predefinedBases() []*Base {
 
 		// 512tt
 		// A subset of 2048tt
-		// Created by Jim Collier 2026-07-13, published with this code.
+		// Created by Jim Collier 2026-07-13, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 512), // Just to keep the pattern, but this is the full set of symbols.
 			Aliases:     []string{"512tt"},
@@ -612,7 +610,7 @@ func predefinedBases() []*Base {
 		}),
 
 		// 1024tt
-		// Created by Jim Collier 2026-07-25, published with this code.
+		// Created by Jim Collier 2026-07-25, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 1024), // Just to keep the pattern, but this is the full set of symbols.
 			Aliases:     []string{"1024tt"},
@@ -622,7 +620,7 @@ func predefinedBases() []*Base {
 		}),
 
 		// 2048tt
-		// Created by Jim Collier 2026-07-25, published with this code.
+		// Created by Jim Collier 2026-07-25, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_2048tt, 2048), // Just to keep the pattern, but this is the full set of symbols.
 			Aliases:     []string{"2048tt"},
@@ -738,7 +736,7 @@ func predefinedBases() []*Base {
 
 		// Compatibility: 48ws_compat_v1b
 		// Exists for backward-compatibility with convert-base-v1b.
-		// Not an official standard. Created by Jim Collier 2026-04-19, published with this code.
+		// Not an official standard. Created by Jim Collier 2026-04-19, first published with this code on github.
 		// "48jc1ws" and "48jc1w" are required for backward-compatibility with convert-base-v1b, don't delete them.
 		//   v1b matched a prefix glob, so both spellings reached the same base there; here they are two aliases.
 		mkSpec(SpecOpts{
@@ -770,7 +768,7 @@ func predefinedBases() []*Base {
 		// Compatibility: 128_compat_v1b (non-wordsafe)
 		// Exists for backward-compatibility with convert-base-v1b.
 		// Has no counterpart in v1 (which only had a wordsafe Base-128).
-		// Not an official standard. Created by Jim Collier 2026-04-17, published with this code.
+		// Not an official standard. Created by Jim Collier 2026-04-17, first published with this code on github.
 		// "128jc1" is required for backward-compatibility with convert-base-v1b, don't remove it.
 		mkSpec(SpecOpts{
 			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ μ ᛎ ᛏ ᛘ ᛯ ᛝ ᛦ ᛨ ᚠ ᚧ ᚬ ᚼ 🜣 🜥 🜿 🝅 ▵ ▸ ▿ ◂ ҂ ‡ ± ⁑ ÷ ∞ ≈ ≠ Ω Ʊ Ξ ψ Ϡ δ ϟ Ћ Ж Я Ѣ ф ¢ £ ¥ § ¿ ɤ ʬ ⍤ ⍩ ⌲ ⍋ ⍒ ⍢ Â Ĉ Ê Ĝ Ĥ Î Ĵ Ô Ŝ Û Ŵ",
