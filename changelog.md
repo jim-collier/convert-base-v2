@@ -68,6 +68,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Other work
 
+- The vendored config-parser source is pinned to an upstream release, and the pipeline verifies it still matches that release before building. A copy that has drifted stops the build; a newer upstream release is reported without stopping anything.  [20260729]
+
 ## v2.0.0 - 2026-07-13
 
 ### Added

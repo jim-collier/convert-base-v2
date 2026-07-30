@@ -138,6 +138,7 @@ fEcho_Clean
 fEcho_Clean "${APP_NAME} local CI/CD"
 fEcho_Clean
 fEcho_Clean "Repo root ...........: ${root}"
+fEcho_Clean "Vendor pins .........: ${VENDOR_CHECK_CMD[*]:-(skipped)}"
 fEcho_Clean "Format ..............: ${FMT_CMD[*]:-(skipped)}"
 fEcho_Clean "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debug)"
 ((${#RELEASE_BUILD_CMD[@]})) && \
@@ -210,6 +211,12 @@ fi
 ## back in line (warn-only; probe-gated stages still skip anything missing).
 if [[ -n "${PIN_TOOLS_CMD[*]:-}" ]]; then
 	"${PIN_TOOLS_CMD[@]}"
+fi
+
+## Pinned vendor: a vendored drop-in that drifted from its upstream tag aborts
+## here, before anything is built against it. Warn-only when offline.
+if [[ -n "${VENDOR_CHECK_CMD[*]:-}" ]]; then
+	"${VENDOR_CHECK_CMD[@]}" || fDie "vendored source does not match its pin (see cicd/vendor-pins.env)"
 fi
 
 ## Stage 1: format.
@@ -447,3 +454,4 @@ fEcho_Clean
 ##	History:
 ##		- 2026-07-03 JC: Created. Generic engine + config.bash, adapted from the sister project; Go build staging, exhaustive tests, quiet publish.
 ##		- 2026-07-09 JC: silkterm-style output (fEcho/fSection letterbox); -q/-m/--quick flags; lint, fuzz, vuln, profiler stages; tee'd run log; message prompt replaces y/n.
+##		- 2026-07-29 JC: Vendored drop-in files are verified against their pinned upstream release before the build.
