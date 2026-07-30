@@ -495,6 +495,11 @@ func predefinedBases() []*Base {
 			Aliases:     []string{"69emoji"},
 		}),
 
+		// Reason for removal: Not for the childishness, but:
+		// 1. It's reference base is highly problematic, with lots of reserved characters in multiple contexts.
+		// 2. The additional characters over base 62 don't really add any humor. If we're going to be childish with the base name, then really commit with the symbols too.
+		//    Granted, the symbols are ASCII, but that's mostly irrelevant for a novelty base that has no real-world practical use.
+		// 3. The new 69
 		//	// Base-69: The "nice" radix.
 		//	// It was debated on including a childish base like this.
 		//	// But in the spirit of being comprehensive, it was included.

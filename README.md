@@ -245,7 +245,7 @@ Base 64 is the most compact way to store binary as UTF-8 text, which is why it i
 
 ## Third-party binary codecs, built in
 
-Four well-known binary-to-text encodings normally live only in someone's JavaScript, Rust, or Python. This program includes all four:
+Four well-known binary-to-text encodings normally live only in someone's JavaScript, Rust, or Python. This program includes all four, natively:
 
 - [Base 2048](https://github.com/qntm/base2048), [qntm](https://github.com/qntm/)'s original JavaScript version, built for dense binary in a Twitter/X post.
 
@@ -255,7 +255,7 @@ Four well-known binary-to-text encodings normally live only in someone's JavaScr
 
 - [Base 65536](https://github.com/qntm/base65536) by [qntm](https://github.com/qntm/), "Unicode's answer to Base64", the tightest fit for UTF-32.
 
-None are official standards, but all are published. This program uses none of their source code. Each was rebuilt from its spec.
+None are official standards, but all are published. They are more involved than positional base conversion, and the alphabets have to be generated rather than typed out. `convert-base-v2` uses none of their source code because they are written in JavaScript and Rust. Instead, each was rebuilt from its published description, then verified against the reference test vectors.
 
 ## List of predefined bases
 
