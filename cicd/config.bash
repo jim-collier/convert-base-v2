@@ -67,6 +67,13 @@ STAGED_RELEASE_BIN="${SRC_DIR}/bin/${EXE_NAME}-release"
 ## pipeline still runs offline or on a bare machine). Empty it to disable.
 PIN_TOOLS_CMD=(bash cicd/utility/pin-tools.bash)
 
+## Vendored drop-in files (source/shcl/shcl.go) are pinned to an upstream release
+## in cicd/vendor-pins.env. This runs before the build and aborts if a copy no
+## longer matches its pinned tag, since lint skips vendored paths and a wrong
+## alphabet parser produces output that looks fine. Offline runs warn and carry
+## on; a newer upstream release is a notice, not a failure. Empty it to skip.
+VENDOR_CHECK_CMD=(bash cicd/utility/check-vendor.bash)
+
 ## Stage 3: lint the first-party Go. Each is run inside SRC_DIR. VET is always
 ## available (part of the toolchain) and gating. golangci-lint and staticcheck are
 ## optional: a failed PROBE skips that one with a warning instead of aborting, so
@@ -169,3 +176,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##	History:
 ##		- 2026-07-03 JC: Created (converted from the monolithic cicd.bash to the generic engine + config split).
 ##		- 2026-07-09 JC: Added lint (vet/golangci/staticcheck), fuzz, vuln, and profiler stages; artifact dirs; quiet/message publish.
+##		- 2026-07-29 JC: Added the vendor pin check (cicd/vendor-pins.env) ahead of stage 1.

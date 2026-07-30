@@ -64,6 +64,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Pin the vendored SHCL binding to an upstream release and check it on every pipeline run.
+	- Note: SHCL reached v1.0.0, so the question was whether to depend on it as a Go module instead of keeping the copy.
+	- Done: kept the copy. It leaves the program at standard library plus its own source, and upstream declares a higher `go` version than this project needs.
+	- Done: the pin lives in `cicd/vendor-pins.env`; the check compares the local file against that tag before anything is built.
+	- Note: a copy that no longer matches its tag stops the pipeline, since lint skips vendored paths and a parser reading an alphabet slightly wrong still produces output that looks fine. A newer upstream release is only a notice.
+	- Verified: match, edited copy, missing file, wrong tag, and no network all behave as intended.
+
 - ✅ Switch the config engine from YAML to SHCL, create a user config on first run, and move `emoji10` into it as the worked example.
 	- Note: SHCL ships as one drop-in source file per language, so its Go binding is copied verbatim into `source/shcl/`. That leaves the program with no external dependencies at all, since YAML was the last one.
 	- Note: a base is now a named block (`base: hex`) with an optional `aliases:` field, instead of a list entry whose first alias was the canonical name.
