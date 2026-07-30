@@ -809,10 +809,17 @@ V1B_MAP=(
 V1_BASES=(2 8 10 16 26 32 32h 32c 32w 36 38us 38ho 48j1 52 62 64 64u 64j1u 64j1uw 128j1 256j1 288j1)
 V1B_BASES=(2 8 10 16 26 32 32h 32c 32w 36 38ho 39us 45em 48jc1ws 48v1compat 52 62 64 64u 64h
            64jc1 64jc1ws 64v1compat 128jc1 128jc1ws 128v1compat 256jc1 288jc1)
-## Left uncovered on the v1 side, for want of a v2 base with the same alphabet:
-##   - v1 "38us" is 38 symbols (0-9 a-z - _); v1b's and v2's username is 39 (adds ".").
-##   - v1 "64" is hex-ordered (0-9 A-Z a-z + /), not RFC 4648 §4; v1b fixed that.
-##     v1 "64u" is the one that matches a v2 base, and it is v2's 64h.
+## Excused: a legacy base with no v2 counterpart to compare against. Both were
+## confirmed by walking each alphabet symbol by symbol against every v2 base, not
+## assumed, and both are permanent - neither is a gap waiting to be closed. So
+## they are simply excused, with no warning to sit in the output forever.
+##   - v1 "38us" is 38 symbols (0-9 a-z - _). v2's username is 39, adding ".",
+##     which v1b's "39us" already did. v2 carries the v1b alphabet, not v1's.
+##   - v1 "64" is hex-ordered (0-9 A-Z a-z + /), which is neither RFC 4648 §4 nor
+##     any v2 base. v1b fixed it to the RFC order. v1's "64u" is the one that does
+##     match a v2 base, and it is v2's 64h.
+## Everything else either tool offers has a v2 counterpart and is mapped above, so
+## the v1b side excuses nothing.
 V1_EXCUSED=(38us 64)
 V1B_EXCUSED=()
 ## v2 base-45 is RFC 9285, a different alphabet than the legacy "45em"; neither
@@ -836,8 +843,11 @@ fCheckCoverage(){
 	for tok in "${!covered[@]}"; do
 		[[ " ${_all[*]} " == *" ${tok} "* ]] || stale+=" ${tok}"
 	done
+	## Name the excused ones in the pass line: they are a deliberate, permanent
+	## part of the coverage, not something to go hunting through comments for.
+	local note="none"; ((${#_excused[@]})) && note="${_excused[*]}"
 	{ [[ -z "$missing" ]] && [[ -z "$stale" ]]; } \
-		&& _pass "${label} base coverage (${#_all[@]} bases, ${#_excused[@]} excused)" \
+		&& _pass "${label} base coverage (${#_all[@]} bases, excused: ${note})" \
 		|| _fail "${label} base coverage" "unmapped:${missing:- none} stale:${stale:- none}"
 }
 

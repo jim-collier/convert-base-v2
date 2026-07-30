@@ -73,6 +73,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: a missing older script skips its suite and warns, and the summary repeats the warning so it can't read as a pass.
 	- Verified: 389 checks pass; the coverage guard and the skip path were both exercised deliberately.
 
+- ✅ Hold the alias notes in `bases.go` to the alias lists, and settle the two older bases that have no counterpart here.
+	- Note: `bases.go` marks each alias the older tools call, and says which tool needs it. Nothing read those notes, so a rename could drop one and only the older tools would notice.
+	- Done: a test reads those notes and checks each named alias is still on the base it sits on, and still resolves. Eighteen of them.
+	- Done: every alphabet either older tool offers was walked symbol by symbol against every base here, which confirmed all the cross-check pairings and turned up exactly two with no counterpart: v1's 38-symbol username and v1's hex-ordered base 64. Both are permanent, so they are recorded as excused and named in the passing line rather than reported as a problem every run.
+
 - ✅ Pin the vendored SHCL binding to an upstream release and check it on every pipeline run.
 	- Note: SHCL reached v1.0.0, so the question was whether to depend on it as a Go module instead of keeping the copy.
 	- Done: kept the copy. It leaves the program at standard library plus its own source, and upstream declares a higher `go` version than this project needs.
