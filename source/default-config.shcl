@@ -1,10 +1,11 @@
-# convert-base-v2 configuration is written in:
+# convert-base-v2 configuration.
+#
+#
+# This config file is written in:
 #
 # SHCL: Simple Hierarchical Config Language.
 #
-# Forgiving to write, predictable to read. The parser does the work instead of
-# you: a typo on one line does not take the rest of the file down with it, and a
-# value means what it looks like rather than whatever a type guess makes of it.
+#	"Forgiving and predictable. The parser does the work instead of you."
 #
 #	Home     https://github.com/jim-collier/shcl
 #	Syntax   https://github.com/jim-collier/shcl/blob/main/project/spec.md
