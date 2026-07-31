@@ -19,7 +19,7 @@ show  = "{prog} --from 10 --to 32wordsafe 31415926535897932384626433832795028841
 pause = 2.4
 
 [[step]]
-show  = "{prog} --from 10 --to emoji64 271828182845904523536028747135266249"
+show  = "{prog} --from 10 --to 64emoji 271828182845904523536028747135266249"
 pause = 2.6
 
 [[step]]
@@ -45,6 +45,6 @@ show  = "echo -n SGVsbG8sIHdvcmxkIQ | {prog} --from 64u --to bytes"
 pause = 2.6
 
 [[step]]
-show  = "head -c 120 /bin/cat | {prog} --binary --to 2048twitter"
+show  = "head -c 120 /bin/cat | {prog} --binary --to 2048qntm"
 overflow = "wrap"
 pause = 3.2

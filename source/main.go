@@ -37,7 +37,7 @@ func main() {
 
 func run() error {
 	var (
-		fromName      = flag.String("from", "", "input base name/alias (e.g. 10, hex, 64u); default 10")
+		fromName      = flag.String("from", "", "input base name/alias (e.g. 10, hex, 64url); default 10")
 		toName        = flag.String("to", "", "output base name/alias; default 10; also accepted as a positional arg")
 		fromSymbols   = flag.String("from-symbols", "", "custom input base: the digit symbols, whitespace-delimited")
 		toSymbols     = flag.String("to-symbols", "", "custom output base (same form)")
@@ -747,7 +747,7 @@ given, output base also defaults to 10.
 	// of flag.VisitAll so related flags sit together and the six aliases don't
 	// each spawn a stub entry.
 	fmt.Fprintf(out, `Base selection:
-  --from NAME          Input base name/alias (e.g. 10, hex, 64u)  [default 10]
+  --from NAME          Input base name/alias (e.g. 10, hex, 64url)  [default 10]
   --to NAME            Output base; also accepted as a positional OUTBASE arg
   --from-symbols SYMS  Custom input base: the digit symbols, whitespace-delimited
   --to-symbols SYMS    Custom output base (same form)
@@ -888,14 +888,14 @@ func printExamples(out io.Writer) {
   convert-base-v2  --  -123456  16
 
   # Big base-10 value to qntm's base-2048; = ɼధശಳপݷટථރŦၓƨ൝
-  convert-base-v2  1234567899999999999999999999999999987654321  2048x
+  convert-base-v2  1234567899999999999999999999999999987654321  2048qntm
 
   # Custom base and input value, to base-10; = 148.25
   convert-base-v2 --from-symbols ABCD  --to 10  CBBA.B
 
   # Custom base and input value, to wordsafe base-20 output; = -9FCC.8M6
   # The alphabet uses "-" and "." as digits, so pick markers that are free.
-  convert-base-v2  --from-symbols "aeiouy.-_0" --from-neg '~' --from-dec '/'  --to 20w  "~y0-._/ooo"
+  convert-base-v2  --from-symbols "aeiouy.-_0" --from-neg '~' --from-dec '/'  --to 20ws  "~y0-._/ooo"
 
   # Markers work on named bases too, not just custom alphabets
   convert-base-v2  --from hex --from-neg '~'  --to 10  -- '~ff'
@@ -903,13 +903,13 @@ func printExamples(out io.Writer) {
   # Convert a binary file to any 2^N base (i.e. 4, 8, 16, 32, 64 ... 65536)
   # Streams in linear time at speeds competitive with basenc/base64. The draw is
   # the bases nothing else has: 2048, 65536, or your own 2^N alphabet.
-  cat file.bin | convert-base-v2 --from bytes --to 64u > out.b64
+  cat file.bin | convert-base-v2 --from bytes --to 64url > out.b64
 
-  cat out.b64  | convert-base-v2 --from 64u --to bytes > file2.bin        # base64url -> File (bit-perfect)
+  cat out.b64  | convert-base-v2 --from 64url --to bytes > file2.bin     # base64url -> File (bit-perfect)
 
   # Re-encode between two text bases as BYTE DATA (like basenc), not as a number.
   # Without --binary the value converts numerically and leading zeros are lost.
-  echo -n deadbeef | convert-base-v2 --binary --from 16 --to 64          # 3q2+7w==
+  echo -n deadbeef | convert-base-v2 --binary --from 16 --to 64rfc       # 3q2+7w==
 
   # With --binary an omitted side means bytes, so these pipe raw through:
   convert-base-v2 --binary --from 16 0B195901 | convert-base-v2 --binary --to 16

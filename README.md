@@ -12,29 +12,6 @@
 ![CI](https://img.shields.io/github/actions/workflow/status/jim-collier/convert-base-v2/ci.yml?branch=main&label=CI)
 ![Release](https://img.shields.io/github/v/release/jim-collier/convert-base-v2?include_prereleases&label=Release)
 
-</div>
-<!--
-[![!#/bin/bash](https://img.shields.io/badge/-%23!%2Fbin%2Fbash-1f425f.svg?logo=gnu-bash)](https://www.gnu.org/software/bash/)
-![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)
-![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)
-![Lifecycle: Alpha](https://img.shields.io/badge/Lifecycle-Alpha-orange)
-![Lifecycle: Beta](https://img.shields.io/badge/Lifecycle-Beta-yellow)
-![Lifecycle: RC](https://img.shields.io/badge/Lifecycle-RC-blue)
-![Lifecycle: Stable](https://img.shields.io/badge/Lifecycle-Stable-brightgreen)
-![Lifecycle: Deprecated](https://img.shields.io/badge/Lifecycle-Deprecated-red)
-![Status: Deprecated](https://img.shields.io/badge/Status-Deprecated-orange)
-![Status: Archived](https://img.shields.io/badge/Status-Archived-lightgrey)
-![Lifecycle: EOL](https://img.shields.io/badge/Lifecycle-EOL-lightgrey)
-![Coverage](https://img.shields.io/badge/Coverage-25%25-red)
-![Coverage](https://img.shields.io/badge/Coverage-50%25-orange)
-![Coverage](https://img.shields.io/badge/Coverage-75%25-yellow)
-![Coverage](https://img.shields.io/badge/Coverage-90%25-brightgreen)
-![Status: Passing](https://img.shields.io/badge/Status-Passing-brightgreen)
-![Status: Failing](https://img.shields.io/badge/Status-Failing-red)
--->
-
-<div align="center">
-
 <!-- TOC ignore:true -->
 # convert-base-v2
 
@@ -131,7 +108,7 @@ make local        # builds ./convert-base-v2
 convert-base-v2 --from hex FF                 # 255
 
 # Decimal to hex-style base 64
-convert-base-v2 1767269700 64h                # 1fLcL4
+convert-base-v2 1767269700 64hex                # 1fLcL4
 
 # Decimal to a base you invent on the spot
 convert-base-v2 --to-symbols "a b c d e f" 42 # bba
@@ -145,7 +122,7 @@ convert-base-v2 --binary --from 64 --to bytes < file.b64
 
 # See every base, or one base's alphabet
 convert-base-v2 --list
-convert-base-v2 --show-symbols emoji64
+convert-base-v2 --show-symbols 64emoji
 ~~~
 
 Run `convert-base-v2 --help` for the full flag list, or `--examples` for more.
@@ -179,9 +156,9 @@ That one ships in the file as a working example to copy from. The format is [SHC
 
 Plenty of everyday tasks are easier in a bigger base, and they usually mean chaining several tools together or reaching for a web page that can't be scripted.
 
-- **Short, readable IDs.** Say you want to hand-generate serial numbers now and then, unique to the minute, but short and unambiguous rather than a long date or number. Take POSIX time (seconds since 1970), optionally divide by 60 for minute precision, and convert it to a compact base. The value for "2026-01-01 12:15 PM" (1767269700) is `1fLcL4` in hex-style base 64 (`64h`), or `ɷƨɞ«` in base 256 (`256tt`).
+- **Short, readable IDs.** Say you want to hand-generate serial numbers now and then, unique to the minute, but short and unambiguous rather than a long date or number. Take POSIX time (seconds since 1970), optionally divide by 60 for minute precision, and convert it to a compact base. The value for "2026-01-01 12:15 PM" (1767269700) is `1fLcL4` in hex-style base 64 (`64hex`), or `ɷƨɞ«` in base 256 (`256tt`).
 
-- **Compact binary as text.** Base 64 (`64r`, `64u`, `64p`) is the tightest way to pack binary into UTF-8 text. Higher bases help in niche cases: `2048twitter`, qntm's base built for Twitter posts, or `65536qntm` for UTF-32.
+- **Compact binary as text.** Base 64 (`64rfc`, `64url`, `64code`) is the tightest way to pack binary into UTF-8 text. Higher bases help in niche cases: `2048qntm`, qntm's base built for Twitter posts, or `65536qntm` for UTF-32.
 
 The larger custom bases here (like `256tt`) were designed with care to:
 
@@ -231,7 +208,7 @@ Binary and text stream encoding is the part that benchmarks cleanly, so here is 
 
 Numbers are MiB/s. Mean of 10 runs, one process each, all I/O in a tmpfs (RAM) so disk speed doesn't enter into it. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and each format's own canonical text to decode. Each tool is single-threaded. Reproducible with `github/utility/bench-encoders.bash` (it auto-skips tools you don't have). Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
 
-Memory stays flat no matter how big the file is, and that holds for every base that can carry raw bytes, not just the ASCII ones. A 48 MB file encoded to `emoji64` or to base 65536 peaks around 20 MB, the same as base 64.
+Memory stays flat no matter how big the file is, and that holds for every base that can carry raw bytes, not just the ASCII ones. A 48 MB file encoded to `64emoji` or to base 65536 peaks around 20 MB, the same as base 64.
 
 Base 64 is the most compact way to store binary as UTF-8 text, which is why it is the usual default:
 
@@ -267,66 +244,66 @@ The last two columns show the same base-10 number, `2023090613425900000000000000
 
 Bases kept only to reproduce the output of the older `convert-base-v1` and `convert-base-v1b` are left out below. Run `convert-base-v2 --list-compat` to see those.
 
-| Base | Name [arg] | Aliases | Description | Specification | Chars | Number representation
+| Base | Name [arg] | First alias | Description | Specification | Chars | Number representation
 | --: | :-- | :-- | :-- | :-- | --: | :--
 | 2 | 2 |  | Text ones and zeros |  | 101 | 11001100010001111010101010101001101101001000111010011010010010010001000110101111111100000000000000001
 | 3 | 3 | ternary | Rarely used in computers |  | 64 | 1202201120001110000211111111000012020020211210201212121022221002
-| 4 | 4 | quarternary |  |  | 51 | 121202033111111031221013103102102020311333200000001
+| 4 | 4 | quaternary |  |  | 51 | 121202033111111031221013103102102020311333200000001
 | 5 | 5 | quinary |  |  | 44 | 13422100331010142033403004300000000000000001
-| 6 | 6 | senary, seximal, bestagon |  |  | 39 | 524050351143055143115550221055402541345
+| 6 | 6 | senary |  |  | 39 | 524050351143055143115550221055402541345
 | 7 | 7 | septenary |  |  | 36 | 522454125411321305156044543040553134
-| 8 | 8 | octal, oct | Older base for programming |  | 34 | 3142172525155107232222106577400001
+| 8 | 8 | octal | Older base for programming |  | 34 | 3142172525155107232222106577400001
 | 9 | 9 | nonary |  |  | 32 | 52646043024444005206753655538832
-| 10 | 10 | decimal, dec, arabic |  |  | 31 | 2023090613425900000000000000001
-| 10 | Hanzi | Kanji, 10hanzi, 10kanji, China, Japan, Zhōngguó, Nippon, 中国, 日本 |  |  | 31 | 二〇二三〇九〇六一三四二五九〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇一
-| 10 | Hindi | 10hindi, India, Hārat, भारत |  |  | 31 | २०२३०९०६१३४२५९००००००००००००००००१
-| 10 | ArabicIndic | 10arabicindic, 10easternarabic, EasternArabic |  |  | 31 | ٢٠٢٣٠٩٠٦١٣٤٢٥٩٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠١
-| 10 | Rods | 10rods |  |  | 31 | 𝍡〇𝍡𝍢〇𝍨〇𝍥𝍠𝍢𝍣𝍡𝍤𝍨〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇𝍠
-| 10 | blocks10 |  |  |  | 31 | ▃▁▃▄▁▓▁▇▂▄▅▃▆▓▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂
-| 12 | 12 | 12h, dozenal, duodecimal |  |  | 29 | 12888834200A750490B5219507855
-| 16 | 16 | 16h, 16hex, hex, hexadecimal, nerd |  |  | 26 | 1988F5553691D3492235FE0001
-| 20 | 20 | 20h, vigesimal, venti |  |  | 24 | 284DDI4C93BCC6HA00000001
-| 20 | 20ws | 20w, 20wordsafe, 20google, 20g |  |  | 24 | 4C6MMW6JF5HJJ8VG22222223
-| 20 | Mayan | 20mayan |  |  | 24 | 𝋢𝋨𝋤𝋭𝋭𝋲𝋤𝋬𝋩𝋣𝋫𝋬𝋬𝋦𝋱𝋪𝋠𝋠𝋠𝋠𝋠𝋠𝋠𝋡
-| 24 | 24 | 24h |  |  | 22 | KN64BEC5EL1B0FA7K0IN2H
-| 26 | 26 | alphabet, alpha |  |  | 22 | DXNNAGDDUWPNKQIDYGEAMJ
-| 30 | 30rock | 30h, 30hex |  |  | 21 | 5O1SFD937J0RIKG5HR13B
-| 32 | 32 | 32r, 32rfc, 32rfc4648s6, RFC4648s6 |  | RFC 4648 §6 | 21 | BTCHVKU3JDU2JEI274AAB
-| 32 | 32h | 32rfc4648s7, RFC4648s7, 32tt |  | RFC 4648 §7 | 21 | 1J27LAKR93KQ948QVS001
-| 32 | 32c | 32crock, 32crockford, Crockford | Decodes O as 0, I/L as 1 |  | 21 | 1k27namv93mt948tzw001
-| 32 | 32ws | 32w, 32wordsafe, 32google, 32g | No vowels, so no accidental words |  | 21 | 3X49fGcqF5cpF6Cpxr223
-| 32 | 32z | 32zbase, ZBase32 |  |  | 21 | bun8ikw5jdw4jre49hyyb
-| 36 | 36 | 36h, 36hex, alphanum, alphanumeric |  |  | 20 | 5G53VAIZAJBZ2D5Y2Y9T
-| 38 | hostname | 38hostname, 38jc1 | Every character legal in a hostname |  | 20 | 1-4f69y3fbk6p3ra3373
-| 39 | username | 39username, 39un | Every character legal in a username |  | 20 | 17g.tz4pd-v96vag5kgz
-| 42 | 42 | 42h, TheUltimateAnswer |  |  | 19 | C9WWELMBNbCYNbYf1XB
-| 45 | 45 | 45r, 45rfc9285, RFC9285 | RFC 9285; space is a symbol | RFC 9285 | 19 | 3O042V/4:O66ETECKMB
-| 45 | email | 45email, 45jc1 | A practical subset of legal email address characters |  | 19 | 3o042v[4]o66eteckmb
+| 10 | 10 | decimal |  |  | 31 | 2023090613425900000000000000001
+| 10 | 10cjk | cjk |  |  | 31 | 二〇二三〇九〇六一三四二五九〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇一
+| 10 | 10hindi | devanagari |  |  | 31 | २०२३०९०६१३४२५९००००००००००००००००१
+| 10 | 10arabicindic | easternarabic |  |  | 31 | ٢٠٢٣٠٩٠٦١٣٤٢٥٩٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠١
+| 10 | 10rods | rods |  |  | 31 | 𝍡〇𝍡𝍢〇𝍨〇𝍥𝍠𝍢𝍣𝍡𝍤𝍨〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇𝍠
+| 10 | 10blocks | blocks |  |  | 31 | ▃▁▃▄▁▓▁▇▂▄▅▃▆▓▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂
+| 12 | 12 | dozenal |  |  | 29 | 12888834200A750490B5219507855
+| 16 | 16 | hex |  |  | 26 | 1988F5553691D3492235FE0001
+| 20 | 20 | vigesimal |  |  | 24 | 284DDI4C93BCC6HA00000001
+| 20 | 20ws | pluscode |  |  | 24 | 4C6MMW6JF5HJJ8VG22222223
+| 20 | 20mayan | mayan |  |  | 24 | 𝋢𝋨𝋤𝋭𝋭𝋲𝋤𝋬𝋩𝋣𝋫𝋬𝋬𝋦𝋱𝋪𝋠𝋠𝋠𝋠𝋠𝋠𝋠𝋡
+| 24 | 24 |  |  |  | 22 | KN64BEC5EL1B0FA7K0IN2H
+| 26 | 26 | alphabet |  |  | 22 | DXNNAGDDUWPNKQIDYGEAMJ
+| 30 | 30rock | 30 |  |  | 21 | 5O1SFD937J0RIKG5HR13B
+| 32 | 32rfc | rfc4648s6 |  | RFC 4648 §6 | 21 | BTCHVKU3JDU2JEI274AAB
+| 32 | 32hex | rfc4648s7 |  | RFC 4648 §7 | 21 | 1J27LAKR93KQ948QVS001
+| 32 | 32crock | crockford | Decodes O as 0, I/L as 1 |  | 21 | 1k27namv93mt948tzw001
+| 32 | 32ws | 32wordsafe | No vowels, so no accidental words |  | 21 | 3X49fGcqF5cpF6Cpxr223
+| 32 | 32z | zbase32 |  |  | 21 | bun8ikw5jdw4jre49hyyb
+| 36 | 36 | alphanum |  |  | 20 | 5G53VAIZAJBZ2D5Y2Y9T
+| 38 | 38hostname | hostname | Every character legal in a hostname |  | 20 | 1-4f69y3fbk6p3ra3373
+| 39 | 39username | username | Every character legal in a username |  | 20 | 17g.tz4pd-v96vag5kgz
+| 42 | 42 | answer |  |  | 19 | C9WWELMBNbCYNbYf1XB
+| 45 | 45 | rfc9285 | RFC 9285; space is a symbol | RFC 9285 | 19 | 3O042V/4:O66ETECKMB
+| 45 | 45email | email | A practical subset of legal email address characters |  | 19 | 3o042v[4]o66eteckmb
 | 52 | 52 | upperlower |  |  | 18 | NftxKBqjrhTdQKHAGJ
-| 60 | Sumerian | Babylonian, sexagesimal, hexagesimal, 60jc |  |  | 18 | 1BhkGcLkiywKrfTclg
-| 60 | NewBase60 | 60tc |  |  | 18 | 1BhkGcMkizxLsfVcmg
-| 62 | 62 | 62h |  |  | 17 | gR7BplOIkweh9aKht
-| 64 | 64 | 64r, 64rfc, 64rfc4648s4, rfc4648s4 | Tied for tightest binary-to-text encoding for UTF-8 | RFC 4648 §4 | 17 | ZiPVVNpHTSSI1/gAB
-| 64 | 64u | 64url, 64ru, 64rfc4648s5, rfc4648s5 |  | RFC 4648 §5 | 17 | ZiPVVNpHTSSI1_gAB
-| 64 | 64h | 64hu, 64hurl | Tightest binary-to-text encoding for UTF-8 (Linux, macOS, Windows) |  | 17 | PYFLLDf7JII8r_W01
-| 64 | code64 | programmer, 64p, 64j1u | Almost tightest binary-to-text encoding for UTF-8, and legal in most identifiers |  | 17 | PYFLLDf7JII8rλW01
-| 64 | emoji64 |  | Emoji faces (U+1F600..1F63F); also encodes binary |  | 17 | 😙😢😏😕😕😍😩😇😓😒😒😈😵😿😠😀😁
+| 60 | 60jc | sexagesimal |  |  | 18 | 1BhkGcLkiywKrfTclg
+| 60 | 60tc | newbase60 |  |  | 18 | 1BhkGcMkizxLsfVcmg
+| 62 | 62 |  |  |  | 17 | gR7BplOIkweh9aKht
+| 64 | 64rfc | rfc4648s4 | Tied for tightest binary-to-text encoding for UTF-8 | RFC 4648 §4 | 17 | ZiPVVNpHTSSI1/gAB
+| 64 | 64url | rfc4648s5 |  | RFC 4648 §5 | 17 | ZiPVVNpHTSSI1_gAB
+| 64 | 64hex | 64h | Tightest binary-to-text encoding for UTF-8 (Linux, macOS, Windows) |  | 17 | PYFLLDf7JII8r_W01
+| 64 | 64code | programmer | Almost tightest binary-to-text encoding for UTF-8, and legal in most identifiers |  | 17 | PYFLLDf7JII8rλW01
+| 64 | 64emoji |  | Emoji faces (U+1F600..1F63F); also encodes binary |  | 17 | 😙😢😏😕😕😍😩😇😓😒😒😈😵😿😠😀😁
 | 64 | 64tt |  |  |  | 17 | PYFLLDf7JII8r£W01
-| 69 | nice69 |  | The nice base |  | 17 | 7֏≶ayoxgg3⚣aｼxiͽᨑ
-| 69 | emoji69 |  | The nice base, in emoji |  | 17 | 🌊😍🤠🌮💘👩💕🎩🎩✂🥞🌮🪛💕🐓🔩😗
-| 85 | 85z | z85, 85zeromq |  | ZeroMQ RFC 32 | 16 | ndMmoZum[KT@d01F
-| 85 | PostScript | 85postscript, 85ps, 85adobe |  | Adobe Ascii85 | 16 | 8.Q79^?7nOXr.!"J
-| 85 | 85ipv6 | 85rfc1924, 85elz |  | RFC 1924 | 16 | NDmMOzUM@kt{D01f
-| 91 | 91hk | basE91 |  |  | 16 | Id1{DPXs1>wM2:=:
-| 98 | keyboard | 98, text, ascii, kbd | Any plain-text document is valid input as-is |  | 16 | 2'hT;7pK%*rS\\YyP
+| 69 | 69nice | nice | The nice base |  | 17 | 7֏≶ayoxgg3⚣aｼxiͽᨑ
+| 69 | 69emoji |  | The nice base, in emoji |  | 17 | 🌊😍🤠🌮💘👩💕🎩🎩✂🥞🌮🪛💕🐓🔩😗
+| 85 | 85z | z85 |  | ZeroMQ RFC 32 | 16 | ndMmoZum[KT@d01F
+| 85 | 85ps | ascii85 |  | Adobe Ascii85 | 16 | 8.Q79^?7nOXr.!"J
+| 85 | 85ipv6 | rfc1924 |  | RFC 1924 | 16 | NDmMOzUM@kt{D01f
+| 91 | 91hk | base91 |  |  | 16 | Id1{DPXs1>wM2:=:
+| 98 | 98keyboard | keyboard | Any plain-text document is valid input as-is |  | 16 | 2'hT;7pK%*rS\\YyP
 | 128 | 128tt |  |  |  | 15 | 6nFgŋʇHɷøaZlͼ01
 | 256 | bytes |  | Raw bytes, for bit-perfect binary round-trips |  |  | (raw bytes 0x00-0xFF)
 | 256 | 256tt |  |  |  | 13 | Pϝჺƌs϶า·Yrግ01
 | 512 | 512tt |  |  |  | 12 | 3ɔΔᵷʇ±ԉϾ°⧖ጓ1
 | 1024 | 1024tt |  |  |  | 11 | 1乬ჺᴫ侇ʬ佣ϝ佺侟1
 | 2048 | 2048tt |  |  |  | 10 | 3ｦ呉冉兕公傺๙呟1
-| 2048 | 2048twitter | 2048x, 2048qntm |  |  | 10 | BМཔટਲੴफɱྈ9
-| 2048 | 2048rust | 2048llfourn | Tightest binary-to-text encoding for Twitter |  | 10 | ÀɈႎஈଦଽਆƗႫµ
+| 2048 | 2048qntm | 2048twitter |  |  | 10 | BМཔટਲੴफɱྈ9
+| 2048 | 2048llfourn |  | Tightest binary-to-text encoding for Twitter |  | 10 | ÀɈႎஈଦଽਆƗႫµ
 | 32768 | 32768qntm | 32768utf16 | Tightest binary-to-text encoding for UTF-16 |  | 7 | ⇢䓪秉㓚䫈鉜ҡ
 | 65536 | 65536qntm | 65536utf32 | Tightest binary-to-text encoding for UTF-32 |  | 7 | 㐙𠻵訶𡟓縢櫾㐁
 

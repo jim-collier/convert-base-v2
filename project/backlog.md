@@ -52,7 +52,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 - 🔘 Animated gif demo: Come up with better examples and reencode.
 	- Only one base-10 example
-	- emoji64: Not from base 10; from base 62 with negative and decimal
+	- 64emoji: Not from base 10; from base 62 with negative and decimal
 	- Better custom alphabet.
 	- Don't demo --binary and --to bytes at the same time. (Don't even use bytes).
 	- Better program to binary cat, than /bin/cat.
@@ -63,6 +63,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 ### Done
 
 #### Done - New features and enhancements
+
+- ✅ Rationalize base names and aliases, per `design_docs/20260730_base_naming.md`.
+	- Done: one scheme now - lowercase, radix first, at most four aliases in a fixed order, bare numbers only where unambiguous. Every v1/v1b name still resolves; dropped spellings error with a near-match suggestion.
+	- Done: legacy maps in test.bash fixed (`code64` had gone stale) and moved to the new canonical names; README bases table rebuilt from the binary, now with a single First alias column; examples, changelog, and demo scenario updated.
+	- Verified: 356/356 harness checks, including both legacy cross-check suites.
 
 - ✅ Cover the added and renamed power-of-2 bases in the tests, and cross-check the compatibility bases against both older tools.
 	- Cause: the test lists named bases by hand, so a base added or renamed after they were written was simply never tested. `64tt` and `256tt` were missing from the length sweeps, and the rename to `code64` had already broken the cross-checks against both older tools.

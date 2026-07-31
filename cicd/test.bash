@@ -264,7 +264,7 @@ _run --no-newline 255 16
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Custom symbol specs"
 check eq  "custom in, fractional"   148.25    -- --from-symbols ABCD --to 10 CBBA.B
-check eq  "custom out, neg+dec"     -9FCC.8M6 -- --from-symbols "aeiouy.-_0" --from-neg "~" --from-dec "/" --to 20w "~y0-._/ooo"
+check eq  "custom out, neg+dec"     -9FCC.8M6 -- --from-symbols "aeiouy.-_0" --from-neg "~" --from-dec "/" --to 20ws "~y0-._/ooo"
 ## Markers are separate from the symbols. The retired in-string tokens must be an
 ## error, never silently absorbed as a digit.
 check errmsg "retired neg= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 neg=~" --to 10 5
@@ -374,7 +374,7 @@ fi
 
 ## Invalid UTF-8 on stdin must fail gracefully (no hang, no crash).
 printf '\xff\xfe\x00\x9c' >"${CBT_TMP}/badutf8"
-_run_in "${CBT_TMP}/badutf8" --from 2048twitter -
+_run_in "${CBT_TMP}/badutf8" --from 2048qntm -
 ((_rc != 0 && _rc != 124)) && _pass "invalid UTF-8 stdin errors gracefully" || _fail "invalid UTF-8 stdin errors gracefully" "rc=$_rc"
 
 
@@ -504,12 +504,12 @@ nvec "65536 Hello"       65536qntm   48656c6c6f "9A48 A36C 156F"
 nvec "32768 one byte"    32768qntm   00         06BF
 nvec "32768 two bytes"   32768qntm   0000       "04A0 025F"
 nvec "32768 short tail"  32768qntm   000000000000 "04A0 04A0 04A0 018F"
-nvec "2048 one byte"     2048twitter 00         0046
-nvec "2048 two bytes"    2048twitter 0000       "0038 0110"
-nvec "2048 three-bit tail" 2048twitter 010203   "0047 01B7 0037"
-nvec "rust one byte"     2048rust    00         00D8
-nvec "rust tail zero"    2048rust    000000     "00D8 00D8 0F0D"
-nvec "rust tail three"   2048rust    010203     "00C5 0140 0F10"
+nvec "2048 one byte"     2048qntm 00         0046
+nvec "2048 two bytes"    2048qntm 0000       "0038 0110"
+nvec "2048 three-bit tail" 2048qntm 010203   "0047 01B7 0037"
+nvec "rust one byte"     2048llfourn    00         00D8
+nvec "rust tail zero"    2048llfourn    000000     "00D8 00D8 0F0D"
+nvec "rust tail three"   2048llfourn    010203     "00C5 0140 0F10"
 
 ## RFC 4648 padding: every RFC variant (base64 s4, base32 s6, and the URL/hex
 ## variants 64u/64h/32h) emits '=' padding to the group boundary in codec mode
@@ -678,7 +678,7 @@ declare -a FUZZ_BASES=()
 ## survive $(...) capture (it strips trailing newlines). Both get their own
 ## file-based, --no-newline round-trip sections instead.
 for n in "${BASE_NAMES[@]}"; do
-	case "$n" in bytes|keyboard) continue ;; esac
+	case "$n" in bytes|98keyboard) continue ;; esac
 	FUZZ_BASES+=("$n")
 done
 printf '  %s%d bases under fuzz%s\n' "${dim}" "${#FUZZ_BASES[@]}" "${rst}"
@@ -724,7 +724,7 @@ declare -a IDX_NAME=()
 for ((i=0; i<n_bases; i++)); do IDX_NAME[i]="$("${EXE}" --get-base-name --by-index="$i")"; done
 declare -a ELIGIBLE=()
 for ((i=0; i<n_bases; i++)); do
-	case "${IDX_NAME[i]}" in bytes|keyboard) continue ;; esac
+	case "${IDX_NAME[i]}" in bytes|98keyboard) continue ;; esac
 	ELIGIBLE+=("$i")
 done
 
@@ -787,17 +787,17 @@ done
 ## A base only one tool has is listed only there.
 V1_MAP=(
 	2:2  8:8  10:10  16:16  26:26  36:36  52:52  62:62
-	32:32  32h:32h  32c:32c:--upper  32ws:32w
-	64h:64u  code64:64j1u
-	hostname:38ho
+	32rfc:32  32hex:32h  32crock:32c:--upper  32ws:32w
+	64hex:64u  64code:64j1u
+	38hostname:38ho
 	48ws_compat_v1:48j1  64ws_compat_v1:64j1uw  128_compat_v1:128j1
 	256_compat_v1:256j1  288_compat_v1:288j1
 )
 V1B_MAP=(
 	2:2  8:8  10:10  16:16  26:26  36:36  52:52  62:62
-	32:32  32h:32h  32c:32c:--upper  32ws:32w
-	64:64  64u:64u  64h:64h  code64:64jc1
-	hostname:38ho  username:39us  email:45em
+	32rfc:32  32hex:32h  32crock:32c:--upper  32ws:32w
+	64rfc:64  64url:64u  64hex:64h  64code:64jc1
+	38hostname:38ho  39username:39us  45email:45em
 	48ws_compat_v1:48v1compat  64ws_compat_v1:64v1compat  128_compat_v1:128v1compat
 	48ws_compat_v1b:48jc1ws  64ws_compat_v1b:64jc1ws  128ws_compat_v1b:128jc1ws
 	128_compat_v1b:128jc1  256_compat_v1:256jc1  288_compat_v1:288jc1
