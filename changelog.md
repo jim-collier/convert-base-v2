@@ -32,7 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Two base 69s, `69nice` and `69emoji`.
+- Two base 69s, `69nice` and `69emoji`. Every `69emoji` digit is a colour emoji by Unicode definition, so none of them fall back to a line-art glyph.
+- A base 10 written in block characters, `10blocks`.
 - A `--list-compat` flag, which lists the compatibility bases that `--list` no longer shows.
 - Compatibility bases covering both older tools, named after what they match: `48ws_compat_v1`, `64ws_compat_v1`, `128_compat_v1`, `48ws_compat_v1b`, `64ws_compat_v1b`, `128ws_compat_v1b`, `128_compat_v1b`, `256_compat_v1`, and `288_compat_v1`. Every name the older tools accepted still resolves.
 - Six flags to set the markers directly: `--from-neg`, `--from-dec`, `--from-pad`, `--to-neg`, `--to-dec`, `--to-pad`. An empty value disables a marker, and an omitted flag leaves the base as it was.

@@ -7,7 +7,7 @@
 ##	Syntax:
 ##		gen-bases-table.py [--exe PATH] [--num N] [--width N]
 ##		  --exe PATH  convert-base-v2 to run (default: ../source/convert-base-v2)
-##		  --num N     base-10 number to show (default below)
+##		  --num N     integer part of the number to show (default below)
 ##		  --width N   target rendered width of the Output column, in ens
 ##	Note: the config is forced to /dev/null so user-defined bases stay out of
 ##		the table.
@@ -22,11 +22,12 @@
 
 import argparse, math, os, shutil, subprocess, sys, unicodedata
 
-##	Every base has to render this, so it stays a plain positive integer. Nine
-##	of the alphabets use every candidate character as a digit and so have no
-##	negative or decimal marker; a signed or fractional example is an error in
-##	those, not a row.
-NUMBER  = "9876543210123456789"
+##	Two forms of the same number. The signed fractional one shows more of what
+##	a base can do, but nine of the alphabets use every candidate character as a
+##	digit and so carry no negative or decimal marker. Those get the plain
+##	positive integer instead of being left out.
+NUMBER  = "86434491232548995369"
+FRACT   = "314"
 WIDTH   = 30    # target rendered width of the Output column
 
 
@@ -141,10 +142,16 @@ def main():
 	if not exe:
 		sys.exit("convert-base-v2 not found; pass --exe")
 
+	signed = f"-{opts.num}.{FRACT}"
+
 	print("| Base | Name [arg] | First alias | Char count | UTF-8 byte count | Output")
 	print("| --: | :-- | :-- | --: | --: | :--")
 	for size, name, alias in listBases(exe):
-		output = run(exe, "--from", "10", "--to", name, "--", opts.num)
+		# Markerless alphabets reject the signed fractional form, so they fall
+		# back to the bare integer rather than dropping out of the table.
+		output = run(exe, "--from", "10", "--to", name, "--", signed)
+		if output is None:
+			output = run(exe, "--from", "10", "--to", name, "--", opts.num)
 		if output is None:
 			# bytes is raw only, so it has no text form to show and no counts.
 			if name == "bytes":
@@ -167,3 +174,6 @@ if __name__ == "__main__":
 ##			specification columns, added the UTF-8 byte count, and wrapped the
 ##			output cell on estimated rendered width so the column stops
 ##			overflowing.
+##		20260731 New example number, shown signed and fractional where the
+##			alphabet has the markers for it and as a bare integer where it
+##			does not.
