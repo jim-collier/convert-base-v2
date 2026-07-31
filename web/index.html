@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>convert-base-v2</title>
+<meta name="description" content="Convert a number of any size to and from any numeric base, in your browser.">
+<style>
+	:root {
+		color-scheme: light dark;
+		--bg:      #ffffff;
+		--fg:      #1a1a1a;
+		--muted:   #666666;
+		--line:    #d4d4d4;
+		--field:   #fafafa;
+		--accent:  #1a6fb4;
+		--bad:     #b4331a;
+	}
+	@media (prefers-color-scheme: dark) {
+		:root {
+			--bg:     #16181c;
+			--fg:     #e6e6e6;
+			--muted:  #9aa0a6;
+			--line:   #33373d;
+			--field:  #1e2126;
+			--accent: #6ab0f3;
+			--bad:    #f38a6a;
+		}
+	}
+
+	* { box-sizing: border-box; }
+
+	body {
+		margin: 0 auto;
+		padding: 2rem 1rem 4rem;
+		max-width: 52rem;
+		background: var(--bg);
+		color: var(--fg);
+		font: 16px/1.55 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+	}
+
+	h1 { font-size: 1.6rem; margin: 0 0 .3rem; }
+	h1 code { font: inherit; }
+
+	.tagline { color: var(--muted); margin: 0 0 2rem; }
+
+	.row { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1rem; }
+	.row > * { flex: 1 1 12rem; min-width: 0; }
+
+	label {
+		display: block;
+		font-size: .8rem;
+		text-transform: uppercase;
+		letter-spacing: .04em;
+		color: var(--muted);
+		margin-bottom: .3rem;
+	}
+
+	input, select, textarea {
+		width: 100%;
+		padding: .55rem .7rem;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: var(--field);
+		color: var(--fg);
+		font-size: 1rem;
+		font-family: inherit;
+	}
+
+	input, textarea, #out {
+		font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+	}
+
+	textarea { resize: vertical; min-height: 4.5rem; }
+
+	input:focus, select:focus, textarea:focus {
+		outline: 2px solid var(--accent);
+		outline-offset: -1px;
+	}
+
+	#out {
+		white-space: pre-wrap;
+		overflow-wrap: anywhere;
+		min-height: 4.5rem;
+		padding: .55rem .7rem;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: var(--field);
+	}
+
+	#out.error { color: var(--bad); }
+
+	#status { color: var(--muted); font-size: .85rem; min-height: 1.4rem; }
+
+	footer {
+		margin-top: 2.5rem;
+		padding-top: 1.2rem;
+		border-top: 1px solid var(--line);
+		color: var(--muted);
+		font-size: .9rem;
+	}
+
+	a { color: var(--accent); }
+
+	.swap {
+		flex: 0 0 auto;
+		align-self: end;
+		padding: .55rem .8rem;
+		border: 1px solid var(--line);
+		border-radius: 4px;
+		background: var(--field);
+		color: var(--fg);
+		cursor: pointer;
+		font-size: 1rem;
+	}
+	.swap:hover { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<h1>convert-base-v2</h1>
+<p class="tagline">Convert a number of any size to and from any numeric base. Runs entirely in this tab.</p>
+
+<div class="row">
+	<div style="flex: 1 1 100%">
+		<label for="value">Value</label>
+		<textarea id="value" spellcheck="false" autocomplete="off">255</textarea>
+	</div>
+</div>
+
+<div class="row">
+	<div>
+		<label for="from">From</label>
+		<select id="from"></select>
+	</div>
+	<button class="swap" id="swap" title="Swap the two bases">&#8646;</button>
+	<div>
+		<label for="to">To</label>
+		<select id="to"></select>
+	</div>
+</div>
+
+<div class="row">
+	<div style="flex: 1 1 100%">
+		<label for="out">Result</label>
+		<div id="out" role="status" aria-live="polite"></div>
+	</div>
+</div>
+
+<p id="status">Loading&hellip;</p>
+
+<footer>
+	<p>This page runs the same conversion core as the command line tool, compiled to WebAssembly. Nothing you type leaves your browser.</p>
+	<p><a href="https://github.com/jim-collier/convert-base-v2">Source and downloads on GitHub</a></p>
+</footer>
+
+<script src="wasm_exec.js"></script>
+<script>
+	const valueEl  = document.getElementById("value");
+	const fromEl   = document.getElementById("from");
+	const toEl     = document.getElementById("to");
+	const outEl    = document.getElementById("out");
+	const statusEl = document.getElementById("status");
+	const swapEl   = document.getElementById("swap");
+
+	function setStatus(text) { statusEl.textContent = text; }
+
+	function fill(select, bases, selected) {
+		for (const b of bases) {
+			const opt = document.createElement("option");
+			opt.value = b.name;
+			opt.textContent = b.alias ? `${b.name}  (${b.alias})` : b.name;
+			if (b.name === selected) opt.selected = true;
+			select.append(opt);
+		}
+	}
+
+	// The conversion itself is synchronous and fast enough to run on every
+	// keystroke, but a large value in a quadratic base is not, so it waits for
+	// a pause in typing instead.
+	let pending = null;
+	function schedule() {
+		clearTimeout(pending);
+		pending = setTimeout(run, 120);
+	}
+
+	function run() {
+		const value = valueEl.value.trim();
+		if (!value) {
+			outEl.textContent = "";
+			outEl.classList.remove("error");
+			return;
+		}
+		const res = convertBase.convert({
+			value: value,
+			from:  fromEl.value,
+			to:    toEl.value,
+		});
+		outEl.classList.toggle("error", !res.ok);
+		outEl.textContent = res.ok ? res.value : res.error;
+	}
+
+	async function start() {
+		if (!WebAssembly.instantiateStreaming) {
+			setStatus("This browser is too old to run the module.");
+			return;
+		}
+		const go = new Go();
+		try {
+			const result = await WebAssembly.instantiateStreaming(
+				fetch("convert-base.wasm"), go.importObject);
+			go.run(result.instance);
+		} catch (err) {
+			setStatus("Could not load the module: " + err.message);
+			return;
+		}
+
+		const bases = convertBase.bases();
+		fill(fromEl, bases, "10");
+		fill(toEl, bases, "16");
+		setStatus(`${bases.length} bases available. Library ${convertBase.version}.`);
+
+		valueEl.addEventListener("input", schedule);
+		fromEl.addEventListener("change", run);
+		toEl.addEventListener("change", run);
+		swapEl.addEventListener("click", () => {
+			[fromEl.value, toEl.value] = [toEl.value, fromEl.value];
+			run();
+		});
+		run();
+	}
+
+	start();
+</script>
+
+</body>
+</html>

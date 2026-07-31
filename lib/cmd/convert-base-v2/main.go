@@ -1,4 +1,4 @@
-//	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+//	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
 //	Licensed under the GNU General Public License v2.0 or later. Full text at:
 //		https://spdx.org/licenses/GPL-2.0-or-later.html
 //	SPDX-License-Identifier: GPL-2.0-or-later
@@ -14,6 +14,8 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+
+	"github.com/jim-collier/convert-base-v2/lib/convertbase"
 )
 
 // version is overwritten at build time via -ldflags "-X main.version=...". It
@@ -100,11 +102,14 @@ func run() error {
 	// Build registry and layer on config files (lowest to highest precedence):
 	//   built-in  <  /etc  <  user config  <  CLI flags
 	// Later-registered aliases overwrite earlier ones.
-	reg, err := NewRegistry()
+	reg, err := convertbase.NewRegistry()
 	if err != nil {
 		return err
 	}
-	if err := reg.LoadConfig(etcConfigPath); err != nil {
+	// Nobody types the system path, so a copy that will not open at all just
+	// means there is no system config. A file that opens and will not parse
+	// still stops us, since that one was put there on purpose.
+	if err := reg.LoadConfig(etcConfigPath); err != nil && !convertbase.IsConfigUnreadable(err) {
 		return fmt.Errorf("config %s: %w", etcConfigPath, err)
 	}
 	// Only load user config if it's a different path (avoid double-registering
@@ -134,7 +139,10 @@ func run() error {
 				}
 			}
 		}
-		if err := reg.LoadConfig(userPath); err != nil {
+		// A typed --config already failed above if it was not readable, so the
+		// only unreadable file reaching here is the default path, same case as
+		// the system one.
+		if err := reg.LoadConfig(userPath); err != nil && (configExplicit || !convertbase.IsConfigUnreadable(err)) {
 			return fmt.Errorf("config %s: %w", userPath, err)
 		}
 	}
@@ -171,7 +179,7 @@ func run() error {
 	// --list. They let scripts enumerate bases (count, name-by-index, symbols)
 	// without parsing the human-readable --list table.
 	if *getIndexCount {
-		fmt.Println(len(reg.orderedBases()))
+		fmt.Println(len(reg.OrderedBases()))
 		return nil
 	}
 	if *getBaseName || *showSymbols || *showSymbols0 {
@@ -236,7 +244,7 @@ func run() error {
 	if *fromSymbols != "" && *fromName != "" {
 		fmt.Fprintf(os.Stderr, "note: --from-symbols overrides --from %q\n", *fromName)
 	}
-	from, err := resolveBase(reg, inBaseName, *fromSymbols, fromMarkers)
+	from, err := convertbase.ResolveBase(reg, inBaseName, *fromSymbols, fromMarkers.options())
 	if err != nil {
 		return fmt.Errorf("input base: %w", err)
 	}
@@ -311,7 +319,7 @@ func run() error {
 		}
 	}
 
-	to, err := resolveBase(reg, outBaseName, *toSymbols, toMarkers)
+	to, err := convertbase.ResolveBase(reg, outBaseName, *toSymbols, toMarkers.options())
 	if err != nil {
 		return fmt.Errorf("output base: %w", err)
 	}
@@ -349,7 +357,7 @@ func run() error {
 	// --binary is meaningful only between two text bases; if either side is
 	// already the bytes base the conversion is byte-exact anyway, so ignore it.
 	routeBytes := byteMode && !from.Binary && !to.Binary
-	var bytes *Base
+	var bytes *convertbase.Base
 	if routeBytes {
 		bytes, err = reg.Lookup("bytes")
 		if err != nil {
@@ -361,7 +369,7 @@ func run() error {
 	// mode given. The value is converted as a number (leading zeros dropped),
 	// which differs from a byte re-encoding. Goes to stderr so pipes stay clean.
 	if !byteMode && !numMode && !from.Binary && !to.Binary &&
-		powerOfTwoBits(len(from.Symbols)) > 0 && powerOfTwoBits(len(to.Symbols)) > 0 {
+		convertbase.PowerOfTwoBits(len(from.Symbols)) > 0 && convertbase.PowerOfTwoBits(len(to.Symbols)) > 0 {
 		fmt.Fprintln(os.Stderr, "FYI: Converted as a positional notation number (assumed '--number' flag). If you meant to do binary encode/decode, add the --binary flag.")
 	}
 
@@ -372,9 +380,9 @@ func run() error {
 		var handled bool
 		var serr error
 		if routeBytes {
-			handled, serr = streamBytesRoute(os.Stdin, os.Stdout, from, to, bytes)
+			handled, serr = convertbase.StreamBytesRoute(os.Stdin, os.Stdout, from, to, bytes)
 		} else {
-			handled, serr = streamConvert(os.Stdin, os.Stdout, from, to)
+			handled, serr = convertbase.StreamConvert(os.Stdin, os.Stdout, from, to)
 		}
 		if serr != nil {
 			return serr
@@ -404,13 +412,13 @@ func run() error {
 	if routeBytes {
 		// from-digits -> raw bytes -> to-digits, matching the streaming route and
 		// basenc byte-for-byte (whole-byte checks and RFC padding included).
-		mid, cerr := Convert(number, from, bytes, precVal)
+		mid, cerr := convertbase.Convert(number, from, bytes, precVal)
 		if cerr != nil {
 			return cerr
 		}
-		result, err = Convert(mid, bytes, to, precVal)
+		result, err = convertbase.Convert(mid, bytes, to, precVal)
 	} else {
-		result, err = Convert(number, from, to, precVal)
+		result, err = convertbase.Convert(number, from, to, precVal)
 	}
 	if err != nil {
 		return err
@@ -481,10 +489,10 @@ func looksLikeNumber(s string) bool {
 }
 
 // selectBase picks a base for the query flags: by --list index if byIndex >= 0,
-// otherwise by name/alias. Index order matches --list (see orderedBases).
-func selectBase(reg *Registry, byIndex int, name string) (*Base, error) {
+// otherwise by name/alias. Index order matches --list (see OrderedBases).
+func selectBase(reg *convertbase.Registry, byIndex int, name string) (*convertbase.Base, error) {
 	if byIndex >= 0 {
-		ordered := reg.orderedBases()
+		ordered := reg.OrderedBases()
 		if byIndex >= len(ordered) {
 			return nil, fmt.Errorf("--by-index=%d out of range (have %d bases: 0..%d)", byIndex, len(ordered), len(ordered)-1)
 		}
@@ -499,7 +507,7 @@ func selectBase(reg *Registry, byIndex int, name string) (*Base, error) {
 // sameBase reports whether two base names/aliases resolve to the same base. An
 // unresolvable name counts as different (so a genuine conflict still warns). Used
 // only to suppress a redundant conflict note when --to and the positional agree.
-func sameBase(reg *Registry, a, b string) bool {
+func sameBase(reg *convertbase.Registry, a, b string) bool {
 	ba, ea := reg.Lookup(a)
 	bb, eb := reg.Lookup(b)
 	return ea == nil && eb == nil && ba == bb
@@ -534,120 +542,43 @@ type sideFlags struct {
 	prefix              string
 }
 
-func (m *sideFlags) any() bool {
-	return m != nil && (m.neg.set || m.dec.set || m.pad.set || m.tail.set)
-}
-
-// set writes the overrides onto a base that has not been finalized yet. Order
-// matters: a custom alphabet that uses "-" or "." as digits only survives
-// finalize() once its replacement markers are in place.
-func (m *sideFlags) set(b *Base) error {
+// options converts the flags into the library's override struct. The flag types
+// exist to satisfy the flag package; Options is what the conversion code takes.
+func (m *sideFlags) options() *convertbase.Options {
 	if m == nil {
 		return nil
 	}
-	if m.neg.set {
-		b.Negative = strPtr(m.neg.value)
+	o := &convertbase.Options{
+		Label:  m.prefix,
+		Source: "--from-symbols / --to-symbols (CLI flag)",
 	}
-	if m.dec.set {
-		b.Decimal = strPtr(m.dec.value)
-	}
-	if m.pad.set {
-		b.PadSymbol = m.pad.value
-		b.PadEmit = m.pad.value != ""
-	}
-	if m.tail.set {
-		if m.tail.value == "" {
-			b.TailSymbols = nil
-			// Only drop a tail layout. A codec name lives in the same field,
-			// and clearing that would quietly stop the base doing binary at all.
-			if isTailScheme(b.BinaryScheme) {
-				b.BinaryScheme = ""
-			}
-			return nil
+	for _, f := range []struct {
+		from *optString
+		to   **string
+	}{
+		{&m.neg, &o.Negative},
+		{&m.dec, &o.Decimal},
+		{&m.pad, &o.Pad},
+		{&m.tail, &o.Tail},
+	} {
+		if f.from.set {
+			v := f.from.value
+			*f.to = &v
 		}
-		tail, err := ParseSymbolSpec(m.tail.value)
-		if err != nil {
-			return fmt.Errorf("%s-tail: %w", m.prefix, err)
-		}
-		b.TailSymbols = tail
-		// Same choice the config makes: a hand-declared tail gets the qntm
-		// layout, the one that streams both directions.
-		b.BinaryScheme = "qntm"
 	}
-	return nil
-}
-
-// applyMarkers returns a copy of an already-finalized base with the overrides
-// applied, or base itself when no flag was given. It copies because registry
-// bases are shared pointers. finalize() rebuilds every derived table from
-// scratch, so re-running it on the copy is safe and re-validates the new markers
-// (collision with a digit, marker inside a digit, negative equal to decimal,
-// pad that is also a digit).
-func applyMarkers(base *Base, m *sideFlags) (*Base, error) {
-	if !m.any() {
-		return base, nil
-	}
-	// Sign and fractions are meaningless for raw bytes, and every byte value is
-	// already a digit, so there is nothing a marker could be set to.
-	if base.Binary {
-		return nil, fmt.Errorf("base %q carries raw bytes; %s-neg/-dec/-pad/-tail do not apply to it", base.Name(), m.prefix)
-	}
-	overridden := *base
-	if err := m.set(&overridden); err != nil {
-		return nil, err
-	}
-	overridden.Source = base.Source + fmt.Sprintf(" (overridden by %s-* flags)", m.prefix)
-	if err := overridden.finalize(); err != nil {
-		return nil, err
-	}
-	return &overridden, nil
-}
-
-// resolveBase returns a Base either from the registry (by name) or from a
-// custom symbols spec (which, if provided, takes precedence over the name),
-// with any marker overrides applied. A nil markers argument means none.
-// CLI-supplied custom bases are tagged with Source indicating the flag name.
-func resolveBase(reg *Registry, name, customSpec string, markers *sideFlags) (*Base, error) {
-	if customSpec != "" {
-		symbols, err := ParseSymbolSpec(customSpec)
-		if err != nil {
-			return nil, err
-		}
-		b := &Base{
-			Aliases: []string{fmt.Sprintf("custom(%d)", len(symbols))},
-			Symbols: symbols,
-			Source:  "--from-symbols / --to-symbols (CLI flag)",
-		}
-		// Set before finalize, not after: the markers are part of the definition
-		// here, and the defaults may well collide with this alphabet's digits.
-		if err := markers.set(b); err != nil {
-			return nil, err
-		}
-		if err := b.finalize(); err != nil {
-			return nil, err
-		}
-		return b, nil
-	}
-	if name == "" {
-		return nil, fmt.Errorf("no base specified")
-	}
-	b, err := reg.Lookup(name)
-	if err != nil {
-		return nil, err
-	}
-	return applyMarkers(b, markers)
+	return o
 }
 
 // readStdin reads all of stdin as bytes. Trims exactly one trailing '\n' (and
 // an optional preceding '\r') unless '\n' is a valid digit in the input base,
 // in which case every byte is data.
-func readStdin(from *Base) (string, error) {
+func readStdin(from *convertbase.Base) (string, error) {
 	data, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		return "", fmt.Errorf("reading stdin: %w", err)
 	}
 	// Keep all bytes if newline is a digit (i.e. base binary - every byte is valid).
-	if from.allOneByte && from.byteValue['\n'] >= 0 {
+	if from.HasByteDigit('\n') {
 		return string(data), nil
 	}
 	s := string(data)
@@ -659,7 +590,7 @@ func readStdin(from *Base) (string, error) {
 // canLowercase reports whether strings.ToLower on the output would still be a
 // valid representation. False when the base contains both the upper- and lower-
 // case form of the same letter (i.e. mixed-case digits).
-func canLowercase(b *Base) bool {
+func canLowercase(b *convertbase.Base) bool {
 	seen := make(map[string]struct{}, len(b.Symbols))
 	for _, s := range b.Symbols {
 		seen[s] = struct{}{}
@@ -677,7 +608,7 @@ func canLowercase(b *Base) bool {
 
 // canUppercase is the --upper counterpart of canLowercase: false when the base
 // carries both cases of the same letter, since uppercasing would collide them.
-func canUppercase(b *Base) bool {
+func canUppercase(b *convertbase.Base) bool {
 	seen := make(map[string]struct{}, len(b.Symbols))
 	for _, s := range b.Symbols {
 		seen[s] = struct{}{}
@@ -727,7 +658,7 @@ func userConfigPath() string {
 // printHelp prints the program's help text plus a contextual report on config
 // file visibility and, if the user passed any --from/--to/-*-symbols flags,
 // where each base would be resolved from in a real run.
-func printHelp(out io.Writer, reg *Registry, etcPath, userPath, fromName, toName, fromSyms, toSyms string) {
+func printHelp(out io.Writer, reg *convertbase.Registry, etcPath, userPath, fromName, toName, fromSyms, toSyms string) {
 	printCopyright(out)
 	fmt.Fprint(out, `Convert an arbitrarily large number to/from arbitrary bases.
 
@@ -834,7 +765,7 @@ Other:
 }
 
 // pathLoaded reports whether reg.LoadConfig(path) actually loaded that file.
-func pathLoaded(reg *Registry, path string) bool {
+func pathLoaded(reg *convertbase.Registry, path string) bool {
 	for _, p := range reg.LoadedConfigs {
 		if p == path {
 			return true
@@ -844,10 +775,10 @@ func pathLoaded(reg *Registry, path string) bool {
 }
 
 // reportSide describes how one side (input or output) would be resolved.
-func reportSide(out io.Writer, label string, reg *Registry, name, symbols, flagName string) {
+func reportSide(out io.Writer, label string, reg *convertbase.Registry, name, symbols, flagName string) {
 	switch {
 	case symbols != "":
-		parsed, err := ParseSymbolSpec(symbols)
+		parsed, err := convertbase.ParseSymbolSpec(symbols)
 		if err != nil {
 			fmt.Fprintf(out, "  %s: %s -> INVALID SPEC: %v\n", label, flagName, err)
 			return

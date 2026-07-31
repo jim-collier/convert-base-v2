@@ -6,8 +6,8 @@
 ##		or their alphabets change, and paste the output into README.md.
 ##	Syntax:
 ##		gen-bases-table.py [--exe PATH] [--config PATH] [--num N] [--width N]
-##		  --exe PATH    convert-base-v2 to run (default: ../source/convert-base-v2)
-##		  --config PATH config to read (default: ../source/default-config.shcl)
+##		  --exe PATH    convert-base-v2 to run (default: ../lib/convert-base-v2)
+##		  --config PATH config to read (default: ../lib/cmd/convert-base-v2/default-config.shcl)
 ##		  --num N       integer part of the number to show (default below)
 ##		  --width N     target rendered width of the Output column, in ens
 ##	Note: the config is pinned to the shipped default rather than the user's, so
@@ -106,7 +106,7 @@ def findExe(given):
 	if given:
 		return given if os.access(given, os.X_OK) else None
 	here    = os.path.dirname(os.path.abspath(__file__))
-	nearby  = os.path.join(here, "..", "source", "convert-base-v2")
+	nearby  = os.path.join(here, "..", "lib", "convert-base-v2")
 	if os.access(nearby, os.X_OK):
 		return os.path.normpath(nearby)
 	return shutil.which("convert-base-v2")
@@ -116,7 +116,7 @@ def findConfig(given):
 	if given:
 		return given
 	here = os.path.dirname(os.path.abspath(__file__))
-	return os.path.normpath(os.path.join(here, "..", "source", "default-config.shcl"))
+	return os.path.normpath(os.path.join(here, "..", "lib", "cmd", "convert-base-v2", "default-config.shcl"))
 
 
 def run(exe, config, *args):

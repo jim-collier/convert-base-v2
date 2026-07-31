@@ -48,6 +48,17 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### New features and enhancements
 
+- 🛠️ Let other programs use this as a library, not just as a command. Design: `design_docs/20260731_linkable_library.md`.
+	- Done: Go package split, so the conversion core can be imported instead of shelled out to. Module path fixed at the same time, since nothing could fetch it before.
+	- Done: the library is Apache-2.0, the command stays GPL-2.0-or-later. GPL reaches through a static link into the caller, and Go links statically only, so the split is what makes the package importable at all. Apache was picked for attribution: its notice file is what carries the credit into someone else's product.
+	- Done: the Go tree moved to `lib/`, and the package carries its own version starting at v0.1.0. Go welds a module's major version into its import path above v1, so sharing the command's number would have meant every major release of the tool broke callers over a change that never touched the package.
+	- Done: WebAssembly, two builds. The browser module is Apache-2.0 like the library, since it compiles into someone else's page; the WASI build is the whole command and stays GPL.
+	- Done: a demo page that runs the library in the browser, published from `web/`.
+	- Note: a C shared library is no longer the obvious next step. WebAssembly reaches the same languages with no permanent ABI, no cgo, and no per-platform build, so the C interface waits for someone who specifically needs in-process native speed.
+	- Note: an unreadable config file used to be fatal even for the path nobody types, which is what surfaced first under WebAssembly. Only "not there" was forgiven, so a sandbox reporting a different error killed every run.
+
+- 🔘 Library error text still names command-line flags, for example "see --list for all bases". Fine from the command, out of place from a browser. Decide whether the library should carry a neutral message and let the command add its own hint.
+
 - 🔘 For base "keyboard", allow encoding tab, newline, CR, etc. like "%NEWLINE%", "%DOUBLE_QOUTE%", etc. (Or some other way.)
 
 - 🔘 Animated gif demo: Come up with better examples and reencode.

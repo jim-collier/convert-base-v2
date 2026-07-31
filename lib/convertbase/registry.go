@@ -1,9 +1,9 @@
-//	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
-//	Licensed under the GNU General Public License v2.0 or later. Full text at:
-//		https://spdx.org/licenses/GPL-2.0-or-later.html
-//	SPDX-License-Identifier: GPL-2.0-or-later
+//	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
+//	Licensed under the Apache License, Version 2.0. Full text in ./LICENSE, or:
+//		https://spdx.org/licenses/Apache-2.0.html
+//	SPDX-License-Identifier: Apache-2.0
 
-package main
+package convertbase
 
 import (
 	"fmt"
@@ -27,7 +27,7 @@ type Base struct {
 	//   &""          - explicitly disabled (base doesn't support sign / decimal)
 	//   &"X"         - explicit marker X
 	//
-	// If a nil (=default) marker collides with a digit symbol, finalize()
+	// If a nil (=default) marker collides with a digit symbol, Finalize()
 	// errors out rather than silently disabling the feature. To disable it
 	// on purpose, point the field at an empty string.
 	Negative *string
@@ -112,7 +112,7 @@ func (b *Base) Name() string {
 // codecs (base45/ascii85/z85/base91) via their own schemes. Any other base has no
 // byte-exact mapping and errors in binary mode.
 func (b *Base) RawCodec() bool {
-	return powerOfTwoBits(len(b.Symbols)) != 0 || b.BinaryScheme != ""
+	return PowerOfTwoBits(len(b.Symbols)) != 0 || b.BinaryScheme != ""
 }
 
 // isTailScheme reports whether a BinaryScheme is one of the tail layouts, as
@@ -132,9 +132,17 @@ func (b *Base) NegSym() string { return b.negative }
 // DecSym returns the effective decimal marker (empty string if disabled).
 func (b *Base) DecSym() string { return b.decimal }
 
-// finalize builds the derived lookup tables and resolves Negative/Decimal.
+// HasByteDigit reports whether c is a digit of this base in its own right.
+// False for any base whose symbols are not all single bytes, since there a byte
+// is only ever part of a digit. Callers use it to tell data from framing: a
+// trailing newline is a terminator everywhere except a base that spells one.
+func (b *Base) HasByteDigit(c byte) bool {
+	return b.allOneByte && b.byteValue[c] >= 0
+}
+
+// Finalize builds the derived lookup tables and resolves Negative/Decimal.
 // Call after Symbols/Aliases/Negative/Decimal are set.
-func (b *Base) finalize() error {
+func (b *Base) Finalize() error {
 	if len(b.Symbols) < 2 {
 		return fmt.Errorf("base %q: need at least 2 symbols, have %d", b.Name(), len(b.Symbols))
 	}
@@ -321,7 +329,7 @@ func (b *Base) finalize() error {
 		// Padding is only ever applied on the bit-packed binary path, which needs a
 		// power-of-2 base of at most 8 bits per digit. Set anywhere else it would be
 		// accepted and then silently do nothing, so reject it where it is defined.
-		if k := powerOfTwoBits(len(b.Symbols)); k == 0 || k > 8 {
+		if k := PowerOfTwoBits(len(b.Symbols)); k == 0 || k > 8 {
 			return fmt.Errorf("base %q: padding applies only to power-of-2 bases of at most 256 symbols; this base has %d", b.Name(), len(b.Symbols))
 		}
 	}
@@ -378,11 +386,11 @@ func (b *Base) finalize() error {
 // data. So the tail must be wide enough to cover those (2^(k-8) symbols) and
 // narrow enough that its own padding stays under a byte (2^8).
 func (b *Base) checkTailWidth() error {
-	kPrimary := powerOfTwoBits(len(b.Symbols))
+	kPrimary := PowerOfTwoBits(len(b.Symbols))
 	if kPrimary <= 8 {
 		return fmt.Errorf("base %q: a tail repertoire only applies to a power-of-2 base above 256 symbols; this base has %d", b.Name(), len(b.Symbols))
 	}
-	kTail := powerOfTwoBits(len(b.TailSymbols))
+	kTail := PowerOfTwoBits(len(b.TailSymbols))
 	if kTail == 0 {
 		return fmt.Errorf("base %q: tail repertoire has %d symbols; it must be a power of 2, at least 2", b.Name(), len(b.TailSymbols))
 	}
@@ -475,7 +483,7 @@ func NewRegistry() (*Registry, error) {
 // Register adds b to the registry. Later registrations with the same (normalized)
 // alias override earlier ones - this is how config-file entries override built-ins.
 func (r *Registry) Register(b *Base) error {
-	if err := b.finalize(); err != nil {
+	if err := b.Finalize(); err != nil {
 		return err
 	}
 	// Sanity: every pure-integer alias must equal the symbol count. Check the
@@ -658,13 +666,13 @@ func (r *Registry) liveAliases(b *Base) []string {
 	return live
 }
 
-// orderedBases returns all registered bases sorted by radix (stable), with the
+// OrderedBases returns all registered bases sorted by radix (stable), with the
 // v1/v1b compatibility bases after all the others. This is the canonical index
 // order: the same order --list then --list-compat print, so --by-index=N
 // addresses the same base as the N-th listed row and neither listing has gaps.
 // Fully-shadowed bases (every alias overridden by a later config base) are
 // dropped, so the count and the index don't include a base no name can reach.
-func (r *Registry) orderedBases() []*Base {
+func (r *Registry) OrderedBases() []*Base {
 	bases := make([]*Base, 0, len(r.ordered))
 	for _, b := range r.ordered {
 		if len(r.liveAliases(b)) > 0 {
@@ -681,9 +689,9 @@ func (r *Registry) orderedBases() []*Base {
 }
 
 // Print writes a human-readable listing to w. compatOnly picks which half of
-// orderedBases() to show: the everyday bases, or the v1/v1b compatibility ones.
+// OrderedBases() to show: the everyday bases, or the v1/v1b compatibility ones.
 func (r *Registry) Print(w io.Writer, compatOnly bool) {
-	bases := r.orderedBases()
+	bases := r.OrderedBases()
 	// The leading INDEX is the value --by-index takes (position in this order).
 	fmt.Fprintf(w, "%-5s  %-16s  %-6s  %-5s  %-5s  %-5s  %s\n", "INDEX", "NAME", "SIZE", "NEG", "DEC", "RAW", "ALIASES")
 	for i, b := range bases {

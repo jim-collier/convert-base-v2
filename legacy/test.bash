@@ -25,7 +25,7 @@
 ##		- This is NOT part of cicd script, as it's not a requirement to have v2 installed.
 ##	History: At bottom of this file. (Note: History for this is maintained outside of [or in addition to] git project.)
 
-##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT
@@ -43,7 +43,7 @@ fi
 fMain_Test(){
 
 	## Settings (paths are canonicalized and validated relative to this script)
-	local     exeV2="../source/bin/convert-base-v2"
+	local     exeV2="../lib/bin/convert-base-v2"
 	local     exeV1b="utility/convert-base-v1b"
 	local     baseDefs="include/base-definitions.bash"
 

@@ -1,9 +1,9 @@
-//	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
-//	Licensed under the GNU General Public License v2.0 or later. Full text at:
-//		https://spdx.org/licenses/GPL-2.0-or-later.html
-//	SPDX-License-Identifier: GPL-2.0-or-later
+//	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
+//	Licensed under the Apache License, Version 2.0. Full text in ./LICENSE, or:
+//		https://spdx.org/licenses/Apache-2.0.html
+//	SPDX-License-Identifier: Apache-2.0
 
-package main
+package convertbase
 
 import (
 	"encoding/binary"
@@ -33,8 +33,8 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	// leading zeros). Falling through to the big.Int path would be correct
 	// but quadratic - unusable on real files.
 	if from.Binary || to.Binary {
-		kIn := powerOfTwoBits(len(from.Symbols))
-		kOut := powerOfTwoBits(len(to.Symbols))
+		kIn := PowerOfTwoBits(len(from.Symbols))
+		kOut := PowerOfTwoBits(len(to.Symbols))
 		if kIn == 0 || kOut == 0 {
 			// The non-binary side isn't a power of two, so bit-packing doesn't
 			// apply. Only a defined binary-to-text codec (base45, ascii85, z85,
@@ -260,8 +260,8 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	return sb.String(), nil
 }
 
-// powerOfTwoBits returns k if n == 2^k (for some k >= 1), else 0.
-func powerOfTwoBits(n int) int {
+// PowerOfTwoBits returns k if n == 2^k (for some k >= 1), else 0.
+func PowerOfTwoBits(n int) int {
 	if n < 2 {
 		return 0
 	}
@@ -442,16 +442,16 @@ func decodeDigitsToBytes(input string, from *Base, kIn int) (string, error) {
 	return string(out), nil
 }
 
-// streamConvert handles the binary bit-packed conversions (raw bytes <-> a
+// StreamConvert handles the binary bit-packed conversions (raw bytes <-> a
 // single-byte-per-digit power-of-2 base, up to 8 bits per digit) by streaming
 // straight from r to w, holding neither the whole input nor the whole output in
 // memory. It returns handled=false, without writing anything, for any conversion
 // it can't stream, so the caller falls back to the buffered Convert. This is the
 // base64/base32/base16 hot path; it borrows the streaming + byte-aligned tricks
 // the system encoders use (base64's 3-bytes->4-chars, generalized to any k).
-func streamConvert(r io.Reader, w io.Writer, from, to *Base) (bool, error) {
-	kIn := powerOfTwoBits(len(from.Symbols))
-	kOut := powerOfTwoBits(len(to.Symbols))
+func StreamConvert(r io.Reader, w io.Writer, from, to *Base) (bool, error) {
+	kIn := PowerOfTwoBits(len(from.Symbols))
+	kOut := PowerOfTwoBits(len(to.Symbols))
 	if kIn == 0 || kOut == 0 {
 		return false, nil
 	}
@@ -479,24 +479,24 @@ func streamConvert(r io.Reader, w io.Writer, from, to *Base) (bool, error) {
 	return false, nil
 }
 
-// streamBytesRoute is the streaming core of --binary for two text bases: decode
+// StreamBytesRoute is the streaming core of --binary for two text bases: decode
 // from-digits into raw bytes, then encode those bytes into to-digits, chaining
 // the two optimized single-byte streaming stages through an in-process pipe so
 // nothing buffers the whole input. Returns handled=false (caller falls back to
 // the buffered route) if either leg isn't a streamable single-byte power-of-2
 // base - e.g. a big native base or a multi-byte pad symbol.
-func streamBytesRoute(r io.Reader, w io.Writer, from, to, bytes *Base) (bool, error) {
+func StreamBytesRoute(r io.Reader, w io.Writer, from, to, bytes *Base) (bool, error) {
 	if !streamableByteLeg(from) || !streamableByteLeg(to) {
 		return false, nil
 	}
 	pr, pw := io.Pipe()
 	errc := make(chan error, 1)
 	go func() {
-		_, err := streamConvert(r, pw, from, bytes) // digits -> raw bytes
+		_, err := StreamConvert(r, pw, from, bytes) // digits -> raw bytes
 		pw.CloseWithError(err)
 		errc <- err
 	}()
-	_, encErr := streamConvert(pr, w, bytes, to) // raw bytes -> digits
+	_, encErr := StreamConvert(pr, w, bytes, to) // raw bytes -> digits
 	if encErr != nil {
 		pr.CloseWithError(encErr) // unblock a decoder still writing
 	}
@@ -508,11 +508,11 @@ func streamBytesRoute(r io.Reader, w io.Writer, from, to, bytes *Base) (bool, er
 }
 
 // streamableByteLeg reports whether a text base can carry one leg of the
-// streamBytesRoute pipe: either a single-byte-per-digit power-of-2 base (k in
+// StreamBytesRoute pipe: either a single-byte-per-digit power-of-2 base (k in
 // 1..8) with no multi-byte pad symbol, or anything the wide path can serve. The
 // two legs are independent, so a wide base can pair with a byte one.
 func streamableByteLeg(b *Base) bool {
-	k := powerOfTwoBits(len(b.Symbols))
+	k := PowerOfTwoBits(len(b.Symbols))
 	if k >= 1 && k <= 8 && b.allOneByte && len(b.PadSymbol) <= 1 {
 		return true
 	}
@@ -774,7 +774,7 @@ func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
 // scheme. A big base with no tail scheme falls back to the length-prefixed
 // buffered packing, which cannot stream because the length leads the output.
 func streamableWide(b *Base) bool {
-	k := powerOfTwoBits(len(b.Symbols))
+	k := PowerOfTwoBits(len(b.Symbols))
 	if k == 0 || !b.allOneRune {
 		return false
 	}
@@ -793,7 +793,7 @@ func streamableWide(b *Base) bool {
 func streamEncodeWide(r io.Reader, w io.Writer, to *Base, kOut int) error {
 	mask := uint64(1)<<kOut - 1
 	swap := to.BinaryScheme == "qntm65536"
-	kTail := powerOfTwoBits(len(to.TailSymbols))
+	kTail := PowerOfTwoBits(len(to.TailSymbols))
 
 	const bufSize = 1 << 16
 	inbuf := make([]byte, bufSize)
@@ -891,7 +891,7 @@ func streamEncodeWide(r io.Reader, w io.Writer, to *Base, kOut int) error {
 // which one it is. base2048rust also sizes its last symbol from the total symbol
 // count, which the running count has by the time the held symbol is released.
 func streamDecodeWide(r io.Reader, w io.Writer, from *Base, kIn int) error {
-	kTail := powerOfTwoBits(len(from.TailSymbols))
+	kTail := PowerOfTwoBits(len(from.TailSymbols))
 	hasTail := kTail > 0
 	rust := from.BinaryScheme == "rust2048"
 	swap := from.BinaryScheme == "qntm65536"
@@ -1444,7 +1444,7 @@ func decodeBase91(input string, b *Base) (string, error) {
 // the encoding's group boundary (4 characters for base64, 8 for base32), as
 // RFC 4648 requires. Called only for bases that emit padding.
 func rfcPad(s string, to *Base) string {
-	k := powerOfTwoBits(len(to.Symbols))
+	k := PowerOfTwoBits(len(to.Symbols))
 	group := 8 / gcd(8, k) // characters per whole-byte group
 	rem := utf8.RuneCountInString(s) % group
 	if rem == 0 {
@@ -1481,8 +1481,8 @@ func swap16(x int) int { return 256*(x&0xff) + (x >> 8) }
 // Full chunks map to the primary repertoire; a final partial chunk maps to the
 // smaller tail repertoire (or a padded primary char), per the base's scheme.
 func encodeBigBaseNative(data string, big *Base) string {
-	kPrimary := powerOfTwoBits(len(big.Symbols))
-	kTail := powerOfTwoBits(len(big.TailSymbols))
+	kPrimary := PowerOfTwoBits(len(big.Symbols))
+	kTail := PowerOfTwoBits(len(big.TailSymbols))
 
 	var sb strings.Builder
 	sb.Grow(len(data) * 8 / kPrimary)
@@ -1538,8 +1538,8 @@ func encodeBigBaseNative(data string, big *Base) string {
 // character is only legal as the last one. qntm bases verify the trailing pad
 // is all-ones; the Rust base reconstructs the exact bit count from position.
 func decodeBigBaseNative(input string, big *Base) (string, error) {
-	kPrimary := powerOfTwoBits(len(big.Symbols))
-	kTail := powerOfTwoBits(len(big.TailSymbols))
+	kPrimary := PowerOfTwoBits(len(big.Symbols))
+	kTail := PowerOfTwoBits(len(big.TailSymbols))
 	runes := []rune(stripLineBreaks(input))
 	rust := big.BinaryScheme == "rust2048"
 

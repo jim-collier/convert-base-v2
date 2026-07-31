@@ -27,12 +27,12 @@
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
-##			- CICDTEST_EXE ..........: path to the binary under test (default: ../source/bin/convert-base-v2).
+##			- CICDTEST_EXE ..........: path to the binary under test (default: ../lib/bin/convert-base-v2).
 ##			- CICDTEST_DO_LONGTEST ..: 1 for the exhaustive run (more fuzz iterations, larger inputs).
 ##			- CICDTEST_FUZZ_ITERS ...: override the fuzz iteration count.
 ##	History: At bottom of script.
 
-##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT
@@ -44,7 +44,7 @@ export LANG="C.UTF-8" LC_ALL="C.UTF-8"
 meDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ## Binary under test, and the optional legacy binaries for back-compat cross-checks.
-EXE="${CICDTEST_EXE:-${meDir}/../source/bin/convert-base-v2}"
+EXE="${CICDTEST_EXE:-${meDir}/../lib/bin/convert-base-v2}"
 EXE_V1="${meDir}/utility/convert-base-v1"
 EXE_V1B="${meDir}/utility/convert-base-v1b"
 doLong=0; [[ "${CICDTEST_DO_LONGTEST:-0}" == "1" ]] && doLong=1

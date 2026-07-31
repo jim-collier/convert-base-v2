@@ -54,7 +54,7 @@
 
 ##	History: At bottom of script.
 
-##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT
@@ -280,11 +280,11 @@ fEcho "OK: integration harness"
 ## 4b: fuzz each discovered target for a bounded time (shorter under --quick).
 if ((FUZZ_ENABLE)); then
 	ft="${FUZZ_TIME}"; ((quick)) && ft="${FUZZ_TIME_QUICK}"
-	mapfile -t fuzz_targets < <(in_src go test -list '^Fuzz' . 2>/dev/null | grep -E '^Fuzz' || true)
+	mapfile -t fuzz_targets < <(in_src go test -list '^Fuzz' "${GO_TEST_PKG:-.}" 2>/dev/null | grep -E '^Fuzz' || true)
 	if ((${#fuzz_targets[@]})); then
 		for t in "${fuzz_targets[@]}"; do
 			fEcho_Clean "fuzz ${t} (${ft}) ..."
-			in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" . || fDie "fuzz ${t} found a failure"
+			in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" "${GO_TEST_PKG:-.}" || fDie "fuzz ${t} found a failure"
 		done
 		fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"
 	else
@@ -323,7 +323,7 @@ run_profiler(){
 
 	fEcho_Clean "sampling bench ${PROFILE_BENCH} for ${PROFILE_TIME} ..."
 	if ! in_src go test -run '^$' -bench "^${PROFILE_BENCH}$" -benchtime "${PROFILE_TIME}" \
-		-cpuprofile "${prof}" -o /dev/null .; then
+		-cpuprofile "${prof}" -o /dev/null "${GO_TEST_PKG:-.}"; then
 		((PROFILE_STRICT)) && fDie "profiler benchmark failed (app problem)"
 		fEcho "WARNING: profiler benchmark failed (continuing)"; return 0
 	fi

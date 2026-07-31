@@ -5,8 +5,9 @@
 <!-- markdownlint-disable MD041 -- First line in a file should be a top-level heading -->
 <div align="center">
 
-![Go](https://img.shields.io/github/go-mod/go-version/jim-collier/convert-base-v2?filename=source%2Fgo.mod&logo=go&logoColor=white&label=Go)
+![Go](https://img.shields.io/github/go-mod/go-version/jim-collier/convert-base-v2?filename=lib%2Fgo.mod&logo=go&logoColor=white&label=Go)
 ![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)
+![Library: Apache 2.0](https://img.shields.io/badge/Library-Apache_2.0-blue.svg)
 ![Lifecycle: Stable](https://img.shields.io/badge/Lifecycle-Stable-brightgreen)
 ![Support](https://img.shields.io/badge/Support-Maintained-brightgreen)
 ![CI](https://img.shields.io/github/actions/workflow/status/jim-collier/convert-base-v2/ci.yml?branch=main&label=CI)
@@ -30,7 +31,7 @@
 	<tr>
 		<td>Convert any regular positional notation number, of any size - positive, negative, and/or decimal - to and from any numeric base.</td>
 		<td>Encode/decode streaming binary-to-text across far more bases than the standard tools like `base64` give you, and on average faster.</td>
-		<td>It's a single, fast, cross-platform static binary written in Go.</td>
+		<td>A single, fast, cross-platform static binary. The same conversion core also ships as an Apache-licensed Go package and a WebAssembly module, so you can build it into your own program or web page.</td>
 	</tr>
 </table>
 
@@ -51,35 +52,50 @@ It's a single, fast, cross-platform static binary written in Go.
 <!-- TOC -->
 
 - [Features](#features)
+- [Try it from here](#try-it-from-here)
 - [Install](#install)
 - [Usage](#usage)
 - [Configuration](#configuration)
+- [Use it in your own code](#use-it-in-your-own-code)
+	- [A Go package](#a-go-package)
+	- [WebAssembly, in a browser](#webassembly-in-a-browser)
+	- [WebAssembly, anywhere else](#webassembly-anywhere-else)
+	- [Or just run it](#or-just-run-it)
+	- [Licensing](#licensing)
 - [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
 	- [Also why the -v2?](#also-why-the--v2)
 - [Speed](#speed)
 - [Third-party binary codecs, built in](#third-party-binary-codecs-built-in)
 - [List of predefined bases](#list-of-predefined-bases)
 - [How to design a numeric base](#how-to-design-a-numeric-base)
-- [Support](#support)
-- [Copyright and license](#copyright-and-license)
+- [Support convert-base-v2](#support-convert-base-v2)
+- [Legal stuff](#legal-stuff)
 
 <!-- /TOC -->
 
 ## Features
 
-- **Any number, any base.** Convert a value of any size to or from any base. All the usual standards are built in (base 10, 16, RFC 4648 base 32 and 64, and more), plus more than sixty predefined named bases.
+- **Any number, any base**: Convert a value of any size to or from any base. All the usual standards are built in (base 10, 16, RFC 4648 base 32 and 64, and more), plus more than sixty predefined named bases.
 
-- **Bring your own alphabet.** Define a base on the spot by listing its symbols. For example, "`a 0 c X 🫪 だ`" is a perfectly good base 6.
+- **Bring your own alphabet**: Define a base on the spot by listing its symbols. For example, "`a 0 c X 🫪 だ`" is a perfectly good base 6.
 
-- **Negatives and fractions.** Both work in nearly every base. Even bases meant only for binary encoding can be pressed into positional use. If the usual `-` and `.` markers clash with a base's own symbols, you can set your own.
+- **Negatives and fractions**: Both work in nearly every base. Even bases meant only for binary encoding can be pressed into positional use. If the usual `-` and `.` markers clash with a base's own symbols, you can set your own.
 
-- **Binary to text, in many more bases than usual.** Encode or decode raw binary in every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. That covers everything `basenc` does, at comparable speed, plus bases `basenc` never heard of. Bases with no byte-exact mapping are refused in binary mode, and `--list` shows which ones qualify.
+- **Binary to text, in many more bases than usual**: Encode or decode raw binary in every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. That covers everything `basenc` does, at comparable speed, plus bases `basenc` never heard of. Bases with no byte-exact mapping are refused in binary mode, and `--list` shows which ones qualify.
 
 	- To re-encode straight between two text bases as bytes (hex to base 64, say), add `--binary`. Without it, two power-of-two text bases convert as a plain number, which drops leading zeros; a note on stderr points this out, and `--number` silences it.
 
-- **Reads from anywhere.** Takes input from the command line or from `stdin`, so it drops into a pipe.
+- **Reads from anywhere**: Takes input from the command line or from `stdin`, so it drops into a pipe.
 
-- **One portable binary.** Cross-platform Go, no runtime or dependencies to install.
+- **One portable binary**: Cross-platform Go, no runtime or dependencies to install.
+
+## Try it from here
+
+**[Open the converter in your browser](https://jim-collier.github.io/convert-base-v2/)**. Nothing to install, nothing to sign up for.
+
+It runs the real conversion core, compiled to WebAssembly, inside your own browser tab. Every base listed below works, including the large Unicode ones.
+
+*Note: Nothing you type is sent anywhere. Your browser downloads the page and the WASM module once, then does all the work locally - disconnect from the network and it keeps converting. And no cookies, beacons, tracking, fingerprinting, analytics, or captchas that have you wondering if you are really a human.*
 
 ## Install
 
@@ -153,13 +169,60 @@ base: 10emoji
 
 That one ships in the file as a working example to copy from. The format is [SHCL](https://github.com/jim-collier/shcl), and the file itself documents every field.
 
+## Use it in your own code
+
+The conversion core is a library in its own right, and there are three ways to reach it. All three run the same code, so none of them can disagree with the command about what a base means.
+
+### A Go package
+
+```sh
+go get github.com/jim-collier/convert-base-v2/lib/convertbase
+```
+
+```go
+reg, _ := convertbase.NewRegistry()
+from, _ := convertbase.ResolveBase(reg, "10", "", nil)
+to, _ := convertbase.ResolveBase(reg, "62", "", nil)
+
+out, err := convertbase.Convert("86434491232548995369", from, to, -1)
+```
+
+Convert whole values, or stream through an `io.Reader` and `io.Writer` in constant memory for anything large. Define your own alphabets, override the negative and decimal markers, and read the base registry directly.
+
+The package version moves on its own, separately from the command's. It is at v0 for now, which means the shape of the API may still change.
+
+### WebAssembly, in a browser
+
+The [demo page](https://jim-collier.github.io/convert-base-v2/) is the whole library compiled to WebAssembly, with a small JavaScript surface:
+
+```js
+const res = convertBase.convert({value: "255", from: "10", to: "16"});
+// { ok: true, value: "FF" }
+```
+
+Serve the two files next to your page and it works offline, on static hosting, with no backend.
+
+### WebAssembly, anywhere else
+
+The command also builds as a WASI module, which runs under Wasmtime, Wazero, Node, and the WebAssembly edge platforms. It reads and writes real standard input and output, so streaming works exactly as it does natively, and one file runs on every architecture.
+
+That covers callers in Rust, Python, C#, Java, Node, and anything else with a WebAssembly runtime, without a C interface to freeze or a per-platform build to ship.
+
+### Or just run it
+
+Worth saying plainly: if you can start a process, that is still the simplest option and always has been. Input and output are pipes, so a conversion of any size streams through in constant memory whatever language you call it from. The library and the WebAssembly builds are for the cases where you cannot shell out.
+
+### Licensing
+
+The library and the browser module are Apache-2.0, so you can build them into anything, including commercial and closed-source work. Keep the credit with it and you are done. The command-line tool, and the WASI build of it, stay GPL-2.0-or-later.
+
 ## Why convert a number to a large base
 
 Plenty of everyday tasks are easier in a bigger base, and they usually mean chaining several tools together or reaching for a web page that can't be scripted.
 
-- **Short, readable IDs.** Say you want to hand-generate serial numbers now and then, unique to the minute, but short and unambiguous rather than a long date or number. Take POSIX time (seconds since 1970), optionally divide by 60 for minute precision, and convert it to a compact base. The value for "2026-01-01 12:15 PM" (1767269700) is `1fLcL4` in hex-style base 64 (`64hex`), or `ɷƨɞ«` in base 256 (`256tt`).
+- **Short, readable IDs**: Say you want to hand-generate serial numbers now and then, unique to the minute, but short and unambiguous rather than a long date or number. Take POSIX time (seconds since 1970), optionally divide by 60 for minute precision, and convert it to a compact base. The value for "2026-01-01 12:15 PM" (1767269700) is `1fLcL4` in hex-style base 64 (`64hex`), or `ɷƨɞ«` in base 256 (`256tt`).
 
-- **Compact binary as text.** Base 64 (`64rfc`, `64url`, `64code`) is the tightest way to pack binary into UTF-8 text. Higher bases help in niche cases: `2048qntm`, qntm's base built for Twitter posts, or `65536qntm` for UTF-32.
+- **Compact binary as text**: Base 64 (`64rfc`, `64url`, `64code`) is the tightest way to pack binary into UTF-8 text. Higher bases help in niche cases: `2048qntm`, qntm's base built for Twitter posts, or `65536qntm` for UTF-32.
 
 The larger custom bases here (like `256tt`) were designed with care to:
 
@@ -316,11 +379,18 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 
 [This companion document](how_to_design_a_numeric_base.md) walks through designing a good numeric base, whether as a positional notation system or a binary-to-text codec. It is harder than it looks, which is why so many of the "official" large bases are as quirky as they are.
 
-## Support
+## Support convert-base-v2
 
 This tool is free and open source, and built and maintained in spare time. If it saves you some, you can [sponsor the project on GitHub](https://github.com/sponsors/jim-collier). It is genuinely appreciated, and never expected.
 
-## Copyright and license
+## Legal stuff
 
-> Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)<br />
-> Licensed under GNU GPL v2 <https://www.gnu.org/licenses/gpl-2.0.html>. No warranty.
+Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
+
+The CLI application is licensed under the [GNU General Public License v2.0 or later](https://spdx.org/licenses/GPL-2.0-or-later.html)
+
+- SPDX-License-Identifier: `GPL-2.0-or-later`
+
+The library under `source/convertbase/` is licensed more permissively as appropriate for a static or dynamic library: Apache-2.0 <https://www.apache.org/licenses/LICENSE-2.0>, so it can be linked into anything. Its full text and the attribution notice ship beside it.
+
+- SPDX-License-Identifier: `Apache-2.0`

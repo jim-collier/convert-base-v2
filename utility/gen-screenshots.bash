@@ -45,15 +45,15 @@ shopt -u patsub_replacement 2>/dev/null || true
 ## Setup: locate the repo and the binary
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 REPO="${1:-${CBV_REPO:-$PWD}}"
-[[ -d "${REPO}/source" ]] || { echo "gen-screenshots: '${REPO}' is not the github dir (no source/)" >&2; exit 1; }
+[[ -d "${REPO}/lib" ]] || { echo "gen-screenshots: '${REPO}' is not the github dir (no lib/)" >&2; exit 1; }
 
 BIN="${2:-${CBV_BIN:-}}"
 if [[ -z "${BIN}" ]]; then
-	for cand in "${REPO}/source/bin/convert-base-v2" "${REPO}/source/convert-base-v2"; do
+	for cand in "${REPO}/lib/bin/convert-base-v2" "${REPO}/lib/convert-base-v2"; do
 		[[ -x "${cand}" ]] && { BIN="${cand}"; break; }
 	done
 fi
-[[ -x "${BIN}" ]] || { echo "gen-screenshots: build the binary first (make -C source local)" >&2; exit 1; }
+[[ -x "${BIN}" ]] || { echo "gen-screenshots: build the binary first (make -C lib local)" >&2; exit 1; }
 
 command -v magick >/dev/null 2>&1 || { echo "gen-screenshots: ImageMagick 'magick' not found" >&2; exit 1; }
 magick -list format 2>/dev/null | grep -qi pango || { echo "gen-screenshots: ImageMagick lacks the pango delegate" >&2; exit 1; }

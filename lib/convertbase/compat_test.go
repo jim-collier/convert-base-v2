@@ -1,9 +1,9 @@
-//	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
-//	Licensed under the GNU General Public License v2.0 or later. Full text at:
-//		https://spdx.org/licenses/GPL-2.0-or-later.html
-//	SPDX-License-Identifier: GPL-2.0-or-later
+//	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
+//	Licensed under the Apache License, Version 2.0. Full text in ./LICENSE, or:
+//		https://spdx.org/licenses/Apache-2.0.html
+//	SPDX-License-Identifier: Apache-2.0
 
-package main
+package convertbase
 
 import (
 	"os"

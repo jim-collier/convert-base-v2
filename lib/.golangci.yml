@@ -1,6 +1,7 @@
 # golangci-lint config (v2). The "standard" set - govet, errcheck, ineffassign,
-# staticcheck, unused - is a good baseline for a small single-package CLI. Add
-# linters here as the code grows; keep it clean so the cicd lint stage stays green.
+# staticcheck, unused - is a good baseline for a CLI and the small library behind
+# it. Add linters here as the code grows; keep it clean so the cicd lint stage
+# stays green.
 version: "2"
 
 linters:

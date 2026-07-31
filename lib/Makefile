@@ -14,24 +14,41 @@ DIST := dist
 GOMAXPROCS ?= $(shell n=$$(nproc 2>/dev/null || echo 2); c=$$((n/2)); [ $$c -lt 1 ] && c=1; echo $$c)
 export GOMAXPROCS
 
-.PHONY: all local debug release clean test vet fmt
+.PHONY: all local debug release wasm web clean test vet fmt
+
+# Where the demo page lives, and where Go keeps the JS loader it requires (it
+# moved out of misc/ in 1.24, so try both rather than pinning a layout).
+WEB       := ../web
+WASM_EXEC := $(firstword $(wildcard $(shell go env GOROOT)/lib/wasm/wasm_exec.js $(shell go env GOROOT)/misc/wasm/wasm_exec.js))
 
 # Default: optimized build for the current machine into ./convert-base-v2
 all: local
 
 # Optimized native build (dogfood + hand use).
 local:
-	go build -ldflags '$(LDFLAGS)' -o $(BINARY) .
+	go build -ldflags '$(LDFLAGS)' -o $(BINARY) ./cmd/$(BINARY)
 
 # Debug native build: symbols kept, for the test + profiler stages.
 debug:
-	go build -ldflags '$(LDFLAGS_DEBUG)' -o $(BINARY) .
+	go build -ldflags '$(LDFLAGS_DEBUG)' -o $(BINARY) ./cmd/$(BINARY)
 
 # Cross-compile + package every shipping platform into ./dist/. The whole
 # release pipeline (build, archive, deb/rpm, Windows installer, checksums)
 # lives in the self-contained packager so local runs and CI stay identical.
 release:
 	bash ../cicd/utility/package.bash --version '$(VERSION)' --out '$(DIST)'
+
+# The whole command, for any WASI runtime. Streams through real stdin/stdout,
+# so it behaves like the native binary rather than like a cut-down build.
+wasm:
+	mkdir -p $(DIST)
+	GOOS=wasip1 GOARCH=wasm go build -trimpath -ldflags '$(LDFLAGS)' -o $(DIST)/$(BINARY).wasm ./cmd/$(BINARY)
+
+# The browser module plus the loader Go requires, staged into the demo page.
+web:
+	@[ -n "$(WASM_EXEC)" ] || { echo "wasm_exec.js not found under $$(go env GOROOT)" >&2; exit 1; }
+	GOOS=js GOARCH=wasm go build -trimpath -ldflags '$(LDFLAGS)' -o $(WEB)/convert-base.wasm ./wasm
+	cp '$(WASM_EXEC)' $(WEB)/wasm_exec.js
 
 test:
 	go test ./...

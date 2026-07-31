@@ -1,9 +1,9 @@
-//	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
-//	Licensed under the GNU General Public License v2.0 or later. Full text at:
-//		https://spdx.org/licenses/GPL-2.0-or-later.html
-//	SPDX-License-Identifier: GPL-2.0-or-later
+//	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
+//	Licensed under the Apache License, Version 2.0. Full text in ./LICENSE, or:
+//		https://spdx.org/licenses/Apache-2.0.html
+//	SPDX-License-Identifier: Apache-2.0
 
-package main
+package convertbase
 
 import (
 	"bytes"
@@ -40,24 +40,24 @@ func base(t testing.TB, reg *Registry, name string) *Base {
 
 func customBase(t testing.TB, reg *Registry, spec string) *Base {
 	t.Helper()
-	b, err := resolveBase(reg, "", spec, nil)
+	b, err := ResolveBase(reg, "", spec, nil)
 	if err != nil {
-		t.Fatalf("resolveBase(%q): %v", spec, err)
+		t.Fatalf("ResolveBase(%q): %v", spec, err)
 	}
 	return b
 }
 
-// mk builds a sideFlags the way flag parsing would. A nil neg/dec means the
-// flag was not given; a string (including "") means it was.
-func mk(prefix string, neg, dec interface{}) *sideFlags {
-	m := &sideFlags{prefix: prefix}
+// mk builds an Options the way flag parsing would. A nil neg/dec means the flag
+// was not given; a string (including "") means it was.
+func mk(label string, neg, dec interface{}) *Options {
+	o := &Options{Label: label}
 	if s, ok := neg.(string); ok {
-		m.neg = optString{value: s, set: true}
+		o.Negative = &s
 	}
 	if s, ok := dec.(string); ok {
-		m.dec = optString{value: s, set: true}
+		o.Decimal = &s
 	}
-	return m
+	return o
 }
 
 // markerBase builds a custom base and applies marker overrides to it, the same
@@ -65,9 +65,9 @@ func mk(prefix string, neg, dec interface{}) *sideFlags {
 func markerBase(t testing.TB, reg *Registry, spec, neg, dec string) *Base {
 	t.Helper()
 	b := customBase(t, reg, spec)
-	b, err := applyMarkers(b, mk("--from", neg, dec))
+	b, err := ApplyOptions(b, mk("--from", neg, dec))
 	if err != nil {
-		t.Fatalf("applyMarkers(%q, neg %q, dec %q): %v", spec, neg, dec, err)
+		t.Fatalf("ApplyOptions(%q, neg %q, dec %q): %v", spec, neg, dec, err)
 	}
 	return b
 }
@@ -341,7 +341,7 @@ func TestSpecParser(t *testing.T) {
 		t.Errorf(`spec 'a\ b' = %d symbols, want 3`, len(b.Symbols))
 	}
 	// A one-symbol spec is rejected.
-	if _, err := resolveBase(reg, "", "A", nil); err == nil {
+	if _, err := ResolveBase(reg, "", "A", nil); err == nil {
 		t.Error("one-symbol spec should error")
 	}
 }
@@ -376,7 +376,7 @@ func TestApplyMarkers(t *testing.T) {
 	hex := base(t, reg, "hex")
 
 	// Override the negative marker on a named base.
-	tilde, err := applyMarkers(hex, mk("--from", "~", nil))
+	tilde, err := ApplyOptions(hex, mk("--from", "~", nil))
 	if err != nil {
 		t.Fatalf("applyMarkers on hex: %v", err)
 	}
@@ -396,7 +396,7 @@ func TestApplyMarkers(t *testing.T) {
 	}
 
 	// An empty value disables the marker.
-	off, err := applyMarkers(hex, mk("--from", "", nil))
+	off, err := ApplyOptions(hex, mk("--from", "", nil))
 	if err != nil {
 		t.Fatalf("applyMarkers disable: %v", err)
 	}
@@ -408,7 +408,7 @@ func TestApplyMarkers(t *testing.T) {
 	}
 
 	// No flags set returns the base itself, not a copy.
-	same, err := applyMarkers(hex, mk("--from", nil, nil))
+	same, err := ApplyOptions(hex, mk("--from", nil, nil))
 	if err != nil {
 		t.Fatalf("applyMarkers no-op: %v", err)
 	}
@@ -416,13 +416,13 @@ func TestApplyMarkers(t *testing.T) {
 		t.Error("applyMarkers with no flags should return the original base")
 	}
 
-	// A marker that collides with a digit is caught by finalize().
-	if _, err := applyMarkers(hex, mk("--from", "a", nil)); err == nil {
+	// A marker that collides with a digit is caught by Finalize().
+	if _, err := ApplyOptions(hex, mk("--from", "a", nil)); err == nil {
 		t.Error("a negative marker that is also a hex digit should be rejected")
 	}
 
 	// Markers are meaningless for raw bytes.
-	if _, err := applyMarkers(base(t, reg, "bytes"), mk("--from", "~", nil)); err == nil {
+	if _, err := ApplyOptions(base(t, reg, "bytes"), mk("--from", "~", nil)); err == nil {
 		t.Error("marker overrides should be rejected for the bytes base")
 	}
 }
@@ -440,7 +440,7 @@ func TestPadRejections(t *testing.T) {
 		copied := *b
 		copied.PadSymbol = p
 		copied.PadEmit = true
-		return copied.finalize()
+		return copied.Finalize()
 	}
 	// Multi-character pad: encode would overshoot the group boundary.
 	if err := pad("64", "=="); err == nil {
@@ -462,7 +462,7 @@ func TestPadRejections(t *testing.T) {
 	if err := pad("64", "§"); err != nil {
 		t.Errorf("single-rune multi-byte pad rejected: %v", err)
 	}
-	// The padded builtins must still finalize as defined.
+	// The padded builtins must still Finalize as defined.
 	for _, name := range []string{"64", "64u", "64h", "32", "32h"} {
 		b, err := reg.Lookup(name)
 		if err != nil {
@@ -474,7 +474,7 @@ func TestPadRejections(t *testing.T) {
 	}
 }
 
-// Bad base definitions must be rejected by finalize(), not silently accepted.
+// Bad base definitions must be rejected by Finalize(), not silently accepted.
 func TestFinalizeRejections(t *testing.T) {
 	reg := newReg(t)
 	bad := []string{
@@ -483,8 +483,8 @@ func TestFinalizeRejections(t *testing.T) {
 		"aa a",    // "a" is a prefix of "aa"
 	}
 	for _, spec := range bad {
-		if _, err := resolveBase(reg, "", spec, nil); err == nil {
-			t.Errorf("spec %q should be rejected by finalize()", spec)
+		if _, err := ResolveBase(reg, "", spec, nil); err == nil {
+			t.Errorf("spec %q should be rejected by Finalize()", spec)
 		}
 	}
 }
@@ -514,7 +514,7 @@ func TestWrappedBinaryDecode(t *testing.T) {
 				t.Errorf("buffered decode %s wrap %d did not recover the blob", name, width)
 			}
 			var streamed bytes.Buffer
-			ok, err := streamConvert(strings.NewReader(wrapped), &streamed, to, bytesB)
+			ok, err := StreamConvert(strings.NewReader(wrapped), &streamed, to, bytesB)
 			if err != nil {
 				t.Errorf("stream decode %s wrap %d: %v", name, width, err)
 				continue
@@ -577,8 +577,8 @@ func TestUserDefinedTail(t *testing.T) {
 	}
 	noTail := &Base{Aliases: []string{"custom512nt"}, Symbols: cjkSymbols(512)}
 	for _, b := range []*Base{withTail, noTail} {
-		if err := b.finalize(); err != nil {
-			t.Fatalf("finalize %s: %v", b.Name(), err)
+		if err := b.Finalize(); err != nil {
+			t.Fatalf("Finalize %s: %v", b.Name(), err)
 		}
 	}
 
@@ -611,13 +611,13 @@ func TestUserDefinedTail(t *testing.T) {
 			t.Fatal(err)
 		}
 		var se, sd bytes.Buffer
-		if ok, err := streamConvert(bytes.NewReader(blob), &se, bytesB, withTail); err != nil || !ok {
+		if ok, err := StreamConvert(bytes.NewReader(blob), &se, bytesB, withTail); err != nil || !ok {
 			t.Fatalf("stream encode %d bytes: ok=%v err=%v", n, ok, err)
 		}
 		if se.String() != enc {
 			t.Errorf("stream encode differs from buffered at %d bytes", n)
 		}
-		if ok, err := streamConvert(strings.NewReader(enc), &sd, withTail, bytesB); err != nil || !ok {
+		if ok, err := StreamConvert(strings.NewReader(enc), &sd, withTail, bytesB); err != nil || !ok {
 			t.Fatalf("stream decode %d bytes: ok=%v err=%v", n, ok, err)
 		}
 		if sd.String() != string(blob) {
@@ -638,11 +638,8 @@ func TestEmptyTailSparesCodecs(t *testing.T) {
 			t.Fatalf("%s should carry a codec scheme", name)
 		}
 		clone := *b
-		flags := &sideFlags{prefix: "--to"}
-		if err := flags.tail.Set(""); err != nil {
-			t.Fatal(err)
-		}
-		if err := flags.set(&clone); err != nil {
+		empty := ""
+		if err := (&Options{Label: "--to", Tail: &empty}).Apply(&clone); err != nil {
 			t.Fatal(err)
 		}
 		if clone.BinaryScheme != scheme {
@@ -656,11 +653,8 @@ func TestEmptyTailSparesCodecs(t *testing.T) {
 	// A real tail layout, on the other hand, is what the empty value clears.
 	b := base(t, reg, "512tt")
 	clone := *b
-	flags := &sideFlags{prefix: "--to"}
-	if err := flags.tail.Set(""); err != nil {
-		t.Fatal(err)
-	}
-	if err := flags.set(&clone); err != nil {
+	empty := ""
+	if err := (&Options{Label: "--to", Tail: &empty}).Apply(&clone); err != nil {
 		t.Fatal(err)
 	}
 	if clone.BinaryScheme != "" || len(clone.TailSymbols) != 0 {
@@ -686,7 +680,7 @@ func TestTailValidation(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			b := &Base{Aliases: []string{"t"}, Symbols: tc.symbols, TailSymbols: tc.tail, BinaryScheme: "qntm"}
-			err := b.finalize()
+			err := b.Finalize()
 			if err == nil {
 				t.Fatalf("accepted a tail that cannot work")
 			}
@@ -700,7 +694,7 @@ func TestTailValidation(t *testing.T) {
 	// looks the primary repertoire up first.
 	syms := cjkSymbols(512)
 	b := &Base{Aliases: []string{"t"}, Symbols: syms, TailSymbols: []string{syms[0], "⸑"}, BinaryScheme: "qntm"}
-	if err := b.finalize(); err == nil || !strings.Contains(err.Error(), "also a digit") {
+	if err := b.Finalize(); err == nil || !strings.Contains(err.Error(), "also a digit") {
 		t.Errorf("a tail symbol that is also a digit should be rejected, got %v", err)
 	}
 }
@@ -717,8 +711,8 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 	// the registry rather than listed here, so a base that is added or renamed
 	// is covered without touching this test.
 	var targets []string
-	for _, b := range reg.orderedBases() {
-		if b.Binary || powerOfTwoBits(len(b.Symbols)) == 0 {
+	for _, b := range reg.OrderedBases() {
+		if b.Binary || PowerOfTwoBits(len(b.Symbols)) == 0 {
 			continue
 		}
 		targets = append(targets, b.Name())
@@ -742,7 +736,7 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 				t.Fatalf("buffered encode %s len %d: %v", name, n, err)
 			}
 			var streamEnc bytes.Buffer
-			ok, err := streamConvert(bytes.NewReader(blob), &streamEnc, bytesB, to)
+			ok, err := StreamConvert(bytes.NewReader(blob), &streamEnc, bytesB, to)
 			if err != nil {
 				t.Fatalf("stream encode %s len %d: %v", name, n, err)
 			}
@@ -763,7 +757,7 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 				t.Fatalf("buffered decode %s len %d: %v", name, n, err)
 			}
 			var streamDec bytes.Buffer
-			ok, err = streamConvert(strings.NewReader(bufEnc), &streamDec, to, bytesB)
+			ok, err = StreamConvert(strings.NewReader(bufEnc), &streamDec, to, bytesB)
 			if err != nil {
 				t.Fatalf("stream decode %s len %d: %v", name, n, err)
 			}
