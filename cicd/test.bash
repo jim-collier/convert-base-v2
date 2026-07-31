@@ -25,6 +25,7 @@
 ##			- Performance and profiling (unless --quick): streaming throughput, a peak-memory ceiling on every power-of-2 base, and a codec throughput guard.
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
+##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
 ##			- CICDTEST_EXE ..........: path to the binary under test (default: ../lib/bin/convert-base-v2).
@@ -901,6 +902,135 @@ if [[ -x "${EXE_V1B}" ]]; then
 	fCheckLegacy "${EXE_V1B}" v1b "${V1B_MAP[@]}"
 else
 	_warn "v1b back-compat skipped: script not found at ${EXE_V1B}"
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Interop: the four big bases against the implementations that defined them
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## The fixed vectors earlier pin a handful of known inputs, copied down by hand.
+## These run randomized bytes through the published implementations themselves -
+## qntm's three npm packages and LLFourn's Rust crate, unpacked verbatim under
+## utility/interop/thirdparty - and check all three directions:
+##   encode  : our output equals theirs, byte for byte
+##   decode  : we read back what they wrote
+##   xdecode : they read back what we wrote
+## Encode alone would not be enough. A shared misreading of the tail rules can
+## survive it, and only feeding each side the other's output catches that.
+##
+## Lengths start at zero and run up consecutively before going random, because
+## every disagreement these bases have ever had was about the final partial
+## chunk. The widths are 11, 15 and 16 bits, so the byte-boundary cycle closes
+## at 11, 15 and 2 bytes respectively - well inside the consecutive run.
+INTEROP_DIR="${meDir}/utility/interop"
+INTEROP_QNTM="${INTEROP_DIR}/drivers/qntm.mjs"
+INTEROP_RSBIN="${INTEROP_DIR}/build/release/llfourn2048"
+nSamples=40; ((doLong)) && nSamples=200
+
+## fInteropSamples FILE COUNT -> one lowercase hex string per line, no separators.
+fInteropSamples(){
+	local file="$1"; local -i count="$2" i len
+	: >"$file"
+	for ((i = 0; i < count; i++)); do
+		if ((i <= 24)); then len=$i; else len=$(( 1 + $(_rand16) % 4096 )); fi
+		((len)) && head -c "$len" /dev/urandom | od -An -tx1 -v | tr -d ' \n' >>"$file"
+		echo >>"$file"
+	done
+}
+
+## Name the sample that broke, not just the fact that something did. A tail bug
+## shows up at one specific length and that length is the whole diagnosis.
+fFirstDiff(){ # OURS THEIRS
+	local a="$1" b="$2" n
+	n="$(cmp "$a" "$b" 2>&1 | sed -n 's/.*line \([0-9][0-9]*\).*/\1/p' | head -1)"
+	[[ -n "$n" ]] || n=1
+	## The two line counts are part of the diagnosis: unequal means one side gave
+	## up early, and then the named sample is the last one they agreed on.
+	printf 'sample %s of %s/%s: ours=[%.60s] ref=[%.60s]' \
+		"$n" "$(wc -l <"$a")" "$(wc -l <"$b")" "$(sed -n "${n}p" "$a")" "$(sed -n "${n}p" "$b")"
+}
+
+## fCheckInterop V2BASE LABEL REF...   (REF is an adapter taking encode|decode)
+fCheckInterop(){
+	local v2base="$1" label="$2"; shift 2
+	local samples="${CBT_TMP}/io_samples" theirs="${CBT_TMP}/io_theirs" ours="${CBT_TMP}/io_ours"
+	local ourdec="${CBT_TMP}/io_ourdec" theirdec="${CBT_TMP}/io_theirdec" bin="${CBT_TMP}/io_bin"
+	local hex enc
+
+	fInteropSamples "$samples" "$nSamples"
+	if ! "$@" encode <"$samples" >"$theirs" 2>"${CBT_ERR}"; then
+		_fail "interop ${label}" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
+		return
+	fi
+
+	while IFS= read -r hex; do
+		printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$bin"
+		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$v2base" --no-newline <"$bin" 2>/dev/null || true
+		echo
+	done <"$samples" >"$ours"
+	cmp -s "$ours" "$theirs" \
+		&& _pass "interop encode == ${label} (${nSamples} samples)" \
+		|| _fail "interop encode == ${label}" "$(fFirstDiff "$ours" "$theirs")"
+
+	while IFS= read -r enc; do
+		printf '%s' "$enc" >"$bin"
+		"${TIMEOUT[@]}" "${EXE}" --from "$v2base" --to bytes <"$bin" 2>/dev/null | od -An -tx1 -v | tr -d ' \n' || true
+		echo
+	done <"$theirs" >"$ourdec"
+	cmp -s "$ourdec" "$samples" \
+		&& _pass "interop decode of ${label} output (${nSamples} samples)" \
+		|| _fail "interop decode of ${label} output" "$(fFirstDiff "$ourdec" "$samples")"
+
+	if ! "$@" decode <"$ours" >"$theirdec" 2>"${CBT_ERR}"; then
+		_fail "interop ${label} reads our output" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
+		return
+	fi
+	cmp -s "$theirdec" "$samples" \
+		&& _pass "interop ${label} reads our output (${nSamples} samples)" \
+		|| _fail "interop ${label} reads our output" "$(fFirstDiff "$theirdec" "$samples")"
+}
+
+section "Interop vs the published reference implementations"
+if [[ ! -d "${INTEROP_DIR}/thirdparty" ]]; then
+	_warn "interop skipped: no vendored references at ${INTEROP_DIR}/thirdparty (utility/interop/fetch.bash --refresh)"
+else
+	## Pinned versions, so a pass line says which release we agree with.
+	declare -A INTEROP_VER=()
+	# shellcheck disable=1091  ## 'Not following.' The pin file is data, next to the suite it describes.
+	source "${INTEROP_DIR}/pins.env"
+	for pin in "${INTEROP_PINS[@]}"; do
+		IFS='|' read -r ipName ipVer _rest <<< "${pin}"
+		INTEROP_VER["${ipName}"]="${ipVer}"
+	done
+
+	## An edited reference is worse than no reference: every check would still
+	## pass, against something nobody published. So this one fails, never skips.
+	if "${INTEROP_DIR}/fetch.bash" --verify >/dev/null 2>&1; then
+		_pass "interop references verbatim (${#INTEROP_PINS[@]} pinned packages)"
+	else
+		_fail "interop references verbatim" "$("${INTEROP_DIR}/fetch.bash" --verify 2>&1 | tail -2)"
+	fi
+
+	if command -v node >/dev/null 2>&1; then
+		fCheckInterop 2048qntm  "qntm base2048 ${INTEROP_VER[base2048-qntm]}"   node "${INTEROP_QNTM}" 2048
+		fCheckInterop 32768qntm "qntm base32768 ${INTEROP_VER[base32768-qntm]}" node "${INTEROP_QNTM}" 32768
+		fCheckInterop 65536qntm "qntm base65536 ${INTEROP_VER[base65536-qntm]}" node "${INTEROP_QNTM}" 65536
+	else
+		_warn "interop vs qntm base2048/base32768/base65536 skipped: node not installed"
+	fi
+
+	## The crate is a library, so the adapter around it has to be compiled. It
+	## builds offline from the vendored source in a few seconds and is cached
+	## after that, so this is not a per-run cost.
+	if command -v cargo >/dev/null 2>&1; then
+		CARGO_TARGET_DIR="${INTEROP_DIR}/build" cargo build --release --offline --quiet \
+			--manifest-path "${INTEROP_DIR}/drivers/llfourn2048/Cargo.toml" >/dev/null 2>&1 || true
+	fi
+	if [[ -x "${INTEROP_RSBIN}" ]]; then
+		fCheckInterop 2048llfourn "llfourn base2048 ${INTEROP_VER[base2048-llfourn]}" "${INTEROP_RSBIN}"
+	else
+		_warn "interop vs llfourn base2048 skipped: no adapter binary and cargo could not build one"
+	fi
 fi
 
 

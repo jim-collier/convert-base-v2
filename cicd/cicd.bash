@@ -139,6 +139,7 @@ fEcho_Clean "${APP_NAME} local CI/CD"
 fEcho_Clean
 fEcho_Clean "Repo root ...........: ${root}"
 fEcho_Clean "Vendor pins .........: ${VENDOR_CHECK_CMD[*]:-(skipped)}"
+fEcho_Clean "Interop pins ........: ${INTEROP_CHECK_CMD[*]:-(skipped)}"
 fEcho_Clean "Format ..............: ${FMT_CMD[*]:-(skipped)}"
 fEcho_Clean "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debug)"
 ((${#RELEASE_BUILD_CMD[@]})) && \
@@ -217,6 +218,12 @@ fi
 ## here, before anything is built against it. Warn-only when offline.
 if [[ -n "${VENDOR_CHECK_CMD[*]:-}" ]]; then
 	"${VENDOR_CHECK_CMD[@]}" || fDie "vendored source does not match its pin (see cicd/vendor-pins.env)"
+fi
+
+## Same idea for the interop suite's reference implementations, which are the
+## only thing proving the four big bases interoperate at all.
+if [[ -n "${INTEROP_CHECK_CMD[*]:-}" ]]; then
+	"${INTEROP_CHECK_CMD[@]}" || fDie "interop reference does not match its pin (see cicd/utility/interop/pins.env)"
 fi
 
 ## Stage 1: format.
