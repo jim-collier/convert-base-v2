@@ -64,6 +64,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Trim the README bases table so it stops overflowing on GitHub.
+	- Done: dropped the Description and Specification columns, renamed Chars to Char count, added UTF-8 byte count next to it, and renamed Number representation to Output.
+	- Done: the example number is now `9876543210123456789`. It stays a plain positive integer because nine of the alphabets use every candidate character as a digit, so a sign or a fraction is an error in those rather than a row.
+	- Done: long output values wrap. Line count is picked from an estimated rendered width, counting a double-width character as two, so a CJK or emoji row ends up about as wide as a Latin one instead of twice as wide. Widest cell went from 101 to 28.
+	- Done: the generator is `utility/gen-bases-table.py`, replacing the stale `gen-example-table.bash`, which still produced the old three-column table. It also emits the `bytes` row, which used to be added by hand.
+
 - ✅ Rationalize base names and aliases, per `design_docs/20260730_base_naming.md`.
 	- Done: one scheme now - lowercase, radix first, at most four aliases in a fixed order, bare numbers only where unambiguous. Every v1/v1b name still resolves; dropped spellings error with a near-match suggestion.
 	- Done: legacy maps in test.bash fixed (`code64` had gone stale) and moved to the new canonical names; README bases table rebuilt from the binary, now with a single First alias column; examples, changelog, and demo scenario updated.

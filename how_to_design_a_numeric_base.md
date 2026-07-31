@@ -95,7 +95,7 @@ This automatically implies a few things:
 
 - Need symbols that are legible and reasonably unambiguous.
 
-- General human aesthetics become important. Ancient humans loved their Eyes Horus and/or moons in their numbering systems. Lots of moons.
+- General human aesthetics become important. Ancient humans loved to use eyes-of-gods and moons in their numbering systems. And stars. And birds.
 
 - Symbols should be available in most fonts, if you don't have exact control over font selection.
 

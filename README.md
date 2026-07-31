@@ -240,72 +240,72 @@ Any number of any size converts to and from any of these bases, and most support
 
 These are the common, standard, and published bases, plus a set of [carefully designed](how_to_design_a_numeric_base.md) custom ones.
 
-The last two columns show the same base-10 number, `2023090613425900000000000000001`, written in each base. Some of the larger bases look longer than they are. That is the proportional font here stretching double-width Unicode characters. The "Chars" column is the real character count.
+The "Output" column shows the same base-10 number, `9876543210123456789`, written in each base. It is a plain positive integer because a few of the alphabets use every candidate character as a digit, leaving no room for a negative or decimal marker. Long values are wrapped to keep the column narrow, and some of the larger bases look longer than they are, because the proportional font here stretches double-width characters. "Char count" is the real character count, and "UTF-8 byte count" is what it takes to store, which are not the same thing once a base reaches outside ASCII.
 
 Bases kept only to reproduce the output of the older `convert-base-v1` and `convert-base-v1b` are left out below. Run `convert-base-v2 --list-compat` to see those.
 
-| Base | Name [arg] | First alias | Description | Specification | Chars | Number representation
-| --: | :-- | :-- | :-- | :-- | --: | :--
-| 2 | 2 |  | Text ones and zeros |  | 101 | 11001100010001111010101010101001101101001000111010011010010010010001000110101111111100000000000000001
-| 3 | 3 | ternary | Rarely used in computers |  | 64 | 1202201120001110000211111111000012020020211210201212121022221002
-| 4 | 4 | quaternary |  |  | 51 | 121202033111111031221013103102102020311333200000001
-| 5 | 5 | quinary |  |  | 44 | 13422100331010142033403004300000000000000001
-| 6 | 6 | senary |  |  | 39 | 524050351143055143115550221055402541345
-| 7 | 7 | septenary |  |  | 36 | 522454125411321305156044543040553134
-| 8 | 8 | octal | Older base for programming |  | 34 | 3142172525155107232222106577400001
-| 9 | 9 | nonary |  |  | 32 | 52646043024444005206753655538832
-| 10 | 10 | decimal |  |  | 31 | 2023090613425900000000000000001
-| 10 | 10cjk | cjk |  |  | 31 | 二〇二三〇九〇六一三四二五九〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇一
-| 10 | 10hindi | devanagari |  |  | 31 | २०२३०९०६१३४२५९००००००००००००००००१
-| 10 | 10arabicindic | easternarabic |  |  | 31 | ٢٠٢٣٠٩٠٦١٣٤٢٥٩٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠٠١
-| 10 | 10rods | rods |  |  | 31 | 𝍡〇𝍡𝍢〇𝍨〇𝍥𝍠𝍢𝍣𝍡𝍤𝍨〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇〇𝍠
-| 10 | 10blocks | blocks |  |  | 31 | ▃▁▃▄▁▓▁▇▂▄▅▃▆▓▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▁▂
-| 12 | 12 | dozenal |  |  | 29 | 12888834200A750490B5219507855
-| 16 | 16 | hex |  |  | 26 | 1988F5553691D3492235FE0001
-| 20 | 20 | vigesimal |  |  | 24 | 284DDI4C93BCC6HA00000001
-| 20 | 20ws | pluscode |  |  | 24 | 4C6MMW6JF5HJJ8VG22222223
-| 20 | 20mayan | mayan |  |  | 24 | 𝋢𝋨𝋤𝋭𝋭𝋲𝋤𝋬𝋩𝋣𝋫𝋬𝋬𝋦𝋱𝋪𝋠𝋠𝋠𝋠𝋠𝋠𝋠𝋡
-| 24 | 24 |  |  |  | 22 | KN64BEC5EL1B0FA7K0IN2H
-| 26 | 26 | alphabet |  |  | 22 | DXNNAGDDUWPNKQIDYGEAMJ
-| 30 | 30rock | 30 |  |  | 21 | 5O1SFD937J0RIKG5HR13B
-| 32 | 32rfc | rfc4648s6 |  | RFC 4648 §6 | 21 | BTCHVKU3JDU2JEI274AAB
-| 32 | 32hex | rfc4648s7 |  | RFC 4648 §7 | 21 | 1J27LAKR93KQ948QVS001
-| 32 | 32crock | crockford | Decodes O as 0, I/L as 1 |  | 21 | 1k27namv93mt948tzw001
-| 32 | 32ws | 32wordsafe | No vowels, so no accidental words |  | 21 | 3X49fGcqF5cpF6Cpxr223
-| 32 | 32z | zbase32 |  |  | 21 | bun8ikw5jdw4jre49hyyb
-| 36 | 36 | alphanum |  |  | 20 | 5G53VAIZAJBZ2D5Y2Y9T
-| 38 | 38hostname | hostname | Every character legal in a hostname |  | 20 | 1-4f69y3fbk6p3ra3373
-| 39 | 39username | username | Every character legal in a username |  | 20 | 17g.tz4pd-v96vag5kgz
-| 42 | 42 | answer |  |  | 19 | C9WWELMBNbCYNbYf1XB
-| 45 | 45 | rfc9285 | RFC 9285; space is a symbol | RFC 9285 | 19 | 3O042V/4:O66ETECKMB
-| 45 | 45email | email | A practical subset of legal email address characters |  | 19 | 3o042v[4]o66eteckmb
-| 52 | 52 | upperlower |  |  | 18 | NftxKBqjrhTdQKHAGJ
-| 60 | 60jc | sexagesimal |  |  | 18 | 1BhkGcLkiywKrfTclg
-| 60 | 60tc | newbase60 |  |  | 18 | 1BhkGcMkizxLsfVcmg
-| 62 | 62 |  |  |  | 17 | gR7BplOIkweh9aKht
-| 64 | 64rfc | rfc4648s4 | Tied for tightest binary-to-text encoding for UTF-8 | RFC 4648 §4 | 17 | ZiPVVNpHTSSI1/gAB
-| 64 | 64url | rfc4648s5 |  | RFC 4648 §5 | 17 | ZiPVVNpHTSSI1_gAB
-| 64 | 64hex | 64h | Tightest binary-to-text encoding for UTF-8 (Linux, macOS, Windows) |  | 17 | PYFLLDf7JII8r_W01
-| 64 | 64code | programmer | Almost tightest binary-to-text encoding for UTF-8, and legal in most identifiers |  | 17 | PYFLLDf7JII8rλW01
-| 64 | 64emoji |  | Emoji faces (U+1F600..1F63F); also encodes binary |  | 17 | 😙😢😏😕😕😍😩😇😓😒😒😈😵😿😠😀😁
-| 64 | 64tt |  |  |  | 17 | PYFLLDf7JII8r£W01
-| 69 | 69nice | nice | The nice base |  | 17 | 7֏≶ayoxgg3⚣aｼxiͽᨑ
-| 69 | 69emoji |  | The nice base, in emoji |  | 17 | 🌊😍🤠🌮💘👩💕🎩🎩✂🥞🌮🪛💕🐓🔩😗
-| 85 | 85z | z85 |  | ZeroMQ RFC 32 | 16 | ndMmoZum[KT@d01F
-| 85 | 85ps | ascii85 |  | Adobe Ascii85 | 16 | 8.Q79^?7nOXr.!"J
-| 85 | 85ipv6 | rfc1924 |  | RFC 1924 | 16 | NDmMOzUM@kt{D01f
-| 91 | 91hk | base91 |  |  | 16 | Id1{DPXs1>wM2:=:
-| 98 | 98keyboard | keyboard | Any plain-text document is valid input as-is |  | 16 | 2'hT;7pK%*rS\\YyP
-| 128 | 128tt |  |  |  | 15 | 6nFgŋʇHɷøaZlͼ01
-| 256 | bytes |  | Raw bytes, for bit-perfect binary round-trips |  |  | (raw bytes 0x00-0xFF)
-| 256 | 256tt |  |  |  | 13 | Pϝჺƌs϶า·Yrግ01
-| 512 | 512tt |  |  |  | 12 | 3ɔΔᵷʇ±ԉϾ°⧖ጓ1
-| 1024 | 1024tt |  |  |  | 11 | 1乬ჺᴫ侇ʬ佣ϝ佺侟1
-| 2048 | 2048tt |  |  |  | 10 | 3ｦ呉冉兕公傺๙呟1
-| 2048 | 2048qntm | 2048twitter |  |  | 10 | BМཔટਲੴफɱྈ9
-| 2048 | 2048llfourn |  | Tightest binary-to-text encoding for Twitter |  | 10 | ÀɈႎஈଦଽਆƗႫµ
-| 32768 | 32768qntm | 32768utf16 | Tightest binary-to-text encoding for UTF-16 |  | 7 | ⇢䓪秉㓚䫈鉜ҡ
-| 65536 | 65536qntm | 65536utf32 | Tightest binary-to-text encoding for UTF-32 |  | 7 | 㐙𠻵訶𡟓縢櫾㐁
+| Base | Name [arg] | First alias | Char count | UTF-8 byte count | Output
+| --: | :-- | :-- | --: | --: | :--
+| 2 | 2 |  | 64 | 64 | 1000100100010000100001<br>1110111000101100000011<br>01000111000100010101
+| 3 | 3 | ternary | 40 | 40 | 21022101222012121012<br>02020101122001010100
+| 4 | 4 | quaternary | 32 | 32 | 2021010020132320<br>2300031013010111
+| 5 | 5 | quinary | 28 | 28 | 1130322301232423313101104124
+| 6 | 6 | senary | 25 | 25 | 2030120222121401034444313
+| 7 | 7 | septenary | 23 | 23 | 23453063142236364225036
+| 8 | 8 | octal | 22 | 22 | 1044204173426015070425
+| 9 | 9 | nonary | 20 | 20 | 72718655352211561110
+| 10 | 10 | decimal | 19 | 19 | 9876543210123456789
+| 10 | 10cjk | cjk | 19 | 57 | 九八七六五四三二一<br>〇一二三四五六七八九
+| 10 | 10hindi | devanagari | 19 | 57 | ९८७६५४३२१०१२३४५६७८९
+| 10 | 10arabicindic | easternarabic | 19 | 38 | ٩٨٧٦٥٤٣٢١٠١٢٣٤٥٦٧٨٩
+| 10 | 10rods | rods | 19 | 75 | 𝍨𝍧𝍦𝍥𝍤𝍣𝍢𝍡𝍠〇𝍠𝍡𝍢𝍣𝍤𝍥𝍦𝍧𝍨
+| 10 | 10blocks | blocks | 19 | 57 | ▓▒█▇▆▅▄▃▂▁▂▃▄▅▆▇█▒▓
+| 12 | 12 | dozenal | 18 | 18 | 455060069856893699
+| 16 | 16 | hex | 16 | 16 | 891087B8B0347115
+| 20 | 20 | vigesimal | 15 | 15 | 60B56392I3BC1J9
+| 20 | 20ws | pluscode | 15 | 15 | 82H785F4W5HJ3XF
+| 20 | 20mayan | mayan | 15 | 60 | 𝋦𝋠𝋫𝋥𝋦𝋣𝋩𝋢𝋲𝋣𝋫𝋬𝋡𝋳𝋩
+| 24 | 24 |  | 14 | 14 | B6AD33JM10DMGL
+| 26 | 26 | alphabet | 14 | 14 | DZMXMVTPXFGXON
+| 30 | 30rock | 30 | 13 | 13 | IHG0BBH2EJ469
+| 32 | 32rfc | rfc4648s6 | 13 | 13 | ISEEHXCYDI4IV
+| 32 | 32hex | rfc4648s7 | 13 | 13 | 8I447N2O38S8L
+| 32 | 32crock | crockford | 13 | 13 | 8j447q2r38w8n
+| 32 | 32ws | 32wordsafe | 13 | 13 | CW669h4j5CrCf
+| 32 | 32z | zbase32 | 13 | 13 | e1rr8znadehei
+| 36 | 36 | alphanum | 13 | 13 | 231CEDDO6MSR9
+| 38 | 38hostname | hostname | 13 | 13 | 13f5kppfhzie1
+| 39 | 39username | username | 12 | 12 | v4aqulnf04r0
+| 42 | 42 | answer | 12 | 12 | DWACP4ZbWcLR
+| 45 | 45 | rfc9285 | 12 | 12 | 6K2KT*2DSK99
+| 45 | 45email | email | 12 | 12 | 6k2kt+2dsk99
+| 52 | 52 | upperlower | 12 | 12 | BQQrSMBbxfuN
+| 60 | 60jc | sexagesimal | 11 | 11 | GK2NHbdOsX9
+| 60 | 60tc | newbase60 | 11 | 11 | GL2PHbdQtZ9
+| 62 | 62 |  | 11 | 11 | BlafhneO193
+| 64 | 64rfc | rfc4648s4 | 11 | 11 | IkQh7iwNHEV
+| 64 | 64url | rfc4648s5 | 11 | 11 | IkQh7iwNHEV
+| 64 | 64hex | 64h | 11 | 11 | 8aGXxYmD74L
+| 64 | 64code | programmer | 11 | 11 | 8aGXxYmD74L
+| 64 | 64emoji |  | 11 | 44 | 😈😤😐😡😻😢😰😍😇😄😕
+| 64 | 64tt |  | 11 | 11 | 8aGXxYmD74L
+| 69 | 69nice | nice | 11 | 19 | 42ʬͼ≋xͼcoᴒ֏
+| 69 | 69emoji |  | 11 | 42 | ❤⛳🔄🔥🚻💕🔥🍆👩😘😍
+| 85 | 85z | z85 | 10 | 10 | GSKvRo@QB/
+| 85 | 85ps | ascii85 | 10 | 10 | KWO@V9rUFf
+| 85 | 85ipv6 | rfc1924 | 10 | 10 | gskVrO{qb*
+| 91 | 91hk | base91 | 10 | 10 | XHX";0ys]N
+| 98 | 98keyboard | keyboard | 10 | 10 | B;[xf[y\\^R
+| 128 | 128tt |  | 10 | 13 | 198XͷB1÷ɔL
+| 256 | bytes |  |  |  | (raw bytes 0x00-0xFF)
+| 256 | 256tt |  | 8 | 15 | ϟGϖవ७qʎL
+| 512 | 512tt |  | 8 | 14 | 1aψΩᚨDuᚣ
+| 1024 | 1024tt |  | 7 | 18 | 8义ϖ任伜ᚴᚣ
+| 2048 | 2048tt |  | 6 | 18 | ኮረ俿付匁ᚣ
+| 2048 | 2048qntm | 2048twitter | 6 | 13 | ʬʢޚלഢʯ
+| 2048 | 2048llfourn |  | 6 | 13 | ǒǈրёขǕ
+| 32768 | 32768qntm | 32768utf16 | 5 | 14 | Ҩ滤䔢蛈靵
+| 65536 | 65536qntm | 65536utf32 | 4 | 16 | 𠼐𠶸𣘴𒈕
 
 
 ## How to design a numeric base

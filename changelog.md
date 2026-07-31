@@ -71,6 +71,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The vendored config-parser source is pinned to an upstream release, and the pipeline verifies it still matches that release before building. A copy that has drifted stops the build; a newer upstream release is reported without stopping anything.  [20260729]
 - The test suite builds its base lists from the tool itself instead of naming them, so an added or renamed base is covered everywhere without editing the tests. Both older tools are cross-checked against every base they offer, and anything left uncovered has to be listed as such.  [20260730]
 - Each alias the older tools depend on is marked as such in the source, and a test now holds those notes to the alias lists, so a rename can't quietly drop one. Two v1 bases have no counterpart here and are recorded as permanently uncovered rather than reported every run.  [20260730]
+- The list of predefined bases in the readme is narrower and no longer runs off the side of the page. It drops the description and specification columns, adds the UTF-8 byte count beside the character count, and wraps a long value across lines. A base whose digits are twice as wide on screen now takes about as much room as a plain one.  [20260731]
 
 ## v2.0.0 - 2026-07-13
 
