@@ -240,72 +240,72 @@ Any number of any size converts to and from any of these bases, and most support
 
 These are the common, standard, and published bases, plus a set of [carefully designed](how_to_design_a_numeric_base.md) custom ones.
 
-The "Output" column shows the same base-10 number, `9876543210123456789`, written in each base. It is a plain positive integer because a few of the alphabets use every candidate character as a digit, leaving no room for a negative or decimal marker. Long values are wrapped to keep the column narrow, and some of the larger bases look longer than they are, because the proportional font here stretches double-width characters. "Char count" is the real character count, and "UTF-8 byte count" is what it takes to store, which are not the same thing once a base reaches outside ASCII.
+The "Output" column shows the same base-10 number written in each base. Most rows show it as `-86434491232548995369.314`, negative and fractional. A few alphabets use every candidate character as a digit, leaving no room for a negative or decimal marker, so those rows show the plain positive integer `86434491232548995369` instead. Long values are wrapped to keep the column narrow, and some of the larger bases look longer than they are, because the proportional font here stretches double-width characters. "Char count" is the real character count, and "UTF-8 byte count" is what it takes to store, which are not the same thing once a base reaches outside ASCII.
 
 Bases kept only to reproduce the output of the older `convert-base-v1` and `convert-base-v1b` are left out below. Run `convert-base-v2 --list-compat` to see those.
 
 | Base | Name [arg] | First alias | Char count | UTF-8 byte count | Output
 | --: | :-- | :-- | --: | --: | :--
-| 2 | 2 |  | 64 | 64 | 1000100100010000100001<br>1110111000101100000011<br>01000111000100010101
-| 3 | 3 | ternary | 40 | 40 | 21022101222012121012<br>02020101122001010100
-| 4 | 4 | quaternary | 32 | 32 | 2021010020132320<br>2300031013010111
-| 5 | 5 | quinary | 28 | 28 | 1130322301232423313101104124
-| 6 | 6 | senary | 25 | 25 | 2030120222121401034444313
-| 7 | 7 | septenary | 23 | 23 | 23453063142236364225036
-| 8 | 8 | octal | 22 | 22 | 1044204173426015070425
-| 9 | 9 | nonary | 20 | 20 | 72718655352211561110
-| 10 | 10 | decimal | 19 | 19 | 9876543210123456789
-| 10 | 10cjk | cjk | 19 | 57 | 九八七六五四三二一<br>〇一二三四五六七八九
-| 10 | 10hindi | devanagari | 19 | 57 | ९८७६५४३२१०१२३४५६७८९
-| 10 | 10arabicindic | easternarabic | 19 | 38 | ٩٨٧٦٥٤٣٢١٠١٢٣٤٥٦٧٨٩
-| 10 | 10rods | rods | 19 | 75 | 𝍨𝍧𝍦𝍥𝍤𝍣𝍢𝍡𝍠〇𝍠𝍡𝍢𝍣𝍤𝍥𝍦𝍧𝍨
-| 10 | 10blocks | blocks | 19 | 57 | ▓▒█▇▆▅▄▃▂▁▂▃▄▅▆▇█▒▓
-| 12 | 12 | dozenal | 18 | 18 | 455060069856893699
-| 16 | 16 | hex | 16 | 16 | 891087B8B0347115
-| 20 | 20 | vigesimal | 15 | 15 | 60B56392I3BC1J9
-| 20 | 20ws | pluscode | 15 | 15 | 82H785F4W5HJ3XF
-| 20 | 20mayan | mayan | 15 | 60 | 𝋦𝋠𝋫𝋥𝋦𝋣𝋩𝋢𝋲𝋣𝋫𝋬𝋡𝋳𝋩
-| 24 | 24 |  | 14 | 14 | B6AD33JM10DMGL
-| 26 | 26 | alphabet | 14 | 14 | DZMXMVTPXFGXON
-| 30 | 30rock | 30 | 13 | 13 | IHG0BBH2EJ469
-| 32 | 32rfc | rfc4648s6 | 13 | 13 | ISEEHXCYDI4IV
-| 32 | 32hex | rfc4648s7 | 13 | 13 | 8I447N2O38S8L
-| 32 | 32crock | crockford | 13 | 13 | 8j447q2r38w8n
-| 32 | 32ws | 32wordsafe | 13 | 13 | CW669h4j5CrCf
-| 32 | 32z | zbase32 | 13 | 13 | e1rr8znadehei
-| 36 | 36 | alphanum | 13 | 13 | 231CEDDO6MSR9
-| 38 | 38hostname | hostname | 13 | 13 | 13f5kppfhzie1
-| 39 | 39username | username | 12 | 12 | v4aqulnf04r0
-| 42 | 42 | answer | 12 | 12 | DWACP4ZbWcLR
-| 45 | 45 | rfc9285 | 12 | 12 | 6K2KT*2DSK99
-| 45 | 45email | email | 12 | 12 | 6k2kt+2dsk99
-| 52 | 52 | upperlower | 12 | 12 | BQQrSMBbxfuN
-| 60 | 60jc | sexagesimal | 11 | 11 | GK2NHbdOsX9
-| 60 | 60tc | newbase60 | 11 | 11 | GL2PHbdQtZ9
-| 62 | 62 |  | 11 | 11 | BlafhneO193
-| 64 | 64rfc | rfc4648s4 | 11 | 11 | IkQh7iwNHEV
-| 64 | 64url | rfc4648s5 | 11 | 11 | IkQh7iwNHEV
-| 64 | 64hex | 64h | 11 | 11 | 8aGXxYmD74L
-| 64 | 64code | programmer | 11 | 11 | 8aGXxYmD74L
-| 64 | 64emoji |  | 11 | 44 | 😈😤😐😡😻😢😰😍😇😄😕
-| 64 | 64tt |  | 11 | 11 | 8aGXxYmD74L
-| 69 | 69nice | nice | 11 | 19 | 42ʬͼ≋xͼcoᴒ֏
-| 69 | 69emoji |  | 11 | 42 | ❤⛳🔄🔥🚻💕🔥🍆👩😘😍
-| 85 | 85z | z85 | 10 | 10 | GSKvRo@QB/
-| 85 | 85ps | ascii85 | 10 | 10 | KWO@V9rUFf
-| 85 | 85ipv6 | rfc1924 | 10 | 10 | gskVrO{qb*
-| 91 | 91hk | base91 | 10 | 10 | XHX";0ys]N
-| 98 | 98keyboard | keyboard | 10 | 10 | B;[xf[y\\^R
-| 128 | 128tt |  | 10 | 13 | 198XͷB1÷ɔL
+| 2 | 2 |  | 80 | 80 | -10010101111100001001111111<br>111010011100100011011001011<br>00000100101001.01010000011
+| 3 | 3 | ternary | 52 | 52 | -2100222121012022102000100<br>00021212222202212.02211022
+| 4 | 4 | quaternary | 42 | 42 | -10223320103333310321<br>01230230010221.110012
+| 5 | 5 | quinary | 37 | 37 | -213000311131133232<br>30020322434.124111
+| 6 | 6 | senary | 32 | 32 | -301240443355322<br>55323334505.1515
+| 7 | 7 | septenary | 31 | 31 | -310514645246134<br>131004151.21246
+| 8 | 8 | octal | 30 | 30 | -11276047775162154540451.24061
+| 9 | 9 | nonary | 28 | 28 | -708771683603007788685.27381
+| 10 | 10 | decimal | 25 | 25 | -86434491232548995369.314
+| 10 | 10cjk | cjk | 25 | 71 | -八六四三四四九一二三二<br>五四八九九五三六九.三一四
+| 10 | 10hindi | devanagari | 25 | 71 | -८६४३४४९१२३२५४८९९५३६९.३१४
+| 10 | 10arabicindic | easternarabic | 25 | 48 | -٨٦٤٣٤٤٩١٢٣٢٥٤٨٩٩٥٣٦٩.٣١٤
+| 10 | 10rods | rods | 25 | 94 | -𝍧𝍥𝍣𝍢𝍣𝍣𝍨𝍠𝍡𝍢𝍡𝍤𝍣𝍧𝍨𝍨𝍤𝍢𝍥𝍨.𝍢𝍠𝍣
+| 10 | 10blocks | blocks | 25 | 75 | ◆▓▇▅▄▅▅▒▂▃▄▃▆▅▓▒▒▆▄▇▒●▄▂▅
+| 12 | 12 | dozenal | 25 | 25 | -32B60A3489B63081435.3927
+| 16 | 16 | hex | 23 | 23 | -4AF84FFD391B2C129.5062
+| 20 | 20 | vigesimal | 21 | 21 | -2CF2385DF8BB4889.65C
+| 20 | 20ws | pluscode | 21 | 21 | -4JQ45C7MQCHH6CCF.87J
+| 20 | 20mayan | mayan | 21 | 78 | -𝋢𝋬𝋯𝋢𝋣𝋨𝋥𝋭𝋯𝋨𝋫𝋫𝋤𝋨𝋨𝋩.𝋦𝋥𝋬
+| 24 | 24 |  | 21 | 21 | -42EHN8AN4M3C41H.7CKI
+| 26 | 26 | alphabet | 21 | 21 | -BIVTKZHETLSTENP.IEGW
+| 30 | 30rock | 30 | 19 | 19 | -5CJ7H2QELFK5ST.9CI
+| 32 | 32rfc | rfc4648s6 | 19 | 19 | -CK7BH72OI3FQJJ.KBR
+| 32 | 32hex | rfc4648s7 | 19 | 19 | -2AV17VQE8R5G99.A1H
+| 32 | 32crock | crockford | 19 | 19 | -2az17zte8v5g99.a1h
+| 32 | 32ws | 32wordsafe | 19 | 19 | -4Gx39xpPCq7RFF.G3V
+| 32 | 32z | zbase32 | 19 | 19 | -nk9b894qe5fojj.kbt
+| 36 | 36 | alphanum | 18 | 18 | -I8OSLZKHXFLT5.BAY
+| 38 | 38hostname | hostname | 13 | 13 | 9kbe87.fi9yc1
+| 39 | 39username | username | 13 | 13 | 6.9_ee7u2a0m2
+| 42 | 42 | answer | 18 | 18 | -2aKLFEV2Ec5KT.D7c
+| 45 | 45 | rfc9285 | 18 | 20 | ~1BIIMD0934EEE•E5%
+| 45 | 45email | email | 13 | 13 | 1biimd0934eee
+| 52 | 52 | upperlower | 17 | 17 | -LZwfAMZcpUgp.QRD
+| 60 | 60jc | sexagesimal | 17 | 17 | -2Mvnddf2qGTT.IpO
+| 60 | 60tc | newbase60 | 17 | 17 | -2Nwoddf2rGVV.JqQ
+| 62 | 62 |  | 17 | 17 | -1ez0sz2tYB6f.JT1
+| 64 | 64rfc | rfc4648s4 | 17 | 17 | -BK+E/9ORssEp.UGJ
+| 64 | 64url | rfc4648s5 | 17 | 17 | ~BK-E_9ORssEp.UGJ
+| 64 | 64hex | 64h | 17 | 17 | ~1A-4_zEHii4f.K69
+| 64 | 64code | programmer | 17 | 19 | -1Aʞ4λzEHii4f.K69
+| 64 | 64emoji |  | 12 | 48 | 😁😊😾😄😿😽😎😑😬😬😄😩
+| 64 | 64tt |  | 17 | 19 | -1A¢4£zEHii4f.K69
+| 69 | 69nice | nice | 16 | 25 | -zn4x1ȹk⍢7≷q.l֏𐌸
+| 69 | 69emoji |  | 16 | 57 | -🔀👬🌊💥♋🔃👨🤩🌮🤤💄.👩😗🪵
+| 85 | 85z | z85 | 11 | 11 | 4xffF@ChZ1X
+| 85 | 85ps | ascii85 | 11 | 11 | %B00JrG2^"\\
+| 85 | 85ipv6 | rfc1924 | 11 | 11 | 4XFFf{cHz1x
+| 91 | 91hk | base91 | 11 | 11 | CT~oQ_nxbnP
+| 98 | 98keyboard | keyboard | 11 | 11 | 15 \n7f!F0E>
+| 128 | 128tt |  | 15 | 20 | -9l§£ΔvD¿2f.eO»
 | 256 | bytes |  |  |  | (raw bytes 0x00-0xFF)
-| 256 | 256tt |  | 8 | 15 | ϟGϖవ७qʎL
-| 512 | 512tt |  | 8 | 14 | 1aψΩᚨDuᚣ
-| 1024 | 1024tt |  | 7 | 18 | 8义ϖ任伜ᚴᚣ
-| 2048 | 2048tt |  | 6 | 18 | ኮረ俿付匁ᚣ
-| 2048 | 2048qntm | 2048twitter | 6 | 13 | ʬʢޚלഢʯ
-| 2048 | 2048llfourn |  | 6 | 13 | ǒǈրёขǕ
-| 32768 | 32768qntm | 32768utf16 | 5 | 14 | Ҩ滤䔢蛈靵
-| 65536 | 65536qntm | 65536utf32 | 4 | 16 | 𠼐𠶸𣘴𒈕
+| 256 | 256tt |  | 14 | 29 | -4६ψጎา϶ଌชf.ðɔß
+| 512 | 512tt |  | 13 | 28 | -9งd𐌈ʚʁ⅃ᛎ.կｧʊ
+| 1024 | 1024tt |  | 11 | 28 | -»倅ጎ佨ᚳ७ᛎ.ᥛ丘
+| 2048 | 2048tt |  | 11 | 25 | -1ℸæ咊劰勃ᛎ.亓Ͽ
+| 2048 | 2048qntm | 2048twitter | 11 | 22 | -9ϤƂဤಛಮΚ.Ռȝ
+| 2048 | 2048llfourn |  | 11 | 23 | -µȟďპ൰උǩ.Дœ
+| 32768 | 32768qntm | 32768utf16 | 9 | 22 | -ڊꋇꛎ䦥枉.云㦵
+| 65536 | 65536qntm | 65536utf32 | 9 | 27 | -㐄𣖄𨗓𡞲𤜩.蕢苓
 
 
 ## How to design a numeric base

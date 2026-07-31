@@ -137,7 +137,7 @@ func predefinedBases() []*Base {
 		// Base-10 in ANSI blocks
 		// Created by Jim Collier ~2026-04-19, first published with this code on github.
 		mkSpec(SpecOpts{
-			BaseSymbols: "▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▒ ▓",
+			BaseSymbols: "▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▓ ▒",
 			Aliases:     []string{"10blocks", "blocks"},
 			NegSymbol:   "◆",
 			DecSymbol:   "●",
@@ -493,7 +493,9 @@ func predefinedBases() []*Base {
 		// Base-69: The "nice" emoji base.
 		// Created by Jim Collier 2026-07-27, first published with this code on github.
 		mkSpec(SpecOpts{
-			BaseSymbols: " ♈ ♋ ⛳ ✂ ❤ ⤴️ 🌈 🌊 🌋 🌭 🌮 🌹 🍆 🍈 🍑 🍒 🎩 🏩 🐓 🐻 👈 👉 👌 👨 👩 👫 👬 👭 👯 💄 💋 💌 💓 💕 💘 💥 💦 🔀 🔁 🔃 🔄 🔥 🔩 🔻 😈 😍 😏 😗 😘 😛 🙃 🚻 🛏 🤟 🤠 🤤 🤩 🥂 🥖 🥜 🥞 🥰 🦫 🧍 🧗 🪛 🪵 🫦 🫶 ",
+			// Every digit is emoji-presentation by definition, so none of them
+			// need a variation selector and none fall back to a text glyph.
+			BaseSymbols: " ♈ ♋ ⛳ 🌈 🌊 🌋 🌭 🌮 🌹 🍆 🍈 🍑 🍒 🎩 🏩 🐓 🐻 👈 👉 👌 👨 👩 👫 👬 👭 👯 💄 💋 💌 💓 💕 💘 💞 💥 💦 🔀 🔁 🔃 🔄 🔥 🔩 🔻 😈 😍 😏 😗 😘 😛 🙃 🚀 🚻 🛌 🤞 🤟 🤠 🤤 🤩 🥂 🥖 🥜 🥞 🥰 🦫 🧍 🧗 🪛 🪵 🫦 🫶 ",
 			Aliases:     []string{"69emoji"},
 		}),
 

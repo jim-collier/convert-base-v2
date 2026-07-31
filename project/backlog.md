@@ -64,9 +64,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Make every `69emoji` digit a graphical emoji.
+	- Cause: four of the sixty-nine were text-presentation by Unicode definition, so they drew as line art rather than colour. One of those was also carrying a presentation selector to force the issue, which made it the only multi-codepoint digit in the base.
+	- Fixed: scissors became crossed fingers, the heavy black heart became revolving hearts, the curving arrow became a rocket, and the bed became a person in bed. Alphabet re-sorted into code point order.
+	- Verified: checked against `emoji-data.txt` from unicode.org, so the call is the Unicode property and not how one font happens to draw it.
+
 - ✅ Trim the README bases table so it stops overflowing on GitHub.
 	- Done: dropped the Description and Specification columns, renamed Chars to Char count, added UTF-8 byte count next to it, and renamed Number representation to Output.
-	- Done: the example number is now `9876543210123456789`. It stays a plain positive integer because nine of the alphabets use every candidate character as a digit, so a sign or a fraction is an error in those rather than a row.
+	- Done: the example number is now `-86434491232548995369.314`, dropping to the bare integer `86434491232548995369` for the nine alphabets that use every candidate character as a digit and so carry no negative or decimal marker.
 	- Done: long output values wrap. Line count is picked from an estimated rendered width, counting a double-width character as two, so a CJK or emoji row ends up about as wide as a Latin one instead of twice as wide. Widest cell went from 101 to 28.
 	- Done: the generator is `utility/gen-bases-table.py`, replacing the stale `gen-example-table.bash`, which still produced the old three-column table. It also emits the `bytes` row, which used to be added by hand.
 
