@@ -463,12 +463,11 @@ func predefinedBases() []*Base {
 		// yellow faces followed by the 8 cat faces, in code-point order. Every
 		// symbol is a single code point (no ZWJ sequences, no skin-tone modifiers)
 		// that renders in color by default. Being 2^6 it also works in the binary/
-		// streaming path, so binary data can be encoded straight to emoji.
+		// streaming path, so binary data can be encoded straight to emoji. The
+		// default - and . markers stay, since no digit here can collide with them.
 		mkSpec(SpecOpts{
 			BaseSymbols: strings.Join(runeRange(0x1F600, 0x1F63F), " "),
 			Aliases:     []string{"64emoji"},
-			DisallowNeg: true,
-			DisallowDec: true,
 		}),
 
 		// 64tt

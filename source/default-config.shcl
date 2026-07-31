@@ -75,7 +75,8 @@
 # Base 10 in emoji, hand picked to carry a wide range of expressions. It lives
 # here rather than in the built-in set, so there is always a working example to
 # copy from.
-base: emoji10
+base: 10emoji
+	aliases: emoji10
 	symbols: "😀 😑 😔 😘 😜 😠 😬 😮 🙄 🤔"
 	negative: "🥕"
 	decimal: "⚽"

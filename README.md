@@ -144,7 +144,8 @@ The first run writes `~/.config/convert-base-v2/convert-base-v2.shcl`, a comment
 A base is a name and its digits, plus whatever markers it needs.
 
 ~~~text
-base: emoji10
+base: 10emoji
+	aliases: emoji10
 	symbols: "😀 😑 😔 😘 😜 😠 😬 😮 🙄 🤔"
 	negative: "🥕"
 	decimal: "⚽"
@@ -240,33 +241,36 @@ Any number of any size converts to and from any of these bases, and most support
 
 These are the common, standard, and published bases, plus a set of [carefully designed](how_to_design_a_numeric_base.md) custom ones.
 
-The "Output" column shows the same base-10 number written in each base. Most rows show it as `-86434491232548995369.314`, negative and fractional. A few alphabets use every candidate character as a digit, leaving no room for a negative or decimal marker, so those rows show the plain positive integer `86434491232548995369` instead. Long values are wrapped to keep the column narrow, and some of the larger bases look longer than they are, because the proportional font here stretches double-width characters. "Char count" is the real character count, and "UTF-8 byte count" is what it takes to store, which are not the same thing once a base reaches outside ASCII.
+The "Output" column shows the same base-10 number written in each base. Most rows show it as `-86434491232548995369.314`, negative and fractional. A few alphabets are explicitly defined as positive integer only, and show conversion from `86434491232548995369` instead. Long values are wrapped to keep the column narrow, and some of the larger bases look longer than they are, because the proportional font here stretches double-width characters. "Char count" is the real character count, and "UTF-8 byte count" is what it takes to store, which are not the same thing once a base reaches outside ASCII.
 
 Bases kept only to reproduce the output of the older `convert-base-v1` and `convert-base-v1b` are left out below. Run `convert-base-v2 --list-compat` to see those.
 
+`10emoji` is the one row that is not built in. It comes from the config file written on first run, so a fresh install has it, and it is there as the example to copy when defining a base of your own.
+
 | Base | Name [arg] | First alias | Char count | UTF-8 byte count | Output
 | --: | :-- | :-- | --: | --: | :--
-| 2 | 2 |  | 80 | 80 | -10010101111100001001111111<br>111010011100100011011001011<br>00000100101001.01010000011
-| 3 | 3 | ternary | 52 | 52 | -2100222121012022102000100<br>00021212222202212.02211022
-| 4 | 4 | quaternary | 42 | 42 | -10223320103333310321<br>01230230010221.110012
+| 2 | 2 |  | 80 | 80 | -1001010111110000100<br>11111111110100111001<br>00011011001011000001<br>00101001.01010000011
+| 3 | 3 | ternary | 52 | 52 | -21002221210120221<br>020001000002121222<br>2202212.02211022
+| 4 | 4 | quaternary | 42 | 42 | -1022332010333<br>33103210123023<br>0010221.110012
 | 5 | 5 | quinary | 37 | 37 | -213000311131133232<br>30020322434.124111
 | 6 | 6 | senary | 32 | 32 | -301240443355322<br>55323334505.1515
 | 7 | 7 | septenary | 31 | 31 | -310514645246134<br>131004151.21246
-| 8 | 8 | octal | 30 | 30 | -11276047775162154540451.24061
-| 9 | 9 | nonary | 28 | 28 | -708771683603007788685.27381
-| 10 | 10 | decimal | 25 | 25 | -86434491232548995369.314
-| 10 | 10cjk | cjk | 25 | 71 | -八六四三四四九一二三二<br>五四八九九五三六九.三一四
-| 10 | 10hindi | devanagari | 25 | 71 | -८६४३४४९१२३२५४८९९५३६९.३१४
-| 10 | 10arabicindic | easternarabic | 25 | 48 | -٨٦٤٣٤٤٩١٢٣٢٥٤٨٩٩٥٣٦٩.٣١٤
-| 10 | 10rods | rods | 25 | 94 | -𝍧𝍥𝍣𝍢𝍣𝍣𝍨𝍠𝍡𝍢𝍡𝍤𝍣𝍧𝍨𝍨𝍤𝍢𝍥𝍨.𝍢𝍠𝍣
-| 10 | 10blocks | blocks | 25 | 75 | ◆▓▇▅▄▅▅▒▂▃▄▃▆▅▓▒▒▆▄▇▒●▄▂▅
-| 12 | 12 | dozenal | 25 | 25 | -32B60A3489B63081435.3927
-| 16 | 16 | hex | 23 | 23 | -4AF84FFD391B2C129.5062
-| 20 | 20 | vigesimal | 21 | 21 | -2CF2385DF8BB4889.65C
-| 20 | 20ws | pluscode | 21 | 21 | -4JQ45C7MQCHH6CCF.87J
-| 20 | 20mayan | mayan | 21 | 78 | -𝋢𝋬𝋯𝋢𝋣𝋨𝋥𝋭𝋯𝋨𝋫𝋫𝋤𝋨𝋨𝋩.𝋦𝋥𝋬
-| 24 | 24 |  | 21 | 21 | -42EHN8AN4M3C41H.7CKI
-| 26 | 26 | alphabet | 21 | 21 | -BIVTKZHETLSTENP.IEGW
+| 8 | 8 | octal | 30 | 30 | -11276047775162<br>154540451.24061
+| 9 | 9 | nonary | 28 | 28 | -7087716836030<br>07788685.27381
+| 10 | 10 | decimal | 25 | 25 | -864344912325<br>48995369.314
+| 10 | 10cjk | cjk | 25 | 71 | -八六四三四四九<br>一二三二五四八九<br>九五三六九.三一四
+| 10 | 10hindi | devanagari | 25 | 71 | -८६४३४४९१२३२५<br>४८९९५३६९.३१४
+| 10 | 10arabicindic | easternarabic | 25 | 48 | -٨٦٤٣٤٤٩١٢٣٢٥<br>٤٨٩٩٥٣٦٩.٣١٤
+| 10 | 10rods | rods | 25 | 94 | -𝍧𝍥𝍣𝍢𝍣𝍣𝍨<br>𝍠𝍡𝍢𝍡𝍤𝍣𝍧𝍨<br>𝍨𝍤𝍢𝍥𝍨.𝍢𝍠𝍣
+| 10 | 10blocks | blocks | 25 | 75 | ◆▓▇▅▄▅▅▒▂▃▄▃▆<br>▅▓▒▒▆▄▇▒●▄▂▅
+| 10 | 10emoji | emoji10 | 25 | 99 | 🥕🙄😬😜😘😜😜🤔<br>😑😔😘😔😠😜🙄🤔<br>🤔😠😘😬🤔⚽😘😑😜
+| 12 | 12 | dozenal | 25 | 25 | -32B60A3489B6<br>3081435.3927
+| 16 | 16 | hex | 23 | 23 | -4AF84FFD391<br>B2C129.5062
+| 20 | 20 | vigesimal | 21 | 21 | -2CF2385DF8<br>BB4889.65C
+| 20 | 20ws | pluscode | 21 | 21 | -4JQ45C7MQC<br>HH6CCF.87J
+| 20 | 20mayan | mayan | 21 | 78 | -𝋢𝋬𝋯𝋢𝋣𝋨𝋥𝋭𝋯<br>𝋨𝋫𝋫𝋤𝋨𝋨𝋩.𝋦𝋥𝋬
+| 24 | 24 |  | 21 | 21 | -42EHN8AN4M<br>3C41H.7CKI
+| 26 | 26 | alphabet | 21 | 21 | -BIVTKZHETL<br>STENP.IEGW
 | 30 | 30rock | 30 | 19 | 19 | -5CJ7H2QELFK5ST.9CI
 | 32 | 32rfc | rfc4648s6 | 19 | 19 | -CK7BH72OI3FQJJ.KBR
 | 32 | 32hex | rfc4648s7 | 19 | 19 | -2AV17VQE8R5G99.A1H
@@ -287,10 +291,10 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 64 | 64url | rfc4648s5 | 17 | 17 | ~BK-E_9ORssEp.UGJ
 | 64 | 64hex | 64h | 17 | 17 | ~1A-4_zEHii4f.K69
 | 64 | 64code | programmer | 17 | 19 | -1Aʞ4λzEHii4f.K69
-| 64 | 64emoji |  | 12 | 48 | 😁😊😾😄😿😽😎😑😬😬😄😩
+| 64 | 64emoji |  | 17 | 62 | -😁😊😾😄😿😽😎<br>😑😬😬😄😩.😔😆😉
 | 64 | 64tt |  | 17 | 19 | -1A¢4£zEHii4f.K69
 | 69 | 69nice | nice | 16 | 25 | -zn4x1ȹk⍢7≷q.l֏𐌸
-| 69 | 69emoji |  | 16 | 57 | -🔀👬🌊💥♋🔃👨🤩🌮🤤💄.👩😗🪵
+| 69 | 69emoji |  | 16 | 57 | -🔀👬🌊💥♋🔃👨<br>🤩🌮🤤💄.👩😗🪵
 | 85 | 85z | z85 | 11 | 11 | 4xffF@ChZ1X
 | 85 | 85ps | ascii85 | 11 | 11 | %B00JrG2^"\\
 | 85 | 85ipv6 | rfc1924 | 11 | 11 | 4XFFf{cHz1x

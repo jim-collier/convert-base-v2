@@ -74,6 +74,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: the example number is now `-86434491232548995369.314`, dropping to the bare integer `86434491232548995369` for the nine alphabets that use every candidate character as a digit and so carry no negative or decimal marker.
 	- Done: long output values wrap. Line count is picked from an estimated rendered width, counting a double-width character as two, so a CJK or emoji row ends up about as wide as a Latin one instead of twice as wide. Widest cell went from 101 to 28.
 	- Done: the generator is `utility/gen-bases-table.py`, replacing the stale `gen-example-table.bash`, which still produced the old three-column table. It also emits the `bytes` row, which used to be added by hand.
+	- Done: narrowed again, since the widest rows still ran off the page. Target width dropped from thirty to twenty, and a digit above the basic plane counts as double width now, which is what `10rods` and `20mayan` needed. Nothing has a rendered width over twenty.
+	- Done: the table reads the shipped config, so `10emoji` is listed alongside the built-ins. A fresh install has it, so leaving it out was misleading. Pass `--config /dev/null` for built-ins only.
+	- Done: `64emoji` shows the signed fractional form now that it carries the markers.
 
 - ✅ Rationalize base names and aliases, per `design_docs/20260730_base_naming.md`.
 	- Done: one scheme now - lowercase, radix first, at most four aliases in a fixed order, bare numbers only where unambiguous. Every v1/v1b name still resolves; dropped spellings error with a near-match suggestion.

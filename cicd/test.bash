@@ -320,11 +320,12 @@ printf 'base: x\n\tsybmols: abc\n' >"${CBT_TMP}/typo.shcl"
 check errmsg "config typo rejected"  'unknown base field' -- --config "${CBT_TMP}/typo.shcl" 255 16
 printf 'base: x\n\tsymbols: abc\n  bogus indent\n' >"${CBT_TMP}/bad.shcl"
 check errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
-## First run writes the default config, and emoji10 comes from it rather than
+## First run writes the default config, and 10emoji comes from it rather than
 ## from the built-in set. XDG_CONFIG_HOME was sandboxed at the top of the run.
 usercfg="${XDG_CONFIG_HOME}/convert-base-v2/convert-base-v2.shcl"
 [[ -s "$usercfg" ]] && _pass "first run creates the user config" || _fail "first run creates the user config" "missing $usercfg"
-check eq  "emoji10 comes from config" '😑😔😘😜' -- --from 10 --to emoji10 1234
+check eq  "10emoji comes from config"  '😑😔😘😜' -- --from 10 --to 10emoji 1234
+check eq  "10emoji keeps its old name" '😑😔😘😜' -- --from 10 --to emoji10 1234
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

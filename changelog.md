@@ -50,6 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Base names and aliases now follow one scheme: all lowercase, radix first (`20mayan`, `64emoji`, `69nice`), and at most a few aliases per base, the memorable one first (`hex`, `dozenal`, `crockford`, `rfc4648s6`, `ascii85`, `pluscode`). Renamed: `32` -> `32rfc`, `32h` -> `32hex`, `32zbase` -> `32z`, `64` -> `64rfc`, `64u` -> `64url`, `64h` -> `64hex`, `64jc1` -> `64code`, `keyboard` -> `98keyboard`, `2048twitter` -> `2048qntm`, `2048rust` -> `2048llfourn`, and the script base-10s are `10cjk`, `10hindi`, `10arabicindic`, `10rods`, `10blocks`.
 - The old spellings `32`, `32h`, `64`, `64u`, `64h`, `keyboard`, and `2048twitter` still resolve, as does every name the older tools accepted. The rest of the dropped spellings error with a near-match suggestion: the joke aliases (`venti`, `nerd`, `seximal`, `bestagon`, `TheUltimateAnswer`), the redundant hex-style markers (`12h` through `62h`), long duplicates (`hexadecimal`, `duodecimal`, `alphanumeric`, `oct`, `dec`, `arabic`, `alpha`), and one-off spellings like `emoji64`, `2048x`, `64p`, `20w`, and `45r`. Also fixed: base 4 is `quaternary`, not `quarternary`.
 - The Kanji and Hanzi base-10s are now one base, `10cjk`, since they share the same digits.
+- `64emoji` takes negatives and fractions now. Its digits are all emoji, so the usual `-` and `.` were never at risk of colliding with one.
 - Crockford base 32 (`32c`) now writes lower case, which is easier to read and is the point of that alphabet. Reading is unchanged and still case-insensitive.
 - Raw binary now streams through every base that can carry it, not just the single-character ones. A large file through one of the multi-byte bases holds steady near 20 MB of memory instead of growing with the file, and decoding runs about three times faster. Encoding a 48 MB file to `64emoji` used to peak at 1.2 GB.
 - `512tt`, `1024tt`, and `2048tt` now end a byte stream with a tail character, the same approach the published big bases use, which is what lets them stream. Their binary layout changed as a result. None of the three has been in a release, so no existing data is affected.
@@ -65,14 +66,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bech32 (`32bip`) and base 58 (`58btc`). Both are misleading here: neither is a plain base conversion, so this tool could never produce a real address with them.
 - Base 69 `69prsh`, replaced by `69nice`.
 - The base-48 hex variant, and the word-safe 48, 64, and 128 bases. The word-safe alphabets remain available through the compatibility bases.
-- Base `emoji10` is no longer built in. It ships in the config file created on first run, as the worked example, and works exactly as before.
+- Base `emoji10` is no longer built in. It ships in the config file created on first run as the worked example, under the name `10emoji` to match the rest, and the old spelling still resolves.
 
 ### Other work
 
 - The vendored config-parser source is pinned to an upstream release, and the pipeline verifies it still matches that release before building. A copy that has drifted stops the build; a newer upstream release is reported without stopping anything.  [20260729]
 - The test suite builds its base lists from the tool itself instead of naming them, so an added or renamed base is covered everywhere without editing the tests. Both older tools are cross-checked against every base they offer, and anything left uncovered has to be listed as such.  [20260730]
 - Each alias the older tools depend on is marked as such in the source, and a test now holds those notes to the alias lists, so a rename can't quietly drop one. Two v1 bases have no counterpart here and are recorded as permanently uncovered rather than reported every run.  [20260730]
-- The list of predefined bases in the readme is narrower and no longer runs off the side of the page. It drops the description and specification columns, adds the UTF-8 byte count beside the character count, and wraps a long value across lines. A base whose digits are twice as wide on screen now takes about as much room as a plain one.  [20260731]
+- The list of predefined bases in the readme is narrower and no longer runs off the side of the page. It drops the description and specification columns, adds the UTF-8 byte count beside the character count, and wraps a long value across lines. A base whose digits are twice as wide on screen now takes about as much room as a plain one. It also lists `10emoji`, which comes from the config file rather than the built-in set, since a fresh install has it either way.  [20260731]
 
 ## v2.0.0 - 2026-07-13
 
