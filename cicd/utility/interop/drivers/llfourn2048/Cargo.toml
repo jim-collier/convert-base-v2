@@ -1,0 +1,21 @@
+## Thin batch adapter over LLFourn's published base2048 crate, which is a
+## library and so has no runnable form of its own. The dependency is a path into
+## thirdparty/, never crates.io, so a build cannot quietly pull a different
+## version than the one pins.env names.
+
+[package]
+name = "llfourn2048"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+base2048 = { path = "../../thirdparty/base2048-llfourn" }
+
+## Test-fixture, run once per suite - small beats fast here.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+panic = "abort"
+strip = true

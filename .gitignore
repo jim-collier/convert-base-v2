@@ -11,6 +11,10 @@
 **/unicode_visual_debug.png
 **/__pycache__
 
+# Cargo output for the interop adapter. Compiled, and for one architecture only;
+# it rebuilds offline from the vendored source in a few seconds.
+/cicd/utility/interop/build
+
 # cicd generated artifacts (run logs, flamegraphs, stray profiles/test binaries)
 **/cicd/artifacts
 **/*.prof

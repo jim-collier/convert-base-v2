@@ -75,6 +75,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Test the four big bases against the implementations that defined them, instead of against vectors copied down by hand.
+	- Done: qntm's base2048, base32768 and base65536, and LLFourn's separate base2048, are unpacked verbatim from their published releases under `cicd/utility/interop/thirdparty`, with the version, download and hash of each recorded next to them.
+	- Done: the harness runs randomized bytes through both sides and checks three things per base. Our encoding matches theirs, we read back what they wrote, and they read back what we wrote. Crossing the outputs is the point: two implementations can share a misreading of the tail rules and agree with each other.
+	- Done: sample lengths count up from zero before turning random, since every disagreement these bases have ever had was about the final partial chunk.
+	- Done: an edited or missing reference fails the run. A reference that has been changed is worse than none, because everything would still pass, against something nobody published. A missing toolchain only warns, since that means the checks did not run rather than that they failed.
+	- Verified: all four agree in all three directions. 370 checks, up from 357.
+
 - ✅ Make every `69emoji` digit a graphical emoji.
 	- Cause: four of the sixty-nine were text-presentation by Unicode definition, so they drew as line art rather than colour. One of those was also carrying a presentation selector to force the issue, which made it the only multi-codepoint digit in the base.
 	- Fixed: scissors became crossed fingers, the heavy black heart became revolving hearts, the curving arrow became a rocket, and the bed became a person in bed. Alphabet re-sorted into code point order.

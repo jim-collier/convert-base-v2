@@ -74,6 +74,13 @@ PIN_TOOLS_CMD=(bash cicd/utility/pin-tools.bash)
 ## on; a newer upstream release is a notice, not a failure. Empty it to skip.
 VENDOR_CHECK_CMD=(bash cicd/utility/check-vendor.bash)
 
+## The interop suite (cicd/utility/interop) keeps the four big bases honest by
+## running them against the implementations that defined them, unpacked verbatim
+## from pinned releases. --upstream re-downloads each one and diffs it, which is
+## what catches a pin bumped without a refetch; the offline manifest check runs
+## inside test.bash. Offline warns and carries on. Empty it to skip.
+INTEROP_CHECK_CMD=(bash cicd/utility/interop/fetch.bash --upstream)
+
 ## Stage 3: lint the first-party Go. Each is run inside SRC_DIR. VET is always
 ## available (part of the toolchain) and gating. golangci-lint and staticcheck are
 ## optional: a failed PROBE skips that one with a warning instead of aborting, so
