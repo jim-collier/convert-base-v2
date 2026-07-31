@@ -68,7 +68,7 @@ func FuzzStreamRoundTrip(f *testing.F) {
 		f.Fatal(err)
 	}
 	var targets []*Base
-	for _, name := range []string{"64u", "128tt", "emoji64", "512tt", "2048rust", "65536qntm"} {
+	for _, name := range []string{"64url", "128tt", "64emoji", "512tt", "2048llfourn", "65536qntm"} {
 		b, err := reg.Lookup(name)
 		if err != nil {
 			f.Fatal(err)

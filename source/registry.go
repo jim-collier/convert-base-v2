@@ -490,6 +490,9 @@ func (r *Registry) Register(b *Base) error {
 	}
 	seen := make(map[string]bool)
 	for _, a := range b.Aliases {
+		// The base-prefix strip applies here too, not just at Lookup: an alias
+		// spelled "base91" registers under the key "91", so bare 91 and b91
+		// resolve. The 91hk base leans on this.
 		k := normalizeBaseName(a)
 		if k == "" || seen[k] {
 			continue

@@ -195,12 +195,12 @@ func TestNativeBaseVectors(t *testing.T) {
 		{"32768qntm", "00", runes(0x06BF)},
 		{"32768qntm", "0000", runes(0x04A0, 0x025F)},
 		{"32768qntm", "000000000000", runes(0x04A0, 0x04A0, 0x04A0, 0x018F)},
-		{"2048twitter", "00", runes(0x0046)},
-		{"2048twitter", "0000", runes(0x0038, 0x0110)},
-		{"2048twitter", "010203", runes(0x0047, 0x01B7, 0x0037)},
-		{"2048rust", "00", runes(0x00D8)},
-		{"2048rust", "000000", runes(0x00D8, 0x00D8, 0x0F0D)},
-		{"2048rust", "010203", runes(0x00C5, 0x0140, 0x0F10)},
+		{"2048qntm", "00", runes(0x0046)},
+		{"2048qntm", "0000", runes(0x0038, 0x0110)},
+		{"2048qntm", "010203", runes(0x0047, 0x01B7, 0x0037)},
+		{"2048llfourn", "00", runes(0x00D8)},
+		{"2048llfourn", "000000", runes(0x00D8, 0x00D8, 0x0F0D)},
+		{"2048llfourn", "010203", runes(0x00C5, 0x0140, 0x0F10)},
 	}
 	for _, c := range cases {
 		to := base(t, reg, c.base)
@@ -499,7 +499,7 @@ func TestWrappedBinaryDecode(t *testing.T) {
 	blob := make([]byte, 300)
 	rng.Read(blob)
 
-	for _, name := range []string{"64", "64ws_compat_v1b", "emoji64", "128tt", "512tt", "2048rust", "65536qntm"} {
+	for _, name := range []string{"64", "64ws_compat_v1b", "64emoji", "128tt", "512tt", "2048llfourn", "65536qntm"} {
 		to := base(t, reg, name)
 		enc, err := Convert(string(blob), bytesB, to, 0)
 		if err != nil {
@@ -631,7 +631,7 @@ func TestUserDefinedTail(t *testing.T) {
 // and friends doing binary at all.
 func TestEmptyTailSparesCodecs(t *testing.T) {
 	reg := newReg(t)
-	for _, name := range []string{"45", "85ps", "85z", "basE91"} {
+	for _, name := range []string{"45", "85ps", "85z", "91hk"} {
 		b := base(t, reg, name)
 		scheme := b.BinaryScheme
 		if scheme == "" {

@@ -32,7 +32,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Two base 69s, `nice69` and `emoji69`.
+- Two base 69s, `69nice` and `69emoji`.
 - A `--list-compat` flag, which lists the compatibility bases that `--list` no longer shows.
 - Compatibility bases covering both older tools, named after what they match: `48ws_compat_v1`, `64ws_compat_v1`, `128_compat_v1`, `48ws_compat_v1b`, `64ws_compat_v1b`, `128ws_compat_v1b`, `128_compat_v1b`, `256_compat_v1`, and `288_compat_v1`. Every name the older tools accepted still resolves.
 - Six flags to set the markers directly: `--from-neg`, `--from-dec`, `--from-pad`, `--to-neg`, `--to-dec`, `--to-pad`. An empty value disables a marker, and an omitted flag leaves the base as it was.
@@ -46,12 +46,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - `--list` no longer shows the compatibility bases, so the everyday listing is not half legacy. They still convert, and still answer to every old name.
-- Base `64jc1` is now `code64` (aliases `programmer`, `64p`, and `64j1u`).
-- Base 60 `60jc` is now `Sumerian` (aliases `Babylonian`, `sexagesimal`, `hexagesimal`, `60jc`), and `60tc` is now `NewBase60` (alias `60tc`). Base 85 `85ps` is now `PostScript` (aliases `85postscript`, `85ps`, `85adobe`).
-- The Kanji and Hanzi base-10s are now one base, `Hanzi`, since they share the same digits.
+- Base names and aliases now follow one scheme: all lowercase, radix first (`20mayan`, `64emoji`, `69nice`), and at most a few aliases per base, the memorable one first (`hex`, `dozenal`, `crockford`, `rfc4648s6`, `ascii85`, `pluscode`). Renamed: `32` -> `32rfc`, `32h` -> `32hex`, `32zbase` -> `32z`, `64` -> `64rfc`, `64u` -> `64url`, `64h` -> `64hex`, `64jc1` -> `64code`, `keyboard` -> `98keyboard`, `2048twitter` -> `2048qntm`, `2048rust` -> `2048llfourn`, and the script base-10s are `10cjk`, `10hindi`, `10arabicindic`, `10rods`, `10blocks`.
+- The old spellings `32`, `32h`, `64`, `64u`, `64h`, `keyboard`, and `2048twitter` still resolve, as does every name the older tools accepted. The rest of the dropped spellings error with a near-match suggestion: the joke aliases (`venti`, `nerd`, `seximal`, `bestagon`, `TheUltimateAnswer`), the redundant hex-style markers (`12h` through `62h`), long duplicates (`hexadecimal`, `duodecimal`, `alphanumeric`, `oct`, `dec`, `arabic`, `alpha`), and one-off spellings like `emoji64`, `2048x`, `64p`, `20w`, and `45r`. Also fixed: base 4 is `quaternary`, not `quarternary`.
+- The Kanji and Hanzi base-10s are now one base, `10cjk`, since they share the same digits.
 - Crockford base 32 (`32c`) now writes lower case, which is easier to read and is the point of that alphabet. Reading is unchanged and still case-insensitive.
-- Several redundant aliases are gone, mostly the `Nhex` spellings that duplicate `Nh`: `12hex`, `20hex`, `24hex`, `32hex`, `42hex`, `48hex`, `62hex`, `64hex`, `64hexurl`, plus `deux`, `tern`, `quart`, `quin`, `NerdNumber`, `OnePounder`, `20nofks`, `32nofks`, `85fools`, `85aprilfools`, `91bas`, and `60jc1`. Base 16 gained `nerd`, base 91 gained `basE91`, base 64 hex gained `64hurl`, and the username base gained `39un`.
-- Raw binary now streams through every base that can carry it, not just the single-character ones. A large file through one of the multi-byte bases holds steady near 20 MB of memory instead of growing with the file, and decoding runs about three times faster. Encoding a 48 MB file to `emoji64` used to peak at 1.2 GB.
+- Raw binary now streams through every base that can carry it, not just the single-character ones. A large file through one of the multi-byte bases holds steady near 20 MB of memory instead of growing with the file, and decoding runs about three times faster. Encoding a 48 MB file to `64emoji` used to peak at 1.2 GB.
 - `512tt`, `1024tt`, and `2048tt` now end a byte stream with a tail character, the same approach the published big bases use, which is what lets them stream. Their binary layout changed as a result. None of the three has been in a release, so no existing data is affected.
 - Binary decoding of a base with multi-character digits now accepts line breaks, so wrapped output reads back. The single-character bases already did.
 - Base-45 decoding accepts line breaks too, so wrapped base-45 reads back like every other base that carries raw bytes. Spaces are still digits there, and still meaningful.  [20260730]
@@ -63,7 +62,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The `neg=`, `dec=`, and `pad=` tokens inside symbol specs, on the command line and in config files. Config files keep their `negative:`, `decimal:`, and `pad:` fields, which are unchanged.
 - Bech32 (`32bip`) and base 58 (`58btc`). Both are misleading here: neither is a plain base conversion, so this tool could never produce a real address with them.
-- Base 69 `69prsh`, replaced by `nice69`.
+- Base 69 `69prsh`, replaced by `69nice`.
 - The base-48 hex variant, and the word-safe 48, 64, and 128 bases. The word-safe alphabets remain available through the compatibility bases.
 - Base `emoji10` is no longer built in. It ships in the config file created on first run, as the worked example, and works exactly as before.
 

@@ -57,7 +57,7 @@ func predefinedBases() []*Base {
 		// Base-4
 		mkSpec(SpecOpts{
 			BaseSymbols: "0123",
-			Aliases:     []string{"4", "quarternary"},
+			Aliases:     []string{"4", "quaternary"},
 		}),
 
 		// Base-5 aka Quinary. A historical counting system that used different glyphs.
@@ -69,7 +69,7 @@ func predefinedBases() []*Base {
 		// Base-6 aka Senary/Seximal. Used by the Fore (not Six) people of New Guinea.
 		mkSpec(SpecOpts{
 			BaseSymbols: "012345",
-			Aliases:     []string{"6", "senary", "seximal", "bestagon"},
+			Aliases:     []string{"6", "senary"},
 		}),
 
 		// Base-7 aka Septenary.
@@ -81,7 +81,7 @@ func predefinedBases() []*Base {
 		// Base-8 aka Octal
 		mkSpec(SpecOpts{
 			BaseSymbols: "01234567",
-			Aliases:     []string{"8", "octal", "oct"},
+			Aliases:     []string{"8", "octal"},
 		}),
 
 		// Base-9 aka Nonary
@@ -97,7 +97,7 @@ func predefinedBases() []*Base {
 		// Base-10, aka Decimal, aka Western Arabic
 		mkSpec(SpecOpts{
 			BaseSymbols: base_10,
-			Aliases:     []string{"10", "decimal", "dec", "arabic"},
+			Aliases:     []string{"10", "decimal"},
 		}),
 
 		// Base-10 in CKJ (Korean typically uses arabic digits)
@@ -107,7 +107,7 @@ func predefinedBases() []*Base {
 		// Spaces are required for symbol sets with Unicode characters.
 		mkSpec(SpecOpts{
 			BaseSymbols: "〇 一 二 三 四 五 六 七 八 九",
-			Aliases:     []string{"Hanzi", "Kanji", "10hanzi", "10kanji", "China", "Japan", "Zhōngguó", "Nippon", "中国", "日本"},
+			Aliases:     []string{"10cjk", "cjk"}, // "Hanzi", "Kanji", "10hanzi", "10kanji", "China", "Japan", "Zhōngguó", "Nippon", "中国", "日本"
 		}),
 
 		// Base-10 in Hindi Devanagari numerals
@@ -115,7 +115,8 @@ func predefinedBases() []*Base {
 		// https://en.wikipedia.org/wiki/Devanagari_numerals
 		mkSpec(SpecOpts{
 			BaseSymbols: "० १ २ ३ ४ ५ ६ ७ ८ ९",
-			Aliases:     []string{"Hindi", "10hindi", "India", "Hārat", "भारत"},
+			// Devanagari is the script (also Marathi, Nepali); Hindi is a language.
+			Aliases: []string{"10hindi", "devanagari"}, // "India", "Hārat", "भारत"
 		}),
 
 		// Base-10 in Eastern Arabic script
@@ -123,21 +124,21 @@ func predefinedBases() []*Base {
 		// https://en.wikipedia.org/wiki/Eastern_Arabic_numerals#Numerals
 		mkSpec(SpecOpts{
 			BaseSymbols: "٠ ١ ٢ ٣ ٤ ٥ ٦ ٧ ٨ ٩",
-			Aliases:     []string{"ArabicIndic", "10arabicindic", "10easternarabic", "EasternArabic"},
+			Aliases:     []string{"10arabicindic", "easternarabic"},
 		}),
 
 		// Base-10 in unicode representation of ancient counting rods.
 		// https://en.wikipedia.org/wiki/Counting_rods#Unicode
 		mkSpec(SpecOpts{
 			BaseSymbols: "〇 𝍠 𝍡 𝍢 𝍣 𝍤 𝍥 𝍦 𝍧 𝍨",
-			Aliases:     []string{"Rods", "10rods"},
+			Aliases:     []string{"10rods", "rods"},
 		}),
 
 		// Base-10 in ANSI blocks
 		// Created by Jim Collier ~2026-04-19, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: "▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▒ ▓",
-			Aliases:     []string{"blocks10"},
+			Aliases:     []string{"10blocks", "blocks"},
 			NegSymbol:   "◆",
 			DecSymbol:   "●",
 		}),
@@ -152,27 +153,27 @@ func predefinedBases() []*Base {
 		// Base-12, aka Duodecimal, aka Dozenal (a historical and useful counting system - more evenly divisible by more integers than base-10)
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 12),
-			Aliases:     []string{"12", "12h", "dozenal", "duodecimal"},
+			Aliases:     []string{"12", "dozenal"},
 		}),
 
 		// Base-16, aka Hexadecimal
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 16),
-			Aliases:     []string{"16", "16h", "16hex", "hex", "hexadecimal", "nerd"},
+			Aliases:     []string{"16", "hex"},
 		}),
 
 		// Base-20, aka Vigesimal
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 20),
-			Aliases:     []string{"20", "20h", "vigesimal", "venti"},
+			Aliases:     []string{"20", "vigesimal"},
 		}),
 
 		// Word-safe base-20; not a standard, but published.
-		// "20w" is not in convert-base-v1[b], but "32w" is, using the same subset, so keep it in by convention.
+		// This is exactly the Open Location Code ("plus code") digit set, hence the alias.
 		// https://github.com/google/open-location-code
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_32ws, 20),
-			Aliases:     []string{"20ws", "20w", "20wordsafe", "20google", "20g"},
+			Aliases:     []string{"20ws", "pluscode"},
 		}),
 
 		// Ancient Mayan base-20
@@ -181,21 +182,19 @@ func predefinedBases() []*Base {
 		// https://en.wikipedia.org/wiki/Maya_numerals
 		mkSpec(SpecOpts{
 			BaseSymbols: "𝋠 𝋡 𝋢 𝋣 𝋤 𝋥 𝋦 𝋧 𝋨 𝋩 𝋪 𝋫 𝋬 𝋭 𝋮 𝋯 𝋰 𝋱 𝋲 𝋳",
-			Aliases:     []string{"Mayan", "20mayan"},
+			Aliases:     []string{"20mayan", "mayan"},
 		}),
 
 		// Base-24 - like the hours in a day, an obvious pseudostandard
-		// The "h" in "24h" is to notate that it's using the "hexadecimal" convention of appending the alphabet after 0-9, e.g. hexadecimal.
-		//   As all such schemes notate. Not for "24 hour", which is an OK assumption.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 24),
-			Aliases:     []string{"24", "24h"},
+			Aliases:     []string{"24"},
 		}),
 
 		// Base-26 - the alphabet, an obvious pseudostandard
 		mkSpec(SpecOpts{
 			BaseSymbols: upperAZ_c26,
-			Aliases:     []string{"26", "alphabet", "alpha"},
+			Aliases:     []string{"26", "alphabet"},
 		}),
 
 		// base-30 Rock; a novelty honorary base for the legendary comedy TV show.
@@ -205,7 +204,7 @@ func predefinedBases() []*Base {
 		// Not an official standard. Created by Jim Collier 2026-04-19, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 30),
-			Aliases:     []string{"30rock", "30h", "30hex"},
+			Aliases:     []string{"30rock", "30"},
 		}),
 
 		//
@@ -218,11 +217,13 @@ func predefinedBases() []*Base {
 		// While listed first in the standard, it's kind of backwards compared to every base so far and most to come.
 		//   (But at least consistent with the backward RFC 4648 §4 64-bit scheme.)
 		// 0 and 1 are excluded for human-read disambiguity.
-		// Alias "32r" is required for backward-compatibility with convert-base-v1[b], don't delete it.
+		// Aliases "32r" and bare "32" are required for backward-compatibility with convert-base-v1[b], don't delete them.
+		//   Bare "32" is deliberately last: it resolves (legacy scripts pass it) but is not advertised,
+		//   since RFC 4648 defines two base-32s and a bare number shouldn't pick one.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-6
 		mkSpec(SpecOpts{
 			BaseSymbols: upperAZ_c26 + " 2 3 4 5 6 7 ",
-			Aliases:     []string{"32", "32r", "32rfc", "32rfc4648s6", "RFC4648s6"},
+			Aliases:     []string{"32rfc", "rfc4648s6", "32r", "32"},
 			Pad:         "=",
 			PadEmit:     true, // strict RFC 4648 s6 output is padded
 		}),
@@ -230,11 +231,11 @@ func predefinedBases() []*Base {
 		// Base-32hex (numbers first), RFC 4648 §7.
 		// Although listed second in the RFC base-32 standard, it is more consistent (hexadecimal-like) with other bases.
 		// Alias "32h" is required for backward-compatibility with convert-base-v1[b], don't delete it.
-		// Alias "32tt" is the first subset of 512tt.
+		// Alias "32tt" is the first subset of 512tt - that by design overlaps the same part of base-62.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-7
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 32),
-			Aliases:     []string{"32h", "32rfc4648s7", "RFC4648s7", "32tt"},
+			Aliases:     []string{"32hex", "rfc4648s7", "32tt", "32h"},
 			Pad:         "=",  // RFC 4648 s3.2 mandates padding by default
 			PadEmit:     true, // codec/binary output is padded; number output never is
 		}),
@@ -249,7 +250,7 @@ func predefinedBases() []*Base {
 		// https://www.crockford.com/base32.html
 		mkSpec(SpecOpts{
 			BaseSymbols:   base_10 + " a b c d e f g h j k m n p q r s t v w x y z ",
-			Aliases:       []string{"32c", "32crock", "32crockford", "Crockford"},
+			Aliases:       []string{"32crock", "crockford", "32c"},
 			DecodeAliases: map[string]string{"O": "0", "I": "1", "L": "1"},
 		}),
 
@@ -258,14 +259,14 @@ func predefinedBases() []*Base {
 		// https://github.com/google/open-location-code
 		mkSpec(SpecOpts{
 			BaseSymbols: base_32ws,
-			Aliases:     []string{"32ws", "32w", "32wordsafe", "32google", "32g"},
+			Aliases:     []string{"32ws", "32wordsafe", "32w"},
 		}),
 
 		// z-base-32 by Zooko Wilcox-O'Hearn
 		// https://en.wikipedia.org/wiki/Base32#z-base-32
 		mkSpec(SpecOpts{
 			BaseSymbols: "ybndrfg8ejkmcpqxot1uwisza345h769",
-			Aliases:     []string{"32z", "32zbase", "ZBase32"},
+			Aliases:     []string{"32z", "zbase32"},
 		}),
 
 		//	// Bech32/Bech32m, BIP-173/350. Used for Bitcoin SegWit v0, v1 addresses. Human-readable, excludes 1, b, i, o.
@@ -287,7 +288,7 @@ func predefinedBases() []*Base {
 		// Base-36, all numbers+letters, an obvious pseudo-standard, hex-style
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 36),
-			Aliases:     []string{"36", "36h", "36hex", "alphanum", "alphanumeric"},
+			Aliases:     []string{"36", "alphanum"},
 		}),
 
 		// Base-38 hostnames
@@ -295,7 +296,7 @@ func predefinedBases() []*Base {
 		// Not an official standard. Created by Jim Collier 2023-09-01, originally published with convert-base-v1[b].
 		mkSpec(SpecOpts{
 			BaseSymbols: base_10 + lowerAZ_c26 + " - .",
-			Aliases:     []string{"hostname", "38hostname", "38jc1"},
+			Aliases:     []string{"38hostname", "hostname", "38jc1"},
 			// Negative or decimal makes no sense in this context.
 			DisallowNeg: true,
 			DisallowDec: true,
@@ -309,7 +310,7 @@ func predefinedBases() []*Base {
 		// Base 64r would also work, but having a smaller base translates to smaller values.
 		mkSpec(SpecOpts{
 			BaseSymbols: base_10 + lowerAZ_c26 + " - _ .",
-			Aliases:     []string{"username", "39username", "39un"},
+			Aliases:     []string{"39username", "username"},
 			// Negative or decimal makes no sense in this context.
 			DisallowNeg: true,
 			DisallowDec: true,
@@ -323,7 +324,7 @@ func predefinedBases() []*Base {
 		// https://grokipedia.com/page/Base_42
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 42),
-			Aliases:     []string{"42", "42h", "TheUltimateAnswer"},
+			Aliases:     []string{"42", "answer"},
 		}),
 
 		// Base-45, RFC 9285
@@ -332,7 +333,7 @@ func predefinedBases() []*Base {
 		// https://www.rfc-editor.org/rfc/rfc9285.html
 		mkSpec(SpecOpts{
 			BaseSymbols:  leftTokens(base_62hex, 36) + "\\  $ % * + - . / :", // "\ " Is an escaped space symbol; required double '\\'. Extra space after it separates it from "$".
-			Aliases:      []string{"45", "45r", "45rfc9285", "RFC9285"},
+			Aliases:      []string{"45", "rfc9285"},
 			NegSymbol:    "~", // tilde; '-' is a base symbol here
 			DecSymbol:    "•", // Bullet [&bull]
 			BinaryScheme: "base45",
@@ -348,7 +349,7 @@ func predefinedBases() []*Base {
 		// Negative or decimal values don't make sense.
 		mkSpec(SpecOpts{
 			BaseSymbols: base_10 + lowerAZ_c26 + " - _ % + . : @ [ ]",
-			Aliases:     []string{"email", "45email", "45jc1"},
+			Aliases:     []string{"45email", "email", "45jc1"},
 			// Negative or decimal makes no sense in this context.
 			DisallowNeg: true,
 			DisallowDec: true,
@@ -388,14 +389,14 @@ func predefinedBases() []*Base {
 		// "Created" (arguably) by Jim Collier, 2026-04-19.
 		mkSpec(SpecOpts{
 			BaseSymbols: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYabcdefghijklmnopqrstuvwxy",
-			Aliases:     []string{"Sumerian", "Babylonian", "sexagesimal", "hexagesimal", "60jc"},
+			Aliases:     []string{"60jc", "sexagesimal"},
 		}),
 
 		// Base-60 - Tantek Çelik's NewBase60
 		// http://tantek.pbworks.com/w/page/19402946/NewBase60
 		mkSpec(SpecOpts{
 			BaseSymbols: "0123456789ABCDEFGHJKLMNPQRSTUVWXYZ_abcdefghijkmnopqrstuvwxyz",
-			Aliases:     []string{"NewBase60", "60tc"},
+			Aliases:     []string{"60tc", "newbase60"},
 		}),
 
 		// Base-62 - numbers, upper-case letters, lower-case letters. Correct sorting with LANG=C.
@@ -403,7 +404,7 @@ func predefinedBases() []*Base {
 		// https://en.wikipedia.org/wiki/Base62
 		mkSpec(SpecOpts{
 			BaseSymbols: base_62hex,
-			Aliases:     []string{"62", "62h"},
+			Aliases:     []string{"62"},
 		}),
 
 		//
@@ -412,10 +413,13 @@ func predefinedBases() []*Base {
 
 		// Base 64, RFC 4648 §4
 		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
+		// Aliases "64r" and bare "64" are required for backward-compatibility with convert-base-v1[b], don't delete them.
+		//   Bare "64" is deliberately last: it resolves (legacy scripts pass it) but is not advertised,
+		//   since RFC 4648 defines two base-64s and a bare number shouldn't pick one.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-4
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " + /",
-			Aliases:     []string{"64", "64r", "64rfc", "64rfc4648s4", "rfc4648s4"},
+			Aliases:     []string{"64rfc", "rfc4648s4", "64r", "64"},
 			Pad:         "=",
 			PadEmit:     true, // strict RFC 4648 s4 output is padded
 		}),
@@ -425,7 +429,7 @@ func predefinedBases() []*Base {
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-5
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " - _",
-			Aliases:     []string{"64u", "64url", "64ru", "64rfc4648s5", "rfc4648s5"},
+			Aliases:     []string{"64url", "rfc4648s5", "64u"},
 			NegSymbol:   "~",  // tilde; '-' is a base symbol here
 			Pad:         "=",  // RFC 4648 s3.2 mandates padding by default
 			PadEmit:     true, // codec/binary output is padded; number output never is
@@ -438,7 +442,7 @@ func predefinedBases() []*Base {
 		// "Created" (arguably) by Jim Collier, 2026-04-19.
 		mkSpec(SpecOpts{
 			BaseSymbols: base_62hex + " - _",
-			Aliases:     []string{"64h", "64hu", "64hurl"},
+			Aliases:     []string{"64hex", "64h"},
 			NegSymbol:   "~",  // tilde; '-' is a base symbol here
 			Pad:         "=",  // RFC 4648 s3.2 mandates padding by default
 			PadEmit:     true, // codec/binary output is padded; number output never is
@@ -452,7 +456,7 @@ func predefinedBases() []*Base {
 		// Alias "64j1u" is backwards-compatabile with convert-base-v1 and convert-base-v1b, don't remove it.
 		mkSpec(SpecOpts{
 			BaseSymbols: "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ʞ λ",
-			Aliases:     []string{"code64", "programmer", "64p", "64j1u"},
+			Aliases:     []string{"64code", "programmer", "64j1u"},
 		}),
 
 		// Base-64 of emoji: the Unicode "Emoticons" block, U+1F600..1F63F - the 56
@@ -462,7 +466,7 @@ func predefinedBases() []*Base {
 		// streaming path, so binary data can be encoded straight to emoji.
 		mkSpec(SpecOpts{
 			BaseSymbols: strings.Join(runeRange(0x1F600, 0x1F63F), " "),
-			Aliases:     []string{"emoji64"},
+			Aliases:     []string{"64emoji"},
 			DisallowNeg: true,
 			DisallowDec: true,
 		}),
@@ -483,14 +487,14 @@ func predefinedBases() []*Base {
 		// Created by Jim Collier 2026-07-27, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: base_10 + lowerAZ_c26 + " ȸ ȹ ɷ ʘ ʬ ͼ ͽ Ͼ Ͽ ֏ ఠ ᨑ ᴒ ∇ ≊ ≋ ≔ ≕ ≶ ≷ ⍢ ⏼ ♀ ⚢ ⚣ ⚤ ⚥ ⚦ ⧎ ｼ 𐌸 🛉 🛊 ",
-			Aliases:     []string{"nice69"},
+			Aliases:     []string{"69nice", "nice"},
 		}),
 
 		// Base-69: The "nice" emoji base.
 		// Created by Jim Collier 2026-07-27, first published with this code on github.
 		mkSpec(SpecOpts{
 			BaseSymbols: " ♈ ♋ ⛳ ✂ ❤ ⤴️ 🌈 🌊 🌋 🌭 🌮 🌹 🍆 🍈 🍑 🍒 🎩 🏩 🐓 🐻 👈 👉 👌 👨 👩 👫 👬 👭 👯 💄 💋 💌 💓 💕 💘 💥 💦 🔀 🔁 🔃 🔄 🔥 🔩 🔻 😈 😍 😏 😗 😘 😛 🙃 🚻 🛏 🤟 🤠 🤤 🤩 🥂 🥖 🥜 🥞 🥰 🦫 🧍 🧗 🪛 🪵 🫦 🫶 ",
-			Aliases:     []string{"emoji69"},
+			Aliases:     []string{"69emoji"},
 		}),
 
 		// Reason for removal: Not for the childishness, but:
@@ -515,7 +519,7 @@ func predefinedBases() []*Base {
 		// https://rfc.zeromq.org/spec/32/
 		mkSpec(SpecOpts{
 			BaseSymbols:  base_10 + lowerAZ_c26 + upperAZ_c26 + " . - : + = ^ ! / * ? & < > ( ) [ ] { } @ % $ #",
-			Aliases:      []string{"85z", "z85", "85zeromq"},
+			Aliases:      []string{"85z", "z85"},
 			DisallowNeg:  true,
 			DisallowDec:  true,
 			BinaryScheme: "z85",
@@ -529,7 +533,7 @@ func predefinedBases() []*Base {
 			// The backslash symbol needs '\\\\' here: '\\' would reach the spec parser as a
 			// single '\', which then escapes the following space and drops the symbol.
 			BaseSymbols: "! \" # $ % & ' ( ) * + , - . /" + base_10 + " : ; < = > ? @ " + upperAZ_c26 + " [ \\\\ ] ^ _ ` " + leftTokens(lowerAZ_c26, 21),
-			Aliases:     []string{"PostScript", "85postscript", "85ps", "85adobe"},
+			Aliases:     []string{"85ps", "ascii85"},
 			// Wasn't designed for positional notation
 			DisallowNeg:  true,
 			DisallowDec:  true,
@@ -542,7 +546,7 @@ func predefinedBases() []*Base {
 		// https://www.rfc-editor.org/rfc/rfc1924.html
 		mkSpec(SpecOpts{
 			BaseSymbols: base_62hex + "! # $ % & ( ) * + - ; < = > ? @ ^ _ ` { | } ~",
-			Aliases:     []string{"85ipv6", "85rfc1924", "85elz"},
+			Aliases:     []string{"85ipv6", "rfc1924"},
 			// Wasn't designed for positional notation
 			DisallowNeg: true,
 			DisallowDec: true,
@@ -554,7 +558,9 @@ func predefinedBases() []*Base {
 		// https://thetexttool.com/blog/base91-encode-decode-complete-guide
 		mkSpec(SpecOpts{
 			BaseSymbols: rfc4648start_c62 + " ! # $ % & ( ) * + , . / : ; < = > ? @ [ ] ^ _ ` { | } ~ \"",
-			Aliases:     []string{"91hk", "basE91"},
+			// "base91" registers under the key "91" (the base-prefix strip applies at
+			// registration too), so bare 91 and b91 resolve here as well.
+			Aliases: []string{"91hk", "base91"},
 			// Wasn't designed for positional notation
 			DisallowNeg:  true,
 			DisallowDec:  true,
@@ -637,7 +643,7 @@ func predefinedBases() []*Base {
 		// https://github.com/qntm/base2048
 		mkSpec(SpecOpts{
 			BaseSymbols:  "8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z Æ Ð Ø Þ ß æ ð ø þ Đ đ Ħ ħ ı ĸ Ł ł Ŋ ŋ Œ œ Ŧ ŧ ƀ Ɓ Ƃ ƃ Ƅ ƅ Ɔ Ƈ ƈ Ɖ Ɗ Ƌ ƌ ƍ Ǝ Ə Ɛ Ƒ ƒ Ɠ Ɣ ƕ Ɩ Ɨ Ƙ ƙ ƚ ƛ Ɯ Ɲ ƞ Ɵ Ƣ ƣ Ƥ ƥ Ʀ Ƨ ƨ Ʃ ƪ ƫ Ƭ ƭ Ʈ Ʊ Ʋ Ƴ ƴ Ƶ ƶ Ʒ Ƹ ƹ ƺ ƻ Ƽ ƽ ƾ ƿ ǀ ǁ ǂ ǃ ǝ Ǥ ǥ Ƕ Ƿ Ȝ ȝ Ƞ ȡ Ȣ ȣ Ȥ ȥ ȴ ȵ ȶ ȷ ȸ ȹ Ⱥ Ȼ ȼ Ƚ Ⱦ ȿ ɀ Ɂ ɂ Ƀ Ʉ Ʌ Ɇ ɇ Ɉ ɉ Ɋ ɋ Ɍ ɍ Ɏ ɏ ɐ ɑ ɒ ɓ ɔ ɕ ɖ ɗ ɘ ə ɚ ɛ ɜ ɝ ɞ ɟ ɠ ɡ ɢ ɣ ɤ ɥ ɦ ɧ ɨ ɩ ɪ ɫ ɬ ɭ ɮ ɯ ɰ ɱ ɲ ɳ ɴ ɵ ɶ ɷ ɸ ɹ ɺ ɻ ɼ ɽ ɾ ɿ ʀ ʁ ʂ ʃ ʄ ʅ ʆ ʇ ʈ ʉ ʊ ʋ ʌ ʍ ʎ ʏ ʐ ʑ ʒ ʓ ʔ ʕ ʖ ʗ ʘ ʙ ʚ ʛ ʜ ʝ ʞ ʟ ʠ ʡ ʢ ʣ ʤ ʥ ʦ ʧ ʨ ʩ ʪ ʫ ʬ ʭ ʮ ʯ Ͱ ͱ Ͳ ͳ Ͷ ͷ ͻ ͼ ͽ Ϳ Α Β Γ Δ Ε Ζ Η Θ Ι Κ Λ Μ Ν Ξ Ο Π Ρ Σ Τ Υ Φ Χ Ψ Ω α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ ς σ τ υ φ χ ψ ω Ϗ ϗ Ϙ ϙ Ϛ ϛ Ϝ ϝ Ϟ ϟ Ϡ ϡ Ϣ ϣ Ϥ ϥ Ϧ ϧ Ϩ ϩ Ϫ ϫ Ϭ ϭ Ϯ ϯ ϳ Ϸ ϸ Ϻ ϻ ϼ Ͻ Ͼ Ͽ Ђ Є Ѕ І Ј Љ Њ Ћ Џ А Б В Г Д Е Ж З И К Л М Н О П Р С Т У Ф Х Ц Ч Ш Щ Ъ Ы Ь Э Ю Я а б в г д е ж з и к л м н о п р с т у ф х ц ч ш щ ъ ы ь э ю я ђ є ѕ і ј љ њ ћ џ Ѡ ѡ Ѣ ѣ Ѥ ѥ Ѧ ѧ Ѩ ѩ Ѫ ѫ Ѭ ѭ Ѯ ѯ Ѱ ѱ Ѳ ѳ Ѵ ѵ Ѹ ѹ Ѻ ѻ Ѽ ѽ Ѿ ѿ Ҁ ҁ Ҋ ҋ Ҍ ҍ Ҏ ҏ Ґ ґ Ғ ғ Ҕ ҕ Җ җ Ҙ ҙ Қ қ Ҝ ҝ Ҟ ҟ Ҡ ҡ Ң ң Ҥ ҥ Ҧ ҧ Ҩ ҩ Ҫ ҫ Ҭ ҭ Ү ү Ұ ұ Ҳ ҳ Ҵ ҵ Ҷ ҷ Ҹ ҹ Һ һ Ҽ ҽ Ҿ ҿ Ӏ Ӄ ӄ Ӆ ӆ Ӈ ӈ Ӊ ӊ Ӌ ӌ Ӎ ӎ ӏ Ӕ ӕ Ә ә Ӡ ӡ Ө ө Ӷ ӷ Ӻ ӻ Ӽ ӽ Ӿ ӿ Ԁ ԁ Ԃ ԃ Ԅ ԅ Ԇ ԇ Ԉ ԉ Ԋ ԋ Ԍ ԍ Ԏ ԏ Ԑ ԑ Ԓ ԓ Ԕ ԕ Ԗ ԗ Ԙ ԙ Ԛ ԛ Ԝ ԝ Ԟ ԟ Ԡ ԡ Ԣ ԣ Ԥ ԥ Ԧ ԧ Ԩ ԩ Ԫ ԫ Ԭ ԭ Ԯ ԯ Ա Բ Գ Դ Ե Զ Է Ը Թ Ժ Ի Լ Խ Ծ Կ Հ Ձ Ղ Ճ Մ Յ Ն Շ Ո Չ Պ Ջ Ռ Ս Վ Տ Ր Ց Ւ Փ Ք Օ Ֆ ա բ գ դ ե զ է ը թ ժ ի լ խ ծ կ հ ձ ղ ճ մ յ ն շ ո չ պ ջ ռ ս վ տ ր ց ւ փ ք օ ֆ א ב ג ד ה ו ז ח ט י ך כ ל ם מ ן נ ס ע ף פ ץ צ ק ר ש ת װ ױ ײ ؠ ء ا ب ة ت ث ج ح خ د ذ ر ز س ش ص ض ط ظ ع غ ػ ؼ ؽ ؾ ؿ ف ق ك ل م ن ه و ى ي ٠ ١ ٢ ٣ ٤ ٥ ٦ ٧ ٨ ٩ ٮ ٯ ٱ ٲ ٳ ٴ ٹ ٺ ٻ ټ ٽ پ ٿ ڀ ځ ڂ ڃ ڄ څ چ ڇ ڈ ډ ڊ ڋ ڌ ڍ ڎ ڏ ڐ ڑ ڒ ړ ڔ ڕ ږ ڗ ژ ڙ ښ ڛ ڜ ڝ ڞ ڟ ڠ ڡ ڢ ڣ ڤ ڥ ڦ ڧ ڨ ک ڪ ګ ڬ ڭ ڮ گ ڰ ڱ ڲ ڳ ڴ ڵ ڶ ڷ ڸ ڹ ں ڻ ڼ ڽ ھ ڿ ہ ۃ ۄ ۅ ۆ ۇ ۈ ۉ ۊ ۋ ی ۍ ێ ۏ ې ۑ ے ە ۮ ۯ ۰ ۱ ۲ ۳ ۴ ۵ ۶ ۷ ۸ ۹ ۺ ۻ ۼ ۿ ܐ ܒ ܓ ܔ ܕ ܖ ܗ ܘ ܙ ܚ ܛ ܜ ܝ ܞ ܟ ܠ ܡ ܢ ܣ ܤ ܥ ܦ ܧ ܨ ܩ ܪ ܫ ܬ ܭ ܮ ܯ ݍ ݎ ݏ ݐ ݑ ݒ ݓ ݔ ݕ ݖ ݗ ݘ ݙ ݚ ݛ ݜ ݝ ݞ ݟ ݠ ݡ ݢ ݣ ݤ ݥ ݦ ݧ ݨ ݩ ݪ ݫ ݬ ݭ ݮ ݯ ݰ ݱ ݲ ݳ ݴ ݵ ݶ ݷ ݸ ݹ ݺ ݻ ݼ ݽ ݾ ݿ ހ ށ ނ ރ ބ ޅ ކ އ ވ މ ފ ދ ތ ލ ގ ޏ ސ ޑ ޒ ޓ ޔ ޕ ޖ ޗ ޘ ޙ ޚ ޛ ޜ ޝ ޞ ޟ ޠ ޡ ޢ ޣ ޤ ޥ ޱ ߀ ߁ ߂ ߃ ߄ ߅ ߆ ߇ ߈ ߉ ߊ ߋ ߌ ߍ ߎ ߏ ߐ ߑ ߒ ߓ ߔ ߕ ߖ ߗ ߘ ߙ ߚ ߛ ߜ ߝ ߞ ߟ ߠ ߡ ߢ ߣ ߤ ߥ ߦ ߧ ߨ ߩ ߪ ࠀ ࠁ ࠂ ࠃ ࠄ ࠅ ࠆ ࠇ ࠈ ࠉ ࠊ ࠋ ࠌ ࠍ ࠎ ࠏ ࠐ ࠑ ࠒ ࠓ ࠔ ࠕ ࡀ ࡁ ࡂ ࡃ ࡄ ࡅ ࡆ ࡇ ࡈ ࡉ ࡊ ࡋ ࡌ ࡍ ࡎ ࡏ ࡐ ࡑ ࡒ ࡓ ࡔ ࡕ ࡖ ࡗ ࡘ ࡠ ࡡ ࡢ ࡣ ࡤ ࡥ ࡦ ࡧ ࡨ ࡩ ࡪ ࢠ ࢡ ࢢ ࢣ ࢤ ࢥ ࢦ ࢧ ࢨ ࢩ ࢪ ࢫ ࢬ ࢭ ࢮ ࢯ ࢰ ࢱ ࢲ ࢳ ࢴ ࢶ ࢷ ࢸ ࢹ ࢺ ࢻ ࢼ ࢽ ऄ अ आ इ ई उ ऊ ऋ ऌ ऍ ऎ ए ऐ ऑ ऒ ओ औ क ख ग घ ङ च छ ज झ ञ ट ठ ड ढ ण त थ द ध न प फ ब भ म य र ल ळ व श ष स ह ऽ ॐ ॠ ॡ ० १ २ ३ ४ ५ ६ ७ ८ ९ ॲ ॳ ॴ ॵ ॶ ॷ ॸ ॹ ॺ ॻ ॼ ॽ ॾ ॿ ঀ অ আ ই ঈ উ ঊ ঋ ঌ এ ঐ ও ঔ ক খ গ ঘ ঙ চ ছ জ ঝ ঞ ট ঠ ড ঢ ণ ত থ দ ধ ন প ফ ব ভ ম য র ল শ ষ স হ ঽ ৎ ৠ ৡ ০ ১ ২ ৩ ৪ ৫ ৬ ৭ ৮ ৯ ৰ ৱ ৴ ৵ ৶ ৷ ৸ ৹ ৼ ਅ ਆ ਇ ਈ ਉ ਊ ਏ ਐ ਓ ਔ ਕ ਖ ਗ ਘ ਙ ਚ ਛ ਜ ਝ ਞ ਟ ਠ ਡ ਢ ਣ ਤ ਥ ਦ ਧ ਨ ਪ ਫ ਬ ਭ ਮ ਯ ਰ ਲ ਵ ਸ ਹ ੜ ੦ ੧ ੨ ੩ ੪ ੫ ੬ ੭ ੮ ੯ ੲ ੳ ੴ અ આ ઇ ઈ ઉ ઊ ઋ ઌ ઍ એ ઐ ઑ ઓ ઔ ક ખ ગ ઘ ઙ ચ છ જ ઝ ઞ ટ ઠ ડ ઢ ણ ત થ દ ધ ન પ ફ બ ભ મ ય ર લ ળ વ શ ષ સ હ ઽ ૐ ૠ ૡ ૦ ૧ ૨ ૩ ૪ ૫ ૬ ૭ ૮ ૯ ૹ ଅ ଆ ଇ ଈ ଉ ଊ ଋ ଌ ଏ ଐ ଓ ଔ କ ଖ ଗ ଘ ଙ ଚ ଛ ଜ ଝ ଞ ଟ ଠ ଡ ଢ ଣ ତ ଥ ଦ ଧ ନ ପ ଫ ବ ଭ ମ ଯ ର ଲ ଳ ଵ ଶ ଷ ସ ହ ଽ ୟ ୠ ୡ ୦ ୧ ୨ ୩ ୪ ୫ ୬ ୭ ୮ ୯ ୱ ୲ ୳ ୴ ୵ ୶ ୷ ஃ அ ஆ இ ஈ உ ஊ எ ஏ ஐ ஒ ஓ க ங ச ஜ ஞ ட ண த ந ன ப ம ய ர ற ல ள ழ வ ஶ ஷ ஸ ஹ ௐ ௦ ௧ ௨ ௩ ௪ ௫ ௬ ௭ ௮ ௯ ௰ ௱ ௲ అ ఆ ఇ ఈ ఉ ఊ ఋ ఌ ఎ ఏ ఐ ఒ ఓ ఔ క ఖ గ ఘ ఙ చ ఛ జ ఝ ఞ ట ఠ డ ఢ ణ త థ ద ధ న ప ఫ బ భ మ య ర ఱ ల ళ ఴ వ శ ష స హ ఽ ౘ ౙ ౚ ౠ ౡ ౦ ౧ ౨ ౩ ౪ ౫ ౬ ౭ ౮ ౯ ౸ ౹ ౺ ౻ ౼ ౽ ౾ ಀ ಅ ಆ ಇ ಈ ಉ ಊ ಋ ಌ ಎ ಏ ಐ ಒ ಓ ಔ ಕ ಖ ಗ ಘ ಙ ಚ ಛ ಜ ಝ ಞ ಟ ಠ ಡ ಢ ಣ ತ ಥ ದ ಧ ನ ಪ ಫ ಬ ಭ ಮ ಯ ರ ಱ ಲ ಳ ವ ಶ ಷ ಸ ಹ ಽ ೞ ೠ ೡ ೦ ೧ ೨ ೩ ೪ ೫ ೬ ೭ ೮ ೯ ೱ ೲ അ ആ ഇ ഈ ഉ ഊ ഋ ഌ എ ഏ ഐ ഒ ഓ ഔ ക ഖ ഗ ഘ ങ ച ഛ ജ ഝ ഞ ട ഠ ഡ ഢ ണ ത ഥ ദ ധ ന ഩ പ ഫ ബ ഭ മ യ ര റ ല ള ഴ വ ശ ഷ സ ഹ ഺ ഽ ൎ ൔ ൕ ൖ ൘ ൙ ൚ ൛ ൜ ൝ ൞ ൟ ൠ ൡ ൦ ൧ ൨ ൩ ൪ ൫ ൬ ൭ ൮ ൯ ൰ ൱ ൲ ൳ ൴ ൵ ൶ ൷ ൸ ൺ ൻ ർ ൽ ൾ ൿ අ ආ ඇ ඈ ඉ ඊ උ ඌ ඍ ඎ ඏ ඐ එ ඒ ඓ ඔ ඕ ඖ ක ඛ ග ඝ ඞ ඟ ච ඡ ජ ඣ ඤ ඥ ඦ ට ඨ ඩ ඪ ණ ඬ ත ථ ද ධ න ඳ ප ඵ බ භ ම ඹ ය ර ල ව ශ ෂ ස හ ළ ෆ ෦ ෧ ෨ ෩ ෪ ෫ ෬ ෭ ෮ ෯ ก ข ฃ ค ฅ ฆ ง จ ฉ ช ซ ฌ ญ ฎ ฏ ฐ ฑ ฒ ณ ด ต ถ ท ธ น บ ป ผ ฝ พ ฟ ภ ม ย ร ฤ ล ฦ ว ศ ษ ส ห ฬ อ ฮ ฯ ะ า เ แ โ ใ ไ ๅ ๐ ๑ ๒ ๓ ๔ ๕ ๖ ๗ ๘ ๙ ກ ຂ ຄ ງ ຈ ຊ ຍ ດ ຕ ຖ ທ ນ ບ ປ ຜ ຝ ພ ຟ ມ ຢ ຣ ລ ວ ສ ຫ ອ ຮ ຯ ະ າ ຽ ເ ແ ໂ ໃ ໄ ໐ ໑ ໒ ໓ ໔ ໕ ໖ ໗ ໘ ໙ ໞ ໟ ༀ ༠ ༡ ༢ ༣ ༤ ༥ ༦ ༧ ༨ ༩ ༪ ༫ ༬ ༭ ༮ ༯ ༰ ༱ ༲ ༳ ཀ ཁ ག ང ཅ ཆ ཇ ཉ ཊ ཋ ཌ ཎ ཏ ཐ ད ན པ ཕ བ མ ཙ ཚ ཛ ཝ ཞ ཟ འ ཡ ར ལ ཤ ཥ ས ཧ ཨ ཪ ཫ ཬ ྈ ྉ ྊ ྋ ྌ က ခ ဂ ဃ င စ ဆ ဇ ဈ ဉ ည ဋ ဌ ဍ ဎ ဏ တ ထ ဒ ဓ န ပ ဖ ဗ ဘ မ ယ ရ လ ဝ သ ဟ ဠ အ ဢ ဣ ဤ ဥ ဧ ဨ ဩ ဪ ဿ ၀ ၁ ၂ ၃ ၄ ၅ ၆ ၇ ၈ ၉ ၐ ၑ ၒ ၓ ၔ ၕ",
-			Aliases:      []string{"2048twitter", "2048x", "2048qntm"},
+			Aliases:      []string{"2048qntm", "2048twitter"},
 			TailSymbols:  runeRange('0', '7'), // 3-bit tail, ASCII 0..7 (U+0030..U+0037)
 			BinaryScheme: "qntm",
 		}),
@@ -649,7 +655,7 @@ func predefinedBases() []*Base {
 		// https://github.com/LLFourn/rust-base2048
 		mkSpec(SpecOpts{
 			BaseSymbols: "Ø µ º À Á Â Ã Ä Å Æ Ç È É Ê Ë Ì Í Î Ï Ð Ñ Ò Ó Ô Õ Ö Ù Ú Û Ü Ý Þ ß à á â ã ä å æ ç è é ê ë ì í î ï ð ñ ò ó ô õ ö ø ù ú û ü ý þ ÿ Ā ā Ă ă Ą ą Ć ć Ĉ ĉ Ċ ċ Č č Ď ď Đ đ Ē ē Ĕ ĕ Ė ė Ę ę Ě ě Ĝ ĝ Ğ ğ Ġ ġ Ģ ģ Ĥ ĥ Ħ ħ Ĩ ĩ Ī ī Ĭ ĭ Į į İ ı Ĳ ĳ Ĵ ĵ Ķ ķ ĸ Ĺ ĺ Ļ ļ Ľ ľ Ŀ ŀ Ł ł Ń ń Ņ ņ Ň ň ŉ Ŋ ŋ Ō ō Ŏ ŏ Ő ő Œ œ Ŕ ŕ Ŗ ŗ Ř ř Ś ś Ŝ ŝ Ş ş Š š Ţ ţ Ť ť Ŧ ŧ Ũ ũ Ū ū Ŭ ŭ Ů ů Ű ű Ų ų Ŵ ŵ Ŷ ŷ Ÿ Ź ź Ż ż Ž ž ſ ƀ Ɓ Ƃ ƃ Ƅ ƅ Ɔ Ƈ ƈ Ɖ Ɗ Ƌ ƌ ƍ Ǝ Ə Ɛ Ƒ ƒ Ɠ Ɣ ƕ Ɩ Ɨ Ƙ ƙ ƚ ƛ Ɯ Ɲ ƞ Ɵ Ơ ơ Ƣ ƣ Ƥ ƥ Ʀ Ƨ ƨ Ʃ ƪ ƫ Ƭ ƭ Ʈ Ư ư Ʊ Ʋ Ƴ ƴ Ƶ ƶ Ʒ Ƹ ƹ ƺ ƻ Ƽ ƽ ƾ ƿ ǀ ǁ ǂ ǃ Ǆ ǅ ǆ Ǉ ǈ ǉ Ǌ ǋ ǌ Ǎ ǎ Ǐ ǐ Ǒ ǒ Ǔ ǔ Ǖ ǖ Ǘ ǘ Ǚ ǚ Ǜ ǜ ǝ Ǟ ǟ Ǡ ǡ Ǣ ǣ Ǥ ǥ Ǧ ǧ Ǩ ǩ Ǫ ǫ Ǭ ǭ Ǯ ǯ ǰ Ǳ ǲ ǳ Ǵ ǵ Ƕ Ƿ Ǹ ǹ Ǻ ǻ Ǽ ǽ Ǿ ǿ Ȁ ȁ Ȃ ȃ Ȅ ȅ Ȇ ȇ Ȉ ȉ Ȋ ȋ Ȍ ȍ Ȏ ȏ Ȑ ȑ Ȓ ȓ Ȕ ȕ Ȗ ȗ Ș ș Ț ț Ȝ ȝ Ȟ ȟ Ƞ ȡ Ȣ ȣ Ȥ ȥ Ȧ ȧ Ȩ ȩ Ȫ ȫ Ȭ ȭ Ȯ ȯ Ȱ ȱ Ȳ ȳ ȴ ȵ ȶ ȷ ȸ ȹ Ⱥ Ȼ ȼ Ƚ Ⱦ ȿ ɀ Ɂ ɂ Ƀ Ʉ Ʌ Ɇ ɇ Ɉ ɉ Ɋ ɋ Ɍ ɍ Ɏ ɏ ɐ ɑ ɒ ɓ ɔ ɕ ɖ ɗ ɘ ə ɚ ɛ ɜ ɝ ɞ ɟ ɠ ɡ ɢ ɣ ɤ ɥ ɦ ɧ ɨ ɩ ɪ ɫ ɬ ɭ ɮ ɯ ɰ ɱ ɲ ɳ ɴ ɵ ɶ ɷ ɸ ɹ ɺ ɻ ɼ ɽ ɾ ɿ ʀ ʁ ʂ ʃ ʄ ʅ ʆ ʇ ʈ ʉ ʊ ʋ ʌ ʍ ʎ ʏ ʐ ʑ ʒ ʓ ʔ ʕ ʖ ʗ ʘ ʙ ʚ ʛ ʜ ʝ ʞ ʟ ʠ ʡ ʢ ʣ ʤ ʥ ʦ ʧ ʨ ʩ ʪ ʫ ʬ ʭ ʮ ʯ Ͱ ͱ Ͳ ͳ Ͷ ͷ ͻ ͼ ͽ Ϳ Ά Έ Ή Ί Ό Ύ Ώ ΐ Α Β Γ Δ Ε Ζ Η Θ Ι Κ Λ Μ Ν Ξ Ο Π Ρ Σ Τ Υ Φ Χ Ψ Ω Ϊ Ϋ ά έ ή ί ΰ α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π ρ ς σ τ υ φ χ ψ ω ϊ ϋ ό ύ ώ Ϗ ϐ ϑ ϒ ϓ ϔ ϕ ϖ ϗ Ϙ ϙ Ϛ ϛ Ϝ ϝ Ϟ ϟ Ϡ ϡ Ϣ ϣ Ϥ ϥ Ϧ ϧ Ϩ ϩ Ϫ ϫ Ϭ ϭ Ϯ ϯ ϰ ϱ ϲ ϳ ϴ ϵ Ϸ ϸ Ϲ Ϻ ϻ ϼ Ͻ Ͼ Ͽ Ѐ Ё Ђ Ѓ Є Ѕ І Ї Ј Љ Њ Ћ Ќ Ѝ Ў Џ А Б В Г Д Е Ж З И Й К Л М Н О П Р С Т У Ф Х Ц Ч Ш Щ Ъ Ы Ь Э Ю Я а б в г д е ж з и й к л м н о п р с т у ф х ц ч ш щ ъ ы ь э ю я ѐ ё ђ ѓ є ѕ і ї ј љ њ ћ ќ ѝ ў џ Ѡ ѡ Ѣ ѣ Ѥ ѥ Ѧ ѧ Ѩ ѩ Ѫ ѫ Ѭ ѭ Ѯ ѯ Ѱ ѱ Ѳ ѳ Ѵ ѵ Ѷ ѷ Ѹ ѹ Ѻ ѻ Ѽ ѽ Ѿ ѿ Ҁ ҁ Ҋ ҋ Ҍ ҍ Ҏ ҏ Ґ ґ Ғ ғ Ҕ ҕ Җ җ Ҙ ҙ Қ қ Ҝ ҝ Ҟ ҟ Ҡ ҡ Ң ң Ҥ ҥ Ҧ ҧ Ҩ ҩ Ҫ ҫ Ҭ ҭ Ү ү Ұ ұ Ҳ ҳ Ҵ ҵ Ҷ ҷ Ҹ ҹ Һ һ Ҽ ҽ Ҿ ҿ Ӏ Ӂ ӂ Ӄ ӄ Ӆ ӆ Ӈ ӈ Ӊ ӊ Ӌ ӌ Ӎ ӎ ӏ Ӑ ӑ Ӓ ӓ Ӕ ӕ Ӗ ӗ Ә ә Ӛ ӛ Ӝ ӝ Ӟ ӟ Ӡ ӡ Ӣ ӣ Ӥ ӥ Ӧ ӧ Ө ө Ӫ ӫ Ӭ ӭ Ӯ ӯ Ӱ ӱ Ӳ ӳ Ӵ ӵ Ӷ ӷ Ӹ ӹ Ӻ ӻ Ӽ ӽ Ӿ ӿ Ԁ ԁ Ԃ ԃ Ԅ ԅ Ԇ ԇ Ԉ ԉ Ԋ ԋ Ԍ ԍ Ԏ ԏ Ԑ ԑ Ԓ ԓ Ԕ ԕ Ԗ ԗ Ԙ ԙ Ԛ ԛ Ԝ ԝ Ԟ ԟ Ԡ ԡ Ԣ ԣ Ԥ ԥ Ԧ ԧ Ԩ ԩ Ԫ ԫ Ԭ ԭ Ԯ ԯ Ա Բ Գ Դ Ե Զ Է Ը Թ Ժ Ի Լ Խ Ծ Կ Հ Ձ Ղ Ճ Մ Յ Ն Շ Ո Չ Պ Ջ Ռ Ս Վ Տ Ր Ց Ւ Փ Ք Օ Ֆ ա բ գ դ ե զ է ը թ ժ ի լ խ ծ կ հ ձ ղ ճ մ յ ն շ ո չ պ ջ ռ ս վ տ ր ց ւ փ ք օ ֆ և ؏ ٠ ١ ٢ ٣ ٤ ٥ ٦ ٧ ٨ ٩ ۞ ۩ ۰ ۱ ۲ ۳ ۴ ۵ ۶ ۷ ۸ ۹ ऄ अ आ इ ई उ ऊ ऋ ऌ ऍ ऎ ए ऐ ऑ ऒ ओ औ क ख ग घ ङ च छ ज झ ञ ट ठ ड ढ ण त थ द ध न ऩ प फ ब भ म य र ऱ ल ळ ऴ व श ष स ह ऽ ॐ ॠ ॡ ० १ २ ३ ४ ५ ६ ७ ८ ९ ॲ ॳ ॴ ॵ ॶ ॷ ॸ ॹ ॺ ॻ ॼ ॽ ॾ ॿ ঀ অ আ ই ঈ উ ঊ ঋ ঌ এ ঐ ও ঔ ক খ গ ঘ ঙ চ ছ জ ঝ ঞ ট ঠ ড ঢ ণ ত থ দ ধ ন প ফ ব ভ ম য র ল শ ষ স হ ঽ ৎ ৠ ৡ ০ ১ ২ ৩ ৪ ৫ ৬ ৭ ৮ ৯ ৰ ৱ ৴ ৵ ৶ ৷ ৸ ৹ ਅ ਆ ਇ ਈ ਉ ਊ ਏ ਐ ਓ ਔ ਕ ਖ ਗ ਘ ਙ ਚ ਛ ਜ ਝ ਞ ਟ ਠ ਡ ਢ ਣ ਤ ਥ ਦ ਧ ਨ ਪ ਫ ਬ ਭ ਮ ਯ ਰ ਲ ਵ ਸ ਹ ੜ ੦ ੧ ੨ ੩ ੪ ੫ ੬ ੭ ੮ ੯ ੲ ੳ ੴ અ આ ઇ ઈ ઉ ઊ ઋ ઌ ઍ એ ઐ ઑ ઓ ઔ ક ખ ગ ઘ ઙ ચ છ જ ઝ ઞ ટ ઠ ડ ઢ ણ ત થ દ ધ ન પ ફ બ ભ મ ય ર લ ળ વ શ ષ સ હ ઽ ૐ ૠ ૡ ૦ ૧ ૨ ૩ ૪ ૫ ૬ ૭ ૮ ૯ ૹ ଅ ଆ ଇ ଈ ଉ ଊ ଋ ଌ ଏ ଐ ଓ ଔ କ ଖ ଗ ଘ ଙ ଚ ଛ ଜ ଝ ଞ ଟ ଠ ଡ ଢ ଣ ତ ଥ ଦ ଧ ନ ପ ଫ ବ ଭ ମ ଯ ର ଲ ଳ ଵ ଶ ଷ ସ ହ ଽ ୟ ୠ ୡ ୦ ୧ ୨ ୩ ୪ ୫ ୬ ୭ ୮ ୯ ୱ ୲ ୳ ୴ ୵ ୶ ୷ ஃ அ ஆ இ ஈ உ ஊ எ ஏ ஐ ஒ ஓ ஔ க ங ச ஜ ஞ ட ண த ந ன ப ம ய ர ற ல ள ழ வ ஶ ஷ ஸ ஹ ௐ ௦ ௧ ௨ ௩ ௪ ௫ ௬ ௭ ௮ ௯ ௰ ௱ ௲ ௳ ௴ ௵ ௶ ௷ ௸ ௺ అ ఆ ఇ ఈ ఉ ఊ ఋ ఌ ఎ ఏ ఐ ఒ ఓ ఔ క ఖ గ ఘ ఙ చ ఛ జ ఝ ఞ ట ఠ డ ఢ ణ త థ ద ధ న ప ఫ బ భ మ య ర ఱ ల ళ ఴ వ శ ష స హ ఽ ౘ ౙ ౚ ౠ ౡ ౦ ౧ ౨ ౩ ౪ ౫ ౬ ౭ ౮ ౯ ಅ ಆ ಇ ಈ ಉ ಊ ಋ ಌ ಎ ಏ ಐ ಒ ಓ ಔ ಕ ಖ ಗ ಘ ಙ ಚ ಛ ಜ ಝ ಞ ಟ ಠ ಡ ಢ ಣ ತ ಥ ದ ಧ ನ ಪ ಫ ಬ ಭ ಮ ಯ ರ ಱ ಲ ಳ ವ ಶ ಷ ಸ ಹ ಽ ೞ ೠ ೡ ೦ ೧ ೨ ೩ ೪ ೫ ೬ ೭ ೮ ೯ ೱ ೲ അ ആ ഇ ഈ ഉ ഊ ഋ ഌ എ ഏ ഐ ഒ ഓ ഔ ക ഖ ഗ ഘ ങ ച ഛ ജ ഝ ഞ ട ഠ ഡ ഢ ണ ത ഥ ദ ധ ന ഩ പ ഫ ബ ഭ മ യ ര റ ല ള ഴ വ ശ ഷ സ ഹ ഺ ഽ ൠ ൡ ൦ ൧ ൨ ൩ ൪ ൫ ൬ ൭ ൮ ൯ ൰ ൱ ൲ ൳ ൴ ൵ ൺ ൻ ർ ൽ ൾ ൿ අ ආ ඇ ඈ ඉ ඊ උ ඌ ඍ ඎ ඏ ඐ එ ඒ ඓ ඔ ඕ ඖ ක ඛ ග ඝ ඞ ඟ ච ඡ ජ ඣ ඤ ඥ ඦ ට ඨ ඩ ඪ ණ ඬ ත ථ ද ධ න ඳ ප ඵ බ භ ම ඹ ය ර ල ව ශ ෂ ස හ ළ ෆ ก ข ฃ ค ฅ ฆ ง จ ฉ ช ซ ฌ ญ ฎ ฏ ฐ ฑ ฒ ณ ด ต ถ ท ธ น บ ป ผ ฝ พ ฟ ภ ม ย ร ฤ ล ฦ ว ศ ษ ส ห ฬ อ ฮ ฯ ะ า เ แ โ ใ ไ ๅ ๐ ๑ ๒ ๓ ๔ ๕ ๖ ๗ ๘ ๙ ກ ຂ ຄ ງ ຈ ຊ ຍ ດ ຕ ຖ ທ ນ ບ ປ ຜ ຝ ພ ຟ ມ ຢ ຣ ລ ວ ສ ຫ ອ ຮ ຯ ະ າ ຽ ເ ແ ໂ ໃ ໄ ໐ ໑ ໒ ໓ ໔ ໕ ໖ ໗ ໘ ໙ ໜ ໝ ༀ ༂ ༃ ༓ ༕ ༔ ༖ ༗ ༠ ༡ ༢ ༣ ༤ ༥ ༦ ༧ ༨ ༩ ཀ ཁ ག ང ཅ ཆ ཇ ཉ ཊ ཋ ཌ ཎ ཏ ཐ ད ན པ ཕ བ མ ཙ ཚ ཛ ཝ ཞ ཟ འ ཡ ར ལ ཤ ཥ ས ཧ ཨ ཪ ཫ ཬ ྅ ྈ ྉ ྊ ྋ ྿ ࿀ ࿁ ࿂ ࿃ ࿄ ࿅ ࿇ ࿈ ࿉ ࿊ ࿋ ࿌ ࿎ ࿏ ࿐ ࿑ ࿒ ࿓ ࿔ ႞ ႟ က ခ ဂ ဃ င စ ဆ ဇ ဈ ဉ ည ဋ ဌ ဍ ဎ ဏ တ ထ ဒ ဓ န ပ ဖ ဗ ဘ မ ယ ရ လ ဝ သ ဟ ဠ အ ဢ ဣ ဤ ဥ ဦ ဧ ဨ ဩ ဪ ဿ ၀ ၁ ၂ ၃ ၄ ၅ ၆ ၇ ၈ ၉ ၊ ။ ၌ ၍ ၎ ၏ ၐ ၑ ၒ ၓ ၔ ၕ ၚ ၛ ၜ ၝ ၡ ၥ ၦ ၮ ၯ ၰ ၵ ၶ ၷ ၸ ၹ ၺ ၻ ၼ ၽ ၾ ၿ ႀ ႁ ႎ ႐ ႑ ႒ ႓ ႔ ႕ ႖ ႗ ႘ ႙ Ⴀ Ⴁ Ⴂ Ⴃ Ⴄ Ⴅ Ⴆ Ⴇ Ⴈ Ⴉ Ⴊ Ⴋ Ⴌ Ⴍ Ⴎ Ⴏ Ⴐ Ⴑ Ⴒ Ⴓ Ⴔ Ⴕ Ⴖ Ⴗ Ⴘ Ⴙ Ⴚ Ⴛ Ⴜ Ⴝ Ⴞ Ⴟ Ⴠ Ⴡ Ⴢ Ⴣ Ⴤ Ⴥ ა ბ გ დ ე ვ ზ თ ი კ ლ მ ნ ო პ ჟ რ ს ტ უ ფ ქ ღ ყ შ ჩ ც ძ წ ჭ ხ ჯ ჰ ჱ ჲ ჳ ྾",
-			Aliases:     []string{"2048rust", "2048llfourn"},
+			Aliases:     []string{"2048llfourn"},
 			// 3-bit tail, in the crate's own index order (not code-point order).
 			TailSymbols:  []string{"།", "༎", "༏", "༐", "༑", "༆", "༈", "༒"},
 			BinaryScheme: "rust2048",
@@ -919,7 +925,7 @@ func keyboardBase() *Base {
 	add(0x5B, 0x60) // [ \ ] ^ _ `
 	add(0x7B, 0x7E) // { | } ~
 	return &Base{
-		Aliases:  []string{"keyboard", "98", "text", "ascii", "kbd"},
+		Aliases:  []string{"98keyboard", "keyboard", "98"},
 		Symbols:  syms,
 		Negative: strPtr(""), // no spare ASCII char, and sign is meaningless here
 		Decimal:  strPtr(""), // ditto for a fractional separator
