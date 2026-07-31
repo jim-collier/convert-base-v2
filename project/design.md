@@ -89,7 +89,7 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 - **The config is written, not just documented.** The first run creates the user file with a commented example in it. A documented path that does not exist is a feature most people never find, and there is no example to copy from until they have already worked out the syntax. The file is embedded in the binary, so the shipped example and the real file cannot disagree.
 
-- **`emoji10` lives in the config rather than in the code.** It was the most decorative of the built-in bases and the most obvious thing to imitate, which makes it a better example than a placeholder alphabet. Anyone who wants it keeps it; anyone who wants their own edits it in place.
+- **`10emoji` lives in the config rather than in the code.** It was the most decorative of the built-in bases and the most obvious thing to imitate, which makes it a better example than a placeholder alphabet. Anyone who wants it keeps it; anyone who wants their own edits it in place.
 
 - **An unrecognized config field is an error.** Loading the file with a misspelled field ignored would produce a base with the wrong markers or the wrong digits, and nothing about the output would ever look wrong. The same reasoning applies to a line SHCL could not parse: the parser is designed to skip and carry on, which is right for a log and wrong for an alphabet.
 
