@@ -639,7 +639,7 @@ func TestEmptyTailSparesCodecs(t *testing.T) {
 		}
 		clone := *b
 		empty := ""
-		if err := (&Options{Label: "--to", Tail: &empty}).Apply(&clone); err != nil {
+		if err := (&Options{Label: "--to", Tail: &empty}).apply(&clone); err != nil {
 			t.Fatal(err)
 		}
 		if clone.BinaryScheme != scheme {
@@ -654,7 +654,7 @@ func TestEmptyTailSparesCodecs(t *testing.T) {
 	b := base(t, reg, "512tt")
 	clone := *b
 	empty := ""
-	if err := (&Options{Label: "--to", Tail: &empty}).Apply(&clone); err != nil {
+	if err := (&Options{Label: "--to", Tail: &empty}).apply(&clone); err != nil {
 		t.Fatal(err)
 	}
 	if clone.BinaryScheme != "" || len(clone.TailSymbols) != 0 {

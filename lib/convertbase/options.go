@@ -34,12 +34,12 @@ func (o *Options) flag(name string) string {
 	return o.Label + "-" + name
 }
 
-// Apply writes the overrides onto a base that has not been finalized yet. Order
+// apply writes the overrides onto a base that has not been finalized yet. Order
 // matters: a custom alphabet that uses "-" or "." as digits only survives
-// Finalize() once its replacement markers are in place. ApplyOptions is the
-// counterpart for a base that is already finalized; it copies instead of
-// mutating.
-func (o *Options) Apply(b *Base) error {
+// Finalize() once its replacement markers are in place. Unexported on purpose:
+// mutating is only safe on a base nobody else holds, so the public surface is
+// ApplyOptions, which copies.
+func (o *Options) apply(b *Base) error {
 	if o == nil {
 		return nil
 	}
@@ -77,8 +77,7 @@ func (o *Options) Apply(b *Base) error {
 
 // ApplyOptions returns a copy of an already-finalized base with the overrides
 // applied, or base itself when nothing was set. It copies because registry
-// bases are shared pointers; Apply is the mutating form for a base that has
-// not been finalized yet. Finalize() rebuilds every derived table from
+// bases are shared pointers. Finalize() rebuilds every derived table from
 // scratch, so re-running it on the copy is safe and re-validates the new markers
 // (collision with a digit, marker inside a digit, negative equal to decimal,
 // pad that is also a digit).
@@ -92,7 +91,7 @@ func ApplyOptions(base *Base, o *Options) (*Base, error) {
 		return nil, fmt.Errorf("base %q carries raw bytes; %s do not apply to it", base.Name(), o.flag("neg/-dec/-pad/-tail"))
 	}
 	overridden := *base
-	if err := o.Apply(&overridden); err != nil {
+	if err := o.apply(&overridden); err != nil {
 		return nil, err
 	}
 	if o.Label == "" {
@@ -126,7 +125,7 @@ func ResolveBase(reg *Registry, name, customSpec string, opts *Options) (*Base, 
 		}
 		// Set before Finalize, not after: the markers are part of the definition
 		// here, and the defaults may well collide with this alphabet's digits.
-		if err := opts.Apply(b); err != nil {
+		if err := opts.apply(b); err != nil {
 			return nil, err
 		}
 		if err := b.Finalize(); err != nil {
