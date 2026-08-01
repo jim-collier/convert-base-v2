@@ -107,6 +107,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Animated gif demo: run the motion at 50 frames per second, and make the scroll and the cursor buttery smooth.
+	- Done: every moving frame is now 20 ms. That is the fastest a gif can run, since browsers clamp shorter delays up to a tenth of a second. Motion used to sit at 80 ms.
+	- Done: the scroll holds one constant velocity. Output lines are fed in against the scroll rather than each one settling to a stop first, which used to cost a short frame at every line boundary and read as judder once the frame rate was high enough to see it.
+	- Done: the cursor eases between cells instead of jumping, and never overruns the keystroke it belongs to, so fast digits keep their pace.
+	- Done: scrolling is 10 percent faster.
+	- Done: a step whose output is taller than the window starts on a cleared screen, so a long list scrolls through once instead of first chasing the previous step's output off the top. Nothing types a clear command.
+	- Done: gifsicle takes a lossless pass at the end when it is installed, which is worth about a sixth of the file. Pixels and timing come out identical. A machine without it just gets a bigger gif.
+	- Note: the file still grows, from about five to about nine megabytes, and nearly all of that is the base list scrolling by. Its scroll rate is the lever if the size matters more than reading along with it.
+
 - ✅ Let other programs use this as a library, not just as a command. Design: `design_docs/20260731_linkable_library.md`.
 	- Done: Go package split, so the conversion core can be imported instead of shelled out to. Module path fixed at the same time, since nothing could fetch it before.
 	- Done: the library is Apache-2.0, the command stays GPL-2.0-or-later. GPL reaches through a static link into the caller, and Go links statically only, so the split is what makes the package importable at all. Apache was picked for attribution: its notice file is what carries the credit into someone else's product.

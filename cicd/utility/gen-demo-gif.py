@@ -12,7 +12,9 @@
 ##		the last frame still, then
 ##		hard-cuts to a black frame before repeating - a held black frame is one
 ##		cheap frame, not a bloaty fade. Frames share one exact master palette,
-##		so nothing is ever re-dithered. Project-agnostic - point it at any scenario.
+##		so nothing is ever re-dithered, and gifsicle takes a lossless size pass
+##		at the end when it is installed.
+##		Project-agnostic - point it at any scenario.
 ##	Syntax:
 ##		gen-demo-gif.py --scenario FILE --out FILE [--bin PATH] [--seed N]
 ##		  --scenario FILE  TOML scenario (see fLoadScenario for the format)
@@ -117,6 +119,26 @@ def fEmojiInit():
 
 
 EMOJI = fEmojiInit()
+
+
+def fOptimize(path):
+	##	Another sixth off, losslessly: gifsicle can mark individual unchanged
+	##	pixels transparent per frame, where Pillow only ever writes one changed
+	##	rectangle. Pixels and frame delays come out identical, so this is purely
+	##	a size pass. Skipped when gifsicle is not installed - the gif is just
+	##	bigger, which is why it is a probe and not a requirement.
+	tmp = path + ".gifsicle"
+	try:
+		res = subprocess.run(["gifsicle", "-O2", "--no-warnings", path, "-o", tmp],
+		                     capture_output=True, text=True, timeout=600)
+		if res.returncode == 0 and os.path.getsize(tmp) > 0:
+			os.replace(tmp, path)
+			return True
+	except (OSError, subprocess.TimeoutExpired):
+		pass
+	if os.path.exists(tmp):
+		os.remove(tmp)
+	return False
 
 
 def fSkip(msg):
@@ -690,11 +712,13 @@ def fMain():
 	os.makedirs(os.path.dirname(os.path.abspath(args.out)) or ".", exist_ok=True)
 	mov.frames[0].save(args.out, format="GIF", save_all=True, append_images=mov.frames[1:],
 	                   duration=mov.durs, loop=0, optimize=False)
+	squeezed = fOptimize(args.out)
 	if not args.quiet:
 		secs = sum(mov.durs) / 1000.0
 		kb = os.path.getsize(args.out) // 1024
 		print(f"gen-demo-gif: {args.out}: {len(mov.frames)} frames, "
-		      f"{secs:.1f}s loop, {kb} KiB, font: {fontName}, "
+		      f"{secs:.1f}s loop, {kb} KiB"
+		      f"{'' if squeezed else ' (no gifsicle)'}, font: {fontName}, "
 		      f"{scr.cols}x{scr.rows} cells, ident: {user}@{host}")
 
 
@@ -706,6 +730,7 @@ if __name__ == "__main__":
 ##		- 20260731: Motion runs at 50 fps. Constant-velocity scroll (output feeds
 ##			in against it rather than settling per line), eased cursor glide,
 ##			scrolling 10% faster, and tall output starts on a cleared screen.
+##			Lossless gifsicle pass at the end, when it is installed.
 ##		- 20260713: End of loop holds the final frame (end_hold, 3s) then hard-
 ##			cuts to black (end_black, 2s) before repeating.
 ##		- 20260711: v1.2. Antialiased text again (ramped 256 palette), color
