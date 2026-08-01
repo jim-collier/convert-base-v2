@@ -115,16 +115,26 @@ func run() error {
 	// Only load user config if it's a different path (avoid double-registering
 	// if user explicitly set -config=/etc/...).
 	userPath := *configFile
+	configExplicit := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "config" {
+			configExplicit = true
+		}
+	})
+	if configExplicit && userPath == etcConfigPath {
+		// Already loaded above, where a file that will not open is forgiven.
+		// That forgiveness is only for the paths nobody typed; a typed
+		// --config still has to open.
+		f, openErr := os.Open(userPath)
+		if openErr != nil {
+			return fmt.Errorf("config %s: %w", userPath, openErr)
+		}
+		f.Close()
+	}
 	if userPath != "" && userPath != etcConfigPath {
 		// A missing default config path is fine, but if the user explicitly typed
 		// --config, a missing/unreadable file is almost certainly a typo - error
 		// instead of silently dropping their custom bases.
-		configExplicit := false
-		flag.Visit(func(f *flag.Flag) {
-			if f.Name == "config" {
-				configExplicit = true
-			}
-		})
 		if configExplicit {
 			if _, statErr := os.Stat(userPath); statErr != nil {
 				return fmt.Errorf("config %s: %w", userPath, statErr)
@@ -552,19 +562,21 @@ func (m *sideFlags) options() *convertbase.Options {
 		Label:  m.prefix,
 		Source: "--from-symbols / --to-symbols (CLI flag)",
 	}
-	for _, f := range []struct {
-		from *optString
-		to   **string
-	}{
-		{&m.neg, &o.Negative},
-		{&m.dec, &o.Decimal},
-		{&m.pad, &o.Pad},
-		{&m.tail, &o.Tail},
-	} {
-		if f.from.set {
-			v := f.from.value
-			*f.to = &v
-		}
+	if m.neg.set {
+		v := m.neg.value
+		o.Negative = &v
+	}
+	if m.dec.set {
+		v := m.dec.value
+		o.Decimal = &v
+	}
+	if m.pad.set {
+		v := m.pad.value
+		o.Pad = &v
+	}
+	if m.tail.set {
+		v := m.tail.value
+		o.Tail = &v
 	}
 	return o
 }

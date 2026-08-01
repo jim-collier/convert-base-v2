@@ -48,15 +48,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### New features and enhancements
 
-- 🛠️ Let other programs use this as a library, not just as a command. Design: `design_docs/20260731_linkable_library.md`.
-	- Done: Go package split, so the conversion core can be imported instead of shelled out to. Module path fixed at the same time, since nothing could fetch it before.
-	- Done: the library is Apache-2.0, the command stays GPL-2.0-or-later. GPL reaches through a static link into the caller, and Go links statically only, so the split is what makes the package importable at all. Apache was picked for attribution: its notice file is what carries the credit into someone else's product.
-	- Done: the Go tree moved to `lib/`, and the package carries its own version starting at v0.1.0. Go welds a module's major version into its import path above v1, so sharing the command's number would have meant every major release of the tool broke callers over a change that never touched the package.
-	- Done: WebAssembly, two builds. The browser module is Apache-2.0 like the library, since it compiles into someone else's page; the WASI build is the whole command and stays GPL.
-	- Done: a demo page that runs the library in the browser, published from `web/`.
-	- Note: a C shared library is no longer the obvious next step. WebAssembly reaches the same languages with no permanent ABI, no cgo, and no per-platform build, so the C interface waits for someone who specifically needs in-process native speed.
-	- Note: an unreadable config file used to be fatal even for the path nobody types, which is what surfaced first under WebAssembly. Only "not there" was forgiven, so a sandbox reporting a different error killed every run.
-
 - 🔘 Library error text still names command-line flags, for example "see --list for all bases". Fine from the command, out of place from a browser. Decide whether the library should carry a neutral message and let the command add its own hint.
 
 - 🔘 For base "keyboard", allow encoding tab, newline, CR, etc. like "%NEWLINE%", "%DOUBLE_QOUTE%", etc. (Or some other way.)
@@ -73,7 +64,58 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### Done
 
+#### Done - Bugs
+
+- ✅ Wrapped base-45 would not decode.
+	- Reproduced: encode to base 45, wrap the text at any width, decode it back, and the newline is reported as not a base-45 symbol. Every other base that carries raw bytes tolerates wraps.
+	- Cause: base-45 has space as a digit, so it skipped no whitespace at all. CR and LF are not digits, so there was never a reason to include them in that.
+	- Fixed: base-45 decoding drops CR and LF and nothing else. Space still means what it always did.
+
+- ✅ Stale base names in the README table, the changelog, and the tests.
+	- Cause: `64programmer`, `69nice`, and `69emoji` were renamed, and nothing checked that a documented name still resolves.
+	- Fixed: names corrected, and the test suite now fails if any base named in the README table no longer resolves.
+
+- ✅ Piped stdin silently ignored when a positional is given. (BxZNl-1) Kept argv-wins semantics (changing it would break `prog NUMBER` in scripts whose stdin is an inherited pipe, and could consume a pipe it should not touch). Instead: a real pipe with data plus one positional that names a known base now prints a stderr note pointing at `-`, and the synopsis is corrected to require `-` for the pipe form.
+
+- ✅ Non-prefix-free custom alphabets decoded wrong. (BxZNl-2) finalize() now rejects a symbol set where one symbol is a byte-prefix of another (only possible with multi-byte symbols; builtins are single code points and unaffected).
+
+- ✅ A marker inside a multi-char digit symbol corrupted parsing. (BxZNl-3) finalize() rejects a base whose negative/decimal marker appears inside any digit symbol (the "a.b" case is also caught by the new prefix-free check).
+
+- ✅ Streaming encode swallowed read errors as EOF. (BxZNl-4) streamEncode now returns a real read error instead of finishing the tail on it; only io.EOF / io.ErrUnexpectedEOF end the stream.
+
+- ✅ `\t` / `\n` escapes in symbol specs did nothing. (BxZNl-5) They now route through noncharacter placeholders like escaped space, so they survive the whitespace split; `neg=\t` sets a tab marker.
+
+- ✅ Decode strictness depended on the channel. (BxZNl-6) Buffered decode now tolerates line breaks; streaming decode now rejects a digit after padding (matching the buffered interior-pad error); base91 decode errors on junk and only skips whitespace.
+
+- ✅ Fractional output truncated instead of rounding. (BxZNl-7) Fractional part is rounded half-up to precision (carry propagates into the integer part); 0.1 -> hex -> back is now stable.
+
+- ✅ Tiny fractions printed "0.000" / "-0.000". (BxZNl-8) A value below one output digit now rounds to nothing, so no spurious zero fraction or sign (fixed by the same rounding rewrite).
+
+- ✅ Version stamping was a no-op. (BxZNl-9) `version` is now a var, so the `-X main.version` ldflag actually patches it. (Tagging v1.1.0 remains a separate repo action.)
+
+- ✅ Config override left the registry misleading. (BxZNl-10) A fully-shadowed builtin is dropped from the index/count, and --list shows only aliases that still resolve to each base (using the first live one as the name).
+
+- ✅ A typo'd explicit `--config` path was silently ignored. (BxZNl-11) An explicitly-passed missing/unreadable config now errors; the default /etc and XDG paths stay missing-is-OK.
+
+- ✅ Integer-alias check was easy to bypass. (BxZNl-12) Every alias is checked (not just the first), against its normalized form, so ["3","99"] and "b99" are both rejected.
+
+- ✅ Comma-split in multi-token specs was unimplemented. (BxZNl-13) Each token in a multi-token spec is now comma-split, so "0,1 2 3" is four digits.
+
+- ✅ YAML `pad: ""` could not disable a trailer pad. (BxZNl-14) An explicit empty `pad:` clears it, and a new `pademit:` field allows a strip-only (accept-but-not-emit) pad.
+
+- ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
+
 #### Done - New features and enhancements
+
+- ✅ Let other programs use this as a library, not just as a command. Design: `design_docs/20260731_linkable_library.md`.
+	- Done: Go package split, so the conversion core can be imported instead of shelled out to. Module path fixed at the same time, since nothing could fetch it before.
+	- Done: the library is Apache-2.0, the command stays GPL-2.0-or-later. GPL reaches through a static link into the caller, and Go links statically only, so the split is what makes the package importable at all. Apache was picked for attribution: its notice file is what carries the credit into someone else's product.
+	- Done: the Go tree moved to `lib/`, and the package carries its own version starting at v0.1.0. Go welds a module's major version into its import path above v1, so sharing the command's number would have meant every major release of the tool broke callers over a change that never touched the package.
+	- Done: WebAssembly, two builds. The browser module is Apache-2.0 like the library, since it compiles into someone else's page; the WASI build is the whole command and stays GPL.
+	- Done: a demo page that runs the library in the browser, published from `web/`.
+	- Note: the demo page link needs Pages switched on in the repository settings before it resolves.
+	- Note: a C shared library is no longer the obvious next step. WebAssembly reaches the same languages with no permanent ABI, no cgo, and no per-platform build, so the C interface waits for someone who specifically needs in-process native speed.
+	- Note: an unreadable config file used to be fatal even for the path nobody types, which is what surfaced first under WebAssembly. Only "not there" was forgiven, so a sandbox reporting a different error killed every run.
 
 - ✅ Test the four big bases against the implementations that defined them, instead of against vectors copied down by hand.
 	- Done: qntm's base2048, base32768 and base65536, and LLFourn's separate base2048, are unpacked verbatim from their published releases under `cicd/utility/interop/thirdparty`, with the version, download and hash of each recorded next to them.
@@ -135,49 +177,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: every compatibility alphabet matches the bundled `convert-base-v1` and `convert-base-v1b` scripts symbol for symbol, and the harness now cross-checks against both binaries instead of just v1b.
 	- Fixed: `69emoji` was one emoji short, with a stray presentation selector standing in as an invisible digit.
 	- Note: three legacy bases are deliberately uncovered - v1's 38-symbol username, v1's hex-ordered base 64, and the case difference in Crockford base 32.
-
-#### Done - Bugs
-
-- ✅ Wrapped base-45 would not decode.
-	- Reproduced: encode to base 45, wrap the text at any width, decode it back, and the newline is reported as not a base-45 symbol. Every other base that carries raw bytes tolerates wraps.
-	- Cause: base-45 has space as a digit, so it skipped no whitespace at all. CR and LF are not digits, so there was never a reason to include them in that.
-	- Fixed: base-45 decoding drops CR and LF and nothing else. Space still means what it always did.
-
-- ✅ Stale base names in the README table, the changelog, and the tests.
-	- Cause: `64programmer`, `69nice`, and `69emoji` were renamed, and nothing checked that a documented name still resolves.
-	- Fixed: names corrected, and the test suite now fails if any base named in the README table no longer resolves.
-
-- ✅ Piped stdin silently ignored when a positional is given. (BxZNl-1) Kept argv-wins semantics (changing it would break `prog NUMBER` in scripts whose stdin is an inherited pipe, and could consume a pipe it should not touch). Instead: a real pipe with data plus one positional that names a known base now prints a stderr note pointing at `-`, and the synopsis is corrected to require `-` for the pipe form.
-
-- ✅ Non-prefix-free custom alphabets decoded wrong. (BxZNl-2) finalize() now rejects a symbol set where one symbol is a byte-prefix of another (only possible with multi-byte symbols; builtins are single code points and unaffected).
-
-- ✅ A marker inside a multi-char digit symbol corrupted parsing. (BxZNl-3) finalize() rejects a base whose negative/decimal marker appears inside any digit symbol (the "a.b" case is also caught by the new prefix-free check).
-
-- ✅ Streaming encode swallowed read errors as EOF. (BxZNl-4) streamEncode now returns a real read error instead of finishing the tail on it; only io.EOF / io.ErrUnexpectedEOF end the stream.
-
-- ✅ `\t` / `\n` escapes in symbol specs did nothing. (BxZNl-5) They now route through noncharacter placeholders like escaped space, so they survive the whitespace split; `neg=\t` sets a tab marker.
-
-- ✅ Decode strictness depended on the channel. (BxZNl-6) Buffered decode now tolerates line breaks; streaming decode now rejects a digit after padding (matching the buffered interior-pad error); base91 decode errors on junk and only skips whitespace.
-
-- ✅ Fractional output truncated instead of rounding. (BxZNl-7) Fractional part is rounded half-up to precision (carry propagates into the integer part); 0.1 -> hex -> back is now stable.
-
-- ✅ Tiny fractions printed "0.000" / "-0.000". (BxZNl-8) A value below one output digit now rounds to nothing, so no spurious zero fraction or sign (fixed by the same rounding rewrite).
-
-- ✅ Version stamping was a no-op. (BxZNl-9) `version` is now a var, so the `-X main.version` ldflag actually patches it. (Tagging v1.1.0 remains a separate repo action.)
-
-- ✅ Config override left the registry misleading. (BxZNl-10) A fully-shadowed builtin is dropped from the index/count, and --list shows only aliases that still resolve to each base (using the first live one as the name).
-
-- ✅ A typo'd explicit `--config` path was silently ignored. (BxZNl-11) An explicitly-passed missing/unreadable config now errors; the default /etc and XDG paths stay missing-is-OK.
-
-- ✅ Integer-alias check was easy to bypass. (BxZNl-12) Every alias is checked (not just the first), against its normalized form, so ["3","99"] and "b99" are both rejected.
-
-- ✅ Comma-split in multi-token specs was unimplemented. (BxZNl-13) Each token in a multi-token spec is now comma-split, so "0,1 2 3" is four digits.
-
-- ✅ YAML `pad: ""` could not disable a trailer pad. (BxZNl-14) An explicit empty `pad:` clears it, and a new `pademit:` field allows a strip-only (accept-but-not-emit) pad.
-
-- ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
-
-#### Done - New features and enhancements
 
 - ✅ Document the shell aliases that keep binary mode and number mode apart.
 	- Done: added to the end of the README Usage section, right after the help pointer, so it reads as a follow-on to the examples.

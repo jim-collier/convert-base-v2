@@ -30,7 +30,7 @@
 <table>
 	<tr>
 		<td>Convert any regular positional notation number, of any size - positive, negative, and/or decimal - to and from any numeric base.</td>
-		<td>Encode/decode streaming binary-to-text across far more bases than the standard tools like `base64` give you, and on average faster.</td>
+		<td>Encode/decode streaming binary-to-text across far more bases than the standard tools like <code>base64</code> give you, and on average faster.</td>
 		<td>A single, fast, cross-platform static binary. The same conversion core also ships as an Apache-licensed Go package and a WebAssembly module, so you can build it into your own program or web page.</td>
 	</tr>
 </table>
@@ -109,11 +109,19 @@ Grab a build for your platform from the [Releases page](https://github.com/jim-c
 
 Every release ships a `checksums.txt` to verify your download.
 
+Or install from the shell in one line. The script says what it will do, verifies the download against the release's checksum file, and asks before touching anything:
+
+~~~bash
+bash <(curl -fsSL https://raw.githubusercontent.com/jim-collier/convert-base-v2/main/install.bash)
+~~~
+
+Options: `--release stable|dev`, `--target user|system`, `--arch x86_64|arm64`, and `-y` to skip the prompt. A user install goes to `~/.local/bin/convert-base-v2`, a system install to `/usr/local/bin/convert-base-v2`. On Windows, use the installer `.exe` above instead.
+
 To build from source instead, you need Go 1.21 or newer:
 
 ~~~bash
 git clone https://github.com/jim-collier/convert-base-v2
-cd convert-base-v2/source
+cd convert-base-v2/lib
 make local        # builds ./convert-base-v2
 ~~~
 
@@ -240,6 +248,8 @@ The `-v2` marks this as the successor to the original v1.
 
 As v1 anticipated, v2 changes its output in one narrow edge case, and a future version may change it again. There are no official standards for bases above 94 yet. If one ever appears and collides with a name used here, a new suffix keeps the old and new tools installed side by side, so a script that relies on today's exact, deterministic output never breaks. That is what lets `-v2` sit alongside `-v1` and `-v1b`, and leaves room for a `-v3` later.
 
+That compatibility is tested, not assumed. The original `convert-base-v1` and `convert-base-v1b` scripts are bundled in the repo, and every test run executes them and compares their output byte for byte against the compatibility bases here (`--list-compat` shows those).
+
 ## Speed
 
 `convert-base-v2` is fast enough to sit in a pipe next to the coreutils tools without being the bottleneck.
@@ -296,7 +306,9 @@ Four well-known binary-to-text encodings normally live only in someone's JavaScr
 
 - [Base 65536](https://github.com/qntm/base65536) by [qntm](https://github.com/qntm/), "Unicode's answer to Base64", the tightest fit for UTF-32.
 
-None are official standards, but all are published. They are more involved than positional base conversion, and the alphabets have to be generated rather than typed out. `convert-base-v2` uses none of their source code because they are written in JavaScript and Rust. Instead, each was rebuilt from its published description, then verified against the reference test vectors.
+None are official standards, but all are published. They are more involved than positional base conversion, and the alphabets have to be generated rather than typed out. `convert-base-v2` uses none of their source code because they are written in JavaScript and Rust. Each was rebuilt from its published description instead.
+
+The rebuilds are held to the originals, not to copied-down test vectors. Every test run executes actual builds of all four reference implementations, kept in the repo exactly as released, and compares three directions per base: this encoder must match theirs, this decoder must read their output, and their decoder must read this output. Two implementations can share the same misreading and still agree with each other, which is what crossing the outputs catches.
 
 ## List of predefined bases
 
@@ -391,6 +403,6 @@ The CLI application is licensed under the [GNU General Public License v2.0 or la
 
 - SPDX-License-Identifier: `GPL-2.0-or-later`
 
-The library under `source/convertbase/` is licensed more permissively as appropriate for a static or dynamic library: Apache-2.0 <https://www.apache.org/licenses/LICENSE-2.0>, so it can be linked into anything. Its full text and the attribution notice ship beside it.
+The library under `lib/convertbase/` is licensed more permissively as appropriate for a static or dynamic library: Apache-2.0 <https://www.apache.org/licenses/LICENSE-2.0>, so it can be linked into anything. Its full text and the attribution notice ship beside it.
 
 - SPDX-License-Identifier: `Apache-2.0`

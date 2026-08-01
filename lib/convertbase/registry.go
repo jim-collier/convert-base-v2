@@ -465,7 +465,7 @@ func (b *Base) Tokenize(s string) ([]string, error) {
 type Registry struct {
 	byAlias       map[string]*Base
 	ordered       []*Base  // registration order preserved
-	LoadedConfigs []string // paths of config files actually loaded (for --help)
+	LoadedConfigs []string // paths of config files actually loaded, in load order
 }
 
 // NewRegistry builds a registry pre-populated with the predefined bases.

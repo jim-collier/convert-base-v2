@@ -26,6 +26,11 @@ set -Eeuo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 manifest="${here}/manifest.sha256"
 
+## One work dir, cleaned on any exit. fDie bypasses a RETURN trap, which used
+## to leak the downloads on every failure path.
+tmp=""
+trap '[[ -z "${tmp}" ]] || rm -rf "${tmp}"' EXIT
+
 # shellcheck disable=1091  ## 'Not following.' The pin file is data, and it sits next to this script.
 source "${here}/pins.env"
 
@@ -60,16 +65,20 @@ fVerify(){
 ## pins.env. Returns 1 for an unreachable host, and dies for a hash mismatch: a
 ## wrong hash is a bad pin or a tampered release, never a transient.
 fDownloadPin(){ # DEST URL NAME VERSION WANT_SHA
-	local dest="$1" url="$2" name="$3" version="$4" want="$5" got
+	local dest="$1" url="$2" name="$3" version="$4" want="$5" got rc=0
 	## crates.io answers 403 without a user agent, and both hosts redirect.
-	curl -sSfL --max-time 60 -A "convert-base-v2 interop fetch" -o "${dest}" "${url}" || return 1
+	curl -sSfL --max-time 60 -A "convert-base-v2 interop fetch" -o "${dest}" "${url}" || rc=$?
+	## An HTTP error (curl 22, e.g. a 404) is a bad pin, not a network blip.
+	## Read as "unreachable" it would warn forever and verify nothing.
+	((rc == 22)) && fDie "${name} ${version}: HTTP error from ${url} - bad pin?"
+	((rc)) && return 1
 	got="$(sha256sum "${dest}" | cut -d' ' -f1)"
 	[[ "${got}" == "${want}" ]] || fDie "${name} ${version} hashed ${got}, pins.env says ${want}"
 }
 
 fRefresh(){
 	command -v curl >/dev/null 2>&1 || fDie "curl is needed to refresh"
-	local tmp; tmp="$(mktemp -d)"; trap 'rm -rf "${tmp}"' RETURN
+	tmp="$(mktemp -d)"
 
 	local pin name version url want upstream archive dest
 	for pin in "${INTEROP_PINS[@]}"; do
@@ -112,7 +121,7 @@ fLatestVersion(){ # URL
 
 fUpstream(){
 	command -v curl >/dev/null 2>&1 || { fEcho "WARNING: no curl - pins unverified against upstream"; return 0; }
-	local tmp; tmp="$(mktemp -d)"; trap 'rm -rf "${tmp}"' RETURN
+	tmp="$(mktemp -d)"
 
 	local pin name version url want upstream archive dest latest
 	local -i failed=0 checked=0 unreached=0

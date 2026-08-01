@@ -6,6 +6,8 @@ VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 # the profile is representative.
 LDFLAGS       := -s -w -X main.version=$(VERSION)
 LDFLAGS_DEBUG := -X main.version=$(VERSION)
+## The browser module has no main.version var (it reports convertbase.Version).
+LDFLAGS_WEB   := -s -w
 
 DIST := dist
 
@@ -47,7 +49,7 @@ wasm:
 # The browser module plus the loader Go requires, staged into the demo page.
 web:
 	@[ -n "$(WASM_EXEC)" ] || { echo "wasm_exec.js not found under $$(go env GOROOT)" >&2; exit 1; }
-	GOOS=js GOARCH=wasm go build -trimpath -ldflags '$(LDFLAGS)' -o $(WEB)/convert-base.wasm ./wasm
+	GOOS=js GOARCH=wasm go build -trimpath -ldflags '$(LDFLAGS_WEB)' -o $(WEB)/convert-base.wasm ./wasm
 	cp '$(WASM_EXEC)' $(WEB)/wasm_exec.js
 
 test:
