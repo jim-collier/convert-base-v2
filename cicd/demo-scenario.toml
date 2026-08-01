@@ -3,6 +3,7 @@
 # renders as the program name; {bin} runs as the tested binary path. pause= is the
 # read time in seconds. overflow= is "truncate" (default) or "wrap". scrollrate=
 # (px/s) and linems= pace a step's output; wpm_digits speeds up number typing.
+# clear= forces a blank screen first; output taller than the window clears anyway.
 # end_hold/end_black (seconds) hold the last frame, then show black, before looping.
 
 title = "convert-base-v2"
@@ -31,7 +32,7 @@ pause = 2.4
 note  = "Dozens of named bases built in"
 show  = "{prog} --list"
 pause = 3.0
-scrollrate = 78
+scrollrate = 86
 linems = 255
 
 [[step]]

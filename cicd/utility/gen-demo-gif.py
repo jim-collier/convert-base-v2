@@ -5,9 +5,11 @@
 ##		scenario file scripts the session; each command is "typed" into a fake
 ##		terminal window with human timing (slower digits, a beat before flags,
 ##		the occasional corrected typo), then actually executed so the captured
-##		output can never go stale. Scrolling is pixel-smooth (content settles
-##		back onto the line grid at rest) and the cursor glides between cells
-##		rather than teleporting. At the end it holds the last frame still, then
+##		output can never go stale. Motion runs at 50 fps, the fastest a GIF can
+##		go: scrolling is pixel-smooth at a constant velocity and the cursor
+##		eases between cells rather than teleporting. A step whose output is
+##		taller than the window starts on a cleared screen. At the end it holds
+##		the last frame still, then
 ##		hard-cuts to a black frame before repeating - a held black frame is one
 ##		cheap frame, not a bloaty fade. Frames share one exact master palette,
 ##		so nothing is ever re-dithered. Project-agnostic - point it at any scenario.
@@ -77,8 +79,11 @@ WPM_NOTES     = (233, 263)   # "# comment" lines fly by
 FLAG_PAUSE_MS = (200, 380)   # a beat of thought before a -flag token
 TYPO_RATE     = 0.018        # per letter; capped at 2 fixes per command
 BLINK_MS      = 530
-SCROLL_MS     = 80           # frame interval while scrolling / cursor-gliding
-SCROLL_RATE   = 325          # px/s smooth scroll; per-step scrollrate overrides
+##	50 fps. A GIF delay is centiseconds and every browser clamps 0 and 1 cs up to
+##	10 cs, so 2 cs is the real floor - there is no smoother GIF than this.
+FRAME_MS      = 20           # frame interval while anything is moving
+SCROLL_RATE   = 358          # px/s smooth scroll; per-step scrollrate overrides
+GLIDE_FRAMES  = 3            # frames the cursor block takes to reach a new cell
 
 QWERTY_ROWS = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"]
 
@@ -158,6 +163,8 @@ def fLoadScenario(path):
 	##	  overflow = "truncate"         or "wrap" for real feature output
 	##	  scrollrate = 260              px/s smooth scroll during this step's output
 	##	  linems = 26                   ms per output line before scrolling kicks in
+	##	  clear = true                  start on a blank screen (default: output taller
+	##	                                than the window clears, shorter output does not)
 	try:
 		with open(path, "rb") as f:
 			sc = tomllib.load(f)
@@ -394,9 +401,12 @@ class Screen:
 			return 2
 		return 1
 
-	def fPutText(self, text, colorkey="fg", overflow="truncate"):
-		##	Split on terminal cell widths, not char counts, so wide glyphs
-		##	(emoji, CJK) don't push a line past the window edge.
+	def fWrap(self, text, colorkey="fg", overflow="truncate"):
+		##	One output line -> the screen lines it occupies. Split on terminal
+		##	cell widths, not char counts, so wide glyphs (emoji, CJK) don't push
+		##	a line past the window edge. Returning them instead of committing
+		##	them lets the caller feed them in against the scroll.
+		out = []
 		while True:
 			used, cut = 0, len(text)
 			for i, ch in enumerate(text):
@@ -405,12 +415,18 @@ class Screen:
 					cut = i
 					break
 			if overflow == "truncate" and cut < len(text):
-				self.fPut([(text[: max(0, cut - 1)], colorkey), ("…", "dim")])
-				return
-			self.fPut([(text[:cut], colorkey)])
+				out.append([(text[: max(0, cut - 1)], colorkey), ("…", "dim")])
+				return out
+			out.append([(text[:cut], colorkey)])
 			text = text[cut:]
 			if not text:
-				break
+				return out
+
+	def fClear(self):
+		##	Reset the screen the way a full-screen tool would, with no `clear`
+		##	typed at the prompt.
+		self.lines = []
+		self.scroll = 0.0
 
 	def fTextW(self, text):
 		##	Pixel width with the same runs fDrawText uses.
@@ -541,24 +557,62 @@ def fMain():
 		mov.add(scr.render(tuple(shown) if cursor else None, identColors), ms)
 
 	def glideCursor(ms):
-		##	Slide the shown cursor toward its cell across the keystroke's time.
+		##	Ease the block toward its cell, then hold still for whatever is left
+		##	of the keystroke. The glide never overruns the keystroke's own time,
+		##	so a fast digit still gets a frame and the typing keeps its pace.
 		tx, ty = scr.fCursorTarget()
-		steps = max(1, min(3, int(ms // 45)))
 		x0, y0 = shown
+		steps = max(1, min(int(ms // FRAME_MS), GLIDE_FRAMES))
+		glideMs = steps * FRAME_MS
+		rest = ms - glideMs
+		if rest < FRAME_MS:      # too little left to be its own frame - stretch the glide
+			glideMs, rest = ms, 0.0
 		for s in range(1, steps + 1):
-			shown[0] = x0 + (tx - x0) * s / steps
-			shown[1] = y0 + (ty - y0) * s / steps
-			snap(ms / steps)
+			k = s / steps
+			k = k * k * (3.0 - 2.0 * k)      # smoothstep: soft leave, soft landing
+			shown[0] = x0 + (tx - x0) * k
+			shown[1] = y0 + (ty - y0) * k
+			snap(glideMs / steps)
+		shown[0], shown[1] = tx, ty
+		if rest:
+			snap(rest)
 
 	def settle(rate, cursor=True):
 		##	Smooth-scroll the view to rest; the cursor rides along on its line.
+		step = rate * FRAME_MS / 1000.0
 		while abs(scr.fRestScroll() - scr.scroll) >= 0.5:
 			d = scr.fRestScroll() - scr.scroll
-			scr.scroll += (1 if d > 0 else -1) * min(abs(d), rate * SCROLL_MS / 1000.0)
+			scr.scroll += (1 if d > 0 else -1) * min(abs(d), step)
 			shown[:] = scr.fCursorTarget()
-			snap(SCROLL_MS, cursor)
+			snap(FRAME_MS, cursor)
 		scr.scroll = scr.fRestScroll()
 		shown[:] = scr.fCursorTarget()
+
+	def emit(outLines, rate, lineMs, overflow):
+		##	Feed the output in against the scroll instead of appending a line and
+		##	settling to rest before the next one. Settling per line restarts the
+		##	scroll at every line boundary, which costs a fraction of a frame each
+		##	time and reads as judder once the frame rate is high enough to see it.
+		##	Committing the next line the moment the view catches up keeps the
+		##	velocity dead constant and carries the sub-pixel remainder forward.
+		step = rate * FRAME_MS / 1000.0
+		pending = [ln for text in outLines for ln in scr.fWrap(text, "fg", overflow)]
+		while True:
+			##	Commit the next line as soon as the view is within one frame of
+			##	catching up, never after. Waiting for an exact landing forces a
+			##	short frame at every line boundary; releasing a frame early lets
+			##	the sub-pixel remainder carry into the next line instead.
+			if pending and scr.fRestScroll() - scr.scroll <= step + 0.5:
+				scr.fPut(pending.pop(0))
+				if scr.fRestScroll() - scr.scroll <= 0.5:
+					snap(lineMs, cursor=False)     # view not full yet: nothing to scroll
+					continue
+			d = scr.fRestScroll() - scr.scroll
+			if d <= 0.5:
+				break
+			scr.scroll += min(d, step)
+			snap(FRAME_MS, cursor=False)
+		scr.scroll = scr.fRestScroll()
 
 	def blinkPause(totalMs):
 		##	Idle at the prompt: block cursor blinking at the usual cadence.
@@ -574,6 +628,14 @@ def fMain():
 	for stepIdx, step in enumerate(sc["step"]):
 		rate = float(step.get("scrollrate", SCROLL_RATE))
 		lineMs = float(step.get("linems", 26))
+		##	Output taller than the window starts on a clean screen, so a long
+		##	list scrolls through once instead of first chasing the previous
+		##	step's output off the top. Nothing types `clear`; the screen just
+		##	resets, the way a full-screen tool would leave it.
+		if step.get("clear", len(stepOut[stepIdx]) > scr.rows) and scr.lines:
+			scr.fClear()
+			shown[:] = scr.fCursorTarget()
+			snap(260)
 		for noteOrCmd, key, wpm, typos in (
 				(("# " + step["note"]) if step.get("note") else None, "dim", WPM_NOTES, False),
 				(step["show"].replace("{prog}", prog).replace("{bin}", prog), "fg", WPM_LETTERS, True)):
@@ -601,15 +663,11 @@ def fMain():
 			if scr.fRestScroll() > scr.scroll + 0.5:
 				settle(rate, cursor=False)
 			outLines = stepOut[stepIdx]
-			for ln in outLines:
-				scr.fPutText(ln, "fg", step.get("overflow", "truncate"))
-				if scr.fRestScroll() > scr.scroll + 0.5:
-					settle(rate, cursor=False)
-				else:
-					snap(lineMs, cursor=False)
+			emit(outLines, rate, lineMs, step.get("overflow", "truncate"))
+			##	Blank line and the returning prompt scroll in as one move - two
+			##	back-to-back settles would put a seam right where the eye rests.
 			if outLines and outLines[-1].strip():
 				scr.fPut([("", "fg")])               # breathe before the next prompt
-				settle(rate, cursor=False)
 			scr.showPrompt = True
 			shown[:] = scr.fCursorTarget()
 			if scr.fRestScroll() > scr.scroll + 0.5:
@@ -645,6 +703,9 @@ if __name__ == "__main__":
 
 
 ##	History:
+##		- 20260731: Motion runs at 50 fps. Constant-velocity scroll (output feeds
+##			in against it rather than settling per line), eased cursor glide,
+##			scrolling 10% faster, and tall output starts on a cleared screen.
 ##		- 20260713: End of loop holds the final frame (end_hold, 3s) then hard-
 ##			cuts to black (end_black, 2s) before repeating.
 ##		- 20260711: v1.2. Antialiased text again (ramped 256 palette), color
