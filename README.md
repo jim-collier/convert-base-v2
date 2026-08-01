@@ -6,7 +6,7 @@
 <div align="center">
 
 ![Go](https://img.shields.io/github/go-mod/go-version/jim-collier/convert-base-v2?filename=lib%2Fgo.mod&logo=go&logoColor=white&label=Go)
-![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)
+![License: GPL v2 or later](https://img.shields.io/badge/License-GPLv2%2B-blue.svg)
 ![Library: Apache 2.0](https://img.shields.io/badge/Library-Apache_2.0-blue.svg)
 ![Lifecycle: Stable](https://img.shields.io/badge/Lifecycle-Stable-brightgreen)
 ![Support](https://img.shields.io/badge/Support-Maintained-brightgreen)
