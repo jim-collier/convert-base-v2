@@ -32,9 +32,12 @@ if (!(size in PACKAGES) || (mode !== 'encode' && mode !== 'decode')) {
 const ref = await import(new URL(PACKAGES[size], import.meta.url))
 
 const hexToBytes = hex => {
+	// parseInt would quietly read bad hex as 0; make it "!error" like the
+	// Rust adapter does, so the two can never disagree over a corrupt sample.
+	if (hex.length % 2 !== 0 || !/^[0-9a-f]*$/.test(hex)) throw new Error('bad hex')
 	const out = new Uint8Array(hex.length / 2)
 	for (let i = 0; i < out.length; i++) {
-		out[i] = parseInt(hex.substr(i * 2, 2), 16)
+		out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16)
 	}
 	return out
 }

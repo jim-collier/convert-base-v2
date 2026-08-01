@@ -23,8 +23,9 @@
 // or alias with Lookup, or build one from a symbol spec with [ResolveBase].
 //
 //	reg, err := convertbase.NewRegistry()
+//	ten, err := reg.Lookup("10")
 //	hex, err := reg.Lookup("hex")
-//	out, err := convertbase.Convert("255", dec, hex, -1)  // "FF"
+//	out, err := convertbase.Convert("255", ten, hex, -1)  // "FF"
 //
 // A precision of -1 sizes the output fraction to the input's; a value of 0 or
 // more fixes the digit count.

@@ -11,9 +11,10 @@ import "fmt"
 // repertoire. Each field keeps the tri-state the Base fields use - nil leaves
 // the base alone, empty disables, and a value sets it.
 //
-// Label prefixes the flag names in error messages ("--from", "--to" from the
-// command-line tool). Source describes where a custom alphabet came from, and
-// shows up in --show-symbols output.
+// Label prefixes the override names in error messages ("--from", "--to" from
+// the command-line tool); left empty, the messages name the bare override.
+// Source describes where a custom alphabet came from, and shows up in
+// --show-symbols output.
 type Options struct {
 	Negative, Decimal, Pad, Tail *string
 	Label                        string
@@ -24,9 +25,20 @@ func (o *Options) any() bool {
 	return o != nil && (o.Negative != nil || o.Decimal != nil || o.Pad != nil || o.Tail != nil)
 }
 
+// flag names one override in an error message: "--from-tail" from the command,
+// plain "tail" from a caller that set no Label.
+func (o *Options) flag(name string) string {
+	if o.Label == "" {
+		return name
+	}
+	return o.Label + "-" + name
+}
+
 // Apply writes the overrides onto a base that has not been finalized yet. Order
 // matters: a custom alphabet that uses "-" or "." as digits only survives
-// Finalize() once its replacement markers are in place.
+// Finalize() once its replacement markers are in place. ApplyOptions is the
+// counterpart for a base that is already finalized; it copies instead of
+// mutating.
 func (o *Options) Apply(b *Base) error {
 	if o == nil {
 		return nil
@@ -53,7 +65,7 @@ func (o *Options) Apply(b *Base) error {
 		}
 		tail, err := ParseSymbolSpec(*o.Tail)
 		if err != nil {
-			return fmt.Errorf("%s-tail: %w", o.Label, err)
+			return fmt.Errorf("%s: %w", o.flag("tail"), err)
 		}
 		b.TailSymbols = tail
 		// Same choice the config makes: a hand-declared tail gets the qntm
@@ -65,7 +77,8 @@ func (o *Options) Apply(b *Base) error {
 
 // ApplyOptions returns a copy of an already-finalized base with the overrides
 // applied, or base itself when nothing was set. It copies because registry
-// bases are shared pointers. Finalize() rebuilds every derived table from
+// bases are shared pointers; Apply is the mutating form for a base that has
+// not been finalized yet. Finalize() rebuilds every derived table from
 // scratch, so re-running it on the copy is safe and re-validates the new markers
 // (collision with a digit, marker inside a digit, negative equal to decimal,
 // pad that is also a digit).
@@ -76,13 +89,17 @@ func ApplyOptions(base *Base, o *Options) (*Base, error) {
 	// Sign and fractions are meaningless for raw bytes, and every byte value is
 	// already a digit, so there is nothing a marker could be set to.
 	if base.Binary {
-		return nil, fmt.Errorf("base %q carries raw bytes; %s-neg/-dec/-pad/-tail do not apply to it", base.Name(), o.Label)
+		return nil, fmt.Errorf("base %q carries raw bytes; %s do not apply to it", base.Name(), o.flag("neg/-dec/-pad/-tail"))
 	}
 	overridden := *base
 	if err := o.Apply(&overridden); err != nil {
 		return nil, err
 	}
-	overridden.Source = base.Source + fmt.Sprintf(" (overridden by %s-* flags)", o.Label)
+	if o.Label == "" {
+		overridden.Source = base.Source + " (with overrides)"
+	} else {
+		overridden.Source = base.Source + fmt.Sprintf(" (overridden by %s-* flags)", o.Label)
+	}
 	if err := overridden.Finalize(); err != nil {
 		return nil, err
 	}

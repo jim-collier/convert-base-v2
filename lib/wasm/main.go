@@ -17,6 +17,8 @@
 package main
 
 import (
+	"math"
+	"strconv"
 	"syscall/js"
 
 	"github.com/jim-collier/convert-base-v2/lib/convertbase"
@@ -60,10 +62,24 @@ func convert(reg *convertbase.Registry) func(js.Value, []js.Value) any {
 
 		precision := -1 // negative means auto, same default the command uses
 		if p := opt.Get("precision"); p.Type() == js.TypeNumber {
-			precision = p.Int()
+			// Bounded here because this runs synchronously on the page's main
+			// thread: fractional digits cost quadratic time, and a browser tab
+			// has no Ctrl-C. The check also catches NaN and infinities.
+			f := p.Float()
+			if f != math.Trunc(f) || f < 0 || f > 100000 {
+				return fail("precision must be a whole number from 0 to 100000")
+			}
+			precision = int(f)
 		}
 
-		out, err := convertbase.Convert(str(opt, "value"), from, to, precision)
+		value := str(opt, "value")
+		if v := opt.Get("value"); v.Type() == js.TypeNumber {
+			// A number is the natural JS spelling of a value; read it rather
+			// than answering "empty input" for something the caller did pass.
+			value = strconv.FormatFloat(v.Float(), 'f', -1, 64)
+		}
+
+		out, err := convertbase.Convert(value, from, to, precision)
 		if err != nil {
 			return fail(err.Error())
 		}
