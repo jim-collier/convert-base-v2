@@ -399,10 +399,10 @@ This tool is free and open source, and built and maintained in spare time. If it
 
 Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
 
-The CLI application is licensed under the [GNU General Public License v2.0 or later](https://spdx.org/licenses/GPL-2.0-or-later.html)
+The CLI application, and the WASI build of it, are licensed under the [GNU General Public License v2.0 or later](https://spdx.org/licenses/GPL-2.0-or-later.html). The "or later" matters: it is what lets the two licenses here combine.
 
 - SPDX-License-Identifier: `GPL-2.0-or-later`
 
-The library under `lib/convertbase/` is licensed more permissively as appropriate for a static or dynamic library: Apache-2.0 <https://www.apache.org/licenses/LICENSE-2.0>, so it can be linked into anything. Its full text and the attribution notice ship beside it.
+The library under `lib/convertbase/` and the browser module under `lib/wasm/` are licensed more permissively as appropriate for something linked into other software: Apache-2.0 <https://www.apache.org/licenses/LICENSE-2.0>, so they can be built into anything. The full text and the attribution notice ship beside the library.
 
 - SPDX-License-Identifier: `Apache-2.0`
