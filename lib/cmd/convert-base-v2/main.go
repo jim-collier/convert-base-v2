@@ -129,7 +129,7 @@ func run() error {
 		if openErr != nil {
 			return fmt.Errorf("config %s: %w", userPath, openErr)
 		}
-		f.Close()
+		_ = f.Close() // opened only to prove it opens; nothing was written
 	}
 	if userPath != "" && userPath != etcConfigPath {
 		// A missing default config path is fine, but if the user explicitly typed
