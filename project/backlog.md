@@ -61,15 +61,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 - 🔘 For base "keyboard", allow encoding tab, newline, CR, etc. like "%NEWLINE%", "%DOUBLE_QOUTE%", etc. (Or some other way.)
 
-- 🔘 Animated gif demo: Come up with better examples and reencode.
-	- Only one base-10 example
-	- 64emoji: Not from base 10; from base 62 with negative and decimal
-	- Better custom alphabet.
-	- Don't demo --binary and --to bytes at the same time. (Don't even use bytes).
-	- Better program to binary cat, than /bin/cat.
-	- Convert a sentence from keyboard to some high radix, rune-heavy base.
-	- For twitter output, give more detail of the processing in leading comment.
-	- Note: save `--list` for the end of the demo.
+- 🛠️ Animated gif demo: Come up with better examples and reencode.
+	- Done: the scenario is a whole new script. Named bases end to end, a signed fractional value, a custom alphabet, a two thousand digit number, a real image and a real gif through the streaming codecs, then the base list last.
+	- Done: `bytes` is gone from the demo, and the codec steps read an image and a gif instead of `/bin/cat`.
+	- Not carried over from the old wish list: a sentence from `keyboard` into a rune-heavy base, and taking 64emoji from base 62 rather than base 10.
+	- Open: the committed `assets/demo.gif` still needs a regen from a cicd run, since a render here comes out at different terminal dimensions.
 
 ### Done
 
