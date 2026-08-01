@@ -23,12 +23,12 @@
 	- [What Python would actually do](#what-python-would-actually-do)
 - [What the library is not](#what-the-library-is-not)
 - [Detailed solution](#detailed-solution)
-	- [The module path and its version](#the-module-path-and-its-version)
-	- [Package layout](#package-layout)
-	- [The exported surface](#the-exported-surface)
-	- [Base options](#base-options)
-	- [WebAssembly instead of a C ABI](#webassembly-instead-of-a-c-abi)
-	- [The C surface, if ever](#the-c-surface-if-ever)
+	- [1. The module path and its version](#1-the-module-path-and-its-version)
+	- [2. Package layout](#2-package-layout)
+	- [3. The exported surface](#3-the-exported-surface)
+	- [4. Base options](#4-base-options)
+	- [5. WebAssembly instead of a C ABI](#5-webassembly-instead-of-a-c-abi)
+	- [6. The C surface, if ever](#6-the-c-surface-if-ever)
 - [Touch points](#touch-points)
 - [Testing](#testing)
 - [Compatibility](#compatibility)
@@ -39,7 +39,19 @@
 
 ## Status
 
-The Go package split is done, on branch `lib`. See [Outcome](#outcome). So is a pair of WebAssembly builds, which were not part of the original plan and which changed the conclusion about the C shared library.
+Implemented. Closed 20260801. See [Outcome](#outcome).
+
+Scope note: this document covered three separate things at once, because they were decided together. Each now has its own document, and ongoing work belongs there rather than here:
+
+- `20260801_go_module.md` - the Go module.
+- `20260801_wasm_reactor.md` - the WebAssembly builds, and a callable reactor module that does not exist yet.
+- `20260801_c_bindings.md` - the native C shared library, still not built.
+
+This document stays as the record of the original decision, including the licensing argument, which the three refer back to rather than repeat.
+
+One thing here was later found to be wrong, and is corrected in the WebAssembly document rather than edited out of the reasoning below. Setting the C library aside in favor of WebAssembly was right for reach, but neither WebAssembly build is callable as a library. Both are programs. A third build shape, a reactor, is what would close that gap.
+
+The Go package split is done, on branch `lib`. So is a pair of WebAssembly builds, which were not part of the original plan and which changed the conclusion about the C shared library.
 
 The licensing question below is settled: the library is Apache-2.0, the command stays GPL-2.0-or-later.
 
@@ -113,7 +125,7 @@ Go callers get a normal package, imported like any other. This is cheap, and it 
 
 Everyone else was going to go through a C ABI, built with `-buildmode=c-shared` or `-buildmode=c-archive`. The costs were never symmetric: the Go package costs a refactor, while the C library costs `CGO_ENABLED=1` for those artifacts, a C toolchain for every cross target, a Go runtime embedded in each `.so`, and an interface that can never be changed once someone ships against it.
 
-WebAssembly turned out to reach the same audience for almost none of that, which is why it was built and the C library was not. See [WebAssembly instead of a C ABI](#webassembly-instead-of-a-c-abi).
+WebAssembly turned out to reach the same audience for almost none of that, which is why it was built and the C library was not. See [WebAssembly instead of a C ABI](#5-webassembly-instead-of-a-c-abi).
 
 ### Streaming across a C boundary
 

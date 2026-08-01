@@ -49,6 +49,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 ### New features and enhancements
 
 - 🔘 Library error text still names command-line flags, for example "see --list for all bases". Fine from the command, out of place from a browser. Decide whether the library should carry a neutral message and let the command add its own hint.
+	- Note: written up in `design_docs/20260801_go_module.md`, along with the other open items on the module.
+
+- 🔘 A WebAssembly reactor module, so other languages can call this instead of running it. Design: `design_docs/20260801_wasm_reactor.md`.
+	- Both current WebAssembly builds are programs, not libraries. The WASI one is the whole command, and the browser one only works on a page.
+	- A reactor build exposes functions the host calls directly. Confirmed to build, with the exports really present in the module.
+	- The `go.mod` floor stays at 1.21. Only the toolchain building this one target has to be 1.24 or newer.
+	- The open design question is the streaming shape. A push API looks like the best fit, because it needs nothing from the host beyond memory.
+
+- 🔘 Push the first `lib/v0.1.0` tag, so the Go module can actually be fetched. Nothing can import it until then, and the README should not claim otherwise before it lands.
 
 - 🔘 For base "keyboard", allow encoding tab, newline, CR, etc. like "%NEWLINE%", "%DOUBLE_QOUTE%", etc. (Or some other way.)
 
