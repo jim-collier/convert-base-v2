@@ -20,6 +20,7 @@
 ##		  --scenario FILE  TOML scenario (see fLoadScenario for the format)
 ##		  --out FILE       GIF to write (required)
 ##		  --bin PATH       program under demo; substituted for {bin} in run=
+##		                   ({here} in a run= line is the scenario's own directory)
 ##		  --seed N         RNG seed; fixed default so reruns are byte-stable
 ##		  --font NAME      override the scenario's font preference list
 ##		  --quiet          only errors
@@ -80,6 +81,7 @@ WPM_DIGITS    = 63           # default; scenario wpm_digits overrides
 WPM_NOTES     = (233, 263)   # "# comment" lines fly by
 FLAG_PAUSE_MS = (200, 380)   # a beat of thought before a -flag token
 TYPO_RATE     = 0.018        # per letter; capped at 2 fixes per command
+PASTE_MIN     = 24           # a value at least this long arrives pasted, not typed
 BLINK_MS      = 530
 ##	50 fps. A GIF delay is centiseconds and every browser clamps 0 and 1 cs up to
 ##	10 cs, so 2 cs is the real floor - there is no smoother GIF than this.
@@ -88,6 +90,7 @@ SCROLL_RATE   = 358          # px/s smooth scroll; per-step scrollrate overrides
 GLIDE_FRAMES  = 3            # frames the cursor block takes to reach a new cell
 
 QWERTY_ROWS = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"]
+PASTE_RE = re.compile(r"[0-9][0-9.]*")
 
 ANSI_RE = re.compile(r"\x1b(\[[0-9;?]*[ -/]*[@-~]|\][^\x07\x1b]*(\x07|\x1b\\)|.)")
 
@@ -178,13 +181,17 @@ def fLoadScenario(path):
 	##	  end_hold = 3.0                seconds the final frame holds before the loop
 	##	  end_black = 2.0               seconds of black after the hold, then repeat
 	##	  [[step]]
-	##	  note = "shown as a typed # comment first"     (optional)
-	##	  show = "{prog} 255 16"        the command line as typed
+	##	  note = "typed as a # comment first"           (optional; a list = one
+	##	                                                 comment line per element)
+	##	  show = "{prog} 255 16"        the command line as typed (optional: a step
+	##	                                with only notes types them and pauses)
 	##	  run  = "echo hi | {bin} ..."  what actually executes (default: show)
 	##	  pause = 2.6                   read time after the output, seconds
 	##	  overflow = "truncate"         or "wrap" for real feature output
 	##	  scrollrate = 260              px/s smooth scroll during this step's output
 	##	  linems = 26                   ms per output line before scrolling kicks in
+	##	  gap = true                    blank line between the command and its output
+	##	  paste = true                  long numbers in show= arrive pasted, not typed
 	##	  clear = true                  start on a blank screen (default: output taller
 	##	                                than the window clears, shorter output does not)
 	try:
@@ -194,14 +201,26 @@ def fLoadScenario(path):
 		fSkip(f"scenario: {e}")
 	if not sc.get("step"):
 		fSkip("scenario has no [[step]] entries")
+	for step in sc["step"]:
+		if not step.get("show") and not fNotes(step):
+			fSkip("scenario has a step with neither show= nor note=")
 	return sc
 
 
-def fRunStep(step, prog, binpath):
+def fNotes(step):
+	##	A step's comment lines: one string, or a list of them.
+	note = step.get("note", [])
+	return [note] if isinstance(note, str) else list(note)
+
+
+def fRunStep(step, prog, binpath, here):
 	##	Execute the step's command for real; merged stdout+stderr becomes the
 	##	demo output, so notes the program prints on stderr show up too.
-	cmd = step.get("run", step["show"])
+	if not step.get("show") and not step.get("run"):
+		return []                        # a notes-only step has nothing to run
+	cmd = step.get("run", step.get("show"))
 	cmd = cmd.replace("{bin}", shlex.quote(binpath)).replace("{prog}", shlex.quote(binpath))
+	cmd = cmd.replace("{here}", shlex.quote(here))
 	try:
 		res = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True,
 		                     timeout=30, errors="replace")
@@ -211,16 +230,22 @@ def fRunStep(step, prog, binpath):
 	return [ln.expandtabs(8).rstrip() for ln in out.rstrip("\n").split("\n")]
 
 
-def fTypeEvents(text, rng, wpm_range, typos=True, wpmDigits=WPM_DIGITS):
+def fTypeEvents(text, rng, wpm_range, typos=True, wpmDigits=WPM_DIGITS, paste=False):
 	##	Turn a command string into ((action, char), delay_ms) keystroke events.
 	##	Letters ride the per-command WPM draw with per-char jitter, digits get
 	##	their own WPM (slow by default, fast for numbers-heavy demos), a -flag
 	##	token gets a small hesitation, and a couple of seeded typos get noticed
 	##	and backspaced away.
+	##	Under paste, a long number arrives in one event. Nobody types a thousand
+	##	digits, and at one frame per keystroke it would cost more frames than the
+	##	rest of the demo put together.
 	wpm = rng.uniform(*wpm_range)
 	events, fixes = [], 0
 	firstSpace = text.find(" ")
-	for i, ch in enumerate(text):
+	for i, ch in fTypeUnits(text, paste):
+		if len(ch) > 1:
+			events.append((("type", ch), rng.uniform(280, 420)))
+			continue
 		if ch.isdigit():
 			delay = 60000.0 / (wpmDigits * 5) * rng.uniform(0.82, 1.22)
 		else:
@@ -244,6 +269,21 @@ def fTypeEvents(text, rng, wpm_range, typos=True, wpmDigits=WPM_DIGITS):
 			continue
 		events.append((("type", ch), delay))
 	return events
+
+
+def fTypeUnits(text, paste):
+	##	(index, chunk) pairs to type. A chunk is one character, unless pasting is
+	##	on and a long number runs from here, in which case it is the whole number.
+	units, i = [], 0
+	while i < len(text):
+		m = PASTE_RE.match(text, i) if paste else None
+		if m and m.end() - i >= PASTE_MIN:
+			units.append((i, m.group(0)))
+			i = m.end()
+		else:
+			units.append((i, text[i]))
+			i += 1
+	return units
 
 
 def fNeighborKey(ch, rng):
@@ -321,6 +361,7 @@ class Screen:
 		self.typed = ""          # text after the prompt on the live line
 		self.scroll = 0.0        # view offset into the content, px
 		self.fontName = fontName
+		self._live = None        # (typed, wrapped rows) for the live prompt line
 
 	def fPut(self, spans):
 		self.lines.append(spans)
@@ -444,6 +485,32 @@ class Screen:
 			if not text:
 				return out
 
+	def fWrapSpans(self, spans):
+		##	Wrap a styled line onto screen rows, keeping each character's color.
+		##	The live prompt line needs this: a pasted value runs well past the
+		##	window edge, and a real terminal wraps it rather than hiding it.
+		rows, row, used = [], [], 0
+		for text, key in spans:
+			for ch in text:
+				w = self.fCells(ch)
+				if used + w > self.cols and row:
+					rows.append(row)
+					row, used = [], 0
+				if row and row[-1][1] == key:
+					row[-1][0] += ch
+				else:
+					row.append([ch, key])
+				used += w
+		rows.append(row)
+		return [[(t, k) for t, k in r] for r in rows]
+
+	def fLive(self):
+		##	The prompt line as wrapped rows, recomputed only when the text changes.
+		if self._live is None or self._live[0] != self.typed:
+			self._live = (self.typed,
+			              self.fWrapSpans(self.prompt + [(self.typed, "fg")]))
+		return self._live[1]
+
 	def fClear(self):
 		##	Reset the screen the way a full-screen tool would, with no `clear`
 		##	typed at the prompt.
@@ -471,13 +538,15 @@ class Screen:
 	def fRestScroll(self):
 		##	Where the view settles: content bottom (incl. the live line when the
 		##	prompt is showing) on the grid.
-		rows = len(self.lines) + (1 if self.showPrompt else 0)
+		rows = len(self.lines) + (len(self.fLive()) if self.showPrompt else 0)
 		return max(0.0, rows * self.lh - self.viewH)
 
 	def fCursorTarget(self):
-		##	Cursor cell on the live line, in view (layer) px at current scroll.
-		x = self.fTextW("".join(t for t, _ in self.prompt) + self.typed)
-		return x, len(self.lines) * self.lh - self.scroll
+		##	Cursor cell at the end of the live line, in view (layer) px at current
+		##	scroll - which is the last of its wrapped rows, not the first.
+		live = self.fLive()
+		x = self.fTextW("".join(t for t, _ in live[-1]))
+		return x, (len(self.lines) + len(live) - 1) * self.lh - self.scroll
 
 	def render(self, cursor, identColors):
 		##	cursor: None = hidden, else (x, y) view px of the block's top-left.
@@ -500,8 +569,7 @@ class Screen:
 		colors = dict(THEME, **identColors)
 		layer = Image.new("RGB", (self.textW, self.viewH), THEME["bg"])
 		ld = ImageDraw.Draw(layer)
-		content = self.lines + ([self.prompt + [(self.typed, "fg")]]
-		                        if self.showPrompt else [])
+		content = self.lines + (self.fLive() if self.showPrompt else [])
 		first = max(0, int(self.scroll // self.lh))
 		last = min(len(content), int((self.scroll + self.viewH) // self.lh) + 2)
 		for i in range(first, last):
@@ -565,7 +633,8 @@ def fMain():
 
 	##	Run every command up front: the outputs feed the demo AND tell the
 	##	palette which emoji it must carry before the first frame renders.
-	stepOut = [fRunStep(step, prog, binpath) for step in sc["step"]]
+	here = os.path.dirname(os.path.abspath(args.scenario))
+	stepOut = [fRunStep(step, prog, binpath, here) for step in sc["step"]]
 	emojiSet = sorted({ch for lines in stepOut for ln in lines for ch in ln
 	                   if scr.fIsEmoji(ch)})
 	tiles = [t for t in (scr.fEmojiTile(ch) for ch in emojiSet) if t]
@@ -658,19 +727,21 @@ def fMain():
 			scr.fClear()
 			shown[:] = scr.fCursorTarget()
 			snap(260)
-		for noteOrCmd, key, wpm, typos in (
-				(("# " + step["note"]) if step.get("note") else None, "dim", WPM_NOTES, False),
-				(step["show"].replace("{prog}", prog).replace("{bin}", prog), "fg", WPM_LETTERS, True)):
-			if noteOrCmd is None:
-				continue
-			for (action, ch), delay in fTypeEvents(noteOrCmd, rng, wpm, typos, wpmDigits):
+		typing = [("# " + n, "dim", WPM_NOTES, False) for n in fNotes(step)]
+		if step.get("show"):
+			typing.append((step["show"].replace("{prog}", prog).replace("{bin}", prog),
+			               "fg", WPM_LETTERS, True))
+		for noteOrCmd, key, wpm, typos in typing:
+			for (action, ch), delay in fTypeEvents(noteOrCmd, rng, wpm, typos, wpmDigits,
+			                                       key == "fg" and step.get("paste", False)):
 				if action == "type":
 					scr.typed += ch
 				elif action == "bs":
 					scr.typed = scr.typed[:-1]
 				glideCursor(delay)
 			snap(rng.uniform(260, 480) if key == "fg" else 130)   # beat before Enter
-			scr.fPut(list(scr.prompt) + [(scr.typed, key)])
+			for row in scr.fWrapSpans(scr.prompt + [(scr.typed, key)]):
+				scr.fPut(row)
 			scr.typed = ""
 			if key == "dim":                         # notes: no output to run
 				if scr.fRestScroll() > scr.scroll + 0.5:
@@ -684,7 +755,9 @@ def fMain():
 			scr.showPrompt = False
 			if scr.fRestScroll() > scr.scroll + 0.5:
 				settle(rate, cursor=False)
-			outLines = stepOut[stepIdx]
+			##	A blank line between the command and its output, for a step whose
+			##	output wraps: without it the two run together as one block.
+			outLines = ([""] if step.get("gap") else []) + stepOut[stepIdx]
 			emit(outLines, rate, lineMs, step.get("overflow", "truncate"))
 			##	Blank line and the returning prompt scroll in as one move - two
 			##	back-to-back settles would put a seam right where the eye rests.
@@ -695,6 +768,8 @@ def fMain():
 			if scr.fRestScroll() > scr.scroll + 0.5:
 				settle(rate)
 			snap(60)
+			blinkPause(1000 * float(step.get("pause", 2.6)))
+		if not step.get("show"):                     # notes with nothing to run
 			blinkPause(1000 * float(step.get("pause", 2.6)))
 
 	##	Tail: hold the last frame dead still, then a hard cut to black before the
@@ -727,6 +802,8 @@ if __name__ == "__main__":
 
 
 ##	History:
+##		- 20260801: The live prompt line wraps instead of running off the edge.
+##			Scenario gained note lists, notes-only steps, gap=, paste=, {here}.
 ##		- 20260731: Motion runs at 50 fps. Constant-velocity scroll (output feeds
 ##			in against it rather than settling per line), eased cursor glide,
 ##			scrolling 10% faster, and tall output starts on a cleared screen.
