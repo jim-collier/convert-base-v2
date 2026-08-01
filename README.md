@@ -179,7 +179,19 @@ That one ships in the file as a working example to copy from. The format is [SHC
 
 ## Use it in your own code
 
-The conversion core is a library in its own right, and there are three ways to reach it. All three run the same code, so none of them can disagree with the command about what a base means.
+The conversion core is a library in its own right, and the command is a thin layer on top of it. Everything below runs that same code, so none of them can disagree with the command about what a base means.
+
+Four separate things get built here, and they are not interchangeable:
+
+- **The command**, `convert-base-v2`. A program. It parses flags, loads config files, and moves data through pipes.
+
+- **The Go package**, `lib/convertbase`. A library. Import it and call its functions.
+
+- **The browser module**, `web/convert-base.wasm`. The package compiled for a web page, with a small JavaScript surface.
+
+- **The WASI module**, `dist/convert-base-v2.wasm`. The whole command compiled to WebAssembly. A program, not a library.
+
+The line between the command and the package is about what each one is allowed to do. Writing a config file into someone's home directory is fine for a program that person chose to run. It is not fine for a library that got imported into somebody else's project, so the package does none of it. It touches no files, reads no environment variables, and prints nothing. The caller decides all of that.
 
 ### A Go package
 
@@ -199,6 +211,8 @@ Convert whole values, or stream through an `io.Reader` and `io.Writer` in consta
 
 The package version moves on its own, separately from the command's. It is at v0 for now, which means the shape of the API may still change.
 
+The first package tag has not been pushed yet, so `go get` cannot resolve it until that lands. Building against a local clone of the repository works today.
+
 ### WebAssembly, in a browser
 
 The [demo page](https://jim-collier.github.io/convert-base-v2/) is the whole library compiled to WebAssembly, with a small JavaScript surface:
@@ -210,11 +224,22 @@ const res = convertBase.convert({value: "255", from: "10", to: "16"});
 
 Serve the two files next to your page and it works offline, on static hosting, with no backend.
 
+This build talks to JavaScript through the browser, so a page is the only place it runs. It is not a general WebAssembly library.
+
 ### WebAssembly, anywhere else
 
-The command also builds as a WASI module, which runs under Wasmtime, Wazero, Node, and the WebAssembly edge platforms. It reads and writes real standard input and output, so streaming works exactly as it does natively, and one file runs on every architecture.
+The command also builds as a WASI module, which runs under Wasmtime, Wazero, Node, and the WebAssembly edge platforms. WASI hands it real argv, standard input, and standard output, so streaming works exactly as it does natively, and one file runs on every architecture.
 
-That covers callers in Rust, Python, C#, Java, Node, and anything else with a WebAssembly runtime, without a C interface to freeze or a per-platform build to ship.
+```sh
+wasmtime run dist/convert-base-v2.wasm -- --from hex --to 10 ff
+# 255
+```
+
+This is the command in a sandbox, not the library made portable. A Rust, Python, or C# program reaches it by starting it under a runtime and wiring up argv and pipes. That is running a program in process. It is not calling a function, and the module does not survive being run a second time in the same instance.
+
+That is still enough to cover callers in any language with a WebAssembly runtime, with no C interface to freeze and no per-platform build to ship. What it does not give you is conversion as a plain function call.
+
+A third build would close that gap: a module that exports functions the host calls directly. It is not built yet, and it is on the backlog.
 
 ### Or just run it
 
@@ -222,7 +247,11 @@ Worth saying plainly: if you can start a process, that is still the simplest opt
 
 ### Licensing
 
-The library and the browser module are Apache-2.0, so you can build them into anything, including commercial and closed-source work. Keep the credit with it and you are done. The command-line tool, and the WASI build of it, stay GPL-2.0-or-later.
+Which license applies follows the same split.
+
+- The Go package and the browser module are Apache-2.0. Build them into anything, commercial and closed-source work included. Keep the credit with them and you are done.
+
+- The command stays GPL-2.0-or-later, and so does the WASI module, because that module is the command.
 
 ## Why convert a number to a large base
 
