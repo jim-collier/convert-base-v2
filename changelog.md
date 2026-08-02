@@ -57,6 +57,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The Kanji and Hanzi base-10s are now one base, `10cjk`, since they share the same digits.
 - `64emoji` takes negatives and fractions now. Its digits are all emoji, so the usual `-` and `.` were never at risk of colliding with one.
 - Crockford base 32 (`32c`) now writes lower case, which is easier to read and is the point of that alphabet. Reading is unchanged and still case-insensitive.
+- Converting a long number between two bases that are not powers of two is much faster and uses far less memory. A 16,000 digit conversion dropped from 251 to 29 milliseconds and from 882 MB of working memory to about 1 MB. Short numbers are unaffected in practice, but gain too.
 - Raw binary now streams through every base that can carry it, not just the single-character ones. A large file through one of the multi-byte bases holds steady near 20 MB of memory instead of growing with the file, and decoding runs about three times faster. Encoding a 48 MB file to `64emoji` used to peak at 1.2 GB.
 - `512tt`, `1024tt`, and `2048tt` now end a byte stream with a tail character, the same approach the published big bases use, which is what lets them stream. Their binary layout changed as a result. None of the three has been in a release, so no existing data is affected.
 - Binary decoding of a base with multi-character digits now accepts line breaks, so wrapped output reads back. The single-character bases already did.

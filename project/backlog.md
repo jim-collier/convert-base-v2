@@ -122,6 +122,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Speed up converting long numbers between two bases that are not powers of two. First of three planned passes.
+	- Cause: each new digit of the answer was added to the front of a list. Everything already in the list has to shift along to make room, so the effort grows with the square of the answer's length. That was piled on top of the arithmetic, which is already the slow part for a long number.
+	- Fixed: digits are now collected in the order the arithmetic hands them back, and the list is flipped around once at the end. Same answer, none of the shuffling. The list is also sized up front rather than being regrown as it fills.
+	- Verified: a 16,000 digit conversion went from 251 to 29 milliseconds, and from 882 megabytes of scratch memory down to about one. Shorter numbers gain too, roughly four times faster at 1,000 digits.
+	- Note: new benchmarks cover this path at three input lengths, because the cost curves upward rather than rising evenly, so one length would not show the shape. Run them with `go test -run x -bench Positional ./convertbase`.
+	- Note: long numbers are still slower than they need to be. Two further passes are planned, one to cut the constant cost and one to change the method itself.
+
 - ✅ Animated gif demo: run the motion at 50 frames per second, and make the scroll and the cursor buttery smooth.
 	- Done: every moving frame is now 20 ms. That is the fastest a gif can run, since browsers clamp shorter delays up to a tenth of a second. Motion used to sit at 80 ms.
 	- Done: the scroll holds one constant velocity. Output lines are fed in against the scroll rather than each one settling to a stop first, which used to cost a short frame at every line boundary and read as judder once the frame rate was high enough to see it.

@@ -220,16 +220,24 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		}
 	}
 
-	// Integer part -> output base (repeated division).
+	// Integer part -> output base (repeated division). Division hands back the
+	// least significant digit first, so collect in that order and reverse at the
+	// end. Prepending each digit instead recopies the whole slice every time,
+	// which is quadratic by itself on top of the quadratic division.
 	var intOut []string
 	if intVal.Sign() == 0 {
 		intOut = []string{to.Symbols[0]}
 	} else {
+		est := int(float64(intVal.BitLen())/math.Log2(float64(len(to.Symbols)))) + 1
+		intOut = make([]string, 0, est)
 		n := new(big.Int).Set(intVal)
 		mod := new(big.Int)
 		for n.Sign() > 0 {
 			n.DivMod(n, toRadix, mod)
-			intOut = append([]string{to.Symbols[mod.Int64()]}, intOut...)
+			intOut = append(intOut, to.Symbols[mod.Int64()])
+		}
+		for i, j := 0, len(intOut)-1; i < j; i, j = i+1, j-1 {
+			intOut[i], intOut[j] = intOut[j], intOut[i]
 		}
 	}
 
