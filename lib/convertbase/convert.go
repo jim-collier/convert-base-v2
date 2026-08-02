@@ -32,13 +32,94 @@ func wordChunk(radix uint) (count int, pow uint) {
 	return count, pow
 }
 
-// parseDigits reads a digit run in its own base into a big.Int, a word's worth
-// of digits per pass.
-func parseDigits(digits []string, from *Base) *big.Int {
-	radix := uint(len(from.Symbols))
+// dcLeafWords is the divide-and-conquer cutoff, in machine words of packed
+// digits. Below it the word-at-a-time loops win on constant factor; above it
+// the digit run is split in half around one big multiply or divide, which turns
+// the O(n^2) walk into O(M(n) log n) and lets math/big's subquadratic multiply
+// carry the load. Power of two, so the power table lines up with the splits.
+// Tuned on BenchmarkPositional.
+const dcLeafWords = 32
+
+// dcState carries what one conversion leg's recursion needs: the base, the
+// table of radix^(leafDigits<<j) built by squaring, and scratch for the leaf
+// loops. The scratch is safe to share because the recursion finishes one half
+// before starting the other.
+type dcState struct {
+	base       *Base
+	pows       []*big.Int
+	radix      uint
+	chunkLen   int
+	chunkPow   uint
+	leafDigits int
+	div        *big.Int // chunkPow, for the format leaf
+	mod        *big.Int // scratch
+}
+
+func newDCState(b *Base) *dcState {
+	radix := uint(len(b.Symbols))
 	chunkLen, chunkPow := wordChunk(radix)
+	return &dcState{
+		base:       b,
+		radix:      radix,
+		chunkLen:   chunkLen,
+		chunkPow:   chunkPow,
+		leafDigits: dcLeafWords * chunkLen,
+		div:        new(big.Int).SetUint64(uint64(chunkPow)),
+		mod:        new(big.Int),
+	}
+}
+
+// growPows extends the power table until the largest entry covers half of a
+// run of n digits, so the top split divides n roughly in two.
+func (s *dcState) growPows(n int) {
+	if s.pows == nil {
+		p0 := new(big.Int).Exp(s.div, big.NewInt(dcLeafWords), nil)
+		s.pows = append(s.pows, p0)
+	}
+	width := s.leafDigits << (len(s.pows) - 1)
+	for width*2 < n {
+		last := s.pows[len(s.pows)-1]
+		s.pows = append(s.pows, new(big.Int).Mul(last, last))
+		width *= 2
+	}
+}
+
+// parseDigits reads a digit run in its own base into a big.Int. Short runs go
+// straight to the packed word loop; long ones recurse, combining the halves as
+// hi*radix^m + lo with m a leaf-aligned power of two.
+func parseDigits(digits []string, from *Base) *big.Int {
+	s := newDCState(from)
+	if len(digits) <= s.leafDigits {
+		return s.parseLeaf(digits)
+	}
+	s.growPows(len(digits))
+	return s.parse(digits, len(s.pows)-1)
+}
+
+func (s *dcState) parse(digits []string, j int) *big.Int {
+	for j >= 0 && s.leafDigits<<j >= len(digits) {
+		j--
+	}
+	if j < 0 {
+		return s.parseLeaf(digits)
+	}
+	// The low half takes exactly the power's digit count, so its leading zero
+	// digits are absorbed by the positional weight and never need special
+	// handling - only the leaf's short final chunk ever worries about that.
+	split := len(digits) - s.leafDigits<<j
+	hi := s.parse(digits[:split], j)
+	lo := s.parse(digits[split:], j-1)
+	hi.Mul(hi, s.pows[j])
+	return hi.Add(hi, lo)
+}
+
+// parseLeaf is the chunk-at-a-time loop: pack a word's worth of digits with
+// plain integer arithmetic, then one bignum multiply-add per word.
+func (s *dcState) parseLeaf(digits []string) *big.Int {
+	radix := s.radix
+	chunkLen := s.chunkLen
 	val := new(big.Int)
-	mul := new(big.Int).SetUint64(uint64(chunkPow))
+	mul := new(big.Int).SetUint64(uint64(s.chunkPow))
 	tmp := new(big.Int)
 	for i := 0; i < len(digits); {
 		n := chunkLen
@@ -53,13 +134,99 @@ func parseDigits(digits []string, from *Base) *big.Int {
 		}
 		var chunk uint
 		for j := 0; j < n; j++ {
-			chunk = chunk*radix + uint(from.value[digits[i+j]])
+			chunk = chunk*radix + uint(s.base.value[digits[i+j]])
 		}
 		i += n
 		val.Mul(val, mul)
 		val.Add(val, tmp.SetUint64(uint64(chunk)))
 	}
 	return val
+}
+
+// formatDigits renders v in to's base, most significant digit first. A positive
+// width means exactly that many digits, left-padded with the zero symbol (the
+// fractional leg must keep its leading zeros); width <= 0 means minimal digits,
+// at least one. v is left untouched.
+func formatDigits(v *big.Int, to *Base, width int) []string {
+	s := newDCState(to)
+	if v.Sign() == 0 && width <= 0 {
+		return []string{to.Symbols[0]}
+	}
+	// One digit per log2(radix) bits, rounded up, plus slack so a float
+	// rounding error can never undersize the buffer.
+	est := int(float64(v.BitLen())/math.Log2(float64(s.radix))) + 2
+	size := est
+	if width > size {
+		size = width
+	}
+	buf := make([]string, size)
+	work := new(big.Int).Set(v) // the recursion consumes its argument
+	var start int
+	if est <= s.leafDigits {
+		start = s.formatLeaf(work, buf, len(buf))
+	} else {
+		s.growPows(est)
+		start = s.format(work, len(s.pows)-1, buf, len(buf))
+	}
+	if width > 0 {
+		lo := len(buf) - width
+		for i := lo; i < start; i++ {
+			buf[i] = to.Symbols[0]
+		}
+		return buf[lo:]
+	}
+	return buf[start:]
+}
+
+// format writes the digits of v into buf ending at index end and returns the
+// start index. v is destroyed. On entry v < pows[j]^2, so the quotient of the
+// split fits back under pows[j].
+func (s *dcState) format(v *big.Int, j int, buf []string, end int) int {
+	for j >= 0 && v.Cmp(s.pows[j]) < 0 {
+		j--
+	}
+	if j < 0 {
+		return s.formatLeaf(v, buf, end)
+	}
+	r := new(big.Int)
+	v.QuoRem(v, s.pows[j], r)
+	lo := s.format(r, j-1, buf, end)
+	// The remainder owns exactly this many digit positions; a short remainder
+	// keeps its leading zeros or every digit above it shifts right. This is
+	// the same trap as the leaf's short chunk, in mirror.
+	w := s.leafDigits << j
+	for i := end - w; i < lo; i++ {
+		buf[i] = s.base.Symbols[0]
+	}
+	return s.format(v, j, buf, end-w)
+}
+
+// formatLeaf is the chunk-at-a-time output loop: one bignum divide peels a
+// word, plain integer arithmetic peels its digits. Writes leading-zero digits
+// for full interior chunks and stops at the top one's first significant digit.
+// v is destroyed.
+func (s *dcState) formatLeaf(v *big.Int, buf []string, end int) int {
+	radix := s.radix
+	i := end
+	for v.Sign() > 0 {
+		v.DivMod(v, s.div, s.mod)
+		rem := uint(s.mod.Uint64())
+		if v.Sign() > 0 {
+			// More to come, so this chunk keeps its leading zeros.
+			for j := 0; j < s.chunkLen; j++ {
+				i--
+				buf[i] = s.base.Symbols[rem%radix]
+				rem /= radix
+			}
+			continue
+		}
+		for rem > 0 {
+			i--
+			buf[i] = s.base.Symbols[rem%radix]
+			rem /= radix
+		}
+	}
+	return i
 }
 
 // Convert converts a number string from 'from' base to 'to' base.
@@ -240,26 +407,10 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 			q.SetInt64(0)
 		}
 		if q.Sign() > 0 {
-			radix := uint(len(to.Symbols))
-			chunkLen, chunkPow := wordChunk(radix)
-			digits := make([]string, prec)
-			div := new(big.Int).SetUint64(uint64(chunkPow))
-			mod := new(big.Int)
+			// Exactly prec digits: leading zeros kept (0.05 needs them),
+			// trailing ones trimmed.
+			digits := formatDigits(q, to, prec)
 			zero := to.Symbols[0]
-			i := prec - 1
-			for i >= 0 && q.Sign() > 0 {
-				q.DivMod(q, div, mod)
-				rem := uint(mod.Uint64())
-				for j := 0; j < chunkLen && i >= 0; j++ {
-					digits[i] = to.Symbols[rem%radix]
-					rem /= radix
-					i--
-				}
-			}
-			// Keep leading zero digits (0.05 needs them), trim trailing ones.
-			for ; i >= 0; i-- {
-				digits[i] = zero
-			}
 			end := prec
 			for end > 0 && digits[end-1] == zero {
 				end--
@@ -268,41 +419,8 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		}
 	}
 
-	// Integer part -> output base (repeated division). Division hands back the
-	// least significant digit first, so collect in that order and reverse at the
-	// end. Prepending each digit instead recopies the whole slice every time,
-	// which is quadratic by itself on top of the quadratic division.
-	var intOut []string
-	if intVal.Sign() == 0 {
-		intOut = []string{to.Symbols[0]}
-	} else {
-		radix := uint(len(to.Symbols))
-		chunkLen, chunkPow := wordChunk(radix)
-		est := int(float64(intVal.BitLen())/math.Log2(float64(radix))) + 1
-		intOut = make([]string, 0, est)
-		n := new(big.Int).Set(intVal)
-		div := new(big.Int).SetUint64(uint64(chunkPow))
-		mod := new(big.Int)
-		for n.Sign() > 0 {
-			n.DivMod(n, div, mod)
-			rem := uint(mod.Uint64())
-			if n.Sign() > 0 {
-				// More to come, so this chunk keeps its leading zeros.
-				for j := 0; j < chunkLen; j++ {
-					intOut = append(intOut, to.Symbols[rem%radix])
-					rem /= radix
-				}
-				continue
-			}
-			for rem > 0 {
-				intOut = append(intOut, to.Symbols[rem%radix])
-				rem /= radix
-			}
-		}
-		for i, j := 0, len(intOut)-1; i < j; i, j = i+1, j-1 {
-			intOut[i], intOut[j] = intOut[j], intOut[i]
-		}
-	}
+	// Integer part -> output base.
+	intOut := formatDigits(intVal, to, 0)
 
 	// Assemble, using the OUTPUT base's markers.
 	isZero := intVal.Sign() == 0 && len(fracOut) == 0

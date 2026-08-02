@@ -122,6 +122,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Speed up converting long numbers between two bases that are not powers of two. Third and final planned pass.
+	- Cause: even with the earlier batching, every batch still took a pass over the whole number, so the total effort grew with the square of the length. That is the method's own cost, not an implementation detail.
+	- Fixed: a long number is now split in half, each half converted on its own, and the two results joined with one wide multiply or divide. The halves split again in turn, down to a size where the earlier batch loop takes over. The joining steps ride on the arithmetic library's fast large-number multiply, so the whole thing finally grows a little faster than the length itself rather than its square.
+	- Verified: a 16,000 digit conversion went from 2.8 to about 1 millisecond, a 64,000 digit one from an extrapolated 45 down to 6.5. A 160,000 digit number now converts through the command in under a tenth of a second, most of which is startup. Short numbers are unchanged.
+	- Verified: compared against the previous build across about 1,300 conversions at every length near a split seam, plus fractions, negatives, and both precision modes. All identical. Also checked against the standard library's own independent conversion for every base it can express, at every seam length.
+	- Note: the split seams are the one place this can go wrong - a short lower half must keep its leading zeros - and a mistake there still looks like a plausible number. New tests pin every seam, and they were confirmed to catch both seeded mistakes before the real code went in.
+	- Note: delegating half the work to the standard library was considered, measured as no faster end to end, and declined - one algorithm everywhere beats two correctness surfaces.
+	- Note: the fuzzing length cap rose from 256 to 1,024 digits now that long values are cheap, so fuzzing reaches the new seams too.
+
 - ✅ Speed up converting long numbers between two bases that are not powers of two. Second of three planned passes.
 	- Cause: the number was read in one digit at a time and written out one digit at a time. Each of those steps costs a pass over the whole number, however long it is, so a short digit gets the same expensive treatment as the entire value.
 	- Fixed: digits are now handled a batch at a time, as many as fit in one of the machine's own numbers. That is nineteen digits at once for base ten, twelve for base thirty-six, five for base 2048. The batch is packed and unpacked with ordinary arithmetic, which is free next to a pass over a long number.

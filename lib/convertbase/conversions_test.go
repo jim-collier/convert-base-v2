@@ -854,7 +854,10 @@ func TestDigitChunkBoundaries(t *testing.T) {
 	// Chunk widths differ per base: 63 digits per word for base 2, 19 for base
 	// 10, 12 for 36, 10 for 62, 5 for 2048, 3 for 65536.
 	targets := []string{"2", "10", "16", "36", "62", "2048qntm", "65536qntm"}
-	lengths := []int{1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 18, 19, 20, 21, 24, 25, 37, 38, 39, 62, 63, 64, 65, 126, 127, 128}
+	// The tail of the list reaches past the divide-and-conquer threshold on the
+	// base 10 input side (608 digits at the current leaf size) and both its
+	// first split seams, so the recursive parse is compared too.
+	lengths := []int{1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 18, 19, 20, 21, 24, 25, 37, 38, 39, 62, 63, 64, 65, 126, 127, 128, 607, 608, 609, 1216, 1217, 2000}
 	for _, name := range targets {
 		to := base(t, reg, name)
 		for _, n := range lengths {
@@ -875,6 +878,60 @@ func TestDigitChunkBoundaries(t *testing.T) {
 	}
 }
 
+// The divide-and-conquer paths split a digit run at leaf-aligned powers of
+// two, so the lengths that can go wrong sit at those seams: a short low half
+// must keep its leading zero digits on the way out and weigh correctly on the
+// way in, and both mistakes still look like plausible numbers. math/big's Text
+// is an independent implementation of the same recursive algorithm, so for any
+// radix it can express it is a stronger oracle than the naive reference above,
+// which shares this code's own assumptions about chunking. Symbols map by
+// value, so the check holds whatever order a base's alphabet is in.
+func TestDivideConquerBoundaries(t *testing.T) {
+	const goDigits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
+	reg := newReg(t)
+	dec10 := base(t, reg, "10")
+	rng := rand.New(rand.NewSource(13))
+	for _, name := range []string{"2", "8", "16", "36", "62"} {
+		b := base(t, reg, name)
+		radix := len(b.Symbols)
+		remap := func(text string) string {
+			var sb strings.Builder
+			for _, c := range text {
+				sb.WriteString(b.Symbols[strings.IndexRune(goDigits, c)])
+			}
+			return sb.String()
+		}
+		chunkLen, _ := wordChunk(uint(radix))
+		leaf := dcLeafWords * chunkLen
+		lengths := []int{1, 2, leaf - 1, leaf, leaf + 1,
+			2*leaf - 1, 2 * leaf, 2*leaf + 1, 3*leaf + 5,
+			4*leaf - 1, 4 * leaf, 4*leaf + 1}
+		bigRadix := big.NewInt(int64(radix))
+		for _, n := range lengths {
+			// A value with exactly n digits in this base.
+			low := new(big.Int).Exp(bigRadix, big.NewInt(int64(n-1)), nil)
+			span := new(big.Int).Mul(low, big.NewInt(int64(radix-1)))
+			v := new(big.Int).Rand(rng, span)
+			v.Add(v, low)
+			want := remap(v.Text(radix))
+			got, err := Convert(v.Text(10), dec10, b, 0)
+			if err != nil {
+				t.Fatalf("format %d digits in base %s: %v", n, name, err)
+			}
+			if got != want {
+				t.Errorf("format %d digits in base %s: got %d chars, want %d", n, name, len(got), len(want))
+			}
+			back, err := Convert(want, b, dec10, 0)
+			if err != nil {
+				t.Fatalf("parse %d digits in base %s: %v", n, name, err)
+			}
+			if dec := v.Text(10); back != dec {
+				t.Errorf("parse %d digits in base %s: got %d chars, want %d", n, name, len(back), len(dec))
+			}
+		}
+	}
+}
+
 // Same boundaries on the fractional side. A fraction converted to its own base
 // has to come back unchanged, whatever the length, which is an exact check the
 // integer comparison above cannot give for fractions.
@@ -883,7 +940,9 @@ func TestFractionChunkBoundaries(t *testing.T) {
 	rng := rand.New(rand.NewSource(11))
 	for _, name := range []string{"2", "10", "16", "36", "62"} {
 		b := base(t, reg, name)
-		for _, n := range []int{1, 2, 3, 9, 10, 11, 12, 13, 18, 19, 20, 21, 38, 39, 62, 63, 64, 65} {
+		// Past 608 the exactly-width format leg goes recursive for base 10 (and
+		// past 320 for base 62), so the long lengths pin its zero padding too.
+		for _, n := range []int{1, 2, 3, 9, 10, 11, 12, 13, 18, 19, 20, 21, 38, 39, 62, 63, 64, 65, 319, 320, 321, 607, 608, 609, 1300, 2017} {
 			var sb strings.Builder
 			sb.WriteString(b.Symbols[0])
 			sb.WriteString(b.DecSym())
