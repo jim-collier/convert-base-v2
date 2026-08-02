@@ -110,6 +110,12 @@ FUZZ_ENABLE=1
 FUZZ_TIME="20s"
 FUZZ_TIME_QUICK="4s"
 
+## Go shrinks each new corpus find before saving it, and its default budget for that
+## is a minute - longer than the whole run, so one find parks a worker for the rest
+## of it. Kept to a small slice of FUZZ_TIME instead.
+FUZZ_MINIMIZE_TIME="2s"
+FUZZ_MINIMIZE_TIME_QUICK="1s"
+
 ## Stage 4c: security. govulncheck scans this module AND its dependencies (library
 ## code) against the Go vulnerability database. Optional (PROBE-gated); its version
 ## comes from cicd/tool-versions.env via the pin step.

@@ -29,6 +29,15 @@ func FuzzParseSymbolSpec(f *testing.F) {
 	})
 }
 
+// Length ceilings, so a fuzz run keeps finding new shapes instead of grinding on
+// ever-longer values. The positional path is quadratic in digit count (40k digits
+// is over three seconds for one call), and every branch worth reaching - sign,
+// decimal marker, rounding carry, a stray rune - is reachable well inside these.
+const (
+	fuzzMaxNumberLen = 256
+	fuzzMaxByteLen   = 4096
+)
+
 // FuzzConvert: Convert must never panic on arbitrary input in a fixed base pair.
 // Most fuzz inputs are not valid base-10 numbers, so an error is the norm; the
 // point is that malformed input is rejected cleanly, not with a crash.
@@ -49,6 +58,9 @@ func FuzzConvert(f *testing.F) {
 	f.Add("-123456.789")
 	f.Add("0")
 	f.Fuzz(func(t *testing.T, number string) {
+		if len(number) > fuzzMaxNumberLen {
+			t.Skip("over the length ceiling")
+		}
 		_, _ = Convert(number, from, to, 50) // only asserting no panic
 	})
 }
@@ -79,6 +91,9 @@ func FuzzStreamRoundTrip(f *testing.F) {
 	f.Add([]byte{0, 1, 2, 253, 254, 255})
 	f.Add([]byte(""))
 	f.Fuzz(func(t *testing.T, data []byte) {
+		if len(data) > fuzzMaxByteLen {
+			t.Skip("over the length ceiling")
+		}
 		for _, to := range targets {
 			var enc bytes.Buffer
 			handled, err := StreamConvert(bytes.NewReader(data), &enc, bytesBase, to)
