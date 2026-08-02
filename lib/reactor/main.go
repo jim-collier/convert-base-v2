@@ -289,6 +289,96 @@ func symbolCount(namePtr, nameLen, strPtr, strLen uint32) int64 {
 	return int64(len(digits))
 }
 
+// symbol_slice returns the part of the string covering symbols
+// [start, start+count), counting symbols rather than bytes. Negative start
+// counts from the right end; count < 0 means through the end; both clamp
+// rather than error. Packed region the host frees, or zero on error - and a
+// zero-length result with last_error_code 0 is a legal empty answer.
+//
+//go:wasmexport symbol_slice
+func symbolSlice(namePtr, nameLen, strPtr, strLen uint32, start, count int32) uint64 {
+	clearErr()
+	if !ready() {
+		return 0
+	}
+	b, ok := namedBase(namePtr, nameLen)
+	if !ok {
+		return 0
+	}
+	s, ok := hostBytes(strPtr, strLen)
+	if !ok {
+		return 0
+	}
+	out, err := b.SymbolSlice(string(s), int(start), int(count))
+	if err != nil {
+		setErr(classify(err), err.Error())
+		return 0
+	}
+	return packRegion(out)
+}
+
+// fit right-aligns the string to exactly width symbols in the base: left-fills
+// with the base's zero symbol when short, keeps the rightmost width symbols
+// when long. Packed region the host frees, or zero on error.
+//
+//go:wasmexport fit
+func fit(namePtr, nameLen, strPtr, strLen, width uint32) uint64 {
+	clearErr()
+	if !ready() {
+		return 0
+	}
+	b, ok := namedBase(namePtr, nameLen)
+	if !ok {
+		return 0
+	}
+	s, ok := hostBytes(strPtr, strLen)
+	if !ok {
+		return 0
+	}
+	out, err := b.Fit(string(s), int(width))
+	if err != nil {
+		setErr(classify(err), err.Error())
+		return 0
+	}
+	return packRegion(out)
+}
+
+// convert_fit is convert followed by fit in the destination base, one call and
+// one region instead of two round trips. Auto precision only: the fixed-width
+// fields this exists for are integers, and a caller that wants a fraction has
+// the two-step path.
+//
+//go:wasmexport convert_fit
+func convertFit(fromPtr, fromLen, toPtr, toLen, valPtr, valLen, width uint32) uint64 {
+	clearErr()
+	if !ready() {
+		return 0
+	}
+	from, ok := namedBase(fromPtr, fromLen)
+	if !ok {
+		return 0
+	}
+	to, ok := namedBase(toPtr, toLen)
+	if !ok {
+		return 0
+	}
+	value, ok := hostBytes(valPtr, valLen)
+	if !ok {
+		return 0
+	}
+	out, err := convertbase.Convert(string(value), from, to, -1)
+	if err != nil {
+		setErr(classify(err), err.Error())
+		return 0
+	}
+	out, err = to.Fit(out, int(width))
+	if err != nil {
+		setErr(classify(err), err.Error())
+		return 0
+	}
+	return packRegion(out)
+}
+
 //go:wasmexport last_error_code
 func lastErrorCode() int32 { return lastCode }
 

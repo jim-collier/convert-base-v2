@@ -9,8 +9,8 @@ Design and background: `project/design_docs/20260801_wasm_reactor.md`. The exerc
 Only numbers cross the boundary, so strings travel through the module's exported linear `memory`:
 
 - Call `alloc(size)` to get a region, write your bytes into it through `memory`, and pass the offset and length as a pair of `u32` arguments. Input pointers must lie inside a region you allocated; anything else is refused with `BadArg` rather than read blind.
-- String results come back as one `u64` packed as `(pointer << 32) | length`. Zero means failure; ask `last_error_code` and `last_error_text` why.
-- Results from `convert` and `base_zero` are regions you own: read them out, then pass the pointer to `free`. The strings from `last_error_text` and `version` are module-owned: never free them, and copy the error text out before the next call overwrites it.
+- String results come back as one `u64` packed as `(pointer << 32) | length`. On a zero return, check `last_error_code`: a nonzero code means the call failed, and 0 means a legitimately empty result. That rule is the contract for every string-returning export. (Region-returning exports happen to hand even an empty result a real address today, so their zero really does mean failure - but rely on the code check, not on that.)
+- Results from `convert`, `convert_fit`, `base_zero`, `symbol_slice`, and `fit` are regions you own: read them out, then pass the pointer to `free`. The strings from `last_error_text` and `version` are module-owned: never free them, and copy the error text out before the next call overwrites it.
 - Signed returns (`base_radix`, `symbol_count`, `lookup`, `free`) carry the answer when non-negative and the error as a code (negated where the answer itself is a number).
 - A base name is anything the command accepts: canonical names, aliases, `b16`/`base16` prefix forms, any case. An unknown name's error text carries the same near-match suggestions the command prints.
 
@@ -25,6 +25,9 @@ Only numbers cross the boundary, so strings travel through the module's exported
 | `base_radix` | `(name_ptr, name_len: u32) -> i64` | The base's symbol count, or the negated error code. |
 | `base_zero` | `(name_ptr, name_len: u32) -> u64` | The base's first symbol, packed, host-freed. This is the padding symbol for fixed-width output: the word-safe base 32 starts at `2`, so assuming `0` pads wrongly. |
 | `symbol_count` | `(name_ptr, name_len, str_ptr, str_len: u32) -> i64` | How many of the base's digit symbols make up the string, or the negated error code. Counts symbols, not bytes. Digits only; a sign or decimal marker in the string is an error. |
+| `symbol_slice` | `(name_ptr, name_len, str_ptr, str_len: u32, start, count: i32) -> u64` | The part of the string covering symbols `[start, start+count)`, counting symbols rather than bytes. Negative start counts from the right end (-3 = the last three symbols); count < 0 means through the end; both clamp to what the string holds instead of erroring. Packed, host-freed. Digits only, like `symbol_count`; the result comes back in canonical symbol form. |
+| `fit` | `(name_ptr, name_len, str_ptr, str_len, width: u32) -> u64` | The string right-aligned to exactly `width` symbols: left-filled with the base's zero symbol (`base_zero`) when short, cut to the rightmost `width` symbols when long. Packed, host-freed. Digits only. This is the whole fixed-width pad-or-truncate policy in one place - remember the word-safe base 32 pads with `2`. |
+| `convert_fit` | `(from_ptr, from_len, to_ptr, to_len, value_ptr, value_len, width: u32) -> u64` | `convert` at automatic precision, then `fit` to `width` in the destination base, one call and one region. Packed, host-freed. The fit half is digits-only, so a conversion whose result carries a sign or decimal marker errors here; use the two-step path for those. |
 | `last_error_code` | `() -> i32` | Code of the most recent call's error, 0 if it succeeded. |
 | `last_error_text` | `() -> u64` | Packed message, module-owned. Zero when there is no error. |
 | `version` | `() -> u64` | Packed library version (`convertbase.Version`), module-owned. |
