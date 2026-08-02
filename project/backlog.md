@@ -49,6 +49,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 ### New features and enhancements
 
 - 🔘 Push the first `lib/v0.1.0` tag, so the Go module can actually be fetched. Nothing can import it until then, and the README should not claim otherwise before it lands.
+	- Note: zuid asked for this again; its go.mod carries a local replace directive until the tag exists. Blocked only on the lib branch merging.
+- ✅ Symbol-boundary slicing, requested by zuid for fixed-width identifier fields.
+	- Done: `SymbolSlice` and `Fit` on Base, plus reactor exports `symbol_slice`, `fit`, and `convert_fit`. Fit right-aligns to a width in symbols: left-fills with the base's zero symbol, keeps the rightmost symbols when long. Slicing counts symbols rather than bytes, so multi-byte alphabets work.
+	- Done: the empty-result rule is now contractual in the reactor README - on a zero return, error code zero means a legitimately empty result, not a failure.
+	- Verified: unit tests over single-byte and multi-byte bases, the host exerciser drives all three exports, full suite passes.
 
 ### Done
 

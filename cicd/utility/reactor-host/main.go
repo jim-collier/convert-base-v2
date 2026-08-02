@@ -99,6 +99,7 @@ func main() {
 		}
 		for _, name := range []string{"alloc", "free", "convert", "lookup",
 			"base_radix", "base_zero", "symbol_count",
+			"symbol_slice", "fit", "convert_fit",
 			"last_error_code", "last_error_text", "version", "region_count",
 			"stream_new", "stream_write", "stream_finish", "stream_free",
 			"stream_count"} {
@@ -262,6 +263,69 @@ func (h *host) run() {
 		fatal("128tt encoding %q is not multi-byte; the check proves nothing", enc)
 	}
 	h.freeAll(scArgs[0], scArgs[2])
+
+	// symbol_slice and fit, on single-byte digits and on the multi-byte 128tt
+	// encoding from above, where a byte slice would cut a digit in half.
+	for _, c := range []struct {
+		base, s      string
+		start, count int64
+		want         string
+	}{
+		{"16", "ABCDEF", 0, 3, "ABC"},
+		{"16", "ABCDEF", -3, -1, "DEF"},
+		{"16", "ABCDEF", 4, 99, "EF"},
+		{"128tt", enc, -2, -1, ""}, // filled in below: last two multi-byte symbols
+	} {
+		want := c.want
+		if want == "" {
+			one, code := h.symbolSlice(c.base, c.s, -2, 1)
+			two, code2 := h.symbolSlice(c.base, c.s, -1, 1)
+			if code != errNone || code2 != errNone {
+				fatal("symbol_slice 128tt singles: codes %d %d", code, code2)
+			}
+			want = one + two
+		}
+		got, code := h.symbolSlice(c.base, c.s, c.start, c.count)
+		if code != errNone || got != want {
+			fatal("symbol_slice %s %q [%d,%d): got %q code %d, want %q", c.base, c.s, c.start, c.count, got, code, want)
+		}
+	}
+	// A slice past the end is a legal empty result: packed length 0, code 0.
+	if got, code := h.symbolSlice("16", "AB", 5, 3); code != errNone || got != "" {
+		fatal("symbol_slice past end: got %q code %d, want empty success", got, code)
+	}
+	for _, c := range []struct {
+		base, s string
+		width   int64
+		want    string
+	}{
+		{"16", "FF", 4, "00FF"},
+		{"16", "ABCDEF", 4, "CDEF"},
+		{"32w", "X", 4, "222X"}, // the zero symbol is "2", not "0"
+	} {
+		got, code := h.fit(c.base, c.s, c.width)
+		if code != errNone || got != c.want {
+			fatal("fit %s %q %d: got %q code %d, want %q", c.base, c.s, c.width, got, code, c.want)
+		}
+	}
+	fitted, code := h.fit("128tt", enc, 3)
+	directSlice, code2 := h.symbolSlice("128tt", enc, -3, -1)
+	if code != errNone || code2 != errNone || fitted != directSlice {
+		fatal("fit 128tt truncation disagrees with symbol_slice: %q vs %q", fitted, directSlice)
+	}
+	if got, code := h.fit("16", "12z", 4); code != errBadInput || got != "" {
+		fatal("fit on bad digit: got %q code %d, want %d", got, code, errBadInput)
+	}
+	// convert_fit equals convert then fit.
+	if got, code := h.convertFit("10", "16", "255", 6); code != errNone || got != "0000FF" {
+		fatal("convert_fit 255->16 width 6: got %q code %d", got, code)
+	}
+	if got, code := h.convertFit("16", "32w", "0", 5); code != errNone || got != "22222" {
+		fatal("convert_fit 0->32w width 5: got %q code %d", got, code)
+	}
+	if _, code := h.convertFit("10", "16", "-255", 4); code != errBadInput {
+		fatal("convert_fit on a signed value: code %d, want %d", code, errBadInput)
+	}
 
 	// Error paths: bad digit, unknown base, stale pointer, double free.
 	if _, code := h.convert("10", "16", "12z", -1); code != errBadInput {
@@ -531,6 +595,52 @@ func (h *host) convert(from, to, value string, precision int64) (string, int32) 
 	args = append(args, h.str(value)...)
 	args = append(args, api.EncodeI32(int32(precision)))
 	packed := h.call("convert", args...)
+	code := h.calli32("last_error_code")
+	out := ""
+	if packed != 0 {
+		out = h.readPackedFree(packed)
+	}
+	h.freeAll(args[0], args[2], args[4])
+	return out, code
+}
+
+// symbolSlice runs one symbol_slice call, freeing what it allocates.
+func (h *host) symbolSlice(base, s string, start, count int64) (string, int32) {
+	args := h.str(base)
+	args = append(args, h.str(s)...)
+	args = append(args, api.EncodeI32(int32(start)), api.EncodeI32(int32(count)))
+	packed := h.call("symbol_slice", args...)
+	code := h.calli32("last_error_code")
+	out := ""
+	if packed != 0 {
+		out = h.readPackedFree(packed)
+	}
+	h.freeAll(args[0], args[2])
+	return out, code
+}
+
+// fit runs one fit call, freeing what it allocates.
+func (h *host) fit(base, s string, width int64) (string, int32) {
+	args := h.str(base)
+	args = append(args, h.str(s)...)
+	args = append(args, uint64(width))
+	packed := h.call("fit", args...)
+	code := h.calli32("last_error_code")
+	out := ""
+	if packed != 0 {
+		out = h.readPackedFree(packed)
+	}
+	h.freeAll(args[0], args[2])
+	return out, code
+}
+
+// convertFit runs one convert_fit call, freeing what it allocates.
+func (h *host) convertFit(from, to, value string, width int64) (string, int32) {
+	args := h.str(from)
+	args = append(args, h.str(to)...)
+	args = append(args, h.str(value)...)
+	args = append(args, uint64(width))
+	packed := h.call("convert_fit", args...)
 	code := h.calli32("last_error_code")
 	out := ""
 	if packed != 0 {

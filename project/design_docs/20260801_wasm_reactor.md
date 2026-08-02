@@ -38,6 +38,8 @@ Streaming shipped as well, in the push shape proposed below: `stream_new`/`strea
 
 One practical note from the build-out: linters do not yet treat `//go:wasmexport` as a root, so every export reads as unused code under a `wasip1` lint run. The reactor package stays out of lint scope the way the vendored parser does; vet runs on it cross-compiled and comes back clean.
 
+A follow-up request from zuid arrived 20260802, after the one-shot surface shipped: symbol-boundary slicing for fixed-width fields. Its identifiers render every component at a fixed width, which needs left-fill with the zero symbol (already possible via `base_zero` plus `symbol_count`) and keeping the rightmost N symbols of a longer value (not possible from the host, which has no copy of the alphabet). Shipped as `SymbolSlice` and `Fit` on the library's Base, and three exports: `symbol_slice`, `fit` (the whole pad-or-truncate policy in one shared implementation, so the Go and wasm callers cannot drift), and `convert_fit` (convert plus fit in one call, which is every call zuid makes). The zero-return rule zuid asked to have pinned down is now contractual in the ABI README: on a zero return, error code zero means a legitimately empty result.
+
 Split out of `20260731_linkable_library.md`, which treated WebAssembly as the replacement for a C library. That conclusion still holds for reach. It skipped one thing: neither build that exists is callable as a library from another program.
 
 ## Introduction
