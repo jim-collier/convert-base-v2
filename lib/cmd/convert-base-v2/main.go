@@ -72,6 +72,7 @@ func run() error {
 		precision     = flag.String("precision", "auto", "max fractional digits, or 'auto' to match the input's precision")
 		lower         = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
 		upper         = flag.Bool("upper", false, "uppercase output (errors if output base has mixed-case digits)")
+		escapeCtrl    = flag.Bool("escape-controls", false, "write control-character digits as named escapes (⊳LF, ⊳TAB, ...); input accepts them either way")
 		noNewline     = flag.Bool("no-newline", false, "do not append a trailing newline to text output (like echo -n)")
 		nFlag         = flag.Bool("n", false, "alias for -no-newline")
 		binaryMode    = flag.Bool("binary", false, "treat both sides as raw byte data (byte encode/decode, like basenc); an omitted --from/--to defaults to bytes")
@@ -244,6 +245,9 @@ func run() error {
 			}
 		} else {
 			for _, s := range b.Symbols {
+				if *escapeCtrl {
+					s = convertbase.EscapeControls(s, b)
+				}
 				fmt.Fprint(w, s)
 			}
 			fmt.Fprintln(w)
@@ -382,6 +386,12 @@ func run() error {
 	if *upper && !canUppercase(to) {
 		return fmt.Errorf("--upper is invalid for mixed-case output base %q: uppercasing its digits would change their meaning", to.Name())
 	}
+	// Escapes are a text notation, so they only reach the number path. Byte mode
+	// writes raw bytes or a fixed codec alphabet, where the flag would be
+	// accepted and then do nothing.
+	if *escapeCtrl && (byteMode || from.Binary || to.Binary) {
+		return fmt.Errorf("--escape-controls applies to number conversions only, not byte mode")
+	}
 
 	// No number and stdin is a terminal - nothing to do. This is the error path
 	// (exit 2), so help goes to stderr, leaving stdout clean.
@@ -464,6 +474,9 @@ func run() error {
 	}
 	if *upper {
 		result = strings.ToUpper(result)
+	}
+	if *escapeCtrl {
+		result = convertbase.EscapeControls(result, to)
 	}
 
 	if *noNewline || *nFlag || to.Binary {
@@ -736,6 +749,8 @@ Conversion mode:
   --number, --num, -N  Treat input as a positional notation number (default)
   --precision N|auto   Max fractional digits, or auto to match input  [default auto]
   --lower / --upper    Force output case (errors on mixed-case digit bases)
+  --escape-controls    Write control-character digits as ⊳LF, ⊳TAB, ⊳CR, ...
+                       Input accepts those and the raw characters, mixed, always.
   --no-newline, -n     Omit trailing newline on text output (like echo -n)
 
 Base info (each prints one value, then exits):
@@ -868,6 +883,12 @@ func printExamples(out io.Writer) {
 
   # Markers work on named bases too, not just custom alphabets
   convert-base-v2  --from hex --from-neg '~'  --to 10  -- '~ff'
+
+  # 98keyboard holds tab, newline and return as digits, so they can be named.
+  # Input takes named and raw forms mixed; output writes them only if asked.
+  convert-base-v2  --from keyboard --to 10  -n 'hi⊳LFthere'             # 3772491441706426
+  convert-base-v2  --from 10 --to keyboard --escape-controls  -n 3772491441706426
+  convert-base-v2  --show-symbols --escape-controls  keyboard           # the readable alphabet
 
   # Convert a binary file to any 2^N base (i.e. 4, 8, 16, 32, 64 ... 65536)
   # Streams in linear time at speeds competitive with basenc/base64. The draw is

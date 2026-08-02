@@ -93,6 +93,12 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 - **An unrecognized config field is an error.** Loading the file with a misspelled field ignored would produce a base with the wrong markers or the wrong digits, and nothing about the output would ever look wrong. The same reasoning applies to a line SHCL could not parse: the parser is designed to skip and carry on, which is right for a log and wrong for an alphabet.
 
+- **Control-character digits are named with a marker from outside the alphabet.** A base can hold tab, newline and return as digits, and those cannot be typed at a prompt or seen on a terminal. Naming them needs a marker, and the usual choice, a printable character with a doubling rule, leads straight to the question of how to write the marker itself. Picking a character the base does not use answers it: the marker can never be a digit, so raw and named forms mix in one value with nothing to disambiguate and no rule to remember.
+	- Among the options considered, single glyphs from the Unicode control-pictures block were the tidiest but too small to read at a glance, so a marker plus a short name won.
+	- Naming is accepted on input always, and written on output only when asked. Input acceptance cannot break anything, since the marker was never valid input before; changing what is written would change every existing result in such a base.
+	- One control's name is the start of another's, so a name alone is not always enough. Output re-reads each name against the text that follows it and writes a fixed-width form instead where the name would not survive the trip back.
+	- Naming applies to the number path only. Byte mode writes raw bytes or a fixed alphabet, where the flag would be accepted and then do nothing, so it is refused there instead.
+
 - **The version is a `var`, not a `const`.** The release build patches it through a linker flag, which only works on a var. The source value is the single source of truth for what version ships.
 
 - **Output stays deterministic and stable.** Given the same input and base, the output never changes across runs or platforms. Any future change that would alter output goes to a new version suffix so old scripts keep working.
