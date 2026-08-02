@@ -231,8 +231,15 @@ func EscapeControls(s string, b *Base) string {
 		// gives this character. Where it doesn't, the trailing text would
 		// extend it into a longer name (SO followed by an H reads as SOH), so
 		// the fixed-width hex form is written instead.
+		//
+		// Only a name's worth of the tail can change that reading, and copying
+		// all of it here would make escaping a long value quadratic.
 		name, _ := escapeName(c)
-		if r, n, ok := matchEscape(name + s[i+1:]); ok && r == rune(c) && n == len(name) {
+		tail := s[i+1:]
+		if len(tail) > maxEscapeNameLen {
+			tail = tail[:maxEscapeNameLen]
+		}
+		if r, n, ok := matchEscape(name + tail); ok && r == rune(c) && n == len(name) {
 			sb.WriteString(name)
 		} else {
 			fmt.Fprintf(&sb, "x%02X", c)

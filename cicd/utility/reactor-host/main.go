@@ -316,6 +316,14 @@ func (h *host) run() {
 	if got, code := h.fit("16", "12z", 4); code != errBadInput || got != "" {
 		fatal("fit on bad digit: got %q code %d, want %d", got, code, errBadInput)
 	}
+	// A wild width has to come back as an error. Padding to it allocates that
+	// many symbols, and running the module out of memory is not recoverable.
+	if got, code := h.fit("16", "FF", 0xFFFFFFFF); code != errBadArg || got != "" {
+		fatal("fit at maximum width: got %d bytes code %d, want %d", len(got), code, errBadArg)
+	}
+	if _, code := h.convertFit("10", "16", "255", 0xFFFFFFFF); code != errBadArg {
+		fatal("convert_fit at maximum width: code %d, want %d", code, errBadArg)
+	}
 	// convert_fit equals convert then fit.
 	if got, code := h.convertFit("10", "16", "255", 6); code != errNone || got != "0000FF" {
 		fatal("convert_fit 255->16 width 6: got %q code %d", got, code)

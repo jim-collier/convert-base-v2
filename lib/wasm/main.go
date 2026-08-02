@@ -76,7 +76,13 @@ func convert(reg *convertbase.Registry) func(js.Value, []js.Value) any {
 		if v := opt.Get("value"); v.Type() == js.TypeNumber {
 			// A number is the natural JS spelling of a value; read it rather
 			// than answering "empty input" for something the caller did pass.
-			value = strconv.FormatFloat(v.Float(), 'f', -1, 64)
+			// NaN and the infinities format as words, which would otherwise be
+			// reported as an unrecognized digit.
+			f := v.Float()
+			if math.IsNaN(f) || math.IsInf(f, 0) {
+				return fail("value must be a finite number, or a string")
+			}
+			value = strconv.FormatFloat(f, 'f', -1, 64)
 		}
 
 		out, err := convertbase.Convert(value, from, to, precision)

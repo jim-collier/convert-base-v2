@@ -52,6 +52,13 @@ const (
 // module bounds it.
 const maxPrecision = 100000
 
+// A fit width is a symbol count the host chooses, and padding to it allocates
+// that many symbols. Left unbounded, a wild width asks for more linear memory
+// than the module can have, and running out of it kills the instance instead of
+// returning an error. Bounded for the same reason as precision, and generously:
+// the fixed-width fields this exists for are tens of symbols wide.
+const maxFitWidth = 100000
+
 var (
 	reg    *convertbase.Registry
 	regErr error
@@ -327,6 +334,10 @@ func fit(namePtr, nameLen, strPtr, strLen, width uint32) uint64 {
 	if !ready() {
 		return 0
 	}
+	if width > maxFitWidth {
+		setErr(errBadArg, "width must be at most 100000")
+		return 0
+	}
 	b, ok := namedBase(namePtr, nameLen)
 	if !ok {
 		return 0
@@ -352,6 +363,10 @@ func fit(namePtr, nameLen, strPtr, strLen, width uint32) uint64 {
 func convertFit(fromPtr, fromLen, toPtr, toLen, valPtr, valLen, width uint32) uint64 {
 	clearErr()
 	if !ready() {
+		return 0
+	}
+	if width > maxFitWidth {
+		setErr(errBadArg, "width must be at most 100000")
 		return 0
 	}
 	from, ok := namedBase(fromPtr, fromLen)

@@ -31,7 +31,7 @@
 	<tr>
 		<td>Convert any regular positional notation number, of any size - positive, negative, and/or decimal - to and from any numeric base.</td>
 		<td>Encode/decode streaming binary-to-text across far more bases than the standard tools like <code>base64</code> give you, and on average faster.</td>
-		<td>A single, fast, cross-platform static binary. The same conversion core also ships as an Apache-licensed Go package and a WebAssembly module, so you can build it into your own program or web page.</td>
+		<td>A single, fast, cross-platform static binary. The same conversion core is also an Apache-licensed Go package and a WebAssembly module, so you can build it into your own program or web page.</td>
 	</tr>
 </table>
 
@@ -54,6 +54,9 @@ It's a single, fast, cross-platform static binary written in Go.
 - [Features](#features)
 - [Try it from here](#try-it-from-here)
 - [Install](#install)
+	- [Packages and installers](#packages-and-installers)
+	- [One-line install script](#one-line-install-script)
+	- [Build it yourself](#build-it-yourself)
 - [Usage](#usage)
 - [Configuration](#configuration)
 - [Use it in your own code](#use-it-in-your-own-code)
@@ -69,6 +72,7 @@ It's a single, fast, cross-platform static binary written in Go.
 - [Third-party binary codecs, built in](#third-party-binary-codecs-built-in)
 - [List of predefined bases](#list-of-predefined-bases)
 - [How to design a numeric base](#how-to-design-a-numeric-base)
+- [Set up a development environment](#set-up-a-development-environment)
 - [Support convert-base-v2](#support-convert-base-v2)
 - [Legal stuff](#legal-stuff)
 
@@ -100,31 +104,47 @@ It runs the real conversion core, compiled to WebAssembly, inside your own brows
 
 ## Install
 
-Grab a build for your platform from the [Releases page](https://github.com/jim-collier/convert-base-v2/releases). Each release has the option of downloading a single static executable (per-platform).
+### Packages and installers
 
-- **Linux:** a `.deb` or `.rpm` (amd64 or arm64), or a `.tgz` tarball.
+Grab a build for your platform from the [Releases page](https://github.com/jim-collier/convert-base-v2/releases). Every option installs the same single static executable.
 
-- **Windows:** a one-click installer `.exe` that adds the tool to your PATH, or a plain `.zip`.
+- **Linux**: a `.deb` or `.rpm` (amd64 or arm64), or a `.tgz` tarball.
 
-- **macOS and FreeBSD:** a `.tgz` tarball.
+- **Windows**: a one-click installer `.exe` that adds the tool to your PATH, or a plain `.zip`.
 
-Every release ships a `checksums.txt` to verify your download.
+- **macOS and FreeBSD**: a `.tgz` tarball.
 
-Or install from the shell in one line. The script says what it will do, verifies the download against the release's checksum file, and asks before touching anything:
+Each release includes a `checksums.txt` so you can verify what you downloaded.
+
+### One-line install script
+
+For Linux, macOS, FreeBSD, and WSL. The script prints what it will do, verifies the download against the release's checksum file, and asks before touching anything.
 
 ~~~bash
 bash <(curl -fsSL https://raw.githubusercontent.com/jim-collier/convert-base-v2/main/install.bash)
 ~~~
 
-Options: `--release stable|dev`, `--target user|system`, `--arch x86_64|arm64`, and `-y` to skip the prompt. A user install goes to `~/.local/bin/convert-base-v2`, a system install to `/usr/local/bin/convert-base-v2`. On Windows, use the installer `.exe` above instead.
+- `--release stable|dev` picks the channel. Default is stable.
 
-To build from source instead, you need Go 1.21 or newer:
+- `--target user|system` picks the location. A user install goes to `~/.local/bin/`, a system install to `/usr/local/bin/`.
+
+- `--arch x86_64|arm64` overrides the detected architecture.
+
+- `-y` skips the confirmation prompt.
+
+On Windows, use the installer `.exe` instead.
+
+### Build it yourself
+
+You need Go 1.21 or newer, and nothing else. There are no dependencies to fetch.
 
 ~~~bash
 git clone https://github.com/jim-collier/convert-base-v2
 cd convert-base-v2/lib
 make local        # builds ./convert-base-v2
 ~~~
+
+Copy the resulting binary anywhere on your PATH. For the full set of build targets, see [Set up a development environment](#set-up-a-development-environment).
 
 ## Usage
 
@@ -157,7 +177,7 @@ convert-base-v2 --list
 convert-base-v2 --show-symbols 64emoji
 ~~~
 
-A base can hold control characters as digits, which are impossible to type at a prompt and invisible on a terminal. Those can be written by name instead, as `⊳LF`, `⊳TAB`, `⊳CR` and so on. Input takes the named and the raw forms mixed, always; output writes them only when `--escape-controls` asks for it. The marker is deliberately a character no such base uses, so nothing ever needs escaping twice.
+A base can hold control characters as digits, which are impossible to type at a prompt and invisible on a terminal. Those can be written by name instead, as `⊳LF`, `⊳TAB`, `⊳CR` and so on. Input takes the named and the raw forms mixed, always; output writes them only when `--escape-controls` asks for it. The marker is a character no such base uses, so nothing ever needs escaping twice.
 
 Run `convert-base-v2 --help` for the full flag list, or `--examples` for more.
 
@@ -185,7 +205,7 @@ base: 10emoji
 	decimal: "⚽"
 ~~~
 
-That one ships in the file as a working example to copy from. The format is [SHCL](https://github.com/jim-collier/shcl), and the file itself documents every field.
+That base is in the file as a working example to copy from. The format is [SHCL](https://github.com/jim-collier/shcl), and the file itself documents every field.
 
 ## Use it in your own code
 
@@ -197,7 +217,7 @@ Five separate things get built here, and they are not interchangeable:
 
 - **The Go package**, `lib/convertbase`. A library. Import it and call its functions.
 
-- **The browser module**, `web/convert-base.wasm`. The package compiled for a web page, with a small JavaScript surface.
+- **The browser module**, `web/convert-base.wasm`. The package compiled for a web page, with a small set of JavaScript calls.
 
 - **The WASI module**, `dist/convert-base-v2.wasm`. The whole command compiled to WebAssembly. A program, not a library.
 
@@ -223,11 +243,11 @@ Convert whole values, or stream through an `io.Reader` and `io.Writer` in consta
 
 The package version moves on its own, separately from the command's. It is at v0 for now, which means the shape of the API may still change.
 
-The first package tag has not been pushed yet, so `go get` cannot resolve it until that lands. Building against a local clone of the repository works today.
+The first package tag has not been pushed yet, so `go get` cannot resolve it until it exists. Building against a local clone of the repository works today.
 
 ### WebAssembly, in a browser
 
-The [demo page](https://jim-collier.github.io/convert-base-v2/) is the whole library compiled to WebAssembly, with a small JavaScript surface:
+The [demo page](https://jim-collier.github.io/convert-base-v2/) is the whole library compiled to WebAssembly, with a small set of JavaScript calls:
 
 ```js
 const res = convertBase.convert({value: "255", from: "10", to: "16"});
@@ -259,7 +279,7 @@ Streaming is there too, as a push API: open a stream, write raw bytes as they ar
 
 ### Or just run it
 
-Worth saying plainly: if you can start a process, that is still the simplest option and always has been. Input and output are pipes, so a conversion of any size streams through in constant memory whatever language you call it from. The library and the WebAssembly builds are for the cases where you cannot shell out.
+If you can start a process, that is still the simplest option, and always has been. Input and output are pipes, so a conversion of any size streams through in constant memory whatever language you call it from. The library and the WebAssembly builds are for the cases where you cannot shell out.
 
 ### Licensing
 
@@ -431,19 +451,44 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 32768 | 32768qntm | 32768utf16 | 9 | 22 | -ڊꋇꛎ䦥枉.云㦵
 | 65536 | 65536qntm | 65536utf32 | 9 | 27 | -㐄𣖄𨗓𡞲𤜩.蕢苓
 
-## Development
-
-The Go tree is under `lib/`: the command in `lib/cmd/convert-base-v2/`, the conversion core in `lib/convertbase/`. From there, `make local` builds the shipping binary, `make debug` keeps the symbols, and `make test` runs the tests.
-
-Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. `--quick` skips the slow stages, `--long` runs the exhaustive tests, and every stage has its own `--no-...` switch.
-
 ## How to design a numeric base
 
 [This companion document](how_to_design_a_numeric_base.md) walks through designing a good numeric base, whether as a positional notation system or a binary-to-text codec. It is harder than it looks, which is why so many of the "official" large bases are as quirky as they are.
 
+## Set up a development environment
+
+Prerequisites, in the order you are likely to need them.
+
+- **Go 1.21 or newer** is the only requirement for the command, the library, and the tests. There are no third-party modules to fetch, so no network access is needed after the clone.
+
+- **Go 1.24 or newer** is required only to build the reactor module, which uses a newer export directive. The declared minimum stays at 1.21, so an older toolchain builds everything else.
+
+- **Bash 4 and the usual GNU tools** are needed for the pipeline scripts, which is what all the checks run under.
+
+- **Optional tools** are probed for and skipped when missing: `golangci-lint`, `staticcheck`, `govulncheck`, `nfpm` and `makensis` for packaging, `node` and `cargo` for the third-party comparison tests, `gifsicle` and Python with Pillow for the demo animation.
+
+The Go tree is under `lib/`. The command is in `lib/cmd/convert-base-v2/`, the conversion core in `lib/convertbase/`, and the WebAssembly entry points in `lib/wasm/` and `lib/reactor/`.
+
+Build targets, all run from `lib/`.
+
+| Target | Result |
+| :-- | :-- |
+| `make local` | The optimized native binary, the same build that is released |
+| `make debug` | Native with symbols kept, for tests and the profiler |
+| `make test` | Unit tests |
+| `make vet` / `make fmt` | Static checks and formatting |
+| `make web` | The browser module and its loader, into `web/` |
+| `make wasm` | The whole command as a WASI module |
+| `make reactor` | The callable WebAssembly module |
+| `make release` | Cross-builds and packages every platform |
+
+Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. `--quick` skips the slow stages, `--long` runs the exhaustive tests, and every stage has its own `--no-...` switch.
+
+Tests sandbox their own config directory, so running them will not read or write the config file in your home directory.
+
 ## Support convert-base-v2
 
-This tool is free and open source, and built and maintained in spare time. If it saves you some, you can [sponsor the project on GitHub](https://github.com/sponsors/jim-collier). It is genuinely appreciated, and never expected.
+This tool is free and open source, and built and maintained in spare time. If it saves you some, you can [sponsor the project on GitHub](https://github.com/sponsors/jim-collier). It is appreciated, and never expected.
 
 ## Legal stuff
 

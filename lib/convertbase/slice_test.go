@@ -5,7 +5,10 @@
 
 package convertbase
 
-import "testing"
+import (
+	"math"
+	"testing"
+)
 
 func sliceBase(t *testing.T, name string) *Base {
 	t.Helper()
@@ -117,5 +120,22 @@ func TestFit(t *testing.T) {
 	}
 	if _, err := hex.Fit("12z", 4); err == nil {
 		t.Error("Fit on a bad digit: want error")
+	}
+}
+
+// A count near the integer maximum must clamp like any other over-long count.
+// Comparing against start+count instead of the remaining length overflows and
+// panics, which is the opposite of the documented clamp.
+func TestSymbolSliceHugeCount(t *testing.T) {
+	b := sliceBase(t, "16")
+	got, err := b.SymbolSlice("DEADBEEF", 2, math.MaxInt)
+	if err != nil {
+		t.Fatalf("SymbolSlice: %v", err)
+	}
+	if got != "ADBEEF" {
+		t.Errorf("got %q, want %q", got, "ADBEEF")
+	}
+	if got, err = b.SymbolSlice("DEADBEEF", -3, math.MaxInt); err != nil || got != "EEF" {
+		t.Errorf("negative start: got %q, %v", got, err)
 	}
 }
