@@ -408,10 +408,11 @@ else
 	fEcho_Clean "dogfood disabled"
 fi
 
-## Screenshots: off by default; a failure is a warning, never a stop.
+## Screenshots: off by default (retired, so the skip is silent); a failure is a
+## warning, never a stop.
 screenshot_util="${root}/${SCREENSHOT_CMD[0]}"
 if ((! DO_SCREENSHOTS)); then
-	fEcho_Clean "screenshots skipped"
+	: ## silent - the preflight summary already says skipped
 elif [[ -f "${screenshot_util}" ]]; then
 	if bash "${screenshot_util}" "${root}" "${root}/${STAGED_BIN}"; then fEcho "OK: screenshots regenerated"
 	else fEcho "WARNING: screenshot generation failed (continuing)"; fi
