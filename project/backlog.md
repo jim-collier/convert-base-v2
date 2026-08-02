@@ -122,6 +122,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Speed up converting long numbers between two bases that are not powers of two. Second of three planned passes.
+	- Cause: the number was read in one digit at a time and written out one digit at a time. Each of those steps costs a pass over the whole number, however long it is, so a short digit gets the same expensive treatment as the entire value.
+	- Fixed: digits are now handled a batch at a time, as many as fit in one of the machine's own numbers. That is nineteen digits at once for base ten, twelve for base thirty-six, five for base 2048. The batch is packed and unpacked with ordinary arithmetic, which is free next to a pass over a long number.
+	- Verified: a 16,000 digit conversion went from 29 to 2.8 milliseconds, so about ten times faster again. A 40,000 digit one went from a quarter of a second to seven hundredths. Shorter numbers gain about five times.
+	- Verified: results were compared against the previous build across about 1,200 conversions covering every length near a batch boundary, plus fractions, negatives, and both fixed and automatic precision. All identical.
+	- Note: two new tests pin the batch boundaries, one for whole numbers and one for fractions. That is the only place this could go wrong, and a wrong answer there would still look like a plausible number.
+	- Note: one more pass is planned, changing the method itself rather than its cost per step.
+
 - ✅ Speed up converting long numbers between two bases that are not powers of two. First of three planned passes.
 	- Cause: each new digit of the answer was added to the front of a list. Everything already in the list has to shift along to make room, so the effort grows with the square of the answer's length. That was piled on top of the arithmetic, which is already the slow part for a long number.
 	- Fixed: digits are now collected in the order the arithmetic hands them back, and the list is flipped around once at the end. Same answer, none of the shuffling. The list is also sized up front rather than being regrown as it fills.
