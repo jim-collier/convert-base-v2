@@ -65,6 +65,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: the scenario is a whole new script. Named bases end to end, a signed fractional value, a custom alphabet, a two thousand digit number, a real image and a real gif through the streaming codecs, then the base list last.
 	- Done: `bytes` is gone from the demo, and the codec steps read an image and a gif instead of `/bin/cat`.
 	- Not carried over from the old wish list: a sentence from `keyboard` into a rune-heavy base, and taking 64emoji from base 62 rather than base 10.
+	- Done: revised script. The base 10 assumption moved up into the opening notes, the standalone base 62 step is gone, and the closing notes now scroll in under the tail of the base list instead of onto a cleared screen.
+	- Done: typing runs about 15 percent faster and the smooth scroll about 25 percent faster, everywhere including the base list.
+	- Done: four new scenario knobs for pacing a single step - a hesitation before a pasted value, a hold at the end of a finished command, a typing speed multiplier, and read time after each note line.
 	- Open: the committed `assets/demo.gif` still needs a regen from a cicd run, since a render here comes out at different terminal dimensions.
 
 ### Done

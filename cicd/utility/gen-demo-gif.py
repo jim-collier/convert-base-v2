@@ -76,9 +76,9 @@ IDENT_USERS = ["mika", "joss", "arlo", "remy", "kai", "nova", "wren", "finn"]
 IDENT_HOSTS = ["basalt", "kestrel", "onyx", "lyra", "quartz", "mesa", "flint", "juno"]
 
 ##	Typing model. WPM -> ms/char at the usual 5 chars/word.
-WPM_LETTERS   = (135, 183)   # per-command draw, then per-char jitter
-WPM_DIGITS    = 63           # default; scenario wpm_digits overrides
-WPM_NOTES     = (233, 263)   # "# comment" lines fly by
+WPM_LETTERS   = (155, 210)   # per-command draw, then per-char jitter
+WPM_DIGITS    = 72           # default; scenario wpm_digits overrides
+WPM_NOTES     = (268, 302)   # "# comment" lines fly by
 FLAG_PAUSE_MS = (200, 380)   # a beat of thought before a -flag token
 TYPO_RATE     = 0.018        # per letter; capped at 2 fixes per command
 PASTE_MIN     = 24           # a value at least this long arrives pasted, not typed
@@ -86,7 +86,7 @@ BLINK_MS      = 530
 ##	50 fps. A GIF delay is centiseconds and every browser clamps 0 and 1 cs up to
 ##	10 cs, so 2 cs is the real floor - there is no smoother GIF than this.
 FRAME_MS      = 20           # frame interval while anything is moving
-SCROLL_RATE   = 358          # px/s smooth scroll; per-step scrollrate overrides
+SCROLL_RATE   = 448          # px/s smooth scroll; per-step scrollrate overrides
 GLIDE_FRAMES  = 3            # frames the cursor block takes to reach a new cell
 
 QWERTY_ROWS = ["1234567890", "qwertyuiop", "asdfghjkl", "zxcvbnm"]
@@ -192,6 +192,10 @@ def fLoadScenario(path):
 	##	  linems = 26                   ms per output line before scrolling kicks in
 	##	  gap = true                    blank line between the command and its output
 	##	  paste = true                  long numbers in show= arrive pasted, not typed
+	##	  pastepause = 1.0              hesitation before a pasted value lands, seconds
+	##	  preenter = 2.0                cursor holds at the end of the command, seconds
+	##	  typescale = 1.5               command typing speed multiplier (notes unaffected)
+	##	  notepause = 0.5               read time after each note line, seconds
 	##	  clear = true                  start on a blank screen (default: output taller
 	##	                                than the window clears, shorter output does not)
 	try:
@@ -230,7 +234,8 @@ def fRunStep(step, prog, binpath, here):
 	return [ln.expandtabs(8).rstrip() for ln in out.rstrip("\n").split("\n")]
 
 
-def fTypeEvents(text, rng, wpm_range, typos=True, wpmDigits=WPM_DIGITS, paste=False):
+def fTypeEvents(text, rng, wpm_range, typos=True, wpmDigits=WPM_DIGITS, paste=False,
+                scale=1.0, pastePre=0.0):
 	##	Turn a command string into ((action, char), delay_ms) keystroke events.
 	##	Letters ride the per-command WPM draw with per-char jitter, digits get
 	##	their own WPM (slow by default, fast for numbers-heavy demos), a -flag
@@ -239,11 +244,14 @@ def fTypeEvents(text, rng, wpm_range, typos=True, wpmDigits=WPM_DIGITS, paste=Fa
 	##	Under paste, a long number arrives in one event. Nobody types a thousand
 	##	digits, and at one frame per keystroke it would cost more frames than the
 	##	rest of the demo put together.
-	wpm = rng.uniform(*wpm_range)
+	wpm = rng.uniform(*wpm_range) * scale
+	wpmDigits *= scale
 	events, fixes = [], 0
 	firstSpace = text.find(" ")
 	for i, ch in fTypeUnits(text, paste):
 		if len(ch) > 1:
+			if pastePre > 0:
+				events.append((("pause", None), pastePre))   # a beat before it lands
 			events.append((("type", ch), rng.uniform(280, 420)))
 			continue
 		if ch.isdigit():
@@ -727,19 +735,23 @@ def fMain():
 			scr.fClear()
 			shown[:] = scr.fCursorTarget()
 			snap(260)
-		typing = [("# " + n, "dim", WPM_NOTES, False) for n in fNotes(step)]
+		typing = [("# " + n, "dim", WPM_NOTES, False, 1.0) for n in fNotes(step)]
 		if step.get("show"):
 			typing.append((step["show"].replace("{prog}", prog).replace("{bin}", prog),
-			               "fg", WPM_LETTERS, True))
-		for noteOrCmd, key, wpm, typos in typing:
-			for (action, ch), delay in fTypeEvents(noteOrCmd, rng, wpm, typos, wpmDigits,
-			                                       key == "fg" and step.get("paste", False)):
+			               "fg", WPM_LETTERS, True, float(step.get("typescale", 1.0))))
+		for noteOrCmd, key, wpm, typos, scale in typing:
+			for (action, ch), delay in fTypeEvents(
+					noteOrCmd, rng, wpm, typos, wpmDigits,
+					key == "fg" and step.get("paste", False), scale,
+					1000 * float(step.get("pastepause", 0.0))):
 				if action == "type":
 					scr.typed += ch
 				elif action == "bs":
 					scr.typed = scr.typed[:-1]
 				glideCursor(delay)
 			snap(rng.uniform(260, 480) if key == "fg" else 130)   # beat before Enter
+			if key == "fg" and step.get("preenter"):
+				blinkPause(1000 * float(step["preenter"]))
 			for row in scr.fWrapSpans(scr.prompt + [(scr.typed, key)]):
 				scr.fPut(row)
 			scr.typed = ""
@@ -749,6 +761,8 @@ def fMain():
 				else:
 					glideCursor(130)                 # cursor hop onto the new line
 				snap(140)
+				if step.get("notepause"):
+					blinkPause(1000 * float(step["notepause"]))
 				continue
 			##	Prompt stays hidden until the command's output is fully in, the
 			##	way a real shell does it.
@@ -802,6 +816,8 @@ if __name__ == "__main__":
 
 
 ##	History:
+##		- 20260801: Typing 15% faster, smooth scrolling 25% faster. Scenario
+##			gained pastepause, preenter, typescale, notepause.
 ##		- 20260801: The live prompt line wraps instead of running off the edge.
 ##			Scenario gained note lists, notes-only steps, gap=, paste=, {here}.
 ##		- 20260731: Motion runs at 50 fps. Constant-velocity scroll (output feeds
