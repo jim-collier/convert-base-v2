@@ -29,6 +29,21 @@ Only numbers cross the boundary, so strings travel through the module's exported
 | `last_error_text` | `() -> u64` | Packed message, module-owned. Zero when there is no error. |
 | `version` | `() -> u64` | Packed library version (`convertbase.Version`), module-owned. |
 | `region_count` | `() -> u32` | Outstanding allocated regions, so a host can assert it freed everything. |
+| `stream_new` | `(from_ptr, from_len, to_ptr, to_len: u32) -> i64` | Stream handle (positive), or the negated error code. See Streaming below. |
+| `stream_write` | `(handle, ptr, len: u32) -> u64` | Pushes input bytes, returns the packed output produced so far. Module-owned per stream: copy it out before the next call on this stream. Zero length is a legal drain-only call. |
+| `stream_finish` | `(handle: u32) -> u64` | Ends the input and returns the packed tail of the output. The handle stays valid until `stream_free`. |
+| `stream_free` | `(handle: u32) -> i32` | Releases a stream in any state, finished or not. 0, or `BadArg` for a handle that is not open. |
+| `stream_count` | `() -> u32` | Open streams, the `region_count` twin for handles. |
+
+## Streaming
+
+A stream is the reactor's form of the command's piped binary mode: raw bytes on one side and a raw-capable base on the other (any power-of-2 base, or one of the defined binary-to-text codecs), or two such text bases routed through `bytes`. A pair that cannot carry raw bytes at all - base 10, say - is refused at `stream_new`. Anything else about the ABI is unchanged: input travels through allocated regions, and errors land in `last_error_code`/`last_error_text`.
+
+The shape is push-style, like zlib: open, write as many times as you like, finish, free. Each `stream_write` and the `stream_finish` return a packed output chunk. A zero return with `last_error_code` 0 is an empty chunk, not an error - output can trail input by a partial group, and the tail may be empty. A zero return with a code set means the stream failed; it then refuses further writes and only `stream_free` still applies. Freeing without finishing abandons the stream, which is legal.
+
+Output chunks are module-owned and reused per stream, the same contract as `last_error_text`: copy a chunk out before the next call on the same stream. Streams never touch the region allocator, so `region_count` stays the host's own ledger.
+
+Conversion pairs the library streams natively (the power-of-2 bases, including the tailed big ones) run in constant memory at any input size. The codec pairs (base45, ascii85, z85, base91) buffer internally and emit everything at `stream_finish`, exactly as the command does for the same conversions; correctness is identical, memory is not constant. z85's whole-input 4-byte alignment rule applies at finish.
 
 ## Error codes
 
@@ -45,6 +60,6 @@ Stable and part of the contract: new codes may be added at the end, existing one
 | 6 | `BadArg` | A bad pointer, length, size, or precision from the host. |
 | 7 | `Internal` | The registry failed to initialize. |
 
-## Not here yet
+## Choosing a surface
 
-Streaming. The one-shot surface covers whole values held in memory; piped raw-binary conversion stays with the WASI command build (`make wasm`), which gets real stdin and stdout. A push-style streaming API (`stream_new`/`stream_write`/`stream_finish`) is the planned addition and will not change anything above.
+One-shot `convert` handles whole values held in memory, numbers included. Streams handle raw byte re-encoding of unbounded input. A host that just pipes data through may still prefer the WASI command build (`make wasm`), which gets real stdin and stdout and needs no memory protocol at all.

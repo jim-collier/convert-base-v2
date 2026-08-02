@@ -1056,7 +1056,7 @@ elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buil
 elif ! (cd "${REACTOR_HOST_DIR}" && go build -o "${CBT_TMP}/reactor-host" .) >"${CBT_ERR}" 2>&1; then
 	_warn "reactor ABI skipped: host harness would not build (wazero not cached and offline?)"
 elif "${CBT_TMP}/reactor-host" "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; then
-	_pass "reactor ABI (exports, conversions, metadata, errors, leak loop)"
+	_pass "reactor ABI (exports, conversions, metadata, streams, errors, leak loops)"
 else
 	_fail "reactor ABI" "$(tail -1 "${CBT_ERR}")"
 fi
