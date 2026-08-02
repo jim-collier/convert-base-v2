@@ -7,6 +7,7 @@ package main
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -32,9 +33,34 @@ const etcConfigPath = "/etc/convert-base-v2/convert-base-v2.shcl"
 
 func main() {
 	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "error: %v\n", hintErr(err))
 		os.Exit(1)
 	}
+}
+
+// hintErr appends the command's own pointers to library errors the library
+// states neutrally (it has no idea flags exist). Every wrap on the way up is
+// prefix-style, so appending here lands the hint where it always was.
+func hintErr(err error) error {
+	var (
+		unknown *convertbase.UnknownBaseError
+		missing *convertbase.MissingMarkerError
+		markDef *convertbase.MarkerDefaultError
+		retired *convertbase.RetiredTokenError
+	)
+	switch {
+	case errors.As(err, &unknown):
+		return fmt.Errorf("%w (see --list for all bases)", err)
+	case errors.As(err, &missing):
+		return fmt.Errorf("%w; set one with --to-%s", err, missing.Marker[:3])
+	case errors.As(err, &markDef):
+		return fmt.Errorf("%w (--from-%s/--to-%s, or the %q field in a config file)",
+			err, markDef.Marker[:3], markDef.Marker[:3], markDef.Marker+":")
+	case errors.As(err, &retired):
+		return fmt.Errorf("%w; use --from-%s/--to-%s on the command line, or the %q field in a config file",
+			err, retired.Marker[:3], retired.Marker[:3], retired.Marker+":")
+	}
+	return err
 }
 
 func run() error {
@@ -792,14 +818,14 @@ func reportSide(out io.Writer, label string, reg *convertbase.Registry, name, sy
 	case symbols != "":
 		parsed, err := convertbase.ParseSymbolSpec(symbols)
 		if err != nil {
-			fmt.Fprintf(out, "  %s: %s -> INVALID SPEC: %v\n", label, flagName, err)
+			fmt.Fprintf(out, "  %s: %s -> INVALID SPEC: %v\n", label, flagName, hintErr(err))
 			return
 		}
 		fmt.Fprintf(out, "  %s: custom spec via %s -> %d digits\n", label, flagName, len(parsed))
 	case name != "":
 		b, err := reg.Lookup(name)
 		if err != nil {
-			fmt.Fprintf(out, "  %s: alias %q -> UNRESOLVED (%v)\n", label, name, err)
+			fmt.Fprintf(out, "  %s: alias %q -> UNRESOLVED (%v)\n", label, name, hintErr(err))
 			return
 		}
 		fmt.Fprintf(out, "  %s: alias %q -> base %q (%d digits), source: %s\n",
