@@ -48,11 +48,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### New features and enhancements
 
-- 🛠️ A WebAssembly reactor module, so other languages can call this instead of running it. Design: `design_docs/20260801_wasm_reactor.md`.
+- ✅ A WebAssembly reactor module, so other languages can call this instead of running it. Design: `design_docs/20260801_wasm_reactor.md`.
 	- Done: the one-shot surface, `make reactor` -> `dist/convert-base-reactor.wasm`. Conversion, base lookup, radix and padding-symbol metadata, symbol counting, the allocator pair, a stable numeric error code set, and a last-error text accessor. Contract in `lib/reactor/README.md`. That is everything zuid asked for, so its Zig side is unblocked.
-	- Done: a host-side exerciser drives the whole contract each test run, including a leak check that must end with nothing left allocated.
+	- Done: streaming, as the push API: open, write, finish, free, plus an open-stream counter. Streams run the library's own constant-memory paths; codec pairs buffer and emit at finish, same as the command.
+	- Done: a host-side exerciser drives the whole contract each test run, including leak checks that must end with nothing left allocated and a memory ceiling that catches a stream quietly buffering.
+	- Done: frontend parity in the test suite. The same requests run through the command, the Go module directly, and the reactor, and the answers must agree byte for byte over every base, both directions, errors included. Piped payloads run through the command and the reactor streams the same way. The compat and interop suites stay on the command; parity carries what they establish over to the other two.
 	- The `go.mod` floor stays at 1.21. Only the toolchain building this one target has to be 1.24 or newer.
-	- Open: streaming. A push API still looks like the best fit, because it needs nothing from the host beyond memory. Not on anyone's critical path.
 
 - 🔘 Push the first `lib/v0.1.0` tag, so the Go module can actually be fetched. Nothing can import it until then, and the README should not claim otherwise before it lands.
 

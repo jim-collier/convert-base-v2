@@ -32,7 +32,9 @@
 
 ## Status
 
-The one-shot surface shipped: `make reactor` builds `dist/convert-base-reactor.wasm` from `lib/reactor/`, covering everything zuid asked for - conversion, lookup, radix and padding-symbol metadata, symbol counting, the allocator pair, the numeric error codes, and the last-error text accessor. The contract lives in `lib/reactor/README.md`, and a host-side exerciser under `cicd/utility/reactor-host/` drives all of it each test run. Streaming remains open, with the push API below still the intended shape.
+The one-shot surface shipped: `make reactor` builds `dist/convert-base-reactor.wasm` from `lib/reactor/`, covering everything zuid asked for - conversion, lookup, radix and padding-symbol metadata, symbol counting, the allocator pair, the numeric error codes, and the last-error text accessor. The contract lives in `lib/reactor/README.md`, and a host-side exerciser under `cicd/utility/reactor-host/` drives all of it each test run.
+
+Streaming shipped as well, in the push shape proposed below: `stream_new`/`stream_write`/`stream_finish`/`stream_free`, plus a `stream_count` leak counter. The streams feed the library's own streaming code through an in-module pipe, so the constant-memory paths are the same ones the command uses; pairs the library cannot stream (the codecs) buffer internally and emit at finish, matching the command's behavior for the same conversions. The exerciser holds the streams to the one-shot results, drives the error and abandon paths, and asserts a linear-memory ceiling over a payload large enough that quiet buffering would blow it. This closes the design.
 
 One practical note from the build-out: linters do not yet treat `//go:wasmexport` as a root, so every export reads as unused code under a `wasip1` lint run. The reactor package stays out of lint scope the way the vendored parser does; vet runs on it cross-compiled and comes back clean.
 

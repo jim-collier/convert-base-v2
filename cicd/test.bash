@@ -1056,9 +1056,106 @@ elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buil
 elif ! (cd "${REACTOR_HOST_DIR}" && go build -o "${CBT_TMP}/reactor-host" .) >"${CBT_ERR}" 2>&1; then
 	_warn "reactor ABI skipped: host harness would not build (wazero not cached and offline?)"
 elif "${CBT_TMP}/reactor-host" "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; then
-	_pass "reactor ABI (exports, conversions, metadata, errors, leak loop)"
+	_pass "reactor ABI (exports, conversions, metadata, streams, errors, leak loops)"
 else
 	_fail "reactor ABI" "$(tail -1 "${CBT_ERR}")"
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Frontend parity: the Go module and the reactor against the command
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Conversion behavior lives in the library, but each frontend has its own
+## resolve-and-call plumbing, so the same requests run through all three: the
+## command, the module natively (utility/module-driver), and the reactor
+## (reactor-host --batch), and the answers must agree byte for byte. Every
+## listed base, compat included, gets an integer both directions plus a signed
+## fractional value; a base that can't represent one must refuse it in all
+## three places, so agreement covers the error cases too. The compat and
+## interop suites stay on the command alone on purpose: parity here extends
+## what they establish to the other two frontends transitively.
+section "Frontend parity"
+MODDRV_DIR="${meDir}/utility/module-driver"
+MODDRV="${CBT_TMP}/module-driver"
+RHOST="${CBT_TMP}/reactor-host"
+if ! (cd "${MODDRV_DIR}" && go build -o "${MODDRV}" .) >"${CBT_ERR}" 2>&1; then
+	_fail "module driver build" "$(tail -2 "${CBT_ERR}")"
+else
+	preq="${CBT_TMP}/parity_req"; pcli="${CBT_TMP}/parity_cli"; pout="${CBT_TMP}/parity_out"
+	: >"$preq"; : >"$pcli"
+	pn=0
+	## parity_case FROM TO PRECISION VALUE: append the request in the driver
+	## protocol, run the command on it, and append the command's answer. The
+	## command's trailing newline is stripped by the head; values travel as hex
+	## so digits carrying tabs or newlines (the keyboard base) survive intact.
+	## --config /dev/null pins the command to the built-in bases: the module
+	## and the reactor load no config, so the sandbox's worked example
+	## (10emoji) exists only on the command's side. Config loading has its own
+	## checks above.
+	parity_case() {
+		local from="$1" to="$2" prec="$3" val="$4" rc=0 hexv hexo
+		hexv="$(printf '%s' "$val" | xxd -p | tr -d '\n')"
+		printf '%s\t%s\t%s\t%s\n' "$from" "$to" "$prec" "$hexv" >>"$preq"
+		local args=(--config /dev/null --from "$from" --to "$to")
+		((prec >= 0)) && args+=(--precision "$prec")
+		"${TIMEOUT[@]}" "${EXE}" "${args[@]}" -- "$val" >"${CBT_OUT}" 2>/dev/null || rc=$?
+		if ((rc == 0)); then
+			hexo="$(head -c -1 "${CBT_OUT}" | xxd -p | tr -d '\n')"
+			printf 'ok\t%s\n' "$hexo" >>"$pcli"
+		else
+			printf 'err\n' >>"$pcli"
+		fi
+		pn=$((pn + 1))
+	}
+	declare -a PARITY_BASES=()
+	while read -r pidx pname _; do
+		[[ "$pidx" =~ ^[0-9]+$ ]] || continue
+		[[ "$pname" == "bytes" ]] && continue
+		PARITY_BASES+=("$pname")
+	done < <("${EXE}" --config /dev/null --list --list-compat 2>/dev/null)
+	(( ${#PARITY_BASES[@]} >= 30 )) && _pass "parity scrape found bases (${#PARITY_BASES[@]})" || _fail "parity scrape found bases" "only ${#PARITY_BASES[@]} scraped (--list format changed?)"
+	for pname in "${PARITY_BASES[@]}"; do
+		parity_case 10 "$pname" -1 "12345678901234567890"
+		if [[ "$(tail -1 "$pcli")" == ok* ]]; then
+			pfwd="$(tail -1 "$pcli" | cut -f2 | xxd -r -p)"
+			parity_case "$pname" 10 -1 "$pfwd"
+		fi
+		parity_case 10 "$pname" 8 "-255.755"
+	done
+	if "${MODDRV}" <"$preq" >"$pout" 2>"${CBT_ERR}"; then
+		cmp -s "$pcli" "$pout" && _pass "module answers match the command (${pn} cases)" || _fail "module answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
+	else
+		_fail "module driver run" "$(tail -1 "${CBT_ERR}")"
+	fi
+	if [[ -x "$RHOST" && -s "$REACTOR_WASM" ]]; then
+		if "$RHOST" --batch "$REACTOR_WASM" <"$preq" >"$pout" 2>"${CBT_ERR}"; then
+			cmp -s "$pcli" "$pout" && _pass "reactor answers match the command (${pn} cases)" || _fail "reactor answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
+		else
+			_fail "reactor batch run" "$(tail -1 "${CBT_ERR}")"
+		fi
+		## Stream parity: one raw payload through the command's pipe and the
+		## reactor's push streams, both directions, over every raw-capable
+		## base. Deliberately odd chunk sizes so digit groups straddle the
+		## write boundaries; the length is a multiple of 4 so z85 is legal.
+		psrc="${CBT_TMP}/parity_src"
+		head -c 3332 /dev/urandom >"$psrc"
+		for pname in "${RAW_BASES[@]}"; do
+			sfail=""; rc1=0; rc2=0; rc3=0; rc4=0
+			"${TIMEOUT[@]}" "${EXE}" -n --from bytes --to "$pname" <"$psrc" >"${CBT_TMP}/ps_cli" 2>/dev/null || rc1=$?
+			"$RHOST" --stream "$REACTOR_WASM" bytes "$pname" 7 <"$psrc" >"${CBT_TMP}/ps_rea" 2>/dev/null || rc2=$?
+			if ((rc1 == 0 && rc2 == 0)); then
+				cmp -s "${CBT_TMP}/ps_cli" "${CBT_TMP}/ps_rea" || sfail="encode mismatch"
+				"${TIMEOUT[@]}" "${EXE}" -n --from "$pname" --to bytes <"${CBT_TMP}/ps_cli" >"${CBT_TMP}/ps_dcli" 2>/dev/null || rc3=$?
+				"$RHOST" --stream "$REACTOR_WASM" "$pname" bytes 11 <"${CBT_TMP}/ps_cli" >"${CBT_TMP}/ps_drea" 2>/dev/null || rc4=$?
+				{ ((rc3 == 0 && rc4 == 0)) && cmp -s "${CBT_TMP}/ps_dcli" "${CBT_TMP}/ps_drea" && cmp -s "$psrc" "${CBT_TMP}/ps_drea"; } || sfail="${sfail:+$sfail, }decode mismatch rc=${rc3}/${rc4}"
+			else
+				sfail="encode rc=${rc1}/${rc2}"
+			fi
+			[[ -z "$sfail" ]] && _pass "stream parity via ${pname}" || _fail "stream parity via ${pname}" "$sfail"
+		done
+	else
+		_warn "reactor parity skipped: reactor module or host not built"
+	fi
 fi
 
 
