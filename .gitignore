@@ -15,6 +15,9 @@
 # it rebuilds offline from the vendored source in a few seconds.
 /cicd/utility/interop/build
 
+# Built host harness for the reactor module; the tests build it into a temp dir.
+/cicd/utility/reactor-host/reactor-host
+
 # cicd generated artifacts (run logs, flamegraphs, stray profiles/test binaries)
 **/cicd/artifacts
 **/*.prof

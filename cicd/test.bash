@@ -1035,6 +1035,34 @@ fi
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Reactor module: the callable WebAssembly library, driven from a host
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Builds the wasip1 reactor and exercises the whole ABI from a wazero host:
+## exports present and _start absent, conversions against known answers, base
+## metadata, the error codes, stale-pointer and double-free detection, and a
+## work loop that must end with zero outstanding regions. The host program has
+## its own module so the library keeps zero dependencies; fetching wazero needs
+## the network once, so an uncached offline build skips with a warning. The
+## reactor build itself needs Go 1.24+ (wasmexport landed there); an older
+## toolchain skips rather than failing with a confusing compiler error.
+section "Reactor module"
+REACTOR_HOST_DIR="${meDir}/utility/reactor-host"
+REACTOR_WASM="${CBT_TMP}/convert-base-reactor.wasm"
+goMinor="$(go env GOVERSION 2>/dev/null | sed -E 's/^go1\.([0-9]+).*$/\1/')"
+if [[ ! "${goMinor}" =~ ^[0-9]+$ ]] || ((goMinor < 24)); then
+	_warn "reactor module skipped: needs a Go 1.24+ toolchain (have $(go env GOVERSION 2>/dev/null || echo none))"
+elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "${REACTOR_WASM}" ./reactor) >"${CBT_ERR}" 2>&1; then
+	_fail "reactor module build" "$(tail -2 "${CBT_ERR}")"
+elif ! (cd "${REACTOR_HOST_DIR}" && go build -o "${CBT_TMP}/reactor-host" .) >"${CBT_ERR}" 2>&1; then
+	_warn "reactor ABI skipped: host harness would not build (wazero not cached and offline?)"
+elif "${CBT_TMP}/reactor-host" "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; then
+	_pass "reactor ABI (exports, conversions, metadata, errors, leak loop)"
+else
+	_fail "reactor ABI" "$(tail -1 "${CBT_ERR}")"
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Performance: streaming throughput of the binary path (long test only)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## A repeatable throughput baseline for the streaming binary<->text path, with

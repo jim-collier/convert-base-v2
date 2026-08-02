@@ -48,12 +48,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### New features and enhancements
 
-- 🔘 A WebAssembly reactor module, so other languages can call this instead of running it. Design: `design_docs/20260801_wasm_reactor.md`.
-	- Both current WebAssembly builds are programs, not libraries. The WASI one is the whole command, and the browser one only works on a page.
-	- A reactor build exposes functions the host calls directly. Confirmed to build, with the exports really present in the module.
+- 🛠️ A WebAssembly reactor module, so other languages can call this instead of running it. Design: `design_docs/20260801_wasm_reactor.md`.
+	- Done: the one-shot surface, `make reactor` -> `dist/convert-base-reactor.wasm`. Conversion, base lookup, radix and padding-symbol metadata, symbol counting, the allocator pair, a stable numeric error code set, and a last-error text accessor. Contract in `lib/reactor/README.md`. That is everything zuid asked for, so its Zig side is unblocked.
+	- Done: a host-side exerciser drives the whole contract each test run, including a leak check that must end with nothing left allocated.
 	- The `go.mod` floor stays at 1.21. Only the toolchain building this one target has to be 1.24 or newer.
-	- The open design question is the streaming shape. A push API looks like the best fit, because it needs nothing from the host beyond memory.
-	- Note: the zuid project is waiting on this for its Zig side and sent its requirements. One-shot conversion plus the allocator pair unblocks it fully; streaming can follow whenever. Its acceptance bar is parity with the four calls it makes natively: registry setup, name lookup, convert, and symbol count, plus the base's radix and first symbol (its padding character). It also asks for a stable numeric error enum and a way to read the error text, since the messages are worth keeping. Details in the design doc.
+	- Open: streaming. A push API still looks like the best fit, because it needs nothing from the host beyond memory. Not on anyone's critical path.
 
 - 🔘 Push the first `lib/v0.1.0` tag, so the Go module can actually be fetched. Nothing can import it until then, and the README should not claim otherwise before it lands.
 

@@ -16,7 +16,7 @@ DIST := dist
 GOMAXPROCS ?= $(shell n=$$(nproc 2>/dev/null || echo 2); c=$$((n/2)); [ $$c -lt 1 ] && c=1; echo $$c)
 export GOMAXPROCS
 
-.PHONY: all local debug release wasm web clean test vet fmt
+.PHONY: all local debug release wasm web reactor clean test vet fmt
 
 # Where the demo page lives, and where Go keeps the JS loader it requires (it
 # moved out of misc/ in 1.24, so try both rather than pinning a layout).
@@ -45,6 +45,13 @@ release:
 wasm:
 	mkdir -p $(DIST)
 	GOOS=wasip1 GOARCH=wasm go build -trimpath -ldflags '$(LDFLAGS)' -o $(DIST)/$(BINARY).wasm ./cmd/$(BINARY)
+
+# The reactor library module: any host runtime loads it and calls exported
+# functions directly (ABI in reactor/README.md). Needs a Go 1.24+ toolchain;
+# the go.mod floor stays put, only the machine building this artifact cares.
+reactor:
+	mkdir -p $(DIST)
+	GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -ldflags '$(LDFLAGS_WEB)' -o $(DIST)/convert-base-reactor.wasm ./reactor
 
 # The browser module plus the loader Go requires, staged into the demo page.
 web:
