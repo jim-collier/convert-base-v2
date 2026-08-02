@@ -77,7 +77,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Bech32 (`32bip`) and base 58 (`58btc`). Both are misleading here: neither is a plain base conversion, so this tool could never produce a real address with them.
 - Base 69 `69prsh`, replaced by `69nice`.
 - The base-48 hex variant, and the word-safe 48, 64, and 128 bases. The word-safe alphabets remain available through the compatibility bases.
-- Base `emoji10` is no longer built in. It ships in the config file created on first run as the worked example, under the name `10emoji` to match the rest, and the old spelling still resolves.
+- Base `emoji10` is no longer built in. It is in the config file created on first run, as the worked example, under the name `10emoji` to match the rest, and the old spelling still resolves.
 
 ### Other work
 
