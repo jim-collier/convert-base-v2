@@ -406,9 +406,7 @@ func resolveMarker(kind string, raw *string, def string, digits map[string]int, 
 	switch {
 	case raw == nil:
 		if _, collides := digits[def]; collides {
-			return "", fmt.Errorf(
-				"base %q: default %s marker %q collides with a digit; set the marker to something else, or to an empty string to disable it (--from-%s/--to-%s, or the %q field in a config file)",
-				baseName, kind, def, kind[:3], kind[:3], kind+":")
+			return "", &MarkerDefaultError{Base: baseName, Marker: kind, Symbol: def}
 		}
 		return def, nil
 	case *raw == "":
@@ -530,19 +528,14 @@ func (r *Registry) Lookup(name string) (*Base, error) {
 			return b, nil
 		}
 	}
-	// Point the user at --list, and offer near matches when we have any. With 60+
-	// bases behind non-obvious naming rules, a bare "unknown base" is unhelpful.
+	// Offer near matches when we have any. With 60+ bases behind non-obvious
+	// naming rules, a bare "unknown base" is unhelpful. Typed, so the command
+	// can add its --list pointer without the library knowing flags exist.
 	q := k
 	if rest, ok := stripBasePrefix(k); ok {
 		q = normalizeBaseName(rest)
 	}
-	if sugg := r.suggestBases(q); len(sugg) > 0 {
-		for i := range sugg {
-			sugg[i] = fmt.Sprintf("%q", sugg[i])
-		}
-		return nil, fmt.Errorf("unknown base %q; did you mean %s? (see --list for all bases)", name, strings.Join(sugg, ", "))
-	}
-	return nil, fmt.Errorf("unknown base %q (see --list for all bases)", name)
+	return nil, &UnknownBaseError{Name: name, Suggestions: r.suggestBases(q)}
 }
 
 // suggestBases returns up to four base aliases near the normalized query k:

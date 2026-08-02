@@ -17,6 +17,7 @@
 - [What exists now](#what-exists-now)
 - [What is missing](#what-is-missing)
 - [End goals](#end-goals)
+- [The first consumer: zuid](#the-first-consumer-zuid)
 - [What a reactor module is](#what-a-reactor-module-is)
 - [What was verified](#what-was-verified)
 - [Passing data across the boundary](#passing-data-across-the-boundary)
@@ -78,6 +79,30 @@ So a C, Python, or Rust program that wants in-process conversion has no WebAssem
 - No change to the command, the library, or the existing two builds.
 
 - No new dependencies, and no rise in the `go.mod` floor.
+
+## The first consumer: zuid
+
+zuid is a sibling project that generates sortable identifiers. Its Go half imports `convertbase` directly and already passes against the shared test vectors with no changes to the package. Its Zig half wants to reach the same conversions through this reactor module, hosted by Wasmtime, and is blocked until the module exists. Its requirements arrived 20260802 and are recorded here so the first cut can be scoped against a real caller.
+
+What zuid needs is small, and streaming is not part of it. Its input is a millisecond timestamp, around thirteen decimal digits. The one-shot surface alone fully unblocks it, which fits the phasing here anyway: the push API stays the right long-term answer, and can follow separately.
+
+The acceptance bar is parity with the four calls zuid already makes natively:
+
+- Registry setup, once. This can happen inside `_initialize` and never be exposed.
+- Name lookup, to validate a base name or alias.
+- One-shot convert: decimal string in, target base out, automatic precision.
+- Symbol count of a converted string, what `Tokenize` gives a native caller.
+
+Plus two pieces of base metadata, and these are load-bearing rather than cosmetic. zuid pads identifiers to a fixed width so they sort chronologically as plain text, so it needs the base's radix, and its zero symbol (the first in the alphabet) to pad with. The padding symbol must come from the library: for the word-safe base 32 the alphabet starts at `2`, so anything that assumes `0` is silently wrong. And padding has to count symbols, not bytes, because a chosen base may have multi-byte digits.
+
+Two asks on errors, both reasonable and both cheap once the surface exists:
+
+- A stable, documented numeric error code set, since the host has to map codes to its own handling and codes that shift between versions would break it.
+- A way to read the error text, something like a last-error accessor returning a pointer and length. The library's messages carry near-match suggestions for a mistyped base name, and a host should not have to throw that away.
+
+The error text work elsewhere in the module design pays off here: the library's messages are now stated neutrally, so the text a host reads never mentions command-line flags.
+
+zuid suggested an export shape (per-call functions for radix, padding symbol and symbol count, or one call returning a small serialized blob) but is explicit that the ABI is this project's call. Priority order from their side: one-shot convert plus the allocator pair, then base metadata, then the error codes and message accessor, then streaming whenever it suits.
 
 ## What a reactor module is
 

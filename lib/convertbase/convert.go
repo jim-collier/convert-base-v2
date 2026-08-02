@@ -426,11 +426,11 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	isZero := intVal.Sign() == 0 && len(fracOut) == 0
 	if negative && !isZero {
 		if to.NegSym() == "" {
-			return "", fmt.Errorf("output base %q has no negative marker; set one with --to-neg", to.Name())
+			return "", &MissingMarkerError{Base: to.Name(), Marker: "negative"}
 		}
 	}
 	if len(fracOut) > 0 && to.DecSym() == "" {
-		return "", fmt.Errorf("output base %q has no decimal marker; set one with --to-dec", to.Name())
+		return "", &MissingMarkerError{Base: to.Name(), Marker: "decimal"}
 	}
 
 	var sb strings.Builder

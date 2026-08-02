@@ -48,14 +48,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### New features and enhancements
 
-- 🔘 Library error text still names command-line flags, for example "see --list for all bases". Fine from the command, out of place from a browser. Decide whether the library should carry a neutral message and let the command add its own hint.
-	- Note: written up in `design_docs/20260801_go_module.md`, along with the other open items on the module.
-
 - 🔘 A WebAssembly reactor module, so other languages can call this instead of running it. Design: `design_docs/20260801_wasm_reactor.md`.
 	- Both current WebAssembly builds are programs, not libraries. The WASI one is the whole command, and the browser one only works on a page.
 	- A reactor build exposes functions the host calls directly. Confirmed to build, with the exports really present in the module.
 	- The `go.mod` floor stays at 1.21. Only the toolchain building this one target has to be 1.24 or newer.
 	- The open design question is the streaming shape. A push API looks like the best fit, because it needs nothing from the host beyond memory.
+	- Note: the zuid project is waiting on this for its Zig side and sent its requirements. One-shot conversion plus the allocator pair unblocks it fully; streaming can follow whenever. Its acceptance bar is parity with the four calls it makes natively: registry setup, name lookup, convert, and symbol count, plus the base's radix and first symbol (its padding character). It also asks for a stable numeric error enum and a way to read the error text, since the messages are worth keeping. Details in the design doc.
 
 - 🔘 Push the first `lib/v0.1.0` tag, so the Go module can actually be fetched. Nothing can import it until then, and the README should not claim otherwise before it lands.
 
@@ -121,6 +119,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - ✅ A literal U+FFFE (or the new tab/newline placeholders) in a spec became a space digit. (BxZNl-15) A raw spec containing any reserved noncharacter is now rejected up front.
 
 #### Done - New features and enhancements
+
+- ✅ Library error text no longer names command-line flags.
+	- Cause: messages like "see --list for all bases" came from the library, so a Go program or a browser page got advice about flags that do not exist there.
+	- Fixed: the library states these conditions plainly, and the command adds its own pointers on the way out. Four cases: an unknown base (the "did you mean" suggestions stay, since those help everywhere), a missing negative or decimal marker, a default marker that collides with a digit, and a retired marker token in a symbol spec. Each is a distinct error type, so any caller can recognize the condition and add advice in its own words.
+	- Verified: the command's output is unchanged. Every affected error path was compared against the previous build character for character, including the wrapped forms, and the full test suite passes.
+	- Note: this also sets up the planned WebAssembly reactor module, which wants to hand error text to a host program - that text now reads correctly outside a terminal.
 
 - ✅ Speed up converting long numbers between two bases that are not powers of two. Third and final planned pass.
 	- Cause: even with the earlier batching, every batch still took a pass over the whole number, so the total effort grew with the square of the length. That is the method's own cost, not an implementation detail.

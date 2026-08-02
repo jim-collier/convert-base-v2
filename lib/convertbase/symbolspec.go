@@ -93,13 +93,13 @@ func ParseSymbolSpec(s string) ([]string, error) {
 // be digits (a config file can still express them via the list form), and the
 // alternative is a corrupted alphabet that looks like it worked.
 func checkRetiredToken(token string) error {
-	for _, m := range []struct{ prefix, flag, field string }{
-		{"neg=", "--from-neg/--to-neg", "negative:"},
-		{"dec=", "--from-dec/--to-dec", "decimal:"},
-		{"pad=", "--from-pad/--to-pad", "pad:"},
+	for _, m := range []struct{ prefix, marker string }{
+		{"neg=", "negative"},
+		{"dec=", "decimal"},
+		{"pad=", "pad"},
 	} {
 		if strings.HasPrefix(token, m.prefix) {
-			return fmt.Errorf("symbol spec: %q is no longer part of the symbol spec; use %s on the command line, or the %q field in a config file", token, m.flag, m.field)
+			return &RetiredTokenError{Token: token, Marker: m.marker}
 		}
 	}
 	return nil
