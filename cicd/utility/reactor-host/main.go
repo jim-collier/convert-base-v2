@@ -7,12 +7,24 @@
 // (pure Go, so no system runtime is needed), drives every export through the
 // documented ABI, and exits nonzero on the first disagreement. A separate
 // module on purpose: the library itself stays at zero dependencies.
+//
+// Two extra modes let the harness hold the reactor to the command's answers:
+// --batch reads one conversion request per stdin line (FROM <tab> TO <tab>
+// PRECISION <tab> HEX(VALUE), answering "ok" <tab> HEX(RESULT) or "err", the
+// module-driver protocol), and --stream FROM TO [CHUNK] pipes stdin to stdout
+// through the streaming ABI.
 package main
 
 import (
+	"bufio"
 	"context"
+	"encoding/hex"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -30,14 +42,28 @@ const (
 type host struct {
 	ctx context.Context
 	mod api.Module
+
+	// Error text of the last failed stream helper call, captured before the
+	// input region is freed (free clears the module's last-error state).
+	errText string
 }
 
 func main() {
-	if len(os.Args) != 2 {
-		fmt.Fprintln(os.Stderr, "usage: reactor-host MODULE.wasm")
+	args := os.Args[1:]
+	mode := ""
+	if len(args) > 0 && strings.HasPrefix(args[0], "--") {
+		mode, args = strings.TrimPrefix(args[0], "--"), args[1:]
+	}
+	usageOK := (mode == "" && len(args) == 1) ||
+		(mode == "batch" && len(args) == 1) ||
+		(mode == "stream" && (len(args) == 3 || len(args) == 4))
+	if !usageOK {
+		fmt.Fprintln(os.Stderr, "usage: reactor-host MODULE.wasm\n"+
+			"       reactor-host --batch MODULE.wasm\n"+
+			"       reactor-host --stream MODULE.wasm FROM TO [CHUNK]")
 		os.Exit(2)
 	}
-	wasm, err := os.ReadFile(os.Args[1])
+	wasm, err := os.ReadFile(args[0])
 	if err != nil {
 		fatal("read module: %v", err)
 	}
@@ -54,22 +80,105 @@ func main() {
 	if err != nil {
 		fatal("instantiate: %v", err)
 	}
-	if mod.ExportedFunction("_start") != nil {
-		fatal("module exports _start; it is a command, not a reactor")
-	}
-	for _, name := range []string{"alloc", "free", "convert", "lookup",
-		"base_radix", "base_zero", "symbol_count",
-		"last_error_code", "last_error_text", "version", "region_count",
-		"stream_new", "stream_write", "stream_finish", "stream_free",
-		"stream_count"} {
-		if mod.ExportedFunction(name) == nil {
-			fatal("export %q missing", name)
-		}
-	}
 
 	h := &host{ctx: ctx, mod: mod}
-	h.run()
-	fmt.Println("reactor-host: all checks passed")
+	switch mode {
+	case "batch":
+		h.batch()
+	case "stream":
+		chunk := 4096
+		if len(args) == 4 {
+			if chunk, err = strconv.Atoi(args[3]); err != nil || chunk < 1 {
+				fatal("bad chunk size %q", args[3])
+			}
+		}
+		h.stream(args[1], args[2], chunk)
+	default:
+		if mod.ExportedFunction("_start") != nil {
+			fatal("module exports _start; it is a command, not a reactor")
+		}
+		for _, name := range []string{"alloc", "free", "convert", "lookup",
+			"base_radix", "base_zero", "symbol_count",
+			"last_error_code", "last_error_text", "version", "region_count",
+			"stream_new", "stream_write", "stream_finish", "stream_free",
+			"stream_count"} {
+			if mod.ExportedFunction(name) == nil {
+				fatal("export %q missing", name)
+			}
+		}
+		h.run()
+		fmt.Println("reactor-host: all checks passed")
+	}
+}
+
+// batch answers module-driver protocol requests through the module's one-shot
+// convert, one reply line per request line.
+func (h *host) batch() {
+	in := bufio.NewScanner(os.Stdin)
+	in.Buffer(make([]byte, 0, 1<<20), 1<<20)
+	out := bufio.NewWriter(os.Stdout)
+	for in.Scan() {
+		line := in.Text()
+		if line == "" {
+			continue
+		}
+		f := strings.Split(line, "\t")
+		if len(f) != 4 {
+			fatal("batch: bad request line %q", line)
+		}
+		prec, err := strconv.ParseInt(f[2], 10, 32)
+		if err != nil {
+			fatal("batch: bad precision %q: %v", f[2], err)
+		}
+		value, err := hex.DecodeString(f[3])
+		if err != nil {
+			fatal("batch: bad value hex %q: %v", f[3], err)
+		}
+		res, code := h.convert(f[0], f[1], string(value), prec)
+		if code != errNone {
+			fmt.Fprintln(out, "err")
+		} else {
+			fmt.Fprintf(out, "ok\t%s\n", hex.EncodeToString([]byte(res)))
+		}
+	}
+	if err := in.Err(); err != nil {
+		fatal("batch: stdin: %v", err)
+	}
+	if err := out.Flush(); err != nil {
+		fatal("batch: stdout: %v", err)
+	}
+}
+
+// stream pipes stdin to stdout through the streaming ABI, in fixed chunks.
+func (h *host) stream(from, to string, chunk int) {
+	hd := h.streamNew(from, to)
+	buf := make([]byte, chunk)
+	out := bufio.NewWriter(os.Stdout)
+	for {
+		n, rerr := os.Stdin.Read(buf)
+		if n > 0 {
+			part, code := h.streamWrite(hd, buf[:n])
+			if code != errNone {
+				fatal("stream: %s", h.errText)
+			}
+			_, _ = out.WriteString(part)
+		}
+		if rerr != nil {
+			if errors.Is(rerr, io.EOF) {
+				break
+			}
+			fatal("stream: stdin: %v", rerr)
+		}
+	}
+	tail, code := h.streamFinish(hd)
+	if code != errNone {
+		fatal("stream: %s", h.errText)
+	}
+	_, _ = out.WriteString(tail)
+	h.streamFree(hd)
+	if err := out.Flush(); err != nil {
+		fatal("stream: stdout: %v", err)
+	}
 }
 
 func (h *host) run() {
@@ -340,6 +449,9 @@ func (h *host) streamWrite(hd uint32, data []byte) (string, int32) {
 	args = append(args, h.str(string(data))...)
 	packed := h.call("stream_write", args...)
 	code := h.calli32("last_error_code")
+	if code != errNone {
+		h.errText = h.lastError()
+	}
 	out := h.readPacked(packed)
 	h.freeAll(args[1])
 	return out, code
@@ -347,7 +459,11 @@ func (h *host) streamWrite(hd uint32, data []byte) (string, int32) {
 
 func (h *host) streamFinish(hd uint32) (string, int32) {
 	packed := h.call("stream_finish", uint64(hd))
-	return h.readPacked(packed), h.calli32("last_error_code")
+	code := h.calli32("last_error_code")
+	if code != errNone {
+		h.errText = h.lastError()
+	}
+	return h.readPacked(packed), code
 }
 
 func (h *host) streamFree(hd uint32) {
