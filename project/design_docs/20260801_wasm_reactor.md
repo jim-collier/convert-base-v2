@@ -32,7 +32,9 @@
 
 ## Status
 
-Two WebAssembly builds exist and work. A third, a callable library module, does not exist yet and is the subject of this document.
+The one-shot surface shipped: `make reactor` builds `dist/convert-base-reactor.wasm` from `lib/reactor/`, covering everything zuid asked for - conversion, lookup, radix and padding-symbol metadata, symbol counting, the allocator pair, the numeric error codes, and the last-error text accessor. The contract lives in `lib/reactor/README.md`, and a host-side exerciser under `cicd/utility/reactor-host/` drives all of it each test run. Streaming remains open, with the push API below still the intended shape.
+
+One practical note from the build-out: linters do not yet treat `//go:wasmexport` as a root, so every export reads as unused code under a `wasip1` lint run. The reactor package stays out of lint scope the way the vendored parser does; vet runs on it cross-compiled and comes back clean.
 
 Split out of `20260731_linkable_library.md`, which treated WebAssembly as the replacement for a C library. That conclusion still holds for reach. It skipped one thing: neither build that exists is callable as a library from another program.
 

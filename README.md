@@ -60,6 +60,7 @@ It's a single, fast, cross-platform static binary written in Go.
 	- [A Go package](#a-go-package)
 	- [WebAssembly, in a browser](#webassembly-in-a-browser)
 	- [WebAssembly, anywhere else](#webassembly-anywhere-else)
+	- [WebAssembly, as a function call](#webassembly-as-a-function-call)
 	- [Or just run it](#or-just-run-it)
 	- [Licensing](#licensing)
 - [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
@@ -181,7 +182,7 @@ That one ships in the file as a working example to copy from. The format is [SHC
 
 The conversion core is a library in its own right, and the command is a thin layer on top of it. Everything below runs that same code, so none of them can disagree with the command about what a base means.
 
-Four separate things get built here, and they are not interchangeable:
+Five separate things get built here, and they are not interchangeable:
 
 - **The command**, `convert-base-v2`. A program. It parses flags, loads config files, and moves data through pipes.
 
@@ -190,6 +191,8 @@ Four separate things get built here, and they are not interchangeable:
 - **The browser module**, `web/convert-base.wasm`. The package compiled for a web page, with a small JavaScript surface.
 
 - **The WASI module**, `dist/convert-base-v2.wasm`. The whole command compiled to WebAssembly. A program, not a library.
+
+- **The reactor module**, `dist/convert-base-reactor.wasm`. The package compiled for any WebAssembly runtime, exporting plain functions.
 
 The line between the command and the package is about what each one is allowed to do. Writing a config file into someone's home directory is fine for a program that person chose to run. It is not fine for a library that got imported into somebody else's project, so the package does none of it. It touches no files, reads no environment variables, and prints nothing. The caller decides all of that.
 
@@ -237,9 +240,13 @@ wasmtime run dist/convert-base-v2.wasm -- --from hex --to 10 ff
 
 This is the command in a sandbox, not the library made portable. A Rust, Python, or C# program reaches it by starting it under a runtime and wiring up argv and pipes. That is running a program in process. It is not calling a function, and the module does not survive being run a second time in the same instance.
 
-That is still enough to cover callers in any language with a WebAssembly runtime, with no C interface to freeze and no per-platform build to ship. What it does not give you is conversion as a plain function call.
+That is still enough to cover callers in any language with a WebAssembly runtime, with no C interface to freeze and no per-platform build to ship. What it does not give you is conversion as a plain function call. That is what the reactor module is for.
 
-A third build would close that gap: a module that exports functions the host calls directly. It is not built yet, and it is on the backlog.
+### WebAssembly, as a function call
+
+The reactor module is the library compiled for any WebAssembly runtime, exporting plain functions the host calls directly: one-shot conversion, base lookup, the radix and padding symbol of a base, symbol counting, and a stable numeric error code set with readable error text. Strings cross as a pointer and length through the module's memory, with an exported allocator pair; the full contract is in [`lib/reactor/README.md`](lib/reactor/README.md). Build it with `make reactor` (needs a Go 1.24 or newer toolchain).
+
+It converts whole values only for now. For streaming piped data under WebAssembly, use the WASI module above.
 
 ### Or just run it
 
@@ -249,7 +256,7 @@ Worth saying plainly: if you can start a process, that is still the simplest opt
 
 Which license applies follows the same split.
 
-- The Go package and the browser module are Apache-2.0. Build them into anything, commercial and closed-source work included. Keep the credit with them and you are done.
+- The Go package, the browser module, and the reactor module are Apache-2.0. Build them into anything, commercial and closed-source work included. Keep the credit with them and you are done.
 
 - The command stays GPL-2.0-or-later, and so does the WASI module, because that module is the command.
 
