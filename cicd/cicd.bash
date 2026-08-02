@@ -151,7 +151,7 @@ else
 fi
 fEcho_Clean "Tests ...............: ${UNIT_TEST_CMD[*]} + ${TEST_CMD[*]}$( ((do_long)) && echo '  (long)')"
 if ((FUZZ_ENABLE)); then
-	fEcho_Clean "Fuzz ................: ${FUZZ_TIME}/target$( ((quick)) && echo " (quick: ${FUZZ_TIME_QUICK})")"
+	fEcho_Clean "Fuzz ................: ${FUZZ_TIME}/target, ${FUZZ_MINIMIZE_TIME}/find$( ((quick)) && echo " (quick: ${FUZZ_TIME_QUICK}, ${FUZZ_MINIMIZE_TIME_QUICK})")"
 else
 	fEcho_Clean "Fuzz ................: (disabled)"
 fi
@@ -287,12 +287,30 @@ fEcho "OK: integration harness"
 ## 4b: fuzz each discovered target for a bounded time (shorter under --quick).
 if ((FUZZ_ENABLE)); then
 	ft="${FUZZ_TIME}"; ((quick)) && ft="${FUZZ_TIME_QUICK}"
+	fuzz_min="${FUZZ_MINIMIZE_TIME:-2s}"; ((quick)) && fuzz_min="${FUZZ_MINIMIZE_TIME_QUICK:-1s}"
 	mapfile -t fuzz_targets < <(in_src go test -list '^Fuzz' "${GO_TEST_PKG:-.}" 2>/dev/null | grep -E '^Fuzz' || true)
 	if ((${#fuzz_targets[@]})); then
+		fuzz_log="$(mktemp -t cicd-fuzz.XXXXXX)"
 		for t in "${fuzz_targets[@]}"; do
 			fEcho_Clean "fuzz ${t} (${ft}) ..."
-			in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" "${GO_TEST_PKG:-.}" || fDie "fuzz ${t} found a failure"
+			set +e
+			in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}"
+			fuzz_rc=${PIPESTATUS[0]}
+			set -e
+			if ((fuzz_rc)); then
+				## A bare "context deadline exceeded" with no crasher is the
+				## -fuzztime boundary, not a find: the coordinator reads the
+				## worker context before cancellation has reached it, so the
+				## deadline gets reported as the run's error. Real finds name
+				## the failing input file.
+				if grep -q 'Failing input written to' "${fuzz_log}" \
+				|| ! grep -q 'context deadline exceeded' "${fuzz_log}"; then
+					rm -f "${fuzz_log}"; fDie "fuzz ${t} found a failure"
+				fi
+				fEcho "NOTE: fuzz ${t} reported the -fuzztime deadline; no failing input recorded"
+			fi
 		done
+		rm -f "${fuzz_log}"
 		fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"
 	else
 		fEcho_Clean "no Fuzz* targets found; skipping fuzz"

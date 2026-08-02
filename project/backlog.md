@@ -71,6 +71,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - Bugs
 
+- ✅ The fuzz stage failed a run with nothing but "context deadline exceeded".
+	- Reproduced: intermittent, and only at the point where the run's time limit expires. No failing input was ever recorded, and the same target passes on a rerun.
+	- Cause: two separate things. Go itself reports the time limit as the run's error when it reads one of its own cancellation signals a moment before that signal has propagated, so a clean finish is scored as a failure. Separately the run had slowed to a crawl by then, which is what made the timing gap easy to land in.
+	- Fixed: the stage now fails only on a real find, which Go always names by writing the failing input to a file. A bare time-limit report is passed with a note.
+	- Fixed: the slowdown had two causes of its own. Converting a number is quadratic in its length, so the fuzzer was spending a whole run on ever longer values that reached nothing new; values are now capped at a length that still reaches every branch. And Go's default budget for shrinking a new find is a minute, longer than the whole run, so a single find parked a worker for the remainder; that budget is now a small slice of the run.
+	- Verified: three times as many cases per run on the number target and four times on the streaming one, with more new coverage found in every case, and no run stalls. The guard was checked against a real crash, a hang, and a bare time-limit report.
+
 - ✅ Wrapped base-45 would not decode.
 	- Reproduced: encode to base 45, wrap the text at any width, decode it back, and the newline is reported as not a base-45 symbol. Every other base that carries raw bytes tolerates wraps.
 	- Cause: base-45 has space as a digit, so it skipped no whitespace at all. CR and LF are not digits, so there was never a reason to include them in that.
