@@ -17,6 +17,51 @@ import (
 
 var bigOne = big.NewInt(1)
 
+// wordChunk returns how many base-'radix' digits fit in a machine word, along
+// with radix to that power. Digits are packed a word at a time on the way in
+// and out: one multiply or divide over the whole number then carries k digits
+// instead of one, and a word-sized operand keeps math/big on its single-word
+// fast path. Radix is always at least 2 - finalize() rejects anything smaller.
+func wordChunk(radix uint) (count int, pow uint) {
+	const maxWord = ^uint(0)
+	pow = 1
+	for pow <= maxWord/radix {
+		pow *= radix
+		count++
+	}
+	return count, pow
+}
+
+// parseDigits reads a digit run in its own base into a big.Int, a word's worth
+// of digits per pass.
+func parseDigits(digits []string, from *Base) *big.Int {
+	radix := uint(len(from.Symbols))
+	chunkLen, chunkPow := wordChunk(radix)
+	val := new(big.Int)
+	mul := new(big.Int).SetUint64(uint64(chunkPow))
+	tmp := new(big.Int)
+	for i := 0; i < len(digits); {
+		n := chunkLen
+		if left := len(digits) - i; left < n {
+			// Short final chunk, so it needs its own multiplier.
+			n = left
+			pow := uint(1)
+			for j := 0; j < n; j++ {
+				pow *= radix
+			}
+			mul.SetUint64(uint64(pow))
+		}
+		var chunk uint
+		for j := 0; j < n; j++ {
+			chunk = chunk*radix + uint(from.value[digits[i+j]])
+		}
+		i += n
+		val.Mul(val, mul)
+		val.Add(val, tmp.SetUint64(uint64(chunk)))
+	}
+	return val
+}
+
 // Convert converts a number string from 'from' base to 'to' base.
 // Supports arbitrary-precision integers, fractional parts, and negative numbers.
 // 'precision' is the maximum number of fractional digits emitted in the output.
@@ -154,22 +199,13 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	fromRadix := big.NewInt(int64(len(from.Symbols)))
 	toRadix := big.NewInt(int64(len(to.Symbols)))
 
-	// Integer part -> big.Int (Horner's method).
-	intVal := new(big.Int)
-	tmp := new(big.Int)
-	for _, d := range intDigits {
-		intVal.Mul(intVal, fromRadix)
-		intVal.Add(intVal, tmp.SetInt64(int64(from.value[d])))
-	}
+	// Integer part -> big.Int.
+	intVal := parseDigits(intDigits, from)
 
-	// Fractional part -> num/den.
-	fracNum := new(big.Int)
-	fracDen := big.NewInt(1)
-	for _, d := range fracDigits {
-		fracNum.Mul(fracNum, fromRadix)
-		fracNum.Add(fracNum, tmp.SetInt64(int64(from.value[d])))
-		fracDen.Mul(fracDen, fromRadix)
-	}
+	// Fractional part -> num/den. The denominator is one power, so square it up
+	// rather than multiplying the radix in once per digit.
+	fracNum := parseDigits(fracDigits, from)
+	fracDen := new(big.Int).Exp(fromRadix, big.NewInt(int64(len(fracDigits))), nil)
 
 	// Fractional part -> output base, rounded (half up) to at most `precision`
 	// digits. Rounding can carry into the integer part, so it is done before the
@@ -204,15 +240,27 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 			q.SetInt64(0)
 		}
 		if q.Sign() > 0 {
+			radix := uint(len(to.Symbols))
+			chunkLen, chunkPow := wordChunk(radix)
 			digits := make([]string, prec)
+			div := new(big.Int).SetUint64(uint64(chunkPow))
 			mod := new(big.Int)
-			for i := prec - 1; i >= 0; i-- {
-				q.DivMod(q, toRadix, mod)
-				digits[i] = to.Symbols[mod.Int64()]
+			zero := to.Symbols[0]
+			i := prec - 1
+			for i >= 0 && q.Sign() > 0 {
+				q.DivMod(q, div, mod)
+				rem := uint(mod.Uint64())
+				for j := 0; j < chunkLen && i >= 0; j++ {
+					digits[i] = to.Symbols[rem%radix]
+					rem /= radix
+					i--
+				}
 			}
 			// Keep leading zero digits (0.05 needs them), trim trailing ones.
+			for ; i >= 0; i-- {
+				digits[i] = zero
+			}
 			end := prec
-			zero := to.Symbols[0]
 			for end > 0 && digits[end-1] == zero {
 				end--
 			}
@@ -228,13 +276,28 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	if intVal.Sign() == 0 {
 		intOut = []string{to.Symbols[0]}
 	} else {
-		est := int(float64(intVal.BitLen())/math.Log2(float64(len(to.Symbols)))) + 1
+		radix := uint(len(to.Symbols))
+		chunkLen, chunkPow := wordChunk(radix)
+		est := int(float64(intVal.BitLen())/math.Log2(float64(radix))) + 1
 		intOut = make([]string, 0, est)
 		n := new(big.Int).Set(intVal)
+		div := new(big.Int).SetUint64(uint64(chunkPow))
 		mod := new(big.Int)
 		for n.Sign() > 0 {
-			n.DivMod(n, toRadix, mod)
-			intOut = append(intOut, to.Symbols[mod.Int64()])
+			n.DivMod(n, div, mod)
+			rem := uint(mod.Uint64())
+			if n.Sign() > 0 {
+				// More to come, so this chunk keeps its leading zeros.
+				for j := 0; j < chunkLen; j++ {
+					intOut = append(intOut, to.Symbols[rem%radix])
+					rem /= radix
+				}
+				continue
+			}
+			for rem > 0 {
+				intOut = append(intOut, to.Symbols[rem%radix])
+				rem /= radix
+			}
 		}
 		for i, j := 0, len(intOut)-1; i < j; i, j = i+1, j-1 {
 			intOut[i], intOut[j] = intOut[j], intOut[i]

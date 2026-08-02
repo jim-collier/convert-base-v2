@@ -8,6 +8,7 @@ package convertbase
 import (
 	"bytes"
 	"encoding/hex"
+	"math/big"
 	"math/rand"
 	"strings"
 	"testing"
@@ -806,6 +807,98 @@ func TestRoundTripNumber(t *testing.T) {
 			}
 			if back != want {
 				t.Errorf("round-trip %s: %q -> %q -> %q", name, want, enc, back)
+			}
+		}
+	}
+}
+
+// naiveConvert is the obvious algorithm - one multiply-add per input digit, one
+// divide per output digit - kept here as a reference for the packed one. Integers
+// only, and slow enough that it is no use for anything but a comparison.
+func naiveConvert(t *testing.T, input string, from, to *Base) string {
+	t.Helper()
+	digits, err := from.Tokenize(input)
+	if err != nil {
+		t.Fatalf("tokenize %q: %v", input, err)
+	}
+	fromRadix := big.NewInt(int64(len(from.Symbols)))
+	toRadix := big.NewInt(int64(len(to.Symbols)))
+	val := new(big.Int)
+	tmp := new(big.Int)
+	for _, d := range digits {
+		val.Mul(val, fromRadix)
+		val.Add(val, tmp.SetInt64(int64(from.value[d])))
+	}
+	if val.Sign() == 0 {
+		return to.Symbols[0]
+	}
+	var out []string
+	mod := new(big.Int)
+	for val.Sign() > 0 {
+		val.DivMod(val, toRadix, mod)
+		out = append([]string{to.Symbols[mod.Int64()]}, out...)
+	}
+	return strings.Join(out, "")
+}
+
+// Digits are packed a machine word at a time on the way in and out, so the one
+// place that can go wrong is the leftover chunk at the end - it must keep its
+// leading zero digits when more digits follow, and drop them when it is the most
+// significant one. Only lengths either side of a chunk boundary show it, and a
+// wrong answer still looks like a plausible number, so pin it against the plain
+// one-digit-at-a-time version.
+func TestDigitChunkBoundaries(t *testing.T) {
+	reg := newReg(t)
+	dec10 := base(t, reg, "10")
+	rng := rand.New(rand.NewSource(7))
+	// Chunk widths differ per base: 63 digits per word for base 2, 19 for base
+	// 10, 12 for 36, 10 for 62, 5 for 2048, 3 for 65536.
+	targets := []string{"2", "10", "16", "36", "62", "2048qntm", "65536qntm"}
+	lengths := []int{1, 2, 3, 4, 5, 6, 9, 10, 11, 12, 13, 18, 19, 20, 21, 24, 25, 37, 38, 39, 62, 63, 64, 65, 126, 127, 128}
+	for _, name := range targets {
+		to := base(t, reg, name)
+		for _, n := range lengths {
+			var sb strings.Builder
+			sb.WriteByte(byte('1' + rng.Intn(9)))
+			for j := 1; j < n; j++ {
+				sb.WriteByte(byte('0' + rng.Intn(10)))
+			}
+			in := sb.String()
+			got, err := Convert(in, dec10, to, 0)
+			if err != nil {
+				t.Fatalf("convert %d digits to %s: %v", n, name, err)
+			}
+			if want := naiveConvert(t, in, dec10, to); got != want {
+				t.Errorf("%d digits to %s: got %q, want %q (input %q)", n, name, got, want, in)
+			}
+		}
+	}
+}
+
+// Same boundaries on the fractional side. A fraction converted to its own base
+// has to come back unchanged, whatever the length, which is an exact check the
+// integer comparison above cannot give for fractions.
+func TestFractionChunkBoundaries(t *testing.T) {
+	reg := newReg(t)
+	rng := rand.New(rand.NewSource(11))
+	for _, name := range []string{"2", "10", "16", "36", "62"} {
+		b := base(t, reg, name)
+		for _, n := range []int{1, 2, 3, 9, 10, 11, 12, 13, 18, 19, 20, 21, 38, 39, 62, 63, 64, 65} {
+			var sb strings.Builder
+			sb.WriteString(b.Symbols[0])
+			sb.WriteString(b.DecSym())
+			for j := 0; j < n-1; j++ {
+				sb.WriteString(b.Symbols[rng.Intn(len(b.Symbols))])
+			}
+			// A trailing zero digit would be trimmed, so end on a nonzero one.
+			sb.WriteString(b.Symbols[1+rng.Intn(len(b.Symbols)-1)])
+			want := sb.String()
+			got, err := Convert(want, b, b, n)
+			if err != nil {
+				t.Fatalf("convert %d fraction digits in %s: %v", n, name, err)
+			}
+			if got != want {
+				t.Errorf("%d fraction digits in %s: got %q, want %q", n, name, got, want)
 			}
 		}
 	}
