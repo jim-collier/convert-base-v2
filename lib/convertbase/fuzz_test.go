@@ -30,11 +30,13 @@ func FuzzParseSymbolSpec(f *testing.F) {
 }
 
 // Length ceilings, so a fuzz run keeps finding new shapes instead of grinding on
-// ever-longer values. The positional path is quadratic in digit count (40k digits
-// is over three seconds for one call), and every branch worth reaching - sign,
-// decimal marker, rounding carry, a stray rune - is reachable well inside these.
+// ever-longer values. The number cap was 256 when the positional path was
+// quadratic; divide-and-conquer made 1k digits cost what 250 used to, so the cap
+// rose with it and now also reaches the recursion's split seams for most bases.
+// Every branch worth reaching - sign, decimal marker, rounding carry, a stray
+// rune, a padded low half - is reachable well inside these.
 const (
-	fuzzMaxNumberLen = 256
+	fuzzMaxNumberLen = 1024
 	fuzzMaxByteLen   = 4096
 )
 

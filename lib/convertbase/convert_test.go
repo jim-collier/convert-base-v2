@@ -67,6 +67,7 @@ func benchPositional(b *testing.B, digits int) {
 func BenchmarkPositional1K(b *testing.B)  { benchPositional(b, 1000) }
 func BenchmarkPositional4K(b *testing.B)  { benchPositional(b, 4000) }
 func BenchmarkPositional16K(b *testing.B) { benchPositional(b, 16000) }
+func BenchmarkPositional64K(b *testing.B) { benchPositional(b, 64000) }
 
 func benchConvert(b *testing.B, fromName, toName, input string) {
 	reg, err := NewRegistry()
