@@ -69,7 +69,6 @@ It's a single, fast, cross-platform static binary written in Go.
 - [Third-party binary codecs, built in](#third-party-binary-codecs-built-in)
 - [List of predefined bases](#list-of-predefined-bases)
 - [How to design a numeric base](#how-to-design-a-numeric-base)
-- [Development](#development)
 - [Support convert-base-v2](#support-convert-base-v2)
 - [Legal stuff](#legal-stuff)
 
@@ -146,10 +145,19 @@ convert-base-v2 --from hex --from-neg '~' -- '~ff'  # -255
 some-command | convert-base-v2 --binary --to 64
 convert-base-v2 --binary --from 64 --to bytes < file.b64
 
+# Text in, text out: 98keyboard holds every character a text file normally does
+printf 'hi\nthere' | convert-base-v2 --from keyboard --to 10 -   # 3772491441706426
+
+# Its tab, newline and return digits can also be written by name
+convert-base-v2 --from keyboard --to 10 -n 'hi⊳LFthere'          # the same number
+convert-base-v2 --from 10 --to keyboard --escape-controls -n 3772491441706426
+
 # See every base, or one base's alphabet
 convert-base-v2 --list
 convert-base-v2 --show-symbols 64emoji
 ~~~
+
+A base can hold control characters as digits, which are impossible to type at a prompt and invisible on a terminal. Those can be written by name instead, as `⊳LF`, `⊳TAB`, `⊳CR` and so on. Input takes the named and the raw forms mixed, always; output writes them only when `--escape-controls` asks for it. The marker is deliberately a character no such base uses, so nothing ever needs escaping twice.
 
 Run `convert-base-v2 --help` for the full flag list, or `--examples` for more.
 
@@ -423,16 +431,15 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 32768 | 32768qntm | 32768utf16 | 9 | 22 | -ڊꋇꛎ䦥枉.云㦵
 | 65536 | 65536qntm | 65536utf32 | 9 | 27 | -㐄𣖄𨗓𡞲𤜩.蕢苓
 
-
-## How to design a numeric base
-
-[This companion document](how_to_design_a_numeric_base.md) walks through designing a good numeric base, whether as a positional notation system or a binary-to-text codec. It is harder than it looks, which is why so many of the "official" large bases are as quirky as they are.
-
 ## Development
 
 The Go tree is under `lib/`: the command in `lib/cmd/convert-base-v2/`, the conversion core in `lib/convertbase/`. From there, `make local` builds the shipping binary, `make debug` keeps the symbols, and `make test` runs the tests.
 
 Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. `--quick` skips the slow stages, `--long` runs the exhaustive tests, and every stage has its own `--no-...` switch.
+
+## How to design a numeric base
+
+[This companion document](how_to_design_a_numeric_base.md) walks through designing a good numeric base, whether as a positional notation system or a binary-to-text codec. It is harder than it looks, which is why so many of the "official" large bases are as quirky as they are.
 
 ## Support convert-base-v2
 

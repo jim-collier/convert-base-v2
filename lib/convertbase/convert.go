@@ -312,6 +312,13 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	if input == "" {
 		return "", fmt.Errorf("empty input")
 	}
+	// Escaped control digits become their literal characters before anything
+	// else reads the string, so an escape behaves exactly like the character it
+	// names - markers included.
+	input, err := ExpandEscapes(input, from)
+	if err != nil {
+		return "", err
+	}
 	negMark := from.NegSym()
 	decMark := from.DecSym()
 

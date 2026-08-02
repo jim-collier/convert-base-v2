@@ -667,6 +667,40 @@ done
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Control-character escapes
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Tab, newline and return are digits of the keyboard base, so they can also be
+## written as a name. Input takes raw and escaped forms mixed, always; output
+## writes them only when asked. The pins are literal on both sides, so a change
+## to either direction shows up here rather than cancelling itself out.
+section "Control-character escapes"
+kesc_lf=$'A\nB'
+check eq "escape LF reads as the raw character"   "102225" -- --from keyboard --to 10 -n 'A⊳LFB'
+check eq "raw LF reads the same"                  "102225" -- --from keyboard --to 10 -n "$kesc_lf"
+check eq "lowercase name"                         "102225" -- --from keyboard --to 10 -n 'A⊳lfB'
+check eq "NEWLINE alias"                          "102225" -- --from keyboard --to 10 -n 'A⊳NEWLINEB'
+check eq "hex form"                               "102225" -- --from keyboard --to 10 -n 'A⊳x0AB'
+check eq "escaped output"                         'A⊳LFB'  -- --from 10 --to keyboard --escape-controls -n 102225
+check eq "output stays raw without the flag"      "$kesc_lf" -- --from 10 --to keyboard -n 102225
+## Raw and escaped in one value, and the same value written the other way.
+check eq "raw and escaped mixed"      "52830726402316" -- --from keyboard --to 10 -n 'x⊳HTy⊳CRz⊳LFw'
+check eq "all three escaped on output" 'x⊳HTy⊳CRz⊳LFw' -- --from 10 --to keyboard --escape-controls -n 52830726402316
+## A base with no control digits never grows an escape.
+check eq "no escapes where there are no controls" '!4' -- --from 10 --to keyboard --escape-controls -n 6472
+## --show-symbols is where the alphabet is actually legible.
+_run --show-symbols --escape-controls keyboard
+{ ((_rc == 0)) && [[ "$_out" == *'⊳HT⊳LF⊳CR'* ]]; } \
+	&& _pass "--show-symbols escapes the control digits" \
+	|| _fail "--show-symbols escapes the control digits" "rc=$_rc out=[$_out]"
+## Guards.
+check errmsg "unrecognized escape is an error"    "unrecognized escape" -- --from keyboard --to 10 -n 'A⊳ZZZB'
+check errmsg "escape the base cannot carry"       "not in base"         -- --from 16 --to 10 -n '⊳LF'
+check errmsg "escaping is refused in byte mode"   "number conversions only" -- --from 10 --to 16 --binary --escape-controls -n 65
+## The marker is not a digit of any built-in base, so it is never mistaken for one.
+check err "a bare marker is not a digit"          "" -- --from keyboard --to 10 -n 'A⊳'
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Fuzz: random values round-tripped through every defined base
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Fuzz round-trips (all bases)"

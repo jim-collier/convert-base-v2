@@ -50,6 +50,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A config file that names a field the program does not know is now an error, rather than being loaded with that field ignored. A typo in an alphabet is not something the output would ever reveal.
 - An extra base name no longer has to be the first of a list: the `base:` line carries the canonical name and an optional `aliases:` field adds the rest.
 - A one-line shell installer, `install.bash`, for Linux, BSD, macOS, and WSL. It picks the right build for the machine, verifies it against the release's checksum file, states its plan, and asks before installing. Takes stable or pre-release, user or system install, and an architecture override.
+- Control characters that are digits of a base, such as the tab, newline, and return in `98keyboard`, can now be written by name: `⊳LF`, `⊳TAB`, `⊳CR`, and so on for the rest of them. Input takes named and raw forms mixed, always. Output writes them only with `--escape-controls`, so nothing that reads the plain output changes. `--show-symbols --escape-controls` is how to actually see such an alphabet.
 
 ### Changed
 

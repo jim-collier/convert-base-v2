@@ -48,25 +48,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### New features and enhancements
 
-- ✅ A WebAssembly reactor module, so other languages can call this instead of running it. Design: `design_docs/20260801_wasm_reactor.md`.
-	- Done: the one-shot surface, `make reactor` -> `dist/convert-base-reactor.wasm`. Conversion, base lookup, radix and padding-symbol metadata, symbol counting, the allocator pair, a stable numeric error code set, and a last-error text accessor. Contract in `lib/reactor/README.md`. That is everything zuid asked for, so its Zig side is unblocked.
-	- Done: streaming, as the push API: open, write, finish, free, plus an open-stream counter. Streams run the library's own constant-memory paths; codec pairs buffer and emit at finish, same as the command.
-	- Done: a host-side exerciser drives the whole contract each test run, including leak checks that must end with nothing left allocated and a memory ceiling that catches a stream quietly buffering.
-	- Done: frontend parity in the test suite. The same requests run through the command, the Go module directly, and the reactor, and the answers must agree byte for byte over every base, both directions, errors included. Piped payloads run through the command and the reactor streams the same way. The compat and interop suites stay on the command; parity carries what they establish over to the other two.
-	- The `go.mod` floor stays at 1.21. Only the toolchain building this one target has to be 1.24 or newer.
-
 - 🔘 Push the first `lib/v0.1.0` tag, so the Go module can actually be fetched. Nothing can import it until then, and the README should not claim otherwise before it lands.
-
-- 🔘 For base "keyboard", allow encoding tab, newline, CR, etc. like "%NEWLINE%", "%DOUBLE_QOUTE%", etc. (Or some other way.)
-
-- 🛠️ Animated gif demo: Come up with better examples and reencode.
-	- Done: the scenario is a whole new script. Named bases end to end, a signed fractional value, a custom alphabet, a two thousand digit number, a real image and a real gif through the streaming codecs, then the base list last.
-	- Done: `bytes` is gone from the demo, and the codec steps read an image and a gif instead of `/bin/cat`.
-	- Not carried over from the old wish list: a sentence from `keyboard` into a rune-heavy base, and taking 64emoji from base 62 rather than base 10.
-	- Done: revised script. The base 10 assumption moved up into the opening notes, the standalone base 62 step is gone, and the closing notes now scroll in under the tail of the base list instead of onto a cleared screen.
-	- Done: typing runs about 15 percent faster and the smooth scroll about 25 percent faster, everywhere including the base list.
-	- Done: four new scenario knobs for pacing a single step - a hesitation before a pasted value, a hold at the end of a finished command, a typing speed multiplier, and read time after each note line.
-	- Open: the committed `assets/demo.gif` still needs a regen from a cicd run, since a render here comes out at different terminal dimensions.
 
 ### Done
 
@@ -120,36 +102,50 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ For base "keyboard", allow encoding tab, newline, CR, etc.
+	- Done: they can be written by name, as `⊳LF`, `⊳TAB`, `⊳CR`, and so on for every control character. Input takes named and raw forms mixed, in one value, always. Output writes them only when `--escape-controls` asks, so nothing that already reads that base's output changes.
+	- Done: the marker is a character outside the range such a base draws its digits from, which is what settles the escape question. It can never be a digit, so there is nothing to escape twice and no recursion to bottom out.
+	- Done: a word form for the ones people actually mean (`⊳NEWLINE`, `⊳TAB`, `⊳RETURN`), the shell-awkward printables (`⊳DQUOTE`, `⊳SQUOTE`, `⊳BACKSLASH`), and a hex form for anything at all. Names read either case.
+	- Done: `--show-symbols --escape-controls` prints the alphabet legibly, which it could not do before.
+	- Note: an escape naming something the base does not carry fails exactly as the raw character would, as an unrecognized digit. Asking for escaped output in byte mode is refused rather than accepted and ignored.
+	- Note: the one thing that can go wrong is a name running into the text after it, since one control's name is the start of another's. Output checks each name against what follows and writes the hex form where the name would not survive. A test covers every control against every character it could be followed by, and was confirmed to catch the mistake before the real code went in.
+
+- ✅ A WebAssembly reactor module, so other languages can call this instead of running it. Design: `design_docs/20260801_wasm_reactor.md`.
+	- Done: the one-shot surface, `make reactor` -> `dist/convert-base-reactor.wasm`. Conversion, base lookup, radix and padding-symbol metadata, symbol counting, the allocator pair, a stable numeric error code set, and a last-error text accessor. Contract in `lib/reactor/README.md`. That is everything zuid asked for, so its Zig side is unblocked.
+	- Done: streaming, as the push API: open, write, finish, free, plus an open-stream counter. Streams run the library's own constant-memory paths; codec pairs buffer and emit at finish, same as the command.
+	- Done: a host-side exerciser drives the whole contract each test run, including leak checks that must end with nothing left allocated and a memory ceiling that catches a stream quietly buffering.
+	- Done: frontend parity in the test suite. The same requests run through the command, the Go module directly, and the reactor, and the answers must agree byte for byte over every base, both directions, errors included. Piped payloads run through the command and the reactor streams the same way. The compat and interop suites stay on the command; parity carries what they establish over to the other two.
+	- The `go.mod` floor stays at 1.21. Only the toolchain building this one target has to be 1.24 or newer.
+
 - ✅ Library error text no longer names command-line flags.
 	- Cause: messages like "see --list for all bases" came from the library, so a Go program or a browser page got advice about flags that do not exist there.
 	- Fixed: the library states these conditions plainly, and the command adds its own pointers on the way out. Four cases: an unknown base (the "did you mean" suggestions stay, since those help everywhere), a missing negative or decimal marker, a default marker that collides with a digit, and a retired marker token in a symbol spec. Each is a distinct error type, so any caller can recognize the condition and add advice in its own words.
 	- Verified: the command's output is unchanged. Every affected error path was compared against the previous build character for character, including the wrapped forms, and the full test suite passes.
 	- Note: this also sets up the planned WebAssembly reactor module, which wants to hand error text to a host program - that text now reads correctly outside a terminal.
 
-- ✅ Speed up converting long numbers between two bases that are not powers of two. Third and final planned pass.
-	- Cause: even with the earlier batching, every batch still took a pass over the whole number, so the total effort grew with the square of the length. That is the method's own cost, not an implementation detail.
-	- Fixed: a long number is now split in half, each half converted on its own, and the two results joined with one wide multiply or divide. The halves split again in turn, down to a size where the earlier batch loop takes over. The joining steps ride on the arithmetic library's fast large-number multiply, so the whole thing finally grows a little faster than the length itself rather than its square.
-	- Verified: a 16,000 digit conversion went from 2.8 to about 1 millisecond, a 64,000 digit one from an extrapolated 45 down to 6.5. A 160,000 digit number now converts through the command in under a tenth of a second, most of which is startup. Short numbers are unchanged.
-	- Verified: across all three passes together, that same 16,000 digit conversion started at 251 milliseconds and 882 megabytes of scratch memory. It now takes 1 millisecond and about a megabyte, roughly 250 times faster. Doubling the length used to quadruple the time; now it roughly doubles it.
-	- Verified: compared against the previous build across about 1,300 conversions at every length near a split seam, plus fractions, negatives, and both precision modes. All identical. Also checked against the standard library's own independent conversion for every base it can express, at every seam length.
-	- Note: the split seams are the one place this can go wrong - a short lower half must keep its leading zeros - and a mistake there still looks like a plausible number. New tests pin every seam, and they were confirmed to catch both seeded mistakes before the real code went in.
-	- Note: delegating half the work to the standard library was considered, measured as no faster end to end, and declined - one algorithm everywhere beats two correctness surfaces.
-	- Note: the fuzzing length cap rose from 256 to 1,024 digits now that long values are cheap, so fuzzing reaches the new seams too.
-
-- ✅ Speed up converting long numbers between two bases that are not powers of two. Second of three planned passes.
-	- Cause: the number was read in one digit at a time and written out one digit at a time. Each of those steps costs a pass over the whole number, however long it is, so a short digit gets the same expensive treatment as the entire value.
-	- Fixed: digits are now handled a batch at a time, as many as fit in one of the machine's own numbers. That is nineteen digits at once for base ten, twelve for base thirty-six, five for base 2048. The batch is packed and unpacked with ordinary arithmetic, which is free next to a pass over a long number.
-	- Verified: a 16,000 digit conversion went from 29 to 2.8 milliseconds, so about ten times faster again. A 40,000 digit one went from a quarter of a second to seven hundredths. Shorter numbers gain about five times.
-	- Verified: results were compared against the previous build across about 1,200 conversions covering every length near a batch boundary, plus fractions, negatives, and both fixed and automatic precision. All identical.
-	- Note: two new tests pin the batch boundaries, one for whole numbers and one for fractions. That is the only place this could go wrong, and a wrong answer there would still look like a plausible number.
-	- Note: one more pass is planned, changing the method itself rather than its cost per step.
-
-- ✅ Speed up converting long numbers between two bases that are not powers of two. First of three planned passes.
-	- Cause: each new digit of the answer was added to the front of a list. Everything already in the list has to shift along to make room, so the effort grows with the square of the answer's length. That was piled on top of the arithmetic, which is already the slow part for a long number.
-	- Fixed: digits are now collected in the order the arithmetic hands them back, and the list is flipped around once at the end. Same answer, none of the shuffling. The list is also sized up front rather than being regrown as it fills.
-	- Verified: a 16,000 digit conversion went from 251 to 29 milliseconds, and from 882 megabytes of scratch memory down to about one. Shorter numbers gain too, roughly four times faster at 1,000 digits.
-	- Note: new benchmarks cover this path at three input lengths, because the cost curves upward rather than rising evenly, so one length would not show the shape. Run them with `go test -run x -bench Positional ./convertbase`.
-	- Note: long numbers are still slower than they need to be. Two further passes are planned, one to cut the constant cost and one to change the method itself.
+- ✅ Speed-up and advanced conversion algorithms epic:
+	- ✅ Speed up converting long numbers between two bases that are not powers of two. Third and final planned pass.
+		- Cause: even with the earlier batching, every batch still took a pass over the whole number, so the total effort grew with the square of the length. That is the method's own cost, not an implementation detail.
+		- Fixed: a long number is now split in half, each half converted on its own, and the two results joined with one wide multiply or divide. The halves split again in turn, down to a size where the earlier batch loop takes over. The joining steps ride on the arithmetic library's fast large-number multiply, so the whole thing finally grows a little faster than the length itself rather than its square.
+		- Verified: a 16,000 digit conversion went from 2.8 to about 1 millisecond, a 64,000 digit one from an extrapolated 45 down to 6.5. A 160,000 digit number now converts through the command in under a tenth of a second, most of which is startup. Short numbers are unchanged.
+		- Verified: across all three passes together, that same 16,000 digit conversion started at 251 milliseconds and 882 megabytes of scratch memory. It now takes 1 millisecond and about a megabyte, roughly 250 times faster. Doubling the length used to quadruple the time; now it roughly doubles it.
+		- Verified: compared against the previous build across about 1,300 conversions at every length near a split seam, plus fractions, negatives, and both precision modes. All identical. Also checked against the standard library's own independent conversion for every base it can express, at every seam length.
+		- Note: the split seams are the one place this can go wrong - a short lower half must keep its leading zeros - and a mistake there still looks like a plausible number. New tests pin every seam, and they were confirmed to catch both seeded mistakes before the real code went in.
+		- Note: delegating half the work to the standard library was considered, measured as no faster end to end, and declined - one algorithm everywhere beats two correctness surfaces.
+		- Note: the fuzzing length cap rose from 256 to 1,024 digits now that long values are cheap, so fuzzing reaches the new seams too.
+	- ✅ Speed up converting long numbers between two bases that are not powers of two. Second of three planned passes.
+		- Cause: the number was read in one digit at a time and written out one digit at a time. Each of those steps costs a pass over the whole number, however long it is, so a short digit gets the same expensive treatment as the entire value.
+		- Fixed: digits are now handled a batch at a time, as many as fit in one of the machine's own numbers. That is nineteen digits at once for base ten, twelve for base thirty-six, five for base 2048. The batch is packed and unpacked with ordinary arithmetic, which is free next to a pass over a long number.
+		- Verified: a 16,000 digit conversion went from 29 to 2.8 milliseconds, so about ten times faster again. A 40,000 digit one went from a quarter of a second to seven hundredths. Shorter numbers gain about five times.
+		- Verified: results were compared against the previous build across about 1,200 conversions covering every length near a batch boundary, plus fractions, negatives, and both fixed and automatic precision. All identical.
+		- Note: two new tests pin the batch boundaries, one for whole numbers and one for fractions. That is the only place this could go wrong, and a wrong answer there would still look like a plausible number.
+		- Note: one more pass is planned, changing the method itself rather than its cost per step.
+	- ✅ Speed up converting long numbers between two bases that are not powers of two. First of three planned passes.
+		- Cause: each new digit of the answer was added to the front of a list. Everything already in the list has to shift along to make room, so the effort grows with the square of the answer's length. That was piled on top of the arithmetic, which is already the slow part for a long number.
+		- Fixed: digits are now collected in the order the arithmetic hands them back, and the list is flipped around once at the end. Same answer, none of the shuffling. The list is also sized up front rather than being regrown as it fills.
+		- Verified: a 16,000 digit conversion went from 251 to 29 milliseconds, and from 882 megabytes of scratch memory down to about one. Shorter numbers gain too, roughly four times faster at 1,000 digits.
+		- Note: new benchmarks cover this path at three input lengths, because the cost curves upward rather than rising evenly, so one length would not show the shape. Run them with `go test -run x -bench Positional ./convertbase`.
+		- Note: long numbers are still slower than they need to be. Two further passes are planned, one to cut the constant cost and one to change the method itself.
 
 - ✅ Animated gif demo: run the motion at 50 frames per second, and make the scroll and the cursor buttery smooth.
 	- Done: every moving frame is now 20 ms. That is the fastest a gif can run, since browsers clamp shorter delays up to a tenth of a second. Motion used to sit at 80 ms.
@@ -159,6 +155,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: a step whose output is taller than the window starts on a cleared screen, so a long list scrolls through once instead of first chasing the previous step's output off the top. Nothing types a clear command.
 	- Done: gifsicle takes a lossless pass at the end when it is installed, which is worth about a sixth of the file. Pixels and timing come out identical. A machine without it just gets a bigger gif.
 	- Note: the file still grows, from about five to about nine megabytes, and nearly all of that is the base list scrolling by. Its scroll rate is the lever if the size matters more than reading along with it.
+
+- ✅ Animated gif demo: Come up with better examples and reencode.
 
 - ✅ Let other programs use this as a library, not just as a command. Design: `design_docs/20260731_linkable_library.md`.
 	- Done: Go package split, so the conversion core can be imported instead of shelled out to. Module path fixed at the same time, since nothing could fetch it before.
