@@ -57,6 +57,29 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - Bugs
 
+- ✅ Slicing a value with a very large count crashed instead of clamping. (Code review 20260802 item 1)
+	- Reproduced: asking for more symbols than the value holds is documented to clamp, and it does, until the count approaches the largest whole number the machine handles. Then it crashes.
+	- Cause: the check added the start and the count together, and that sum wraps around to a negative number, so the too-long count read as short enough.
+	- Fixed: the count is compared against how many symbols are left instead, which cannot wrap.
+	- Note: reachable from the library and from a 32-bit build long before the limit, and not from the module, whose count is a smaller number.
+	- Verified: a new test covers both ends, and the rest of the suite is unchanged.
+
+- ✅ A wild fixed-width value from a host killed the module instead of being refused. (Code review 20260802 item 2)
+	- Reproduced: asking the module to pad a value to the largest width its argument can express stops the module dead. The host gets a crash, not an error.
+	- Cause: padding to a width allocates that many symbols, and the width had no upper limit. Running the module out of memory cannot be caught and recovered from.
+	- Note: the conversion call already caps its precision for the same reason, so the two were inconsistent.
+	- Fixed: width is capped at the same generous limit, and anything larger is refused. The fields this exists for are tens of symbols wide.
+	- Verified: the host exerciser now asks for the largest possible width and requires a refusal. Confirmed to fail before the fix.
+
+- ✅ Writing control characters by name got slower the longer the value was. (Code review 20260802 item 3)
+	- Cause: one control character's name can run into the text after it, so each name is read back against what follows before it is written. That check was copying the whole rest of the value every time, which turns a long value into a lot of copying.
+	- Fixed: only a name's worth of the following text can change how a name reads, so that is all the check looks at now.
+	- Verified: cost now rises evenly with length instead of with its square. A 200 KB value went from about a third of a second to seven thousandths, and the gap widens from there. Output is unchanged, and the test covering every control against every character it can be followed by still passes.
+
+- ✅ The browser module reported a confusing error for a value that was not a real number. (Code review 20260802 item 4)
+	- Cause: a number that is not finite was formatted as a word and then reported as an unrecognized digit. The precision setting already checked for this and the value did not.
+	- Fixed: it is refused with a message that says what is wrong.
+
 - ✅ The fuzz stage failed a run with nothing but "context deadline exceeded".
 	- Reproduced: intermittent, and only at the point where the run's time limit expires. No failing input was ever recorded, and the same target passes on a rerun.
 	- Cause: two separate things. Go itself reports the time limit as the run's error when it reads one of its own cancellation signals a moment before that signal has propagated, so a clean finish is scored as a failure. Separately the run had slowed to a crawl by then, which is what made the timing gap easy to hit.

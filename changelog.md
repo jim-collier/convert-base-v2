@@ -79,6 +79,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The base-48 hex variant, and the word-safe 48, 64, and 128 bases. The word-safe alphabets remain available through the compatibility bases.
 - Base `emoji10` is no longer built in. It is in the config file created on first run, as the worked example, under the name `10emoji` to match the rest, and the old spelling still resolves.
 
+### Fixed
+
+- Cutting a value down to a number of symbols could crash instead of clamping, when the count asked for was near the largest whole number the machine handles. It clamps at every size now.  [20260802]
+- The WebAssembly module could be stopped dead by a host asking to pad a value to an unreasonable width. Width is now capped, and anything larger is refused with an error, the same way an unreasonable precision already was.  [20260802]
+- Writing control characters by name got slower the longer the value was, enough to matter on a large one. It now costs the same per character whatever the length. Output is unchanged.  [20260802]
+- The browser module reported a value that is not a real number as an unrecognized digit. It now says what is actually wrong.  [20260802]
+
 ### Other work
 
 - Error messages from the library no longer mention command-line flags, so a program importing it, or the browser page, gets text that reads right outside a terminal. The command's own messages are unchanged, character for character.

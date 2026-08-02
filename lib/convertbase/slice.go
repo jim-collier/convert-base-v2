@@ -27,7 +27,9 @@ func (b *Base) SymbolSlice(s string, start, count int) (string, error) {
 		start = max(len(digits)+start, 0)
 	}
 	start = min(start, len(digits))
-	if count < 0 || start+count > len(digits) {
+	// Compare against what is left rather than start+count, which overflows for
+	// a count near the integer maximum and would clamp the wrong way.
+	if count < 0 || count > len(digits)-start {
 		count = len(digits) - start
 	}
 	return strings.Join(digits[start:start+count], ""), nil

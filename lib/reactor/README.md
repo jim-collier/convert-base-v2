@@ -16,6 +16,8 @@ Only numbers cross the boundary, so strings travel through the module's exported
 
 - Signed returns (`base_radix`, `symbol_count`, `lookup`, `free`) carry the answer when non-negative and the error as a code (negated where the answer itself is a number).
 
+- Two arguments are bounded, and exceeding either gives `BadArg`. Precision is capped at 100000 because fractional digits cost quadratic time. Fit width is capped at 100000 because padding to it allocates that many symbols, and exhausting the module's memory traps the instance rather than returning an error.
+
 - A base name is anything the command accepts: canonical names, aliases, `b16`/`base16` prefix forms, any case. An unknown name's error text carries the same near-match suggestions the command prints.
 
 ## Exports
@@ -30,8 +32,8 @@ Only numbers cross the boundary, so strings travel through the module's exported
 | `base_zero` | `(name_ptr, name_len: u32) -> u64` | The base's first symbol, packed, host-freed. This is the padding symbol for fixed-width output. The word-safe base 32 starts at `2`, so assuming `0` pads wrongly. |
 | `symbol_count` | `(name_ptr, name_len, str_ptr, str_len: u32) -> i64` | How many of the base's digit symbols make up the string, or the negated error code. Counts symbols, not bytes. Digits only; a sign or decimal marker in the string is an error. |
 | `symbol_slice` | `(name_ptr, name_len, str_ptr, str_len: u32, start, count: i32) -> u64` | The part of the string covering symbols `[start, start+count)`, counting symbols rather than bytes. Negative start counts from the right end (-3 = the last three symbols); count < 0 means through the end; both clamp to what the string holds instead of erroring. Packed, host-freed. Digits only, like `symbol_count`; the result comes back in canonical symbol form. |
-| `fit` | `(name_ptr, name_len, str_ptr, str_len, width: u32) -> u64` | The string right-aligned to exactly `width` symbols: left-filled with the base's zero symbol (`base_zero`) when short, cut to the rightmost `width` symbols when long. Packed, host-freed. Digits only. One place for the pad-or-truncate policy, so every caller applies it the same way. Note again that the word-safe base 32 pads with `2`. |
-| `convert_fit` | `(from_ptr, from_len, to_ptr, to_len, value_ptr, value_len, width: u32) -> u64` | `convert` at automatic precision, then `fit` to `width` in the destination base, one call and one region. Packed, host-freed. The fit half is digits-only, so a conversion whose result carries a sign or decimal marker errors here; use the two-step path for those. |
+| `fit` | `(name_ptr, name_len, str_ptr, str_len, width: u32) -> u64` | The string right-aligned to exactly `width` symbols, at most 100000: left-filled with the base's zero symbol (`base_zero`) when short, cut to the rightmost `width` symbols when long. Packed, host-freed. Digits only. One place for the pad-or-truncate policy, so every caller applies it the same way. Note again that the word-safe base 32 pads with `2`. |
+| `convert_fit` | `(from_ptr, from_len, to_ptr, to_len, value_ptr, value_len, width: u32) -> u64` | `convert` at automatic precision, then `fit` to `width` (at most 100000) in the destination base, one call and one region. Packed, host-freed. The fit half is digits-only, so a conversion whose result carries a sign or decimal marker errors here; use the two-step path for those. |
 | `last_error_code` | `() -> i32` | Code of the most recent call's error, 0 if it succeeded. |
 | `last_error_text` | `() -> u64` | Packed message, module-owned. Zero when there is no error. |
 | `version` | `() -> u64` | Packed library version (`convertbase.Version`), module-owned. |
@@ -64,7 +66,7 @@ Stable and part of the contract: new codes may be added at the end, existing one
 | 3 | `MarkerDefault` | A default marker collides with one of the base's digits. |
 | 4 | `RetiredToken` | A symbol spec carried a retired `neg=`/`dec=`/`pad=` token. |
 | 5 | `BadInput` | Any other conversion or parse failure (a digit not in the base, empty input, and so on). |
-| 6 | `BadArg` | A bad pointer, length, size, or precision from the host. |
+| 6 | `BadArg` | A bad pointer, length, size, precision, or width from the host. |
 | 7 | `Internal` | The registry failed to initialize. |
 
 ## Which one to use
