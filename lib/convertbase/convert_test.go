@@ -27,6 +27,47 @@ func benchBytes() string {
 	return string(b)
 }
 
+// benchDigits is a deterministic run of n nonzero decimal digits.
+func benchDigits(n int) string {
+	d := make([]byte, n)
+	for i := range d {
+		d[i] = byte('1' + (i*7+3)%9)
+	}
+	return string(d)
+}
+
+// Positional-path benchmarks: neither base is a power of 2, so these take the
+// big.Int route. Run at several lengths on purpose - the cost grows with the
+// square of the digit count, so a single length says nothing about the curve.
+//
+//	go test -run x -bench Positional -benchmem ./convertbase
+func benchPositional(b *testing.B, digits int) {
+	reg, err := NewRegistry()
+	if err != nil {
+		b.Fatal(err)
+	}
+	from, err := reg.Lookup("10")
+	if err != nil {
+		b.Fatal(err)
+	}
+	to, err := reg.Lookup("36")
+	if err != nil {
+		b.Fatal(err)
+	}
+	input := benchDigits(digits)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := Convert(input, from, to, 0); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkPositional1K(b *testing.B)  { benchPositional(b, 1000) }
+func BenchmarkPositional4K(b *testing.B)  { benchPositional(b, 4000) }
+func BenchmarkPositional16K(b *testing.B) { benchPositional(b, 16000) }
+
 func benchConvert(b *testing.B, fromName, toName, input string) {
 	reg, err := NewRegistry()
 	if err != nil {
