@@ -69,6 +69,7 @@ It's a single, fast, cross-platform static binary written in Go.
 - [Third-party binary codecs, built in](#third-party-binary-codecs-built-in)
 - [List of predefined bases](#list-of-predefined-bases)
 - [How to design a numeric base](#how-to-design-a-numeric-base)
+- [Development](#development)
 - [Support convert-base-v2](#support-convert-base-v2)
 - [Legal stuff](#legal-stuff)
 
@@ -426,6 +427,12 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 ## How to design a numeric base
 
 [This companion document](how_to_design_a_numeric_base.md) walks through designing a good numeric base, whether as a positional notation system or a binary-to-text codec. It is harder than it looks, which is why so many of the "official" large bases are as quirky as they are.
+
+## Development
+
+The Go tree is under `lib/`: the command in `lib/cmd/convert-base-v2/`, the conversion core in `lib/convertbase/`. From there, `make local` builds the shipping binary, `make debug` keeps the symbols, and `make test` runs the tests.
+
+Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. `--quick` skips the slow stages, `--long` runs the exhaustive tests, and every stage has its own `--no-...` switch.
 
 ## Support convert-base-v2
 
