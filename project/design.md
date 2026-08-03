@@ -105,7 +105,12 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 - **The reactor module is a push API for streaming.** An exported function gets none of the standard input and output that the WASI build is handed, so a stream is opened, written to, and finished by the host. That shape needs nothing from the host beyond memory.
 
-- **Two binary paths, kept separate.** Streaming (constant memory, linear time) and buffered positional (quadratic time) are different jobs, so they stay as two implementations rather than being merged. An equivalence test pins them together, and fails if they ever diverge.
+- **Two binary paths, kept separate.** Streaming (constant memory, linear time) and buffered positional (superlinear time) are different jobs, so they stay as two implementations rather than being merged. An equivalence test pins them together, and fails if they ever diverge.
+
+- **The number path uses published subquadratic algorithms, not a hand-tuned quadratic loop.** Converting between two arbitrary bases has no shortcut through binary, so the schoolbook method costs a full pass over the value per digit in each direction. Rather than optimize that constant factor, the digit run is split in half and rejoined with one wide multiply or divide, which is Schonhage's radix conversion as written up in Brent and Zimmermann. It leans on `math/big` being subquadratic underneath, which it is, through Karatsuba multiplication and Burnikel-Ziegler recursive division. Below the cutoff the leaves pack digits a machine word at a time, which is the classical sub-base trick and is worth a constant factor only.
+	- The measured exponent drops from 2.00 to between 1.15 and 1.53 over the sizes tested, which is a million-digit conversion in a third of a second against a hundred and seven seconds.
+	- The split seam is the one place this can go quietly wrong in either direction. A short low half has to keep its leading zeros coming out, and weigh correctly going in, and either mistake still produces a plausible-looking number. Tests pin every seam length against an independent conversion rather than against a fixture.
+	- Delegating the output leg to the standard library's own conversion was measured and declined. It is a wash end to end, because remapping the result to an arbitrary alphabet costs what the faster core saves, and the input leg would still need the recursion.
 
 - **Padding is by mode, not by base.** Positional number output is never padded. The binary-to-text codec path pads to the group boundary for every RFC 4648 variant, matching the strict standard decoders. Decoding stays lenient and accepts padded or unpadded input either way.
 

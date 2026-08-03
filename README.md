@@ -69,6 +69,8 @@ It's a single, fast, cross-platform static binary written in Go.
 - [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
 	- [Also why the -v2?](#also-why-the--v2)
 - [Speed](#speed)
+	- [Streaming binary and text](#streaming-binary-and-text)
+	- [Large numbers](#large-numbers)
 - [Third-party binary codecs, built in](#third-party-binary-codecs-built-in)
 - [List of predefined bases](#list-of-predefined-bases)
 - [How to design a numeric base](#how-to-design-a-numeric-base)
@@ -89,6 +91,8 @@ It's a single, fast, cross-platform static binary written in Go.
 - **Binary to text, in many more bases than usual**: Encode or decode raw binary in every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. That covers everything `basenc` does, at comparable speed, plus bases `basenc` never heard of. Bases with no byte-exact mapping are refused in binary mode, and `--list` shows which ones qualify.
 
 	- To re-encode straight between two text bases as bytes (hex to base 64, say), add `--binary`. Without it, two power-of-two text bases convert as a plain number, which drops leading zeros; a note on stderr points this out, and `--number` silences it.
+
+- **Subquadratic on huge values**: The number path uses the published divide and conquer radix conversion over Karatsuba multiplication and Burnikel-Ziegler division, so a million-digit conversion takes a third of a second instead of a couple of minutes. See [Large numbers](#large-numbers).
 
 - **Reads from anywhere**: Takes input from the command line or from `stdin`, so it drops into a pipe.
 
@@ -319,6 +323,10 @@ That compatibility is tested, not assumed. The original `convert-base-v1` and `c
 
 `convert-base-v2` is fast enough to sit in a pipe next to the coreutils tools without being the bottleneck.
 
+There are two jobs here with two different cost curves, so they are measured separately: streaming a file through a codec, and converting one very large number between two arbitrary bases.
+
+### Streaming binary and text
+
 Binary and text stream encoding is the part that benchmarks cleanly, so here is measured throughput against the standard tools, one table per format. It decodes faster than the standard tools, and encodes in the same ballpark.
 
 **Base-64**
@@ -358,6 +366,39 @@ Base 64 is the most compact way to store binary as UTF-8 text, which is why it i
 - Others use UTF-32. Best base for it: base 65536.
 
 - For binary tucked into a Twitter/X post, qntm's base 2048 is the reported optimum.
+
+### Large numbers
+
+Converting between two arbitrary bases is not a bit operation. Base 10 to base 36 has no shortcut through binary, so the value has to be built up and taken back apart with real arithmetic. The textbook way to do that costs one pass over the whole number per digit, in both directions, which is quadratic. At a few thousand digits nobody notices. At a million digits it is minutes.
+
+This uses the published subquadratic method instead.
+
+- **Divide and conquer radix conversion**: A long digit run is cut in half, each half is converted on its own, and the two are rejoined with a single wide multiply on the way in, or separated by a single wide divide on the way out. The powers of the radix at each split width are built once by repeated squaring and reused for the whole recursion. This is Schonhage's algorithm, written up as `FastIntegerInput` and `FastIntegerOutput` in Brent and Zimmermann, [Modern Computer Arithmetic](https://members.loria.fr/PZimmermann/mca/pub226.html) (Cambridge University Press, 2010), section 1.7. It costs `O(M(n) log n)`, where `M(n)` is the cost of one multiply, against `O(n^2)` for the schoolbook loop. Go's own `math/big` converts to and from decimal the same way.
+
+- **Karatsuba multiplication**: From Karatsuba and Ofman, "Multiplication of Multidigit Numbers on Automata" (Doklady Akademii Nauk SSSR 145, 1962). Splitting the number only pays if the multiply that rejoins the halves also beats `O(n^2)`. Karatsuba gets three half-size products to do the work of four, for `O(n^1.585)`. It comes from `math/big`, and it is where the recursion spends most of its time.
+
+- **Burnikel-Ziegler recursive division**: From ["Fast Recursive Division"](https://pure.mpg.de/rest/items/item_1819444/component/file_2599480/content) (Max Planck Institute for Informatics, MPI-I-98-1-022, 1998). The output leg splits by dividing rather than multiplying, so it needs division to be subquadratic for exactly the same reason. Also from `math/big`.
+
+- **Sub-base packing**: Below the recursion cutoff, digits are not handled one at a time. As many as fit in a 64-bit machine word are packed with ordinary integer arithmetic, and only then does one bignum operation carry the whole group: 19 digits at a time for base 10, 12 for base 36, 5 for base 2048. That is the classical `b^k` radix trick from Knuth, *The Art of Computer Programming*, volume 2, section 4.4, and it buys a constant factor of `k`. The leaf loops themselves are Horner's rule going in and repeated division coming out.
+
+- **No arithmetic at all, where the bases allow it**: Between two power-of-two bases, and for the byte codecs, a conversion is only a regrouping of bits. That path is `O(n)`, streams in constant memory, and never builds a bignum. It is the path the throughput tables above measure.
+
+Measured base 10 to base 36, against a straight schoolbook implementation on the same hardware using the same `math/big`:
+
+| Input digits | Schoolbook | `convert-base-v2` | Faster by |
+| --: | --: | --: | --: |
+| 1,000 | 0.16 ms | 0.04 ms | 4x |
+| 4,000 | 1.99 ms | 0.20 ms | 10x |
+| 16,000 | 29 ms | 1.0 ms | 28x |
+| 64,000 | 443 ms | 6.4 ms | 69x |
+| 256,000 | 7.0 s | 47 ms | 150x |
+| 1,000,000 | 107 s | 0.34 s | 310x |
+
+Four million digits convert in about 2.9 seconds. Same bench as the tables above, with both implementations in one process so the arithmetic library and the machine are held constant.
+
+The gap widens with size because the two are on different curves, not because one is tuned better. Fit an exponent to each column and the schoolbook one measures 2.00, while this one runs at 1.15 for short values and 1.53 at the top of the table.
+
+Short numbers pay nothing for any of it. Below the cutoff the recursion never starts, and a number of ordinary length converts in a few microseconds.
 
 ## Third-party binary codecs, built in
 

@@ -22,6 +22,10 @@ var bigOne = big.NewInt(1)
 // and out: one multiply or divide over the whole number then carries k digits
 // instead of one, and a word-sized operand keeps math/big on its single-word
 // fast path. Radix is always at least 2 - finalize() rejects anything smaller.
+//
+// The classical b^k sub-base trick; Knuth, TAOCP vol 2 sec 4.4. Worth a
+// constant factor of k, and nothing asymptotically - dcLeafWords is where the
+// exponent actually changes.
 func wordChunk(radix uint) (count int, pow uint) {
 	const maxWord = ^uint(0)
 	pow = 1
@@ -38,6 +42,12 @@ func wordChunk(radix uint) (count int, pow uint) {
 // the O(n^2) walk into O(M(n) log n) and lets math/big's subquadratic multiply
 // carry the load. Power of two, so the power table lines up with the splits.
 // Tuned on BenchmarkPositional.
+//
+// Schonhage's radix conversion: FastIntegerInput/FastIntegerOutput in Brent and
+// Zimmermann, Modern Computer Arithmetic sec 1.7. It only pays because math/big
+// is subquadratic underneath both legs - Karatsuba (Karatsuba and Ofman 1962)
+// for the multiply, Burnikel-Ziegler recursive division for the divide. Drop
+// either and the split buys nothing.
 const dcLeafWords = 32
 
 // dcState carries what one conversion leg's recursion needs: the base, the
