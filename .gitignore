@@ -10,6 +10,8 @@
 **/.vscode/bookmarks.json
 **/unicode_visual_debug.png
 **/__pycache__
+# LibreOffice writes one of these beside any document it has open.
+**/.~lock.*#
 
 # Cargo output for the interop adapter. Compiled, and for one architecture only;
 # it rebuilds offline from the vendored source in a few seconds.

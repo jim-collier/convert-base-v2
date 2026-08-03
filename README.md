@@ -443,7 +443,7 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 10 | 10hindi | devanagari | 25 | 71 | -८६४३४४९१२३२५<br>४८९९५३६९.३१४
 | 10 | 10arabicindic | easternarabic | 25 | 48 | -٨٦٤٣٤٤٩١٢٣٢٥<br>٤٨٩٩٥٣٦٩.٣١٤
 | 10 | 10rods | rods | 25 | 94 | -𝍧𝍥𝍣𝍢𝍣𝍣𝍨<br>𝍠𝍡𝍢𝍡𝍤𝍣𝍧𝍨<br>𝍨𝍤𝍢𝍥𝍨.𝍢𝍠𝍣
-| 10 | 10blocks | blocks | 25 | 75 | ◆▓▇▅▄▅▅▒▂▃▄▃▆<br>▅▓▒▒▆▄▇▒●▄▂▅
+| 10 | 10blocks | blocks | 25 | 75 | ◆▒▇▅▄▅▅▓▂▃▄▃▆<br>▅▒▓▓▆▄▇▓●▄▂▅
 | 10 | 10emoji | emoji10 | 25 | 99 | 🥕🙄😬😜😘😜😜🤔<br>😑😔😘😔😠😜🙄🤔<br>🤔😠😘😬🤔⚽😘😑😜
 | 12 | 12 | dozenal | 25 | 25 | -32B60A3489B6<br>3081435.3927
 | 16 | 16 | hex | 23 | 23 | -4AF84FFD391<br>B2C129.5062
@@ -473,7 +473,7 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 64 | 64hex | 64h | 17 | 17 | ~1A-4_zEHii4f.K69
 | 64 | 64code | programmer | 17 | 19 | -1Aʞ4λzEHii4f.K69
 | 64 | 64emoji |  | 17 | 62 | -😁😊😾😄😿😽😎<br>😑😬😬😄😩.😔😆😉
-| 64 | 64tt |  | 17 | 19 | -1A¢4£zEHii4f.K69
+| 64 | 64tt | 64tz | 17 | 19 | -1A¢4£zEHii4f.K69
 | 69 | 69nice | nice | 16 | 25 | -zn4x1ȹk⍢7≷q.l֏𐌸
 | 69 | 69emoji |  | 16 | 57 | -🔀👬🌊💥♋🔃👨<br>🤩🌮🤤💄.👩😗🪵
 | 85 | 85z | z85 | 11 | 11 | 4xffF@ChZ1X
@@ -481,11 +481,13 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 85 | 85ipv6 | rfc1924 | 11 | 11 | 4XFFf{cHz1x
 | 91 | 91hk | base91 | 11 | 11 | CT~oQ_nxbnP
 | 98 | 98keyboard | keyboard | 11 | 11 | 15 \n7f!F0E>
-| 128 | 128tt |  | 15 | 20 | -9l§£ΔvD¿2f.eO»
+| 128 | 128tt | 128tz | 15 | 20 | -9l§£ΔvD¿2f.eO»
 | 256 | bytes |  |  |  | (raw bytes 0x00-0xFF)
-| 256 | 256tt |  | 14 | 29 | -4६ψባា϶ଌชf.ðɔß
+| 256 | 256tt | 256tz | 14 | 29 | -4६ψባา϶ଌชf.ðɔß
 | 512 | 512tt |  | 13 | 28 | -9งd𐊀ʚʁ⅃ᛎ.կꓱʊ
-| 1024 | 1024tt |  | 11 | 28 | -»倅ጎ佨ᚳ७ᛎ.ᥛ丘
+| 512 | 512tz |  | 13 | 27 | -9งd亟ʚʁ⅃ᛎ.կ与ʊ
+| 1024 | 1024tz |  | 11 | 28 | -»傜ባ倄ᚳ७ᛎ.ᥛ仏
+| 2048 | 2048tz |  | 11 | 26 | -1ℸæ𐊄卙卲ᛎ.伮Ͽ
 | 2048 | 2048qntm | 2048twitter | 11 | 22 | -9ϤƂဤಛಮΚ.Ռȝ
 | 2048 | 2048llfourn |  | 11 | 23 | -µȟďპ൰උǩ.Дœ
 | 32768 | 32768qntm | 32768utf16 | 9 | 22 | -ڊꋇꛎ䦥枉.云㦵
