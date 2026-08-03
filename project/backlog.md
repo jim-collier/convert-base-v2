@@ -149,6 +149,17 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Retire `2048tt`, and rebuild the family on code-point-ordered alphabets.
+	- Cause: the alphabet was assembled out of code point order, so `2048tt` could not be corrected without leaving two different alphabets answering to one name.
+	- Done: `2048tt` removed, and `2048tz` put in its place. The old alphabet is kept as a comment in `bases.go`, since builds carrying it did produce output.
+	- Done: two ordered alphabets now, `534tt` without CJK and `2048tz` with it. They are identical for their first 384 symbols, so everything below 512 is one base under two names; `512tt` and `512tz` are separate; above 512 only `tz` continues.
+	- Done: `256tt` and `512tt` write different digits as a result. `32tt`, `64tt`, and `128tt` are unchanged.
+	- Done: `10blocks` is in code point order too. It is new in this release, so nothing was written with the earlier arrangement.
+	- Done: the release is v3.0.0, since bases that shipped in a build now decode differently.
+	- Fixed: the base 1024 block was named `1024tt` while drawing from the `tz` alphabet, which its own comment and the family rule both contradicted. It is `1024tz`.
+	- Fixed: the two alphabets are equal through 384 symbols, not the 369 the comments claimed.
+	- Verified: harness 426/426, unit tests, vet, and gofmt clean. Every base round-trips as a number and as a byte stream, and the README table was regenerated from the binary.
+
 - ✅ Cut and pad a value on symbol boundaries, for callers with fixed-width fields.
 	- Done: two new calls on a base. One takes a range of symbols out of a value, the other fits a value to a width. Fitting left-fills with the base's own zero symbol and keeps the rightmost symbols when the value is too long.
 	- Done: both count symbols rather than bytes, so a multi-byte alphabet works. Both refuse a sign, a decimal marker, or a digit the base does not carry.
@@ -311,7 +322,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- The retired `neg=`/`dec=`/`pad=` tokens are a hard error naming the replacement, so a stale spec can't quietly turn one into a digit and shift the alphabet.
 	- Designed in `design_docs/20260725_neg_dec_pad_config_cli.md`.
 
-- ✅ Design new bases (all just shorter versions of 1024tt, which starts with base 62h):
+- ✅ Design new bases (all just shorter versions of the `tt` alphabet, which starts with base 62h):
 	- ✅ Blocks: ▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▒ ▓
 	- ✅ 512tt
 		0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ¡ ¢ £ ¤ ¥ § © « ® ° ± µ · » ¿ Ø Þ ß æ ð ÷ ø þ ŋ ƅ Ɔ ƌ ƒ ƨ Ʊ ƶ ƹ ƾ ǂ ǝ ȸ ȹ ɀ Ʌ ɐ ɒ ɔ ɘ ə ɛ ɞ ɤ ɥ ɮ ɷ ɸ ɹ ʁ ʃ ʅ ʇ ʉ ʊ ʌ ʎ ʘ ʚ ʞ ʬ ʭ ͳ ͷ ͼ ͽ Δ Ω α δ ζ θ λ μ ξ π φ ψ ω ϑ ϕ ϖ ϝ ϟ Ϡ ϡ ϣ ϥ ϧ ϩ ϰ ϱ ϵ ϶ ϸ Ͻ Ͼ Ͽ ж л п я ѧ ѳ ҂ ҩ ԃ ԅ ԉ ԋ ԏ թ ժ ի կ ձ ճ մ ն չ պ վ ր ֏ ۲ ۳ ۴ ۶ ۸ ५ ६ ७ ८ ଌ ୧ ୫ ୬ ୯ ఠ వ ก ข ค ฅ ฆ ง จ ฉ ช ถ ท ธ ป ร ฤ ล ฦ ว ศ ษ ส ห อ ฮ ฯ ะ า ๑ ๓ ๖ ๙ ა ბ გ დ ე თ ი კ ლ ჟ რ ს ტ უ ფ ქ ღ ყ შ ჩ ც წ ჭ ჯ ჰ ჲ ჵ ჶ ჸ ჹ ჺ ዓ ዖ ዛ ዞ የ ዶ ገ ጌ ግ ጎ ጓ ጻ ጾ ፀ ህ ለ ላ ል ረ ሪ ሬ ር ስ ባ ቦ ኣ ኦ ካ ኮ ᚠ ᚢ ᚣ ᚦ ᚨ ᚬ ᚭ ᚮ ᚯ ᚳ ᚴ ᚸ ᚻ ᚼ ᚾ ᚿ ᛃ ᛄ ᛅ ᛆ ᛇ ᛉ ᛋ ᛎ ᛏ ᛓ ᛔ ᛗ ᛘ ᛚ ᛛ ᛜ ᛝ ᛟ ᛠ ᛡ ᛢ ᛣ ᛦ ᛨ ᛩ ᛪ ᛮ ᛯ ᛳ ᛶ ᛷ ᛸ ᥛ ᥝ ᥢ ᥰ ᥳ ᨑ ᲆ ᲇ ᲈ ᴈ ᴉ ᴎ ᴐ ᴒ ᴖ ᴗ ᴙ ᴚ ᴝ ᴟ ᴤ ᴧ ᴨ ᴫ ᵷ ẟ • ‣ ₢ ₣ ₤ € ₶ ₺ ℈ ℧ ℶ ℸ ⅃ ⅄ ⅋ ⅎ ↊ ↋ ← ↑ → ↓ ∂ ∃ ∆ ∇ ∋ ∩ ∻ ≈ ⊲ ⊳ ⋏ ⌂ ⌔ ⍢ ⍨ ⟂ ⟅ ⟠ ⦁ ⦂ ⦅ ⦛ ⦠ ⧎ ⧖ ぁ ぅ ぇ ぉ か こ さ す そ ち て と ひ ま め ゃ ゅ ょ り ゐ ゑ を ゕ ゖ ァ ゥ ォ カ キ ク ケ サ シ ス セ ソ タ チ ッ テ ヌ ネ ホ ャ ン ヵ ㄅ ㄆ ㄉ ㄊ ㄌ ㄓ ㄔ ㄘ ㄛ ㄝ ㄞ ㄠ ㄡ ㄤ ㅅ ㅈ ㅊ ㅍ ㅎ ㆄ ꓕ ꓘ ꓛ ꓞ ꓤ ꓥ ꓨ ꓩ ꓭ ꓱ ꓵ ꓶ 𐀀 𐀁 𐀂 𐀈 𐀍 𐀑 𐀒 𐀓 𐀔 𐀕 𐀖 𐀗 𐀘 𐀙 𐀚 𐀛 𐀣

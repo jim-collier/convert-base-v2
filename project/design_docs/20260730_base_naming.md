@@ -175,6 +175,8 @@ Retiring a spelling produces the existing unknown-base error with did-you-mean s
 
 Implemented 20260730 on branch `names`, merged to dev. All checklist items below are done; the harness passes at 356 checks including both legacy cross-check suites.
 
+Later change, 20260803: `2048tt` was removed. The table below still records what its name was at the time of this pass, which is what the pass decided; it is no longer a base.
+
 ## Implementation checklist
 
 - bases.go: alias arrays per the table, comment updates (required-alias notes for 64r and the demoted bare 32/64), quaternary typo.

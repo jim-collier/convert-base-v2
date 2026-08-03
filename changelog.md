@@ -22,13 +22,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Other work
 -->
 
-## v2.1.0 - WIP
+## v3.0.0 - WIP
 
 ### Notes
 
 - Breaking: some bases and aliases were removed or renamed, listed under Changed and Removed below. Every name the older `convert-base-v1` and `convert-base-v1b` accepted still works, so scripts written against those are safe; a script that used one of the dropped v2 spellings needs the new name.
 - Breaking: the `neg=`, `dec=`, and `pad=` tokens are gone from symbol specs. A spec that still carries one is now an error naming its replacement, so nothing changes meaning silently. Update any script or config file that used the old form.
 - Breaking: config files are SHCL now, not YAML, and are named `convert-base-v2.shcl`. An old `convert-base-v2.conf` is no longer read. The fields are the same, so rewriting one is mostly a matter of spelling; the new file created on first run shows the shape.
+- Breaking: `2048tt` is gone, replaced by `2048tz`, and the digits of `256tt` and `512tt` changed. Anything written in one of those bases has to be decoded with the previous build before upgrading. `32tt`, `64tt`, and `128tt` are untouched.
 
 ### Added
 
@@ -37,7 +38,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A `--list-compat` flag, which lists the compatibility bases that `--list` no longer shows.
 - Compatibility bases covering both older tools, named after what they match: `48ws_compat_v1`, `64ws_compat_v1`, `128_compat_v1`, `48ws_compat_v1b`, `64ws_compat_v1b`, `128ws_compat_v1b`, `128_compat_v1b`, `256_compat_v1`, and `288_compat_v1`. Every name the older tools accepted still resolves.
 - Six flags to set the markers directly: `--from-neg`, `--from-dec`, `--from-pad`, `--to-neg`, `--to-dec`, `--to-pad`. An empty value disables a marker, and an omitted flag leaves the base as it was.
-- Two bases between `512tt` and the published base 2048s: `1024tt` and `2048tt`.
+- A second large family, `tz`, which carries CJK digits and so reaches further: `512tz`, `1024tz`, and `2048tz`. Below 512 symbols the two families are the same alphabet, so `32tz` through `256tz` are simply other names for `32tt` through `256tt`. At 512 they part company, and above it only `tz` continues. `512tt` is the one to pick when every digit should be a single-width character; `512tz` is the one to pick for consistency with the larger `tz` bases.
 - The conversion core is now an importable Go package, `github.com/jim-collier/convert-base-v2/lib/convertbase`, under Apache-2.0. It carries its own version, starting at v0.1.0, which moves separately from the command's.
 - A WebAssembly build of the command, for Wasmtime, Wazero, Node, and the WebAssembly edge platforms. It reads and writes real standard input and output, so streaming behaves as it does natively, and one file runs on every architecture.
 - A browser build of the library, Apache-2.0 like the library itself, plus a demo page that runs it with no server involved.
@@ -64,7 +65,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Crockford base 32 (`32c`) now writes lower case, which is easier to read and is the point of that alphabet. Reading is unchanged and still case-insensitive.
 - Converting a long number between two bases that are not powers of two is much faster and uses far less memory, and the cost no longer grows with the square of the length. A 16,000 digit conversion dropped from 251 milliseconds to about 1, and from 882 MB of working memory to about 1 MB. A 160,000 digit number converts in under a tenth of a second, most of which is program startup. Short numbers are unaffected in practice, but gain too.
 - Raw binary now streams through every base that can carry it, not just the single-character ones. A large file through one of the multi-byte bases holds steady near 20 MB of memory instead of growing with the file, and decoding runs about three times faster. Encoding a 48 MB file to `64emoji` used to peak at 1.2 GB.
-- `512tt`, `1024tt`, and `2048tt` now end a byte stream with a tail character, the same approach the published big bases use, which is what lets them stream. Their binary layout changed as a result. None of the three has been in a release, so no existing data is affected.
+- The large `tt` and `tz` bases end a byte stream with a tail character, the same approach the published big bases use, which is what lets them stream. Their binary layout changed as a result. None of them has been in a release, so no existing data is affected.
+- The digits of the `tt` and `tz` bases are now in ascending code point order. That changes what `256tt` and `512tt` write, since the first digit that moved sits inside the first 256. `32tt`, `64tt`, and `128tt` draw only from the part that did not move, so they are unchanged.
+- The `10blocks` digits are in code point order too. The base is new in this release, so nothing can have been written with the earlier arrangement.
 - Binary decoding of a base with multi-character digits now accepts line breaks, so wrapped output reads back. The single-character bases already did.
 - Base-45 decoding accepts line breaks too, so wrapped base-45 reads back like every other base that carries raw bytes. Spaces are still digits there, and still meaningful.  [20260730]
 - A symbol spec is digit symbols and nothing else, matching how the predefined bases and the config file fields already worked.
@@ -74,6 +77,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Removed
 
 - The `neg=`, `dec=`, and `pad=` tokens inside symbol specs, on the command line and in config files. Config files keep their `negative:`, `decimal:`, and `pad:` fields, which are unchanged.
+- Base `2048tt`. Its digits were not in code point order, and there was no way to correct that without leaving two incompatible alphabets under one name. `2048tz` takes its place.
 - Bech32 (`32bip`) and base 58 (`58btc`). Both are misleading here: neither is a plain base conversion, so this tool could never produce a real address with them.
 - Base 69 `69prsh`, replaced by `69nice`.
 - The base-48 hex variant, and the word-safe 48, 64, and 128 bases. The word-safe alphabets remain available through the compatibility bases.
