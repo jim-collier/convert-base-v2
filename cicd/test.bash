@@ -568,7 +568,7 @@ ntrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols 
 ## A tail that could never be used is rejected where it is declared.
 check errmsg "tail below 8 bits rejected" 'above 256 symbols' -- --from bytes --to 64 --to-tail "⸐ ⸑" 5
 check errmsg "tail not power of 2 rejected" 'power of 2' -- --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑ ⸒" 5
-check errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 2048tt --to-tail "⸐ ⸑" 5
+check errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 1024tt --to-tail "⸐ ⸑" 5
 check errmsg "tail on bytes rejected" 'do not apply' -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
 
 ## Same tail declared in a config file rather than on the command line.

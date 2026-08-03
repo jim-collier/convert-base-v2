@@ -52,7 +52,7 @@ It's a single, fast, cross-platform static binary written in Go.
 <!-- TOC -->
 
 - [Features](#features)
-- [Try it from here](#try-it-from-here)
+- [Try it online](#try-it-online)
 - [Install](#install)
 	- [Packages and installers](#packages-and-installers)
 	- [One-line install script](#one-line-install-script)
@@ -98,13 +98,13 @@ It's a single, fast, cross-platform static binary written in Go.
 
 - **One portable binary**: Cross-platform Go, no runtime or dependencies to install.
 
-## Try it from here
+## Try it online
 
 **[Open the converter in your browser](https://jim-collier.github.io/convert-base-v2/)**. Nothing to install, nothing to sign up for.
 
 It runs the real conversion core, compiled to WebAssembly, inside your own browser tab. Every base listed below works, including the large Unicode ones.
 
-*Note: Nothing you type is sent anywhere. Your browser downloads the page and the WASM module once, then does all the work locally - disconnect from the network and it keeps converting. And no cookies, beacons, tracking, fingerprinting, analytics, or captchas that have you wondering if you are really a human.*
+*Note: Nothing you type is sent anywhere. Your browser downloads the page and the WASM module once, then does all the work locally - disconnect from the network and it keeps converting. No cookies, beacons, tracking, fingerprinting, analytics, or captchas that have you wondering if you are really a human.*
 
 ## Install
 
@@ -219,13 +219,13 @@ Five separate things get built here, and they are not interchangeable:
 
 - **The command**, `convert-base-v2`. A program. It parses flags, loads config files, and moves data through pipes.
 
-- **The Go package**, `lib/convertbase`. A library. Import it and call its functions.
+- **The Go package**, `lib/convertbase`. A library. Import it and call its functions. Permissive Apache 2.0 license.
 
-- **The browser module**, `web/convert-base.wasm`. The package compiled for a web page, with a small set of JavaScript calls.
+- **The browser module**, `web/convert-base.wasm`. The package compiled for a web page, with a small set of JavaScript calls. Permissive Apache 2.0 license.
 
 - **The WASI module**, `dist/convert-base-v2.wasm`. The whole command compiled to WebAssembly. A program, not a library.
 
-- **The reactor module**, `dist/convert-base-reactor.wasm`. The package compiled for any WebAssembly runtime, exporting plain functions.
+- **The reactor module**, `dist/convert-base-reactor.wasm`. The package compiled for any WebAssembly runtime, exporting plain functions. Permissive Apache 2.0 license.
 
 The line between the command and the package is about what each one is allowed to do. Writing a config file into someone's home directory is fine for a program that person chose to run. It is not fine for a library that got imported into somebody else's project, so the package does none of it. It touches no files, reads no environment variables, and prints nothing. The caller decides all of that.
 
@@ -483,10 +483,9 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 98 | 98keyboard | keyboard | 11 | 11 | 15 \n7f!F0E>
 | 128 | 128tt |  | 15 | 20 | -9l§£ΔvD¿2f.eO»
 | 256 | bytes |  |  |  | (raw bytes 0x00-0xFF)
-| 256 | 256tt |  | 14 | 29 | -4६ψጎา϶ଌชf.ðɔß
-| 512 | 512tt |  | 13 | 28 | -9งd𐌈ʚʁ⅃ᛎ.կｧʊ
+| 256 | 256tt |  | 14 | 29 | -4६ψባា϶ଌชf.ðɔß
+| 512 | 512tt |  | 13 | 28 | -9งd𐊀ʚʁ⅃ᛎ.կꓱʊ
 | 1024 | 1024tt |  | 11 | 28 | -»倅ጎ佨ᚳ७ᛎ.ᥛ丘
-| 2048 | 2048tt |  | 11 | 25 | -1ℸæ咊劰勃ᛎ.亓Ͽ
 | 2048 | 2048qntm | 2048twitter | 11 | 22 | -9ϤƂဤಛಮΚ.Ռȝ
 | 2048 | 2048llfourn |  | 11 | 23 | -µȟďპ൰උǩ.Дœ
 | 32768 | 32768qntm | 32768utf16 | 9 | 22 | -ڊꋇꛎ䦥枉.云㦵

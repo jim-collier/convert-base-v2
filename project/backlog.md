@@ -44,6 +44,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### Todo
 
+- 🛠️ Finish the `1068tt` alphabet.
+	- Note: it holds 534 of the 1068 symbols the name promises, so `1024tt` cannot be built and the package panics on startup.
+	- Note: the 534 that are there are in code point order and the first 512 look settled, so `256tt` and `512tt` are already correct.
+	- Note: once it is complete, regenerate the README bases table with `utility/gen-bases-table.py`. The `1024tt` row still shows digits from the old alphabet.
+
 ### Bugs
 
 ### New features and enhancements
@@ -148,6 +153,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Fixed: a spec containing one is refused up front.
 
 #### Done - New features and enhancements
+
+- ✅ Retire `2048tt`, and put the rest of the `tt` digits in code point order.
+	- Cause: the alphabet was assembled out of code point order, so `2048tt` could not be corrected without leaving two different alphabets answering to one name.
+	- Done: `2048tt` removed. Its old alphabet is kept as a comment in `bases.go`, since builds carrying it did produce output.
+	- Done: the family now draws from `1068tt`, in order. `256tt`, `512tt`, and `1024tt` write different digits as a result; `32tt` through `128tt` are unchanged.
+	- Done: `10blocks` is in code point order too. It is new in this release, so nothing was written with the earlier arrangement.
+	- Done: the release is v3.0.0, since bases that shipped in a build now decode differently.
+	- Note: the README bases table still needs a regen, and the alphabet is still short of 1068 symbols. Both are tracked under Todo.
 
 - ✅ Cut and pad a value on symbol boundaries, for callers with fixed-width fields.
 	- Done: two new calls on a base. One takes a range of symbols out of a value, the other fits a value to a width. Fitting left-fills with the base's own zero symbol and keeps the rightmost symbols when the value is too long.

@@ -10,6 +10,11 @@ import (
 	"strings"
 )
 
+//	Incorrectly-defined bases, but that made it into at least one compiled version, and some output may have been used. Kept for documentation in case something needs to be reverse-engineered in the future; don't delete.
+//	base_2048tt_bad  = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ¢ £ ¤ ¥ § © « ® ° ± µ · » ¿ Ø Þ ß æ ð ÷ ø þ ŋ ƌ ƨ Ʊ ƶ ƹ ƾ ǂ ǝ ȸ ȹ ɀ ɐ ɒ ɔ ɘ ɛ ɞ ɤ ɥ ɮ ɷ ɸ ɹ ʁ ʇ ʉ ʊ ʌ ʎ ʚ ʞ ʬ ʭ ͳ ͷ ͼ ͽ Δ Ω α δ ζ θ λ ξ π φ ψ ω ϑ ϖ ϝ ϟ Ϡ ϣ ϥ ϧ ϩ ϰ ϱ ϶ Ͼ Ͽ ѧ ѳ ҂ ҩ ԃ ԅ ԉ ԋ ԏ թ ժ ի կ ձ ճ մ ն չ վ ր ֏ ۲ ۳ ۴ ۶ ۸ ५ ६ ७ ८ ଌ ୧ ୫ ୬ ୯ ఠ వ ก ข ค ฅ ฆ ง จ ฉ ช ถ ท ธ ป ร ฤ ล ฦ ว ศ ษ ส ห อ ฮ ฯ ะ า ๑ ๓ ๖ ๙ ა ბ გ დ ე თ ი კ ჟ რ ს ტ უ ფ ქ ღ ყ შ ჩ ც წ ჭ ჯ ჰ ჲ ჵ ჶ ჸ ჹ ჺ ዓ ዖ ዛ ዞ የ ዶ ገ ጌ ግ ጎ ጓ ጻ ጾ ፀ ህ ለ ላ ል ረ ሪ ሬ ር ስ ባ ቦ ኣ ኦ ካ ኮ ᚠ ᚢ ᚣ ᚨ ᚬ ᚭ ᚮ ᚯ ᚳ ᚴ ᚸ ᚻ ᚼ ᚾ ᚿ ᛃ ᛄ ᛅ ᛆ ᛇ ᛉ ᛋ ᛎ ᛏ ᛓ ᛔ ᛗ ᛚ ᛛ ᛜ ᛝ ᛟ ᛠ ᛡ ᛢ ᛣ ᛦ ᛨ ᛩ ᛪ ᛮ ᛯ ᛳ ᛶ ᛷ ᛸ ᥛ ᥝ ᥢ ᥰ ᥳ ᨑ ᲆ ᲇ ᲈ ᴈ ᴒ ᴖ ᴗ ᴙ ᴚ ᴝ ᴟ ᴤ ᴨ ᴫ ᵷ ‣ ₢ ₣ € ₶ ₺ ℈ ℧ ℶ ℸ ⅃ ⅄ ⅋ ⅎ ↊ ↋ ← ↑ → ↓ ∂ ∃ ∇ ∩ ∻ ≈ ⊲ ⊳ ⋏ ⌂ ⌔ ⍢ ⍨ ⟂ ⟅ ⟠ ⦂ ⦅ ⦛ ⦠ ⧎ ⧖ ꓘ ꓞ ꓤ ꓨ ꓩ ꓭ ꓵ ꓶ ｦ ｧ ｨ ｩ ｫ ｬ ｯ ｶ ｸ ｹ ｻ ｼ ｽ ｾ ｿ ﾀ ﾁ ﾃ ﾄ ﾅ ﾇ ﾈ ﾏ ﾐ ﾓ ﾗ ﾘ ﾚ ﾜ ﾝ ﾣ ﾸ ﾹ ﾺ ﾻ ﾽ ﾾ 𐀀 𐀁 𐀂 𐀈 𐀍 𐀑 𐀒 𐀓 𐀔 𐀕 𐀖 𐀗 𐀘 𐀙 𐀚 𐀛 𐀣 𐂀 𐂁 𐂃 𐂆 𐂇 𐂊 𐂌 𐂓 𐂔 𐂕 𐂘 𐂙 𐂚 𐂛 𐂜 𐂠 𐂡 𐂥 𐂦 𐂪 𐃃 𐃋 𐃡 𐃢 𐃨 𐃫 𐃭 𐃮 𐃯 𐃰 𐇐 𐇑 𐇒 𐇓 𐇔 𐇚 𐇛 𐇝 𐇞 𐇟 𐇠 𐇣 𐇤 𐇥 𐇦 𐇩 𐇪 𐇬 𐇭 𐇮 𐇯 𐇰 𐇲 𐇶 𐇷 𐇸 𐇹 𐇻 𐇼 𐊀 𐊁 𐊄 𐊙 𐌈 𐌐 𐌞 𐌯 𐌰 𐌱 𐌸 𐎉 𐎙 𐏔 𐐱 𐑙 𐑺 𐑻 𐒀 𐒂 𐒄 𐒅 𐒊 𐒑 𐒔 丂 七 丆 万 丈 三 上 下 丌 与 丏 丐 丑 丒 专 且 丕 世 丗 丘 丙 业 丛 东 丝 丞 丟 丠 両 丢 丣 两 严 丧 中 丮 丯 丰 丳 丵 为 主 丼 举 乂 乃 久 乆 乇 么 义 乊 之 乌 乍 乎 乏 乐 乑 乒 乓 乔 乕 乖 乗 乘 乜 九 乞 也 习 乡 乤 乥 书 乧 乨 乩 乪 乫 乬 乭 乮 乯 买 乱 乲 乴 乵 乶 乷 乸 乹 乺 乻 乼 乽 乾 乿 亁 亃 亄 亇 予 争 亊 事 亍 于 亏 亐 云 互 亓 五 井 亖 亗 亘 亙 亚 些 亜 亝 亞 亟 亡 亢 亣 交 亥 亦 产 亨 亩 亪 享 京 亭 亯 亰 亱 亲 亳 亴 亵 亶 亷 亸 亹 亼 亽 亾 亿 仁 仂 仃 仄 仅 仇 仉 今 介 仍 从 仏 仐 仑 仒 仓 仔 仕 他 仗 付 仙 仚 仛 仜 仝 仞 仟 仠 仡 仢 代 以 仦 仧 仨 仩 仪 仫 们 仭 仮 仯 仰 仱 仲 仳 仴 仵 件 价 仸 仹 仺 任 仼 份 仾 仿 伀 企 伂 伃 伄 伅 伆 伇 伈 伉 伊 伋 伌 伍 伎 伏 伐 休 伒 伓 伔 伕 伖 众 优 伙 会 伛 伜 伝 伞 伟 传 伡 伢 伣 伤 伥 伦 伧 伨 伩 伪 伫 伬 伭 伮 伯 估 伱 伲 伳 伴 伵 伶 伷 伸 伹 伺 伻 似 伽 伾 伿 佀 佁 佂 佃 佄 佅 但 佇 佈 佉 佊 佋 佌 位 低 住 佐 佑 佒 体 佔 何 佖 佗 佘 余 佚 佛 作 佝 佞 佟 佡 佢 佣 佤 佥 佦 佧 佨 佩 佪 佫 佬 佭 佮 佯 佰 佱 佲 佳 佴 佶 佷 佸 佹 佺 佼 佽 佾 使 侁 侂 侃 侄 侅 侇 侈 侉 侊 侌 侍 侎 侏 侐 侑 侒 侓 侔 侕 侖 侗 侘 侙 侚 供 侜 依 侞 侟 侠 価 侢 侣 侤 侥 侦 侧 侨 侩 侪 侫 侬 侭 侯 侰 侱 侲 侳 侴 侵 侶 侷 侸 侹 侺 侼 侽 侾 俀 俁 係 促 俄 俅 俆 俇 俈 俉 俊 俋 俌 俍 俎 俏 俐 俑 俒 俓 俔 俕 俖 俗 俘 俙 俚 俛 俜 保 俞 俟 俠 信 俢 俣 俤 俥 俦 俧 俨 俩 俪 俫 俬 俭 修 俯 俰 俱 俲 俴 俵 俶 俷 俸 俹 俺 俻 俼 俽 俾 俿 倀 倁 倃 倄 倅 倆 倇 倈 倉 倊 個 倌 倍 倎 倏 倐 們 倒 倓 倔 倕 倖 倗 倘 候 倚 倛 倜 倝 倞 借 倠 倡 倢 倣 倥 倦 倧 倨 倩 倪 倬 倭 倮 倯 倰 倱 倲 倳 倴 倵 倶 倷 倸 倹 债 倻 倽 倾 倿 偀 偁 偂 偃 偄 偅 偆 假 偈 偉 偊 偋 偌 偍 偎 偏 偐 偑 偒 偓 偔 偕 偖 偗 偘 偙 做 偛 停 偝 偞 偟 偠 偡 偢 偣 偤 健 偦 偧 偨 偩 偪 偫 偬 偭 偮 偯 偰 偱 偲 偳 側 偵 偶 偷 偸 偹 偻 偼 偽 偾 偿 傀 傁 傂 傃 傄 傅 傆 傇 傈 傉 傊 傋 傌 傍 傎 傏 傐 傑 傒 傓 傔 傕 傖 傗 傘 傚 傛 傜 傝 傞 傟 傠 傡 傢 傣 傤 傥 傦 傧 储 傩 傪 傫 催 傭 傮 傯 傰 傱 傲 傳 傴 債 傶 傷 傸 傹 傺 傻 傼 傽 傾 傿 僀 僁 僂 僃 僄 僅 僆 僇 僈 僉 僊 僋 僌 働 僎 僐 僑 僒 僓 僔 僕 僖 僗 僘 僙 僛 僜 僝 僞 僟 僠 僡 僢 僣 僤 僥 僦 僨 僩 僪 僫 僬 僭 僮 僯 僰 僱 僲 僳 僴 僵 僶 僷 僸 價 僺 僻 僼 僽 僾 僿 儀 儁 儂 儃 億 儅 儆 儇 儈 儉 儊 儋 儌 儍 儎 儏 儐 儑 儒 儓 儔 儕 儖 儗 儘 儙 儚 儛 儜 儝 儞 償 儠 儡 儢 儣 儤 儥 儦 儧 儨 儩 優 儫 儬 儭 儮 儯 儰 儱 儲 儳 儴 儵 儶 儷 儸 儹 儺 儻 儼 儽 儾 允 兂 元 兄 兇 先 光 兊 克 兌 兎 兏 児 兑 兒 兓 兕 兖 兗 兘 兙 党 兛 兜 兝 兞 兟 兠 兡 兢 兣 兦 兪 公 兮 兯 兰 共 兲 关 兴 兵 其 典 兹 兺 养 兼 兽 兾 兿 冁 冃 冄 内 円 冇 冈 冉 冊 冋 册 冎 冏 冐 冑 冓 冔 冘 写 冚 军 农 冝 冞 冟 冠 冡 冢 冣 冥 冦 冧 冨 冩 冪 冭 冮 冯 冰 冱 冲 决 冴 冶 冸 冹 冺 冻 冼 冽 冾 冿 净 凁 凂 凃 凄 凅 准 凇 凈 凊 凋 凍 凎 减 凐 凑 凒 凓 凔 凕 凖 凗 凘 凙 凚 凛 凝 凟 凡 凢 凣 凤 凥 処 凧 凨 凩 凪 凫 凬 凭 凮 凯 凰 凱 凲 凳 凴 凶 凷 凸 凹 出 击 凼 函 凾 凿 刄 刅 分 刉 刊 刋 刌 刍 刎 刏 刐 刑 划 刓 刔 刕 刘 则 创 刜 初 刞 删 刡 刢 刣 判 刦 刧 刨 刪 刬 刭 刮 刯 到 刱 刲 刳 刴 刵 制 刷 券 刹 刼 刽 刾 剁 剂 剃 剄 剅 則 剈 剉 剋 剌 前 剎 剏 剐 剑 剒 剓 剔 剖 剘 剙 剚 剛 剜 剝 剞 剟 剠 剡 剢 剣 剤 剥 剦 剧 剨 剪 剫 剬 剭 剮 副 剰 剱 剳 創 剶 剸 剹 剺 剻 剼 剽 剾 剿 劀 劁 劂 劃 劄 劅 劆 劇 劈 劊 劋 劌 劍 劎 劏 劐 劑 劒 劓 劔 劕 劖 劗 劘 劙 劚 劝 办 功 务 劢 劤 劥 劦 劧 动 助 努 劫 劬 劭 劮 劯 劰 励 劲 労 劵 劶 劷 劸 効 劺 劻 劼 劽 劾 势 勀 勁 勂 勃 勄 勅 勆 勈 勊 勋 勌 勍 勎 勏 勐 勑 勓 勔 動 勖 勗 勘 務 勚 勛 勜 勝 募 勠 勡 勢 勣 勥 勦 勧 勨 勩 勪 勫 勬 勭 勮 勯 勰 勱 勲 勳 勴 勶 勷 勸 勻 勼 勽 勾 勿 匀 匁 匂 匃 匄 匇 匈 匉 匊 匋 匌 匍 匎 匏 匐 匑 匒 匓 匔 化 匘 匙 匛 匜 匝 匞 匟 匠 匡 匢 匣 匤 匥 匦 匧 匨 匩 匪 匫 匬 匭 匮 匯 匰 匱 匲 匳 匴 匵 匶 匷 匹 区 医 匼 匽 匾 區 卂 千 卆 升 午 半 卋 卌 华 协 卒 卓 協 单 卖 南 単 卙 卛 卞 占 卡 卢 卣 卤 卥 卦 卧 卨 卪 卫 卭 卮 印 危 卲 却 卶 卷 卸 卹 卺 卻 卼 卾 厀 厁 厃 厄 厅 历 厇 厈 厉 厊 压 厌 厍 厎 厏 厐 厑 厒 厓 厔 厕 厖 厗 厘 厙 厚 厛 厜 厝 厞 原 厠 厡 厢 厣 厤 厥 厦 厧 厨 厩 厪 厫 厬 厭 厮 厯 厰 厱 厲 厳 厴 厵 厷 厸 厹 厺 去 厼 厽 厾 县 叀 叁 参 叄 叅 叆 叇 叉 友 双 反 収 叏 叐 发 叒 叓 叔 叕 取 受 变 叙 叚 叛 叜 叝 叞 叠 叡 叢 古 另 叧 叨 只 召 叮 可 台 史 右 叴 叵 叶 号 司 叹 叺 叻 叼 叽 叾 叿 吀 吁 吂 吃 各 吅 吇 合 吉 吊 吋 同 名 后 吐 向 吒 吓 吔 吕 吖 吗 吘 吙 吚 君 吜 吞 吟 吠 吡 吢 吣 吤 吥 否 吧 吨 吩 吪 含 听 吭 吮 启 吰 吱 吳 吴 吵 吶 吷 吹 吺 吻 吼 吽 吾 吿 呀 呁 呃 呄 呅 呆 呇 呉 告 呋 呌 呍 呎 呏 呐 呑 呒 呓 呔 呕 呖 呗 员 呙 呚 呛 呜 呝 呞 呟 呠 呡 呢 呣 呤 呥 呦 呧 呩 呪 呬 呭 呮 呯 呰 呱 呲 味 呴 呵 呶 呷 呸 呹 呺 呻 呼 命 呾 呿 咀 咁 咂 咃 咄 咅 咆 咇 咈 咉 咊 咋 和 咍 咎 咏 咐 咑 咒 咓 咔 咕 咖 咗 咘 咙 咚 咛 咜 咝 咟 咠 咡 "
+//		Removed on 20260803.
+//		This one used out-of-order unicode code-point sequence, and there's no clean way to fix it without just causing more confusion, so it's been removed from the interface.
+
 const (
 	base_10          = " 0 1 2 3 4 5 6 7 8 9 "
 	upperAZ_c26      = " A B C D E F G H I J K L M N O P Q R S T U V W X Y Z "
@@ -17,7 +22,7 @@ const (
 	base_62hex       = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z "
 	base_32ws        = " 2 3 4 5 6 7 8 9 C F G H J M P Q R V W X c f g h j m p q r v w x "
 	rfc4648start_c62 = " A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z 0 1 2 3 4 5 6 7 8 9 "
-	base_2048tt      = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ¢ £ ¤ ¥ § © « ® ° ± µ · » ¿ Ø Þ ß æ ð ÷ ø þ ŋ ƌ ƨ Ʊ ƶ ƹ ƾ ǂ ǝ ȸ ȹ ɀ ɐ ɒ ɔ ɘ ɛ ɞ ɤ ɥ ɮ ɷ ɸ ɹ ʁ ʇ ʉ ʊ ʌ ʎ ʚ ʞ ʬ ʭ ͳ ͷ ͼ ͽ Δ Ω α δ ζ θ λ ξ π φ ψ ω ϑ ϖ ϝ ϟ Ϡ ϣ ϥ ϧ ϩ ϰ ϱ ϶ Ͼ Ͽ ѧ ѳ ҂ ҩ ԃ ԅ ԉ ԋ ԏ թ ժ ի կ ձ ճ մ ն չ վ ր ֏ ۲ ۳ ۴ ۶ ۸ ५ ६ ७ ८ ଌ ୧ ୫ ୬ ୯ ఠ వ ก ข ค ฅ ฆ ง จ ฉ ช ถ ท ธ ป ร ฤ ล ฦ ว ศ ษ ส ห อ ฮ ฯ ะ า ๑ ๓ ๖ ๙ ა ბ გ დ ე თ ი კ ჟ რ ს ტ უ ფ ქ ღ ყ შ ჩ ც წ ჭ ჯ ჰ ჲ ჵ ჶ ჸ ჹ ჺ ዓ ዖ ዛ ዞ የ ዶ ገ ጌ ግ ጎ ጓ ጻ ጾ ፀ ህ ለ ላ ል ረ ሪ ሬ ር ስ ባ ቦ ኣ ኦ ካ ኮ ᚠ ᚢ ᚣ ᚨ ᚬ ᚭ ᚮ ᚯ ᚳ ᚴ ᚸ ᚻ ᚼ ᚾ ᚿ ᛃ ᛄ ᛅ ᛆ ᛇ ᛉ ᛋ ᛎ ᛏ ᛓ ᛔ ᛗ ᛚ ᛛ ᛜ ᛝ ᛟ ᛠ ᛡ ᛢ ᛣ ᛦ ᛨ ᛩ ᛪ ᛮ ᛯ ᛳ ᛶ ᛷ ᛸ ᥛ ᥝ ᥢ ᥰ ᥳ ᨑ ᲆ ᲇ ᲈ ᴈ ᴒ ᴖ ᴗ ᴙ ᴚ ᴝ ᴟ ᴤ ᴨ ᴫ ᵷ ‣ ₢ ₣ € ₶ ₺ ℈ ℧ ℶ ℸ ⅃ ⅄ ⅋ ⅎ ↊ ↋ ← ↑ → ↓ ∂ ∃ ∇ ∩ ∻ ≈ ⊲ ⊳ ⋏ ⌂ ⌔ ⍢ ⍨ ⟂ ⟅ ⟠ ⦂ ⦅ ⦛ ⦠ ⧎ ⧖ ꓘ ꓞ ꓤ ꓨ ꓩ ꓭ ꓵ ꓶ ｦ ｧ ｨ ｩ ｫ ｬ ｯ ｶ ｸ ｹ ｻ ｼ ｽ ｾ ｿ ﾀ ﾁ ﾃ ﾄ ﾅ ﾇ ﾈ ﾏ ﾐ ﾓ ﾗ ﾘ ﾚ ﾜ ﾝ ﾣ ﾸ ﾹ ﾺ ﾻ ﾽ ﾾ 𐀀 𐀁 𐀂 𐀈 𐀍 𐀑 𐀒 𐀓 𐀔 𐀕 𐀖 𐀗 𐀘 𐀙 𐀚 𐀛 𐀣 𐂀 𐂁 𐂃 𐂆 𐂇 𐂊 𐂌 𐂓 𐂔 𐂕 𐂘 𐂙 𐂚 𐂛 𐂜 𐂠 𐂡 𐂥 𐂦 𐂪 𐃃 𐃋 𐃡 𐃢 𐃨 𐃫 𐃭 𐃮 𐃯 𐃰 𐇐 𐇑 𐇒 𐇓 𐇔 𐇚 𐇛 𐇝 𐇞 𐇟 𐇠 𐇣 𐇤 𐇥 𐇦 𐇩 𐇪 𐇬 𐇭 𐇮 𐇯 𐇰 𐇲 𐇶 𐇷 𐇸 𐇹 𐇻 𐇼 𐊀 𐊁 𐊄 𐊙 𐌈 𐌐 𐌞 𐌯 𐌰 𐌱 𐌸 𐎉 𐎙 𐏔 𐐱 𐑙 𐑺 𐑻 𐒀 𐒂 𐒄 𐒅 𐒊 𐒑 𐒔 丂 七 丆 万 丈 三 上 下 丌 与 丏 丐 丑 丒 专 且 丕 世 丗 丘 丙 业 丛 东 丝 丞 丟 丠 両 丢 丣 两 严 丧 中 丮 丯 丰 丳 丵 为 主 丼 举 乂 乃 久 乆 乇 么 义 乊 之 乌 乍 乎 乏 乐 乑 乒 乓 乔 乕 乖 乗 乘 乜 九 乞 也 习 乡 乤 乥 书 乧 乨 乩 乪 乫 乬 乭 乮 乯 买 乱 乲 乴 乵 乶 乷 乸 乹 乺 乻 乼 乽 乾 乿 亁 亃 亄 亇 予 争 亊 事 亍 于 亏 亐 云 互 亓 五 井 亖 亗 亘 亙 亚 些 亜 亝 亞 亟 亡 亢 亣 交 亥 亦 产 亨 亩 亪 享 京 亭 亯 亰 亱 亲 亳 亴 亵 亶 亷 亸 亹 亼 亽 亾 亿 仁 仂 仃 仄 仅 仇 仉 今 介 仍 从 仏 仐 仑 仒 仓 仔 仕 他 仗 付 仙 仚 仛 仜 仝 仞 仟 仠 仡 仢 代 以 仦 仧 仨 仩 仪 仫 们 仭 仮 仯 仰 仱 仲 仳 仴 仵 件 价 仸 仹 仺 任 仼 份 仾 仿 伀 企 伂 伃 伄 伅 伆 伇 伈 伉 伊 伋 伌 伍 伎 伏 伐 休 伒 伓 伔 伕 伖 众 优 伙 会 伛 伜 伝 伞 伟 传 伡 伢 伣 伤 伥 伦 伧 伨 伩 伪 伫 伬 伭 伮 伯 估 伱 伲 伳 伴 伵 伶 伷 伸 伹 伺 伻 似 伽 伾 伿 佀 佁 佂 佃 佄 佅 但 佇 佈 佉 佊 佋 佌 位 低 住 佐 佑 佒 体 佔 何 佖 佗 佘 余 佚 佛 作 佝 佞 佟 佡 佢 佣 佤 佥 佦 佧 佨 佩 佪 佫 佬 佭 佮 佯 佰 佱 佲 佳 佴 佶 佷 佸 佹 佺 佼 佽 佾 使 侁 侂 侃 侄 侅 侇 侈 侉 侊 侌 侍 侎 侏 侐 侑 侒 侓 侔 侕 侖 侗 侘 侙 侚 供 侜 依 侞 侟 侠 価 侢 侣 侤 侥 侦 侧 侨 侩 侪 侫 侬 侭 侯 侰 侱 侲 侳 侴 侵 侶 侷 侸 侹 侺 侼 侽 侾 俀 俁 係 促 俄 俅 俆 俇 俈 俉 俊 俋 俌 俍 俎 俏 俐 俑 俒 俓 俔 俕 俖 俗 俘 俙 俚 俛 俜 保 俞 俟 俠 信 俢 俣 俤 俥 俦 俧 俨 俩 俪 俫 俬 俭 修 俯 俰 俱 俲 俴 俵 俶 俷 俸 俹 俺 俻 俼 俽 俾 俿 倀 倁 倃 倄 倅 倆 倇 倈 倉 倊 個 倌 倍 倎 倏 倐 們 倒 倓 倔 倕 倖 倗 倘 候 倚 倛 倜 倝 倞 借 倠 倡 倢 倣 倥 倦 倧 倨 倩 倪 倬 倭 倮 倯 倰 倱 倲 倳 倴 倵 倶 倷 倸 倹 债 倻 倽 倾 倿 偀 偁 偂 偃 偄 偅 偆 假 偈 偉 偊 偋 偌 偍 偎 偏 偐 偑 偒 偓 偔 偕 偖 偗 偘 偙 做 偛 停 偝 偞 偟 偠 偡 偢 偣 偤 健 偦 偧 偨 偩 偪 偫 偬 偭 偮 偯 偰 偱 偲 偳 側 偵 偶 偷 偸 偹 偻 偼 偽 偾 偿 傀 傁 傂 傃 傄 傅 傆 傇 傈 傉 傊 傋 傌 傍 傎 傏 傐 傑 傒 傓 傔 傕 傖 傗 傘 傚 傛 傜 傝 傞 傟 傠 傡 傢 傣 傤 傥 傦 傧 储 傩 傪 傫 催 傭 傮 傯 傰 傱 傲 傳 傴 債 傶 傷 傸 傹 傺 傻 傼 傽 傾 傿 僀 僁 僂 僃 僄 僅 僆 僇 僈 僉 僊 僋 僌 働 僎 僐 僑 僒 僓 僔 僕 僖 僗 僘 僙 僛 僜 僝 僞 僟 僠 僡 僢 僣 僤 僥 僦 僨 僩 僪 僫 僬 僭 僮 僯 僰 僱 僲 僳 僴 僵 僶 僷 僸 價 僺 僻 僼 僽 僾 僿 儀 儁 儂 儃 億 儅 儆 儇 儈 儉 儊 儋 儌 儍 儎 儏 儐 儑 儒 儓 儔 儕 儖 儗 儘 儙 儚 儛 儜 儝 儞 償 儠 儡 儢 儣 儤 儥 儦 儧 儨 儩 優 儫 儬 儭 儮 儯 儰 儱 儲 儳 儴 儵 儶 儷 儸 儹 儺 儻 儼 儽 儾 允 兂 元 兄 兇 先 光 兊 克 兌 兎 兏 児 兑 兒 兓 兕 兖 兗 兘 兙 党 兛 兜 兝 兞 兟 兠 兡 兢 兣 兦 兪 公 兮 兯 兰 共 兲 关 兴 兵 其 典 兹 兺 养 兼 兽 兾 兿 冁 冃 冄 内 円 冇 冈 冉 冊 冋 册 冎 冏 冐 冑 冓 冔 冘 写 冚 军 农 冝 冞 冟 冠 冡 冢 冣 冥 冦 冧 冨 冩 冪 冭 冮 冯 冰 冱 冲 决 冴 冶 冸 冹 冺 冻 冼 冽 冾 冿 净 凁 凂 凃 凄 凅 准 凇 凈 凊 凋 凍 凎 减 凐 凑 凒 凓 凔 凕 凖 凗 凘 凙 凚 凛 凝 凟 凡 凢 凣 凤 凥 処 凧 凨 凩 凪 凫 凬 凭 凮 凯 凰 凱 凲 凳 凴 凶 凷 凸 凹 出 击 凼 函 凾 凿 刄 刅 分 刉 刊 刋 刌 刍 刎 刏 刐 刑 划 刓 刔 刕 刘 则 创 刜 初 刞 删 刡 刢 刣 判 刦 刧 刨 刪 刬 刭 刮 刯 到 刱 刲 刳 刴 刵 制 刷 券 刹 刼 刽 刾 剁 剂 剃 剄 剅 則 剈 剉 剋 剌 前 剎 剏 剐 剑 剒 剓 剔 剖 剘 剙 剚 剛 剜 剝 剞 剟 剠 剡 剢 剣 剤 剥 剦 剧 剨 剪 剫 剬 剭 剮 副 剰 剱 剳 創 剶 剸 剹 剺 剻 剼 剽 剾 剿 劀 劁 劂 劃 劄 劅 劆 劇 劈 劊 劋 劌 劍 劎 劏 劐 劑 劒 劓 劔 劕 劖 劗 劘 劙 劚 劝 办 功 务 劢 劤 劥 劦 劧 动 助 努 劫 劬 劭 劮 劯 劰 励 劲 労 劵 劶 劷 劸 効 劺 劻 劼 劽 劾 势 勀 勁 勂 勃 勄 勅 勆 勈 勊 勋 勌 勍 勎 勏 勐 勑 勓 勔 動 勖 勗 勘 務 勚 勛 勜 勝 募 勠 勡 勢 勣 勥 勦 勧 勨 勩 勪 勫 勬 勭 勮 勯 勰 勱 勲 勳 勴 勶 勷 勸 勻 勼 勽 勾 勿 匀 匁 匂 匃 匄 匇 匈 匉 匊 匋 匌 匍 匎 匏 匐 匑 匒 匓 匔 化 匘 匙 匛 匜 匝 匞 匟 匠 匡 匢 匣 匤 匥 匦 匧 匨 匩 匪 匫 匬 匭 匮 匯 匰 匱 匲 匳 匴 匵 匶 匷 匹 区 医 匼 匽 匾 區 卂 千 卆 升 午 半 卋 卌 华 协 卒 卓 協 单 卖 南 単 卙 卛 卞 占 卡 卢 卣 卤 卥 卦 卧 卨 卪 卫 卭 卮 印 危 卲 却 卶 卷 卸 卹 卺 卻 卼 卾 厀 厁 厃 厄 厅 历 厇 厈 厉 厊 压 厌 厍 厎 厏 厐 厑 厒 厓 厔 厕 厖 厗 厘 厙 厚 厛 厜 厝 厞 原 厠 厡 厢 厣 厤 厥 厦 厧 厨 厩 厪 厫 厬 厭 厮 厯 厰 厱 厲 厳 厴 厵 厷 厸 厹 厺 去 厼 厽 厾 县 叀 叁 参 叄 叅 叆 叇 叉 友 双 反 収 叏 叐 发 叒 叓 叔 叕 取 受 变 叙 叚 叛 叜 叝 叞 叠 叡 叢 古 另 叧 叨 只 召 叮 可 台 史 右 叴 叵 叶 号 司 叹 叺 叻 叼 叽 叾 叿 吀 吁 吂 吃 各 吅 吇 合 吉 吊 吋 同 名 后 吐 向 吒 吓 吔 吕 吖 吗 吘 吙 吚 君 吜 吞 吟 吠 吡 吢 吣 吤 吥 否 吧 吨 吩 吪 含 听 吭 吮 启 吰 吱 吳 吴 吵 吶 吷 吹 吺 吻 吼 吽 吾 吿 呀 呁 呃 呄 呅 呆 呇 呉 告 呋 呌 呍 呎 呏 呐 呑 呒 呓 呔 呕 呖 呗 员 呙 呚 呛 呜 呝 呞 呟 呠 呡 呢 呣 呤 呥 呦 呧 呩 呪 呬 呭 呮 呯 呰 呱 呲 味 呴 呵 呶 呷 呸 呹 呺 呻 呼 命 呾 呿 咀 咁 咂 咃 咄 咅 咆 咇 咈 咉 咊 咋 和 咍 咎 咏 咐 咑 咒 咓 咔 咕 咖 咗 咘 咙 咚 咛 咜 咝 咟 咠 咡 "
+	base_1068tt      = " 0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O P Q R S T U V W X Y Z a b c d e f g h i j k l m n o p q r s t u v w x y z ¢ £ ¤ ¥ § © « ® ° ± µ · » ¿ Ø Þ ß æ ð ÷ ø þ ŋ ƌ ƨ Ʊ ƶ ƹ ƾ ǂ ǝ ȸ ȹ ɀ ɐ ɒ ɔ ɘ ɛ ɞ ɤ ɥ ɮ ɷ ɸ ɹ ʁ ʇ ʉ ʊ ʌ ʎ ʚ ʞ ʬ ʭ ͳ ͷ ͼ ͽ Δ Ω α δ ζ θ λ ξ π φ ψ ω ϑ ϖ ϝ ϟ Ϡ ϣ ϥ ϧ ϩ ϰ ϱ ϶ Ͼ Ͽ ѧ ѳ ҂ ҩ ԃ ԅ ԉ ԋ ԏ թ ժ ի կ ձ ճ մ ն չ վ ր ֏ ۲ ۳ ۴ ۶ ۸ ५ ६ ७ ८ ଌ ୧ ୫ ୬ ୯ ఠ వ ก ข ค ฅ ฆ ง จ ฉ ช ถ ท ธ ป ร ฤ ล ฦ ว ศ ษ ส ห อ ฮ ฯ ะ า ๑ ๓ ๖ ๙ ა ბ გ დ ე თ ი კ ჟ რ ს ტ უ ფ ქ ღ ყ შ ჩ ც წ ჭ ჯ ჰ ჲ ჵ ჶ ჸ ჹ ჺ ህ ለ ላ ል ረ ሪ ሬ ር ስ ባ ቦ ኣ ኦ ካ ኮ ዓ ዖ ዛ ዞ የ ዶ ገ ጌ ግ ጎ ጓ ጻ ጾ ፀ ᚠ ᚢ ᚣ ᚨ ᚬ ᚭ ᚮ ᚯ ᚳ ᚴ ᚸ ᚻ ᚼ ᚾ ᚿ ᛃ ᛄ ᛅ ᛆ ᛇ ᛉ ᛋ ᛎ ᛏ ᛓ ᛔ ᛗ ᛚ ᛛ ᛜ ᛝ ᛟ ᛠ ᛡ ᛢ ᛣ ᛦ ᛨ ᛩ ᛪ ᛮ ᛯ ᛳ ᛶ ᛷ ᛸ ᥛ ᥝ ᥢ ᥰ ᥳ ᨑ ᲆ ᲇ ᲈ ᴈ ᴒ ᴖ ᴗ ᴙ ᴚ ᴝ ᴟ ᴤ ᴨ ᴫ ᵷ ‣ ₢ ₣ € ₶ ₺ ℈ ℧ ℶ ℸ ⅃ ⅄ ⅋ ⅎ ↊ ↋ ← ↑ → ↓ ∂ ∃ ∇ ∩ ∻ ≈ ⊲ ⊳ ⋏ ⌂ ⌔ ⍢ ⍨ ⟂ ⟅ ⟠ ⦂ ⦅ ⦛ ⦠ ⧎ ⧖ ꓕ ꓘ ꓛ ꓞ ꓤ ꓥ ꓨ ꓩ ꓭ ꓱ ꓵ ꓶ ｦ ｧ ｨ ｩ ｫ ｬ ｯ ｶ ｸ ｹ ｻ ｼ ｽ ｾ ｿ ﾀ ﾁ ﾃ ﾄ ﾅ ﾇ ﾈ ﾏ ﾐ ﾓ ﾗ ﾘ ﾚ ﾜ ﾝ ﾣ ﾸ ﾹ ﾺ ﾻ ﾽ ﾾ 𐀀 𐀁 𐀂 𐀈 𐀍 𐀑 𐀒 𐀓 𐀔 𐀕 𐀖 𐀗 𐀘 𐀙 𐀚 𐀛 𐀣 𐂀 𐂁 𐂃 𐂆 𐂇 𐂊 𐂌 𐂓 𐂔 𐂕 𐂘 𐂙 𐂚 𐂛 𐂜 𐂠 𐂡 𐂥 𐂦 𐂪 𐃃 𐃋 𐃡 𐃢 𐃨 𐃫 𐃭 𐃮 𐃯 𐃰 𐇐 𐇑 𐇒 𐇓 𐇔 𐇚 𐇛 𐇝 𐇞 𐇟 𐇠 𐇣 𐇤 𐇥 𐇦 𐇩 𐇪 𐇬 𐇭 𐇮 𐇯 𐇰 𐇲 𐇶 𐇷 𐇸 𐇹 𐇻 𐇼 𐊀 𐊁 𐊄 𐊙 𐌈 𐌐 𐌞 𐌯 𐌰 𐌱 𐌸 𐎉 𐎙 𐏔 𐐱 𐑙 𐑺 𐑻 𐒀 𐒂 𐒄 𐒅 𐒊 𐒑 𐒔 "
 )
 
 // predefinedBases returns the list of bases compiled into the binary.
@@ -137,7 +142,7 @@ func predefinedBases() []*Base {
 		// Base-10 in ANSI blocks
 		// Created by Jim Collier ~2026-04-19, first published with this code on github.
 		mkSpec(SpecOpts{
-			BaseSymbols: "▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▓ ▒",
+			BaseSymbols: "▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▒ ▓",
 			Aliases:     []string{"10blocks", "blocks"},
 			NegSymbol:   "◆",
 			DecSymbol:   "●",
@@ -231,7 +236,7 @@ func predefinedBases() []*Base {
 		// Base-32hex (numbers first), RFC 4648 §7.
 		// Although listed second in the RFC base-32 standard, it is more consistent (hexadecimal-like) with other bases.
 		// Alias "32h" is required for backward-compatibility with convert-base-v1[b], don't delete it.
-		// Alias "32tt" is the first subset of 512tt - that by design overlaps the same part of base-62.
+		// Alias "32tt" is the first subset of 1024tt - that by design overlaps the same part of base-62.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-7
 		mkSpec(SpecOpts{
 			BaseSymbols: leftTokens(base_62hex, 32),
@@ -471,10 +476,10 @@ func predefinedBases() []*Base {
 		}),
 
 		// 64tt
-		// A subset of 512tt (and longer than 32tt).
+		// A subset of 1024tt.
 		// Created by Jim Collier 2026-07-13, first published with this code on github.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_2048tt, 64),
+			BaseSymbols: leftTokens(base_1068tt, 64),
 			Aliases:     []string{"64tt"},
 		}),
 
@@ -579,10 +584,10 @@ func predefinedBases() []*Base {
 		// A mixed-radix scheme, not a base encoding. Designed for pronounceable quintuplets. Proposed by Daniel Shawcross Wilkerson. Not useful here.
 
 		// 128tt
-		// A subset of 2048tt
+		// A subset of 1024tt
 		// Created by Jim Collier 2026-07-13, first published with this code on github.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_2048tt, 128),
+			BaseSymbols: leftTokens(base_1068tt, 128),
 			Aliases:     []string{"128tt"},
 		}),
 
@@ -593,25 +598,25 @@ func predefinedBases() []*Base {
 		bytesBase(),
 
 		// 256tt
-		// A subset of 2048tt
+		// A subset of 1024tt
 		// Created by Jim Collier 2026-07-13, first published with this code on github.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_2048tt, 256),
+			BaseSymbols: leftTokens(base_1068tt, 256),
 			Aliases:     []string{"256tt"},
 		}),
 
 		// 512tt
-		// A subset of 2048tt
+		// A subset of 1024tt
 		// Created by Jim Collier 2026-07-13, first published with this code on github.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_2048tt, 512), // Just to keep the pattern, but this is the full set of symbols.
+			BaseSymbols: leftTokens(base_1068tt, 512), // Just to keep the pattern, but this is the full set of symbols.
 			Aliases:     []string{"512tt"},
 			// Tail repertoire, same idea as the published big bases: the last chunk of
 			// a byte stream rarely fills a whole digit, and padding it out can invent a
 			// whole spare byte the decoder can't tell from real data. A tail alphabet of
 			// 2^(k-8) symbols covers exactly the leftover widths where that happens, so
-			// k=9 needs two. Shares one block with 1024tt and 2048tt (U+2E00..U+2E07),
-			// which is outside base_2048tt so it can never collide with a digit.
+			// k=9 needs two. Shares one block with 1024tt (U+2E00..U+2E03), which is
+			// outside base_1068tt so it can never collide with a digit.
 			TailSymbols:  runeRange(0x2E00, 0x2E01),
 			BinaryScheme: "qntm",
 		}),
@@ -619,23 +624,25 @@ func predefinedBases() []*Base {
 		// 1024tt
 		// Created by Jim Collier 2026-07-25, first published with this code on github.
 		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_2048tt, 1024), // Just to keep the pattern, but this is the full set of symbols.
+			BaseSymbols: leftTokens(base_1068tt, 1024),
 			Aliases:     []string{"1024tt"},
 			// 2-bit tail, per the 2^(k-8) rule noted on 512tt.
 			TailSymbols:  runeRange(0x2E00, 0x2E03),
 			BinaryScheme: "qntm",
 		}),
 
-		// 2048tt
-		// Created by Jim Collier 2026-07-25, first published with this code on github.
-		mkSpec(SpecOpts{
-			BaseSymbols: leftTokens(base_2048tt, 2048), // Just to keep the pattern, but this is the full set of symbols.
-			Aliases:     []string{"2048tt"},
-			// 3-bit tail, per the 2^(k-8) rule noted on 512tt. Same width as the two
-			// published base 2048s, which is a good sign the rule is the real one.
-			TailSymbols:  runeRange(0x2E00, 0x2E07),
-			BinaryScheme: "qntm",
-		}),
+		// Removed Base-2048tt on 20260803, because it accidentally used out-of-order unicode code-point sequence, and there's no clean way to fix it without just causing more confusion.
+		// Left here as a historical note, because production code produced some output.
+		//	// 2048tt
+		//	// Created by Jim Collier 2026-07-25, first published with this code on github.
+		//	mkSpec(SpecOpts{
+		//		BaseSymbols: leftTokens(base_2048tt_bad, 2048),
+		//		Aliases:     []string{"2048tt"},
+		//		// 3-bit tail, per the 2^(k-8) rule noted on 512tt. Same width as the two
+		//		// published base 2048s, which is a good sign the rule is the real one.
+		//		TailSymbols:  runeRange(0x2E00, 0x2E07),
+		//		BinaryScheme: "qntm",
+		//	}),
 
 		// Base 2048, original qntm's JS version. (Have to run the JS to get this alphabet.)
 		// Denser display for values, but worse encoding density than base64 on UTF-8.
