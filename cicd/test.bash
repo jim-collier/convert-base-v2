@@ -318,7 +318,14 @@ spacesym=$("${EXE}" --config "$cfg" --show-symbols-0 spacey 2>/dev/null | tr '\0
 [[ "$spacesym" == 'a b|c|d|e' ]] && _pass "config symbol with a space" || _fail "config symbol with a space" "got='$spacesym'"
 ## A typo has to fail loudly: silently dropping a field means the wrong alphabet.
 printf 'base: x\n\tsybmols: abc\n' >"${CBT_TMP}/typo.shcl"
-check errmsg "config typo rejected"  'unknown base field' -- --config "${CBT_TMP}/typo.shcl" 255 16
+check errmsg "config typo rejected"  'unknown field' -- --config "${CBT_TMP}/typo.shcl" 255 16
+## A quoted name is a typo too, and it used to slip past the check unseen.
+printf 'base: x\n\tsymbols: abc\n\t"weird.field": 1\n' >"${CBT_TMP}/quoted.shcl"
+check errmsg "config quoted typo rejected" 'unknown field' -- --config "${CBT_TMP}/quoted.shcl" 255 16
+## A field written twice reads back as nothing, so the base would quietly get a
+## default instead of what the file says.
+printf 'base: x\n\tsymbols: abc\n\tnegative: A\n\tnegative: B\n' >"${CBT_TMP}/twice.shcl"
+check errmsg "config repeated field rejected" 'more than once' -- --config "${CBT_TMP}/twice.shcl" 255 16
 printf 'base: x\n\tsymbols: abc\n  bogus indent\n' >"${CBT_TMP}/bad.shcl"
 check errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
 ## First run writes the default config, and 10emoji comes from it rather than
