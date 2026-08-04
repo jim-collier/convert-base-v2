@@ -31,6 +31,12 @@ const (
 
 const etcConfigPath = "/etc/convert-base-v2/convert-base-v2.shcl"
 
+// A fractional digit costs quadratic time and the scale factor is one power of
+// the output base, so a mistyped precision asks for gigabytes: 100 million
+// digits already wants several. The browser module and the reactor bound it for
+// the same reason, at the same generous value.
+const maxPrecision = 100000
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", hintErr(err))
@@ -267,7 +273,7 @@ func run() error {
 	byteMode := *binaryMode || *binFlag || *bFlag
 	numMode := *numberMode || *numFlag || *nCapFlag
 	if byteMode && numMode {
-		return fmt.Errorf("choose either --binary or --number, not both")
+		return errors.New("choose either --binary or --number, not both")
 	}
 	defaultBase := "10"
 	if byteMode {
@@ -349,9 +355,11 @@ func run() error {
 
 	// Kill the silent-wrong-output trap: `echo 255 | prog 16` reads "16" as the
 	// NUMBER and never touches the pipe, so it prints "16" with exit 0. Detect the
-	// telltale shape - a real pipe with data, one positional, and that positional
-	// naming a known base - and point the user at "-". A bare number positional
-	// (the ordinary read-loop case) does not trip this.
+	// telltale shape - a real pipe, one positional, and that positional naming a
+	// known base - and point the user at "-". A bare number positional (the
+	// ordinary read-loop case) does not trip this. Whether the pipe actually holds
+	// data is deliberately not tested: finding out means reading it, and that is
+	// the one thing this path must not do.
 	if !fromStdin && len(args) == 1 && isNamedPipe(os.Stdin) {
 		if _, lerr := reg.Lookup(args[0]); lerr == nil {
 			fmt.Fprintf(os.Stderr, "note: reading %q as the NUMBER, not the output base; stdin (piped) was ignored. To convert piped input, use: something | %s - %s\n",
@@ -369,13 +377,16 @@ func run() error {
 	if !strings.EqualFold(strings.TrimSpace(*precision), "auto") {
 		n, perr := strconv.Atoi(strings.TrimSpace(*precision))
 		if perr != nil || n < 0 {
-			return fmt.Errorf("precision must be a non-negative integer or 'auto'")
+			return errors.New("precision must be a non-negative integer or 'auto'")
+		}
+		if n > maxPrecision {
+			return fmt.Errorf("precision must be at most %d", maxPrecision)
 		}
 		precVal = n
 	}
 
 	if *lower && *upper {
-		return fmt.Errorf("choose either --lower or --upper, not both")
+		return errors.New("choose either --lower or --upper, not both")
 	}
 
 	// --lower/--upper: error out if the output base has mixed-case digits
@@ -390,7 +401,7 @@ func run() error {
 	// writes raw bytes or a fixed codec alphabet, where the flag would be
 	// accepted and then do nothing.
 	if *escapeCtrl && (byteMode || from.Binary || to.Binary) {
-		return fmt.Errorf("--escape-controls applies to number conversions only, not byte mode")
+		return errors.New("--escape-controls applies to number conversions only, not byte mode")
 	}
 
 	// No number and stdin is a terminal - nothing to do. This is the error path
@@ -469,11 +480,8 @@ func run() error {
 	if err != nil {
 		return err
 	}
-	if *lower {
-		result = strings.ToLower(result)
-	}
-	if *upper {
-		result = strings.ToUpper(result)
+	if *lower || *upper {
+		result = recaseDigits(result, to, *upper)
 	}
 	if *escapeCtrl {
 		result = convertbase.EscapeControls(result, to)
@@ -548,7 +556,7 @@ func selectBase(reg *convertbase.Registry, byIndex int, name string) (*convertba
 		return ordered[byIndex], nil
 	}
 	if name == "" {
-		return nil, fmt.Errorf("select a base by name/alias argument or --by-index=N")
+		return nil, errors.New("select a base by name/alias argument or --by-index=N")
 	}
 	return reg.Lookup(name)
 }
@@ -636,6 +644,29 @@ func readStdin(from *convertbase.Base) (string, error) {
 	s = strings.TrimSuffix(s, "\n")
 	s = strings.TrimSuffix(s, "\r")
 	return s, nil
+}
+
+// recaseDigits applies --lower/--upper to the digits of a result and leaves the
+// base's markers as they are. The markers are not digits, so recasing them can
+// produce a value the same base will not read back - a base whose negative
+// marker is "N" would answer "-255" as "nff", which is not that base's spelling
+// of anything. A marker never appears inside a digit symbol (Finalize refuses
+// that), so the first occurrence of the decimal marker is the real split.
+func recaseDigits(s string, b *convertbase.Base, upper bool) string {
+	recase := strings.ToLower
+	if upper {
+		recase = strings.ToUpper
+	}
+	prefix := ""
+	if neg := b.NegSym(); neg != "" && strings.HasPrefix(s, neg) {
+		prefix, s = neg, s[len(neg):]
+	}
+	if dec := b.DecSym(); dec != "" {
+		if at := strings.Index(s, dec); at >= 0 {
+			return prefix + recase(s[:at]) + dec + recase(s[at+len(dec):])
+		}
+	}
+	return prefix + recase(s)
 }
 
 // canLowercase reports whether strings.ToLower on the output would still be a
@@ -777,7 +808,7 @@ Other:
 	fmt.Fprintf(out, "  %-50s  %s\n", "(built-in predefined bases)", "(always)")
 	describePath := func(label, path string) {
 		if path == "" {
-			fmt.Fprintf(out, "  %-50s  %s\n", "(unset)", "")
+			fmt.Fprintf(out, "  %-50s  %s\n", "("+label+": unset)", "")
 			return
 		}
 		status := "not found"
@@ -786,24 +817,24 @@ Other:
 		}
 		fmt.Fprintf(out, "  %-50s  [%s]\n", path, status)
 	}
-	describePath("/etc", etcConfigPath)
-	if userPath == etcConfigPath {
-		fmt.Fprintf(out, "  %-50s  %s\n", "user: (same path as /etc; skipped)", "")
+	describePath("system", etcPath)
+	if userPath == etcPath {
+		fmt.Fprintf(out, "  %-50s  %s\n", "user: (same path as the system file; skipped)", "")
 	} else {
 		describePath("user", userPath)
 	}
 	// If both exist, note precedence.
-	etcLoaded := pathLoaded(reg, etcConfigPath)
-	userLoaded := userPath != "" && userPath != etcConfigPath && pathLoaded(reg, userPath)
-	if etcLoaded && userLoaded {
-		fmt.Fprintf(out, "  -> %s takes precedence over %s (and both override built-in).\n", userPath, etcConfigPath)
-	} else if etcLoaded {
-		fmt.Fprintf(out, "  -> %s overrides built-in aliases.\n", etcConfigPath)
-	} else if userLoaded {
+	etcLoaded := pathLoaded(reg, etcPath)
+	userLoaded := userPath != "" && userPath != etcPath && pathLoaded(reg, userPath)
+	switch {
+	case etcLoaded && userLoaded:
+		fmt.Fprintf(out, "  -> %s takes precedence over %s (and both override built-in).\n", userPath, etcPath)
+	case etcLoaded:
+		fmt.Fprintf(out, "  -> %s overrides built-in aliases.\n", etcPath)
+	case userLoaded:
 		fmt.Fprintf(out, "  -> %s overrides built-in aliases.\n", userPath)
 	}
 
-	// Addition: Don't forget to note user-specified flags
 	fmt.Fprintln(out, "  (optional user-specified flags)")
 
 	// If the user passed any base-selection flags, report where each side
@@ -903,6 +934,5 @@ func printExamples(out io.Writer) {
 
   # With --binary an omitted side means bytes, so these pipe raw through:
   convert-base-v2 --binary --from 16 0B195901 | convert-base-v2 --binary --to 16
-
-	`)
+`)
 }

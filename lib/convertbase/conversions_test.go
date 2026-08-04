@@ -426,6 +426,20 @@ func TestApplyMarkers(t *testing.T) {
 	if _, err := ApplyOptions(base(t, reg, "bytes"), mk("--from", "~", nil)); err == nil {
 		t.Error("marker overrides should be rejected for the bytes base")
 	}
+
+	// Label decides how an override is named back to the caller: the command
+	// passes its flag prefix, and a caller that passes none gets the bare name.
+	// Only the rejection paths surface it, so that is where it is checked.
+	bytesBase := base(t, reg, "bytes")
+	for label, want := range map[string]string{"--from": "--from-neg", "--to": "--to-neg", "": "neg"} {
+		_, err := ApplyOptions(bytesBase, mk(label, "~", nil))
+		if err == nil {
+			t.Fatalf("label %q: marker overrides should be rejected for the bytes base", label)
+		}
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("label %q: error %q should name the override as %q", label, err, want)
+		}
+	}
 }
 
 // Padding is only ever applied on the bit-packed path, one character at a time.

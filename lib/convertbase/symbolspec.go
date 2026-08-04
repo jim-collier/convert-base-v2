@@ -6,7 +6,7 @@
 package convertbase
 
 import (
-	"fmt"
+	"errors"
 	"strings"
 )
 
@@ -45,7 +45,7 @@ const (
 //	\"        -> double quote
 func ParseSymbolSpec(s string) ([]string, error) {
 	if strings.ContainsAny(s, string([]rune{phSpace, phTab, phNewline})) {
-		return nil, fmt.Errorf("symbol spec contains a reserved noncharacter (U+FFFE/U+FFFF/U+FDD0)")
+		return nil, errors.New("symbol spec contains a reserved noncharacter (U+FFFE/U+FFFF/U+FDD0)")
 	}
 	s = unescapeSpec(s)
 
@@ -59,7 +59,7 @@ func ParseSymbolSpec(s string) ([]string, error) {
 		digitTokens = append(digitTokens, t)
 	}
 	if len(digitTokens) == 0 {
-		return nil, fmt.Errorf("symbol spec has no digit symbols")
+		return nil, errors.New("symbol spec has no digit symbols")
 	}
 	if len(digitTokens) == 1 {
 		t := digitTokens[0]

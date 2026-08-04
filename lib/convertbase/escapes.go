@@ -10,10 +10,11 @@ import (
 	"strings"
 )
 
-// A base can carry control characters as digits - the 98-symbol keyboard base
-// holds tab, newline and return so that any ordinary text file is valid input.
-// Those digits are impossible to type at a prompt and invisible (or actively
-// destructive) on a terminal, so they can also be written as a name.
+// EscapeMarker introduces a named control character. A base can carry controls
+// as digits - the 98-symbol keyboard base holds tab, newline and return, so any
+// ordinary text file is valid input. Those digits are impossible to type at a
+// prompt and invisible (or actively destructive) on a terminal, so they can be
+// written as a name instead.
 //
 // The marker is deliberately outside the printable-ASCII range that such a base
 // draws its digits from. That is what makes the notation escape-free: the marker
@@ -186,9 +187,9 @@ func escapeSnippet(s string) string {
 	if i := strings.Index(s, EscapeMarker); i >= 0 {
 		s = s[:i]
 	}
-	const max = 8
-	if len(s) > max {
-		return s[:max] + "..."
+	const snippetLen = 8
+	if len(s) > snippetLen {
+		return s[:snippetLen] + "..."
 	}
 	return s
 }

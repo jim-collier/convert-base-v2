@@ -6,6 +6,7 @@
 package convertbase
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"sort"
@@ -517,7 +518,7 @@ func (r *Registry) Register(b *Base) error {
 func (r *Registry) Lookup(name string) (*Base, error) {
 	k := normalizeBaseName(name)
 	if k == "" {
-		return nil, fmt.Errorf("empty base name")
+		return nil, errors.New("empty base name")
 	}
 	if b, ok := r.byAlias[k]; ok {
 		return b, nil

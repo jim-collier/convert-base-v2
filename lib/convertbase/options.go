@@ -5,7 +5,10 @@
 
 package convertbase
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+)
 
 // Options carries per-base overrides: the three markers and the binary tail
 // repertoire. Each field keeps the tri-state the Base fields use - nil leaves
@@ -134,7 +137,7 @@ func ResolveBase(reg *Registry, name, customSpec string, opts *Options) (*Base, 
 		return b, nil
 	}
 	if name == "" {
-		return nil, fmt.Errorf("no base specified")
+		return nil, errors.New("no base specified")
 	}
 	b, err := reg.Lookup(name)
 	if err != nil {
