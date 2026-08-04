@@ -255,6 +255,16 @@ check eq  "pin 1000000 -> 85ipv6"    1rYy      -- --number 1000000 85ipv6
 check eq  "pin 65535 -> 62"          H31       -- --number 65535 62
 check eq  "--lower on hex"          ff        -- --lower 255 16
 check errmsg "--lower on mixed-case" "--lower is invalid for mixed-case" -- --lower 9 62
+## The case flags apply to digits only. A marker is not a digit, so recasing it
+## yields a value the same base cannot read back - and no output would show it.
+check eq  "--lower keeps neg marker" "Nff"    -- --lower --to 16 --to-neg N -- -255
+check eq  "--upper keeps dec marker" "FF.8"   -- --upper --to 16 --to-dec . -- 255.5
+check eq  "--lower keeps both"       "Nff.8"  -- --lower --to 16 --to-neg N -- -255.5
+## Precision is bounded, the same way the browser and reactor builds bound it:
+## the scale factor is one power of the output base, so a mistyped value asks
+## for gigabytes before it asks for anything else.
+check errmsg "precision upper bound" 'at most' -- --precision 100000000 0.1 16
+check ok  "precision at the bound"   -         -- --precision 100000 0.1 16
 ## --no-newline: exact bytes, no trailing newline.
 _run --no-newline 255 16
 { ((_rc == 0)) && [[ "$(wc -c <"${CBT_OUT}")" == "2" ]]; } && _pass "--no-newline has no trailing newline" || _fail "--no-newline has no trailing newline" "bytes=$(wc -c <"${CBT_OUT}")"
@@ -555,6 +565,12 @@ padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" 
 padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}")
 [[ "$padun" == "A" ]] && _pass "custom pad decode takes unpadded" || _fail "custom pad decode takes unpadded" "got='$padun'"
 check errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF" --from-pad "A" --to 10 5
+## Padding is a trailing run and nothing else. Both routes must say so the same
+## way: the argv one used to name the character instead of the mistake.
+check errmsg "interior pad, argv" 'data after padding' -- --binary --from 64rfc --to bytes "A=BC"
+printf 'A=BC' >"${CBT_TMP}/interior-pad"
+_run_in "${CBT_TMP}/interior-pad" --binary --from 64rfc --to bytes
+_assert errmsg "interior pad, pipe" 'data after padding'
 ## A pad is only ever applied on the bit-packed path, one character at a time.
 ## Definitions that could never take effect are rejected where they are written.
 check errmsg "multi-char pad rejected" 'must be a single character' -- --from bytes --to 64 --to-pad "==" 5

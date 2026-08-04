@@ -6,6 +6,14 @@ version: "2"
 
 linters:
   default: standard
+  enable:
+    # Both earned their place on findings, not on principle. unparam caught two
+    # parameters a function took and never read, one of which meant the help
+    # text was reading a package constant instead of what it was handed.
+    # errorlint guards the typed errors: they are only useful if callers reach
+    # them through errors.As, and a == comparison would quietly stop matching.
+    - unparam
+    - errorlint
   exclusions:
     # shcl/ is a verbatim copy of an upstream file. Findings there belong
     # upstream, and editing the copy would break the copy-over update.

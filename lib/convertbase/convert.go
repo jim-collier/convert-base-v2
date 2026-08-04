@@ -7,6 +7,7 @@ package convertbase
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -289,6 +290,13 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 			// emit it on encode for the strict variants that require it.
 			if to.Binary && from.PadSymbol != "" {
 				input = strings.TrimRight(input, from.PadSymbol)
+				// Only a trailing run is padding. A pad left anywhere else would
+				// fall through as an unrecognized byte, which names the character
+				// but not the actual mistake - and the streaming decoder already
+				// says it properly, so say the same thing here.
+				if strings.Contains(input, from.PadSymbol) {
+					return "", fmt.Errorf("cannot decode from %s: data after padding %q", from.Name(), from.PadSymbol)
+				}
 			}
 			out, err := convertBitPacked(input, from, to, kIn, kOut)
 			if err != nil {
@@ -320,7 +328,7 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	}
 
 	if input == "" {
-		return "", fmt.Errorf("empty input")
+		return "", errors.New("empty input")
 	}
 	// Escaped control digits become their literal characters before anything
 	// else reads the string, so an escape behaves exactly like the character it
@@ -367,7 +375,7 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	}
 
 	if s == "" {
-		return "", fmt.Errorf("no digits in input")
+		return "", errors.New("no digits in input")
 	}
 
 	// Tokenize the two parts separately.
@@ -1338,7 +1346,7 @@ func encodeCodec(data string, codec *Base) (string, error) {
 	case "base45":
 		return encodeBase45(data, codec), nil
 	case "ascii85":
-		return encodeAscii85(data, codec), nil
+		return encodeASCII85(data, codec), nil
 	case "z85":
 		return encodeZ85(data, codec)
 	case "base91":
@@ -1352,7 +1360,7 @@ func decodeCodec(input string, codec *Base) (string, error) {
 	case "base45":
 		return decodeBase45(input, codec)
 	case "ascii85":
-		return decodeAscii85(input, codec)
+		return decodeASCII85(input, codec)
 	case "z85":
 		return decodeZ85(input, codec)
 	case "base91":
@@ -1427,7 +1435,7 @@ func decodeBase45(input string, b *Base) (string, error) {
 // first). An all-zero full group is written as the single shortcut 'z'. A final
 // partial group is zero-padded to four bytes and emits one more symbol than bytes.
 
-func encodeAscii85(data string, b *Base) string {
+func encodeASCII85(data string, b *Base) string {
 	var sb strings.Builder
 	sb.Grow(len(data)*5/4 + 8)
 	i := 0
@@ -1458,7 +1466,7 @@ func encodeAscii85(data string, b *Base) string {
 	return sb.String()
 }
 
-func decodeAscii85(input string, b *Base) (string, error) {
+func decodeASCII85(input string, b *Base) (string, error) {
 	var out []byte
 	var group [5]int
 	gi := 0
