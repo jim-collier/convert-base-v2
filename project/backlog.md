@@ -57,6 +57,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - Bugs
 
+- ✅ Two kinds of config file mistake were accepted and then ignored.
+	- Reproduced: a field written twice, and a field whose name is in quotes. Both loaded without complaint, and the base came out different from what the file said.
+	- Cause: a field given more than once reads back as nothing at all, and the loader treated that as absent, falling back to a default. A quoted name was left out of the list the check walks, so a quoted misspelling was never seen.
+	- Fixed: the check now walks the field names as written, keeping repeats, and refuses both. It names the base and the field.
+	- Note: this is the third thing the config loader is strict about on purpose. A wrong alphabet produces output that looks perfectly fine, so a mistake has to be refused where it is written.
+	- Verified: new tests for each field a repeat can hit and each shape a quoted name can take. All nine fail against the previous build.
+
 - ✅ Slicing a value with a very large count crashed instead of clamping. (Code review 20260802 item 1)
 	- Reproduced: asking for more symbols than the value holds is documented to clamp, and it does, until the count approaches the largest whole number the machine handles. Then it crashes.
 	- Cause: the check added the start and the count together, and that sum wraps around to a negative number, so the too-long count read as short enough.

@@ -104,16 +104,32 @@ func configParseError(doc *shcl.Document) error {
 	return fmt.Errorf("%s", strings.Join(lines, "; "))
 }
 
-// checkConfigFields rejects anything the loader would not read. Paths() is the
-// union of every path in the file, so one pass covers all the base blocks.
+// checkConfigFields rejects anything the loader would not read, and anything it
+// would read only once. Children() gives the names as written, in file order,
+// with repeats kept, which is what both halves need: a repeat is how a field
+// silently loses its value (the read comes back Multiple and the loader falls
+// back to a default), and a name needing quotes is invisible to Paths().
 func checkConfigFields(doc *shcl.Document) error {
-	for _, p := range doc.Paths() {
-		name, field, nested := strings.Cut(strings.ToLower(p), ".")
-		if name != "base" {
-			return fmt.Errorf("unknown setting %q (this file holds \"base:\" blocks only)", p)
+	// A repeated "base" is how the file defines a second base, so only the
+	// names are checked at the top level.
+	for _, name := range doc.Children("") {
+		if !strings.EqualFold(name, "base") {
+			return fmt.Errorf("unknown setting %q (this file holds \"base:\" blocks only)", name)
 		}
-		if nested && !configBaseFields[field] {
-			return fmt.Errorf("unknown base field %q", field)
+	}
+	for i := 0; i < doc.Count("base"); i++ {
+		sel := fmt.Sprintf("base[#%d]", i)
+		name := strings.TrimSpace(doc.ReadString(sel).Value)
+		seen := make(map[string]bool)
+		for _, field := range doc.Children(sel) {
+			key := strings.ToLower(field)
+			if !configBaseFields[key] {
+				return fmt.Errorf("base %q: unknown field %q", name, field)
+			}
+			if seen[key] {
+				return fmt.Errorf("base %q: %s is given more than once", name, field)
+			}
+			seen[key] = true
 		}
 	}
 	return nil

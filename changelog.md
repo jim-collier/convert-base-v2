@@ -89,6 +89,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The WebAssembly module could be stopped dead by a host asking to pad a value to an unreasonable width. Width is now capped, and anything larger is refused with an error, the same way an unreasonable precision already was.  [20260802]
 - Writing control characters by name got slower the longer the value was, enough to matter on a large one. It now costs the same per character whatever the length. Output is unchanged.  [20260802]
 - The browser module reported a value that is not a real number as an unrecognized digit. It now says what is actually wrong.  [20260802]
+- A config file field written twice was accepted and then dropped, so the base quietly took a default instead of the value in the file. It is refused now, naming the base and the field.  [20260804]
+- A misspelled config field whose name was quoted slipped past the check that catches misspellings, so the line was ignored without a word. Quoted names are checked like any other now.  [20260804]
 
 ### Other work
 
@@ -100,6 +102,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The list of predefined bases in the readme is narrower and no longer runs off the side of the page. It drops the description and specification columns, adds the UTF-8 byte count beside the character count, and wraps a long value across lines. A base whose digits are twice as wide on screen now takes about as much room as a plain one. It also lists `10emoji`, which comes from the config file rather than the built-in set, since a fresh install has it either way.  [20260731]
 - The conversion core is now a package of its own, so another program can convert in process instead of running the tool. Nothing about the tool changes: same commands, same output, same single binary. The parts that only make sense at a prompt stayed with the command.  [20260731]
 - That library is licensed Apache-2.0, so it can be linked into anything, commercial work included, as long as the credit travels with it. The command-line tool stays GPL-2.0-or-later. Both license texts ship in the repository.  [20260731]
+- The vendored config parser moved up to its 1.1.0 release.  [20260804]
 
 ## v2.0.0 - 2026-07-13
 
