@@ -33,7 +33,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- Two base 69s, `69nice` and `69emoji`. Every `69emoji` digit is a colour emoji by Unicode definition, so none of them fall back to a line-art glyph.
+- Two base 69s, `69nice` and `69emoji`. Every `69emoji` digit is a color emoji by Unicode definition, so none of them fall back to a line-art glyph.
 - A base 10 written in block characters, `10blocks`.
 - A `--list-compat` flag, which lists the compatibility bases that `--list` no longer shows.
 - Compatibility bases covering both older tools, named after what they match: `48ws_compat_v1`, `64ws_compat_v1`, `128_compat_v1`, `48ws_compat_v1b`, `64ws_compat_v1b`, `128ws_compat_v1b`, `128_compat_v1b`, `256_compat_v1`, and `288_compat_v1`. Every name the older tools accepted still resolves.
@@ -72,6 +72,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Base-45 decoding accepts line breaks too, so wrapped base-45 reads back like every other base that carries raw bytes. Spaces are still digits there, and still meaningful.  [20260730]
 - A symbol spec is digit symbols and nothing else, matching how the predefined bases and the config file fields already worked.
 - The config format is SHCL, which reads and writes closer to how the rest of the tool is described. YAML was the last external dependency, so the program now builds from its own source and the standard library alone.
+- `--precision` is capped at 100000 digits. The scale factor is one power of the output base, so a mistyped value asked for gigabytes of memory before it asked for anything else. The browser and callable WebAssembly builds already had the same cap.
 - A padding character that could never take effect is now an error where it is defined, instead of being accepted and quietly ignored. Padding must be a single character, and only applies to power-of-2 bases of at most 256 symbols, which is the only place it is ever emitted. Fixes a multi-character pad overshooting the group boundary on encode.
 
 ### Removed
@@ -91,6 +92,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The browser module reported a value that is not a real number as an unrecognized digit. It now says what is actually wrong.  [20260802]
 - A config file field written twice was accepted and then dropped, so the base quietly took a default instead of the value in the file. It is refused now, naming the base and the field.  [20260804]
 - A misspelled config field whose name was quoted slipped past the check that catches misspellings, so the line was ignored without a word. Quoted names are checked like any other now.  [20260804]
+- The one-line install script stopped without a word before it did anything, once the release listing it reads grew past a certain size. It installs again.  [20260804]
+- `--help` printed nothing when the install script was run the way the readme shows.  [20260804]
+- `--lower` and `--upper` also changed the case of the output base's negative and decimal markers, which could produce a value that base would not read back. They apply to digits now.  [20260804]
+- Padding in the middle of a value, rather than at the end, gave a different message depending on whether the value arrived on the command line or through a pipe.  [20260804]
 
 ### Other work
 

@@ -39,7 +39,23 @@ fEcho(){ printf '[ %s ]\n' "$*"; }
 fEcho_Clean(){ printf '%s\n' "$*"; }
 fDie(){ printf '[ ERROR: %s ]\n' "$*" >&2; echo; exit 1; }
 
-fUsage(){ sed -n '/^##	Usage:/,/^#••/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##\t\{0,1\}//'; }
+## Spelled out rather than scraped from the header above. The advertised way to
+## run this is `bash <(curl ...)`, and there the source is a file descriptor the
+## shell has already read, so scraping it prints nothing. Keep the two in step.
+fUsage(){ cat <<'EOF'
+Usage:
+	bash <(curl -fsSL https://raw.githubusercontent.com/jim-collier/convert-base-v2/main/install.bash) [options]
+Options:
+	--release stable|dev ... stable = latest release (default), dev = newest including pre-releases
+	--target user|system ... user = ~/.local/bin (default), system = /usr/local/bin (may need sudo)
+	--arch x86_64|arm64 .... override the detected architecture
+	-y|--yes ............... skip the confirmation prompt
+Notes:
+	- Needs bash 3.2+, curl, and sha256sum or shasum.
+	- Windows: use the installer .exe from the Releases page instead.
+	- Re-running is safe; an already-current install is left alone.
+EOF
+}
 
 while (($#)); do case "$1" in
 	--release) RELEASE="${2:?}"; shift 2 ;;
@@ -96,7 +112,11 @@ if [[ "${RELEASE}" == "stable" ]]; then
 else
 	releaseJson="$(curl -fsSL "${API}?per_page=1")" || fDie "could not reach the GitHub API (offline, or rate-limited?)"
 fi
-tag="$(printf '%s' "${releaseJson}" | grep -m1 '"tag_name"' | sed 's/.*: *"//; s/".*//')"
+## Fed from a here-string, not from a command in the pipeline. grep -m1 quits at
+## the first match, and a writer still filling the pipe behind it dies of SIGPIPE,
+## which pipefail turns into a silent exit 141 before anything has happened. The
+## release listing grew past the pipe buffer, so that is not hypothetical.
+tag="$(grep -m1 '"tag_name"' <<<"${releaseJson}" | sed 's/.*: *"//; s/".*//')"
 [[ -n "${tag}" ]] || fDie "could not determine the ${RELEASE} release tag"
 
 asset="${PKG}-${os}-${ARCH}"
@@ -143,7 +163,7 @@ curl -fsSL -o "${work}/checksums.txt" "https://github.com/${REPO}/releases/downl
 	|| fDie "download failed: checksums.txt for ${tag}"
 
 fEcho "Verifying checksum"
-want="$(grep -E " \*?${asset}\$" "${work}/checksums.txt" | head -n1 | cut -d' ' -f1)"
+want="$(grep -m1 -E " \*?${asset}\$" "${work}/checksums.txt" | cut -d' ' -f1)"
 [[ -n "${want}" ]] || fDie "no checksum for ${asset} in checksums.txt"
 got="$(${shaCmd} "${work}/${asset}" | cut -d' ' -f1)"
 [[ "${got}" == "${want}" ]] || fDie "checksum mismatch (expected ${want}, got ${got})"

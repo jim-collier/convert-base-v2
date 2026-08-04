@@ -88,6 +88,8 @@ It's a single, fast, cross-platform static binary written in Go.
 
 - **Negatives and fractions**: Both work in nearly every base. Even bases meant only for binary encoding can be pressed into positional use. If the usual `-` and `.` markers clash with a base's own symbols, you can set your own.
 
+- **Digits you can actually type**: Some bases carry tab, newline and return as digits, so a whole text file converts as one number. Those digits can be written by name instead, as `⊳TAB` or `⊳LF`, and input takes the named and the raw forms mixed.
+
 - **Binary to text, in many more bases than usual**: Encode or decode raw binary in every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. That covers everything `basenc` does, at comparable speed, plus bases `basenc` never heard of. Bases with no byte-exact mapping are refused in binary mode, and `--list` shows which ones qualify.
 
 	- To re-encode straight between two text bases as bytes (hex to base 64, say), add `--binary`. Without it, two power-of-two text bases convert as a plain number, which drops leading zeros; a note on stderr points this out, and `--number` silences it.
@@ -157,7 +159,7 @@ Copy the resulting binary anywhere on your PATH. For the full set of build targe
 convert-base-v2 --from hex FF                 # 255
 
 # Decimal to hex-style base 64
-convert-base-v2 1767269700 64hex                # 1fLcL4
+convert-base-v2 1767269700 64hex              # 1fLcL4
 
 # Decimal to a base you invent on the spot
 convert-base-v2 --to-symbols "a b c d e f" 42 # bba
@@ -277,7 +279,7 @@ That is still enough to cover callers in any language with a WebAssembly runtime
 
 ### WebAssembly, as a function call
 
-The reactor module is the library compiled for any WebAssembly runtime, exporting plain functions the host calls directly: one-shot conversion, base lookup, the radix and padding symbol of a base, symbol counting, and a stable numeric error code set with readable error text. Strings cross as a pointer and length through the module's memory, with an exported allocator pair; the full contract is in [`lib/reactor/README.md`](lib/reactor/README.md). Build it with `make reactor` (needs a Go 1.24 or newer toolchain).
+The reactor module is the library compiled for any WebAssembly runtime, exporting plain functions the host calls directly: one-shot conversion, base lookup, the radix and padding symbol of a base, symbol counting, and a stable numeric error code set with readable error text. It also slices and pads by symbol rather than by byte, which is what fixed-width identifier fields need once a base reaches outside ASCII and one digit is no longer one byte. Strings cross as a pointer and length through the module's memory, with an exported allocator pair; the full contract is in [`lib/reactor/README.md`](lib/reactor/README.md). Build it with `make reactor` (needs a Go 1.24 or newer toolchain).
 
 Streaming is there too, as a push API: open a stream, write raw bytes as they arrive, read output chunks back, finish. It runs the same constant-memory paths the command uses for piped data. The WASI module above remains the simpler choice when all you want is a pipe.
 
@@ -422,7 +424,7 @@ Any number of any size converts to and from any of these bases, and most support
 
 These are the common, standard, and published bases, plus a set of [carefully designed](how_to_design_a_numeric_base.md) custom ones.
 
-The "Output" column shows the same base-10 number written in each base. Most rows show it as `-86434491232548995369.314`, negative and fractional. A few alphabets are explicitly defined as positive integer only, and show conversion from `86434491232548995369` instead. Long values are wrapped to keep the column narrow, and some of the larger bases look longer than they are, because the proportional font here stretches double-width characters. "Char count" is the real character count, and "UTF-8 byte count" is what it takes to store, which are not the same thing once a base reaches outside ASCII.
+The "Output" column shows the same base-10 number written in each base. Most rows show it as `-86434491232548995369.314`, negative and fractional. A few alphabets use every character they could have drawn on as a digit, so there is nothing left to mark a sign or a decimal point with. Those rows show `86434491232548995369` instead. Long values are wrapped to keep the column narrow, and some of the larger bases look longer than they are, because the proportional font here stretches double-width characters. "Char count" is the real character count, and "UTF-8 byte count" is what it takes to store, which are not the same thing once a base reaches outside ASCII.
 
 Bases kept only to reproduce the output of the older `convert-base-v1` and `convert-base-v1b` are left out below. Run `convert-base-v2 --list-compat` to see those.
 
@@ -540,6 +542,6 @@ The CLI application, and the WASI build of it, are licensed under the [GNU Gener
 
 - SPDX-License-Identifier: `GPL-2.0-or-later`
 
-The library under `lib/convertbase/` and the browser module under `lib/wasm/` are licensed more permissively as appropriate for something linked into other software: Apache-2.0 <https://www.apache.org/licenses/LICENSE-2.0>, so they can be built into anything. The full text and the attribution notice ship beside the library.
+The library under `lib/convertbase/`, the browser module under `lib/wasm/`, and the reactor module under `lib/reactor/` are licensed more permissively as appropriate for something linked into other software: Apache-2.0 <https://www.apache.org/licenses/LICENSE-2.0>, so they can be built into anything. The full text and the attribution notice are beside the library.
 
 - SPDX-License-Identifier: `Apache-2.0`
