@@ -1,9 +1,24 @@
+# The built binary. The negation matters: this pattern also matches the CLI's
+# source directory, which is named after the binary it produces.
 **/convert-base-v2
+!**/cmd/convert-base-v2/
 **/dist
 **/bin
+# Built by `make -C lib web`, and rebuilt by the pages workflow on every deploy.
+/web/convert-base.wasm
+/web/wasm_exec.js
 **/.vscode/bookmarks.json
 **/unicode_visual_debug.png
 **/__pycache__
+# LibreOffice writes one of these beside any document it has open.
+**/.~lock.*#
+
+# Cargo output for the interop adapter. Compiled, and for one architecture only;
+# it rebuilds offline from the vendored source in a few seconds.
+/cicd/utility/interop/build
+
+# Built host harness for the reactor module; the tests build it into a temp dir.
+/cicd/utility/reactor-host/reactor-host
 
 # cicd generated artifacts (run logs, flamegraphs, stray profiles/test binaries)
 **/cicd/artifacts

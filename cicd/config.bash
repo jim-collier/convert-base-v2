@@ -27,7 +27,7 @@
 ##		  The engine prepends ~/.go/bin to PATH so `go install`ed tools win.
 ##	History: At bottom of script.
 
-##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT
@@ -43,14 +43,14 @@ APP_NAME="convert-base-v2"
 EXE_NAME="convert-base-v2"
 
 ## Where the Go sources and Makefile live, relative to the repo root.
-SRC_DIR="source"
+SRC_DIR="lib"
 
 ## Stage 1: format the source in place before anything is compiled. Empty it
 ## (FMT_CMD=()) to skip. gofmt is a no-op on already-clean source. Never a Bash
 ## formatter here - bash is hand-formatted on purpose.
 FMT_CMD=(make -C "${SRC_DIR}" fmt)
 
-## Stage 2: two native builds, both staged under source/bin (outside what the
+## Stage 2: two native builds, both staged under lib/bin (outside what the
 ## cross stage touches, so they survive it).
 ##   - debug (symbols kept): the tests and profiler run against this.
 ##   - release (optimized, stripped): smoke-checked, then dogfooded. It matches
@@ -67,6 +67,20 @@ STAGED_RELEASE_BIN="${SRC_DIR}/bin/${EXE_NAME}-release"
 ## pipeline still runs offline or on a bare machine). Empty it to disable.
 PIN_TOOLS_CMD=(bash cicd/utility/pin-tools.bash)
 
+## Vendored drop-in files (lib/shcl/shcl.go) are pinned to an upstream release
+## in cicd/vendor-pins.env. This runs before the build and aborts if a copy no
+## longer matches its pinned tag, since lint skips vendored paths and a wrong
+## alphabet parser produces output that looks fine. Offline runs warn and carry
+## on; a newer upstream release is a notice, not a failure. Empty it to skip.
+VENDOR_CHECK_CMD=(bash cicd/utility/check-vendor.bash)
+
+## The interop suite (cicd/utility/interop) keeps the four big bases honest by
+## running them against the implementations that defined them, unpacked verbatim
+## from pinned releases. --upstream re-downloads each one and diffs it, which is
+## what catches a pin bumped without a refetch; the offline manifest check runs
+## inside test.bash. Offline warns and carries on. Empty it to skip.
+INTEROP_CHECK_CMD=(bash cicd/utility/interop/fetch.bash --upstream)
+
 ## Stage 3: lint the first-party Go. Each is run inside SRC_DIR. VET is always
 ## available (part of the toolchain) and gating. golangci-lint and staticcheck are
 ## optional: a failed PROBE skips that one with a warning instead of aborting, so
@@ -76,19 +90,31 @@ VET_CMD=(go vet ./...)
 LINT_PROBE=(golangci-lint version)
 LINT_CMD=(golangci-lint run --concurrency="${CPU_CAP:-1}" ./...)
 STATICCHECK_PROBE=(staticcheck -version)
-STATICCHECK_CMD=(staticcheck ./...)
+## Named packages, not ./..., so the vendored shcl copy stays out of it.
+STATICCHECK_CMD=(staticcheck ./cmd/convert-base-v2 ./convertbase)
 
 ## Stage 4a: unit tests (Go, run inside SRC_DIR) plus the integration harness
 ## (cicd/test.bash, run from root against the staged binary via CICDTEST_EXE).
 UNIT_TEST_CMD=(go test ./...)
 TEST_CMD=(cicd/test.bash)
 
+## The package holding the Fuzz* targets and the profiler benchmark. Both flags
+## reject more than one package, so this names exactly one - the conversion
+## library, which is where those tests live.
+GO_TEST_PKG="./convertbase"
+
 ## Stage 4b: fuzz. Go runs one -fuzz target per invocation, so the engine discovers
 ## the Fuzz* funcs and runs each for FUZZ_TIME (FUZZ_TIME_QUICK under --quick). Set
-## FUZZ_ENABLE=0 to skip. Corpus finds are written under source/testdata (committed).
+## FUZZ_ENABLE=0 to skip. Corpus finds are written under lib/testdata (committed).
 FUZZ_ENABLE=1
 FUZZ_TIME="20s"
 FUZZ_TIME_QUICK="4s"
+
+## Go shrinks each new corpus find before saving it, and its default budget for that
+## is a minute - longer than the whole run, so one find parks a worker for the rest
+## of it. Kept to a small slice of FUZZ_TIME instead.
+FUZZ_MINIMIZE_TIME="2s"
+FUZZ_MINIMIZE_TIME_QUICK="1s"
 
 ## Stage 4c: security. govulncheck scans this module AND its dependencies (library
 ## code) against the Go vulnerability database. Optional (PROBE-gated); its version
@@ -116,7 +142,7 @@ LINT_LOG_DIR="cicd/artifacts/lint"          # relative to repo root; created if 
 ## keeps ~30 - first + newest-per-hour/day/week/month/year + last 10. Tune with the
 ## GFS_KEEP_* env vars (GFS_KEEP_FREQUENT, GFS_KEEP_DAILY, ...) if needed.
 
-## Stage 6: cross-compile + package every shipping platform into source/dist.
+## Stage 6: cross-compile + package every shipping platform into lib/dist.
 ## `make release` runs cicd/utility/package.bash: archives (tgz/zip) for all of
 ## linux/darwin/freebsd/windows x amd64/arm64, plus .deb/.rpm (nfpm) and Windows
 ## installers (makensis), plus checksums. Doubles as a build-sanity gate. Set
@@ -169,3 +195,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##	History:
 ##		- 2026-07-03 JC: Created (converted from the monolithic cicd.bash to the generic engine + config split).
 ##		- 2026-07-09 JC: Added lint (vet/golangci/staticcheck), fuzz, vuln, and profiler stages; artifact dirs; quiet/message publish.
+##		- 2026-07-29 JC: Added the vendor pin check (cicd/vendor-pins.env) ahead of stage 1.

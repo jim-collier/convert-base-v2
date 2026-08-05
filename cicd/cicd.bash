@@ -54,7 +54,7 @@
 
 ##	History: At bottom of script.
 
-##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT
@@ -138,6 +138,8 @@ fEcho_Clean
 fEcho_Clean "${APP_NAME} local CI/CD"
 fEcho_Clean
 fEcho_Clean "Repo root ...........: ${root}"
+fEcho_Clean "Vendor pins .........: ${VENDOR_CHECK_CMD[*]:-(skipped)}"
+fEcho_Clean "Interop pins ........: ${INTEROP_CHECK_CMD[*]:-(skipped)}"
 fEcho_Clean "Format ..............: ${FMT_CMD[*]:-(skipped)}"
 fEcho_Clean "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debug)"
 ((${#RELEASE_BUILD_CMD[@]})) && \
@@ -149,7 +151,7 @@ else
 fi
 fEcho_Clean "Tests ...............: ${UNIT_TEST_CMD[*]} + ${TEST_CMD[*]}$( ((do_long)) && echo '  (long)')"
 if ((FUZZ_ENABLE)); then
-	fEcho_Clean "Fuzz ................: ${FUZZ_TIME}/target$( ((quick)) && echo " (quick: ${FUZZ_TIME_QUICK})")"
+	fEcho_Clean "Fuzz ................: ${FUZZ_TIME}/target, ${FUZZ_MINIMIZE_TIME}/find$( ((quick)) && echo " (quick: ${FUZZ_TIME_QUICK}, ${FUZZ_MINIMIZE_TIME_QUICK})")"
 else
 	fEcho_Clean "Fuzz ................: (disabled)"
 fi
@@ -210,6 +212,18 @@ fi
 ## back in line (warn-only; probe-gated stages still skip anything missing).
 if [[ -n "${PIN_TOOLS_CMD[*]:-}" ]]; then
 	"${PIN_TOOLS_CMD[@]}"
+fi
+
+## Pinned vendor: a vendored drop-in that drifted from its upstream tag aborts
+## here, before anything is built against it. Warn-only when offline.
+if [[ -n "${VENDOR_CHECK_CMD[*]:-}" ]]; then
+	"${VENDOR_CHECK_CMD[@]}" || fDie "vendored source does not match its pin (see cicd/vendor-pins.env)"
+fi
+
+## Same idea for the interop suite's reference implementations, which are the
+## only thing proving the four big bases interoperate at all.
+if [[ -n "${INTEROP_CHECK_CMD[*]:-}" ]]; then
+	"${INTEROP_CHECK_CMD[@]}" || fDie "interop reference does not match its pin (see cicd/utility/interop/pins.env)"
 fi
 
 ## Stage 1: format.
@@ -273,12 +287,30 @@ fEcho "OK: integration harness"
 ## 4b: fuzz each discovered target for a bounded time (shorter under --quick).
 if ((FUZZ_ENABLE)); then
 	ft="${FUZZ_TIME}"; ((quick)) && ft="${FUZZ_TIME_QUICK}"
-	mapfile -t fuzz_targets < <(in_src go test -list '^Fuzz' ./... 2>/dev/null | grep -E '^Fuzz' || true)
+	fuzz_min="${FUZZ_MINIMIZE_TIME:-2s}"; ((quick)) && fuzz_min="${FUZZ_MINIMIZE_TIME_QUICK:-1s}"
+	mapfile -t fuzz_targets < <(in_src go test -list '^Fuzz' "${GO_TEST_PKG:-.}" 2>/dev/null | grep -E '^Fuzz' || true)
 	if ((${#fuzz_targets[@]})); then
+		fuzz_log="$(mktemp -t cicd-fuzz.XXXXXX)"
 		for t in "${fuzz_targets[@]}"; do
 			fEcho_Clean "fuzz ${t} (${ft}) ..."
-			in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" ./... || fDie "fuzz ${t} found a failure"
+			set +e
+			in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}"
+			fuzz_rc=${PIPESTATUS[0]}
+			set -e
+			if ((fuzz_rc)); then
+				## A bare "context deadline exceeded" with no crasher is the
+				## -fuzztime boundary, not a find: the coordinator reads the
+				## worker context before cancellation has reached it, so the
+				## deadline gets reported as the run's error. Real finds name
+				## the failing input file.
+				if grep -q 'Failing input written to' "${fuzz_log}" \
+				|| ! grep -q 'context deadline exceeded' "${fuzz_log}"; then
+					rm -f "${fuzz_log}"; fDie "fuzz ${t} found a failure"
+				fi
+				fEcho "NOTE: fuzz ${t} reported the -fuzztime deadline; no failing input recorded"
+			fi
 		done
+		rm -f "${fuzz_log}"
 		fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"
 	else
 		fEcho_Clean "no Fuzz* targets found; skipping fuzz"
@@ -316,7 +348,7 @@ run_profiler(){
 
 	fEcho_Clean "sampling bench ${PROFILE_BENCH} for ${PROFILE_TIME} ..."
 	if ! in_src go test -run '^$' -bench "^${PROFILE_BENCH}$" -benchtime "${PROFILE_TIME}" \
-		-cpuprofile "${prof}" -o /dev/null ./...; then
+		-cpuprofile "${prof}" -o /dev/null "${GO_TEST_PKG:-.}"; then
 		((PROFILE_STRICT)) && fDie "profiler benchmark failed (app problem)"
 		fEcho "WARNING: profiler benchmark failed (continuing)"; return 0
 	fi
@@ -376,10 +408,11 @@ else
 	fEcho_Clean "dogfood disabled"
 fi
 
-## Screenshots: off by default; a failure is a warning, never a stop.
+## Screenshots: off by default (retired, so the skip is silent); a failure is a
+## warning, never a stop.
 screenshot_util="${root}/${SCREENSHOT_CMD[0]}"
 if ((! DO_SCREENSHOTS)); then
-	fEcho_Clean "screenshots skipped"
+	: ## silent - the preflight summary already says skipped
 elif [[ -f "${screenshot_util}" ]]; then
 	if bash "${screenshot_util}" "${root}" "${root}/${STAGED_BIN}"; then fEcho "OK: screenshots regenerated"
 	else fEcho "WARNING: screenshot generation failed (continuing)"; fi
@@ -447,3 +480,4 @@ fEcho_Clean
 ##	History:
 ##		- 2026-07-03 JC: Created. Generic engine + config.bash, adapted from the sister project; Go build staging, exhaustive tests, quiet publish.
 ##		- 2026-07-09 JC: silkterm-style output (fEcho/fSection letterbox); -q/-m/--quick flags; lint, fuzz, vuln, profiler stages; tee'd run log; message prompt replaces y/n.
+##		- 2026-07-29 JC: Vendored drop-in files are verified against their pinned upstream release before the build.

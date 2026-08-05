@@ -20,7 +20,7 @@
 ##		  workflow, so what ships is what was built and tested here.
 ##	History: At bottom.
 
-##	Copyright © 2026 Jim Collier
+##	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
 ##	Licensed under GNU GPL v2 <https://www.gnu.org/licenses/gpl-2.0.html>. No warranty.
 ##	SPDX-License-Identifier: GPL-2.0-or-later
 
@@ -29,7 +29,7 @@ set -Eeuo pipefail
 ## Locations. This script lives in cicd/utility; the repo root is two up.
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "${here}/../.." && pwd)"
-src="${root}/source"
+src="${root}/lib"
 
 ## Identity / package metadata.
 PKG="convert-base-v2"
@@ -59,7 +59,7 @@ while (($#)); do case "$1" in
 esac; done
 
 ## A relative --out is resolved against the caller's CWD (make/cicd invoke from
-## the source dir, so their `--out dist` lands at source/dist as before).
+## the source dir, so their `--out dist` lands at lib/dist as before).
 [[ "${OUT}" = /* ]] || OUT="${PWD}/${OUT}"
 
 ## Package version: strip the leading v. nfpm turns 1.1.0-beta7 into 1.1.0~beta7
@@ -93,7 +93,7 @@ for p in "${platforms[@]}"; do
 	binpath="${bindir}/${EXE}${ext}"
 
 	( cd "${src}" && CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" \
-		go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "${binpath}" ./... )
+		go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "${binpath}" ./cmd/convert-base-v2 )
 
 	if [[ "${os}" == windows ]]; then
 		( cd "${bindir}" && zip -qr "${OUT}/${PKG}-${os}-${label}.zip" "${EXE}${ext}" )
@@ -186,4 +186,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt | wc -l) 
 
 
 ##	History:
-##		- 2026-07-12 JC: Created. Self-contained cross-build + deb/rpm/NSIS packaging, replacing goreleaser.
+##		- 2026-07-12: Created. Self-contained cross-build + deb/rpm/NSIS packaging, replacing goreleaser.

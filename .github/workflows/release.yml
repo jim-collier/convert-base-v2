@@ -1,4 +1,4 @@
-# Cut a release on every merge to main. The version var in source/main.go is
+# Cut a release on every merge to main. The version var in lib/cmd/convert-base-v2/main.go is
 # the source of truth. A guard runs first: if the version was not bumped (its
 # tag already exists), if it sorts behind the newest tag, or if the README
 # Lifecycle badge does not match the version stage, the workflow FAILS - main
@@ -27,10 +27,11 @@ jobs:
         id: ver
         run: bash cicd/utility/check-release.bash
 
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: .go-version
-          cache-dependency-path: source/go.sum
+          # standard library only, so there is no go.sum and nothing to cache
+          cache: false
 
       - name: install packaging tools
         run: |
@@ -53,8 +54,23 @@ jobs:
           git tag "${{ steps.ver.outputs.ver }}"
           git push origin "refs/tags/${{ steps.ver.outputs.ver }}"
 
+      # The Go module carries its own version and its own tag prefix, which is
+      # what lets it stay at v0 while the command is at v2. A release that only
+      # adds bases or flags leaves the package untouched, so this is a no-op
+      # unless the const moved.
+      - name: tag module
+        run: |
+          mod=$(sed -n 's/^const Version = "\(.*\)"$/\1/p' lib/convertbase/version.go)
+          [ -n "${mod}" ] || { echo "could not read convertbase.Version" >&2; exit 1; }
+          if git rev-parse -q --verify "refs/tags/lib/${mod}" >/dev/null; then
+            echo "module tag lib/${mod} already exists - package unchanged this release"
+          else
+            git tag "lib/${mod}"
+            git push origin "refs/tags/lib/${mod}"
+          fi
+
       - name: package
-        run: bash cicd/utility/package.bash --version "${{ steps.ver.outputs.ver }}" --out source/dist
+        run: bash cicd/utility/package.bash --version "${{ steps.ver.outputs.ver }}" --out lib/dist
 
       - name: publish
         env:
@@ -63,4 +79,4 @@ jobs:
           ver="${{ steps.ver.outputs.ver }}"
           pre=""; case "$ver" in *-*) pre="--prerelease" ;; esac
           gh release create "$ver" --title "$ver" --notes-file "$RUNNER_TEMP/notes.md" $pre \
-            source/dist/*
+            lib/dist/*

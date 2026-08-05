@@ -1,0 +1,50 @@
+# Publish the browser demo. The module is rebuilt here rather than committed,
+# so the page always runs the current library and a 3.6 MB binary stays out of
+# the repo.
+name: pages
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'web/**'
+      - 'lib/**'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never cancel a half-finished deploy, but only run one at a time.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: .go-version
+          # standard library only, so there is no go.sum and nothing to cache
+          cache: false
+
+      - name: build browser module
+        run: make -C lib web
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

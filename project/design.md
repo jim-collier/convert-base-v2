@@ -26,38 +26,91 @@
 One small, fast, portable command line tool that does two related jobs well:
 
 - Convert a number of any size between any two bases, including negatives and fractions.
+
 - Encode and decode raw binary to and from text in the bases that can carry bytes exactly.
 
 It should cover the everyday standards (base 10, 16, RFC 4648 base 32 and 64) and a wide set of named and custom bases, match published reference encoders byte for byte, and stay stable and deterministic so scripts can rely on its output for years.
+
+A second goal was added later: the same conversion core should be usable from inside another program, not only by running it. That is what the library and the WebAssembly builds are for.
 
 ## Architecture
 
 ### Language and stack
 
-- Go, module `github.com/jim-collier/convert-base-v2`, one `main` package under `source/`.
-- One dependency, `gopkg.in/yaml.v3`, for optional config files.
-- Ships as a single static binary. Release builds are stripped and trimmed with `CGO_ENABLED=0`.
+- Go, module `github.com/jim-collier/convert-base-v2/lib`, rooted at `lib/`.
+
+- No external dependencies. The config parser is SHCL, whose Go binding is one file copied into `lib/shcl/`; everything else is the standard library.
+
+- The command is a single static binary. Release builds are stripped and trimmed with `CGO_ENABLED=0`.
 
 ### Code organization
 
+Five things are built from one tree. They are not interchangeable, and the line between them is about what each is allowed to do.
+
+| Built | From | Kind |
+| :-- | :-- | :-- |
+| The command | `lib/cmd/convert-base-v2/` | A program |
+| The Go package | `lib/convertbase/` | A library |
+| The browser module | `lib/wasm/` | A library, for a web page |
+| The WASI module | `lib/cmd/convert-base-v2/` | The whole command, sandboxed |
+| The reactor module | `lib/reactor/` | A library, for any wasm runtime |
+
+Inside the command:
+
 - `main.go` reads flags and config, resolves the conversion, and handles stdin and pipes. It also holds the version string.
+
+- `userconfig.go` writes the default config file on first run, with `default-config.shcl` embedded in the binary.
+
+Inside the package:
+
 - `convert.go` is the conversion core. It has two paths: an arbitrary-precision path (handles sign and fractions) and a fast bit-packing path used when a base is a power of two.
-- `registry.go` defines the `Base` type, the lookup registry, and config loading.
+
+- `registry.go` defines the `Base` type and the lookup registry.
+
+- `options.go` is how a caller says "base sixteen, but with a different negative marker". The command's flags build one of these.
+
+- `config.go` reads config files.
+
 - `bases.go` lists the predefined named bases and their alphabets. A new base is one more entry here.
-- `symbolspec.go` parses user-supplied alphabets and the `neg` / `dec` / `pad` marker tokens.
+
+- `symbolspec.go` parses user-supplied alphabets. A spec is digit symbols only; the negative, decimal, and padding markers are set separately, by flags or config fields.
+
+- `escapes.go` names control characters that a base carries as digits, so they can be typed and read.
+
+- `slice.go` cuts and pads a value on symbol boundaries, for callers with fixed-width fields.
 
 ### CLI contract
 
 - Usage is `convert-base-v2 [flags] NUMBER [OUTBASE]`. A positional `NUMBER` always wins, so a pipe is read only when the input is `-`.
+
 - If `--from` is unset the input base is 10. If neither `--to` nor a positional `OUTBASE` is given, the output base is 10 too. Under `--binary`, an omitted side defaults to `bytes`.
+
 - Conflicting selectors (for example `--to` and a different positional base) do not silently pick one. They emit a note on stderr and follow a documented precedence.
+
 - Query flags (`--list`, `--show-symbols`, and friends) each print one value and exit, so scripts can read the base set from the program itself.
 
 ## Key design decisions
 
 The rationale behind the choices most likely to be questioned later. Each was settled during pre-1.0 review.
 
-- **Two binary paths, kept separate.** Streaming (constant memory, linear time) and buffered positional (quadratic time) are genuinely different jobs, so they stay as two implementations rather than being merged. An equivalence test pins them together, and fails if they ever diverge.
+- **The library and the command have different licenses.** The package is Apache-2.0 and the command stays GPL-2.0-or-later. GPL reaches through a static link into the calling program, and Go links statically only, so the split is what makes the package importable at all. Apache was chosen for its attribution notice, which is the part that carries credit into someone else's product. The "or later" on the command's license is what lets the two combine.
+
+- **The library version is separate from the command's, and starts at v0.** Go writes a module's major version into its import path above v1, so one shared number would mean every major release of the command rewrote the import path and broke callers over a change that never touched the package. Starting at v0 also leaves room to reshape the API.
+
+- **The library does nothing on its own behalf.** It touches no files, reads no environment variables, and prints nothing. Writing a config file into a home directory is reasonable for a program someone chose to run, and not for a library that got imported into someone else's project. The command does all of that.
+
+- **Library error text names no flags.** The conditions are stated in neutral terms, and the command appends its own pointers on the way out. Each condition is its own error type, so any caller can recognize it and word the advice in its own terms. This is what lets a browser page or a host program report an error without mentioning a command line.
+
+- **WebAssembly, rather than a C shared library, is how other languages get in.** It reaches the same languages with no permanent ABI to freeze, no cgo, and no per-platform build. A C interface waits for someone who specifically needs in-process native speed.
+
+- **The reactor module is a push API for streaming.** An exported function gets none of the standard input and output that the WASI build is handed, so a stream is opened, written to, and finished by the host. That shape needs nothing from the host beyond memory.
+
+- **Two binary paths, kept separate.** Streaming (constant memory, linear time) and buffered positional (superlinear time) are different jobs, so they stay as two implementations rather than being merged. An equivalence test pins them together, and fails if they ever diverge.
+
+- **The number path uses published subquadratic algorithms, not a hand-tuned quadratic loop.** Converting between two arbitrary bases has no shortcut through binary, so the schoolbook method costs a full pass over the value per digit in each direction. Rather than optimize that constant factor, the digit run is split in half and rejoined with one wide multiply or divide, which is Schonhage's radix conversion as written up in Brent and Zimmermann. It leans on `math/big` being subquadratic underneath, which it is, through Karatsuba multiplication and Burnikel-Ziegler recursive division. Below the cutoff the leaves pack digits a machine word at a time, which is the classical sub-base trick and is worth a constant factor only.
+	- The measured exponent drops from 2.00 to between 1.15 and 1.53 over the sizes tested, which is a million-digit conversion in a third of a second against a hundred and seven seconds.
+	- The split seam is the one place this can go quietly wrong in either direction. A short low half has to keep its leading zeros coming out, and weigh correctly going in, and either mistake still produces a plausible-looking number. Tests pin every seam length against an independent conversion rather than against a fixture.
+	- Delegating the output leg to the standard library's own conversion was measured and declined. It is a wash end to end, because remapping the result to an arbitrary alphabet costs what the faster core saves, and the input leg would still need the recursion.
 
 - **Padding is by mode, not by base.** Positional number output is never padded. The binary-to-text codec path pads to the group boundary for every RFC 4648 variant, matching the strict standard decoders. Decoding stays lenient and accepts padded or unpadded input either way.
 
@@ -67,20 +120,46 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 - **Custom alphabets must be prefix-free.** For multi-character symbols, no symbol may be a prefix of another, and a marker may not appear inside a digit. That keeps the simple left-to-right tokenizer provably correct, so the fix is validation, not a more complex parser.
 
+- **Compatibility bases are a separate group, not deprecated entries.** A handful of bases exist only to reproduce the output of the older `convert-base-v1` and `convert-base-v1b`. Mixing them into the main listing made half of it legacy, so they are marked, sorted last, and shown by `--list-compat` instead of `--list`. They are ordinary bases in every other respect, and every legacy name still resolves. Sorting them last is what keeps both listings contiguous, so selecting a base by index is unaffected.
+
+- **A base can be dropped when its presence is misleading.** Bitcoin's Bech32 and base 58 were removed because neither is a plain base conversion, so this tool could never produce a real address with them. Keeping them invited the wrong conclusion.
+
 - **Config override keeps the base list truthful.** When a config base shadows a built-in one, the shadowed entry is dropped or loses only the stolen aliases, so `--list` and the index space stay accurate.
 
-- **The version is a `var`, not a `const`.** The release build patches it through a linker flag, which only works on a var. The source value is the single source of truth for what version ships.
+- **The config format is SHCL, and its parser is a copied file.** SHCL comes as one drop-in source file per language, so vendoring it is the intended way to use it rather than a shortcut. It also leaves the program with no external dependencies, which matters for a tool whose whole promise is a single static binary. The copy stays byte-identical to upstream, so picking up a fix there is a file copy.
+
+- **The config is written, not just documented.** The first run creates the user file with a commented example in it. A documented path that does not exist is a feature most people never find, and there is no example to copy from until they have already worked out the syntax. The file is embedded in the binary, so the shipped example and the real file cannot disagree.
+
+- **`10emoji` lives in the config rather than in the code.** It was the most decorative of the built-in bases and the most obvious thing to imitate, which makes it a better example than a placeholder alphabet. Anyone who wants it keeps it; anyone who wants their own edits it in place.
+
+- **An unrecognized config field is an error.** Loading the file with a misspelled field ignored would produce a base with the wrong markers or the wrong digits, and nothing about the output would ever look wrong. The same reasoning applies to a line SHCL could not parse: the parser is designed to skip and carry on, which is right for a log and wrong for an alphabet.
+
+- **Control-character digits are named with a marker from outside the alphabet.** A base can hold tab, newline and return as digits, and those cannot be typed at a prompt or seen on a terminal. Naming them needs a marker, and the usual choice, a printable character with a doubling rule, leads straight to the question of how to write the marker itself. Picking a character the base does not use answers it: the marker can never be a digit, so raw and named forms mix in one value with nothing to disambiguate and no rule to remember.
+	- Among the options considered, single glyphs from the Unicode control-pictures block were the tidiest but too small to read at a glance, so a marker plus a short name won.
+	- Naming is accepted on input always, and written on output only when asked. Input acceptance cannot break anything, since the marker was never valid input before; changing what is written would change every existing result in such a base.
+	- One control's name is the start of another's, so a name alone is not always enough. Output re-reads each name against the text that follows it and writes a fixed-width form instead where the name would not survive the trip back.
+	- Naming applies to the number path only. Byte mode writes raw bytes or a fixed alphabet, where the flag would be accepted and then do nothing, so it is refused there instead.
+
+- **The version is a `var`, not a `const`.** The release build patches it through a linker flag, which only works on a var. The source value is the single source of truth for the released version.
 
 - **Output stays deterministic and stable.** Given the same input and base, the output never changes across runs or platforms. Any future change that would alter output goes to a new version suffix so old scripts keep working.
 
 ## CI/CD and release flow
 
 - Branching: `dev` is the integration branch. Feature branches merge to `dev`; `main` is release-only.
+
 - Hosted CI is a bare safety net: vet, test, and build on every push and pull request. The full pipeline (fuzz, profiling, dogfood, package, publish) stays local.
-- Two native builds. The debug build (symbols kept) is what tests and the profiler run against. The optimized build (stripped) is smoke-checked, dogfooded, and matches what ships, so day-to-day use is the real thing.
-- Packaging is self-contained (`cicd/utility/package.bash`). The same script runs locally and in the release workflow, so what ships is what was built and tested here.
+
+- Two native builds. The debug build (symbols kept) is what tests and the profiler run against. The optimized build (stripped) is smoke-checked and used day to day, and matches what is released.
+
+- Packaging is self-contained (`cicd/utility/package.bash`). The same script runs locally and in the release workflow, so what is released is what was built and tested here.
+
 	- Targets: linux, darwin, freebsd, and windows on amd64 and arm64. ARM is built unconditionally, since Go cross-compiles it at native speed.
+
 	- Per platform: a tarball (zip on Windows) of the static binary, a `.deb` and `.rpm` for each Linux arch, a single-file Windows installer that adds the tool to PATH and can update an existing install, and a checksums file. macOS `.dmg` and a native FreeBSD `.pkg` are deferred; those platforms ship as tarballs for now.
-- Releases are automatic on a merge to `main`. The version var in `source/main.go` is the source of truth. A guard runs first and fails the workflow if the version was not bumped, if it sorts behind the newest tag, or if the README Lifecycle badge does not match the version stage. On success the workflow tags, packages, and publishes.
+
+- Releases are automatic on a merge to `main`. The version var in `lib/cmd/convert-base-v2/main.go` is the source of truth. A guard runs first and fails the workflow if the version was not bumped, if it sorts behind the newest tag, or if the README Lifecycle badge does not match the version stage. On success the workflow tags, packages, and publishes.
+
 - Release prep on `dev`: rename the changelog's next-version heading to the version and date, bump the version var, and set the Lifecycle badge to match the stage.
+
 - Tool versions are pinned in `cicd/tool-versions.env`, read by both the local pipeline and the workflows. Dependabot files grouped weekly update pull requests against `dev`.

@@ -17,7 +17,7 @@
 ##		BENCH_SIZE_MIB (default 256), BENCH_RUNS (default 10)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 
-##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT
@@ -31,7 +31,7 @@ RUNS="${BENCH_RUNS:-10}"
 # Locate the binary under test: CLI arg, env, repo build, or PATH.
 EXE="${1:-${BENCH_EXE:-}}"
 if [[ -z "$EXE" ]]; then
-	for c in "${meDir}/../source/convert-base-v2" "${meDir}/../source/bin/convert-base-v2"; do
+	for c in "${meDir}/../lib/convert-base-v2" "${meDir}/../lib/bin/convert-base-v2"; do
 		[[ -x "$c" ]] && { EXE="$c"; break; }
 	done
 fi

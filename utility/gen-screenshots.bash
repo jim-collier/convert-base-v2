@@ -24,7 +24,7 @@
 ##	History: at bottom.
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 
-##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT
@@ -45,15 +45,15 @@ shopt -u patsub_replacement 2>/dev/null || true
 ## Setup: locate the repo and the binary
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 REPO="${1:-${CBV_REPO:-$PWD}}"
-[[ -d "${REPO}/source" ]] || { echo "gen-screenshots: '${REPO}' is not the github dir (no source/)" >&2; exit 1; }
+[[ -d "${REPO}/lib" ]] || { echo "gen-screenshots: '${REPO}' is not the github dir (no lib/)" >&2; exit 1; }
 
 BIN="${2:-${CBV_BIN:-}}"
 if [[ -z "${BIN}" ]]; then
-	for cand in "${REPO}/source/bin/convert-base-v2" "${REPO}/source/convert-base-v2"; do
+	for cand in "${REPO}/lib/bin/convert-base-v2" "${REPO}/lib/convert-base-v2"; do
 		[[ -x "${cand}" ]] && { BIN="${cand}"; break; }
 	done
 fi
-[[ -x "${BIN}" ]] || { echo "gen-screenshots: build the binary first (make -C source local)" >&2; exit 1; }
+[[ -x "${BIN}" ]] || { echo "gen-screenshots: build the binary first (make -C lib local)" >&2; exit 1; }
 
 command -v magick >/dev/null 2>&1 || { echo "gen-screenshots: ImageMagick 'magick' not found" >&2; exit 1; }
 magick -list format 2>/dev/null | grep -qi pango || { echo "gen-screenshots: ImageMagick lacks the pango delegate" >&2; exit 1; }
@@ -151,7 +151,7 @@ enc2048twitter="$(run "${big}" 2048twitter)"
 c "# Arbitrary size, exotic bases"
 blank
 p "convert-base-v2 ${big} 62";       o "$(run "${big}" 62)"
-p "convert-base-v2 ${big} 256jc1";   o "$(run "${big}" 256jc1)"
+p "convert-base-v2 ${big} 256tt";     o "$(run "${big}" 256tt)"
 p "convert-base-v2 ${big} 2048twitter";     o "${enc2048twitter}"
 p "convert-base-v2 --from 2048twitter '${enc2048twitter}'"; o "$(run --from 2048twitter "${enc2048twitter}")"
 render "02-bignum" "convert-base-v2  -  arbitrary size, exotic bases"
@@ -166,8 +166,8 @@ blank
 p "convert-base-v2 --from-symbols ABCD --to 10 CBBA.B"
 o "$(run --from-symbols ABCD --to 10 CBBA.B)"
 blank
-p "convert-base-v2 --from-symbols \"aeiouy.-_0 neg=~ dec=/\" --to 20w \"~y0-._/ooo\""
-o "$(run --from-symbols "aeiouy.-_0 neg=~ dec=/" --to 20w "~y0-._/ooo")"
+p "convert-base-v2 --from-symbols \"aeiouy.-_0\" --from-neg '~' --from-dec '/' --to 20w \"~y0-._/ooo\""
+o "$(run --from-symbols "aeiouy.-_0" --from-neg '~' --from-dec '/' --to 20w "~y0-._/ooo")"
 blank
 p "convert-base-v2 --to-symbols \"🌑🌒🌓🌔🌕🌖🌗🌘\" 1234"
 o "$(run --to-symbols "🌑🌒🌓🌔🌕🌖🌗🌘" 1234)"
@@ -203,11 +203,12 @@ render "04-binary" "convert-base-v2  -  binary streaming round-trip"
 reset_markup
 c "# User config adds your own bases; --list shows them all"
 blank
-p "cat ~/.config/convert-base-v2/convert-base-v2.conf"
-o "- aliases: [pentary, myfive]"
-o "  symbols: \"0 1 2 3 4\""
-o "- aliases: [moon8]"
-o "  symbols: \"🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘\""
+p "cat ~/.config/convert-base-v2/convert-base-v2.shcl"
+o "base: pentary"
+o "	aliases: myfive"
+o "	symbols: \"0 1 2 3 4\""
+o "base: moon8"
+o "	symbols: \"🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘\""
 blank
 p "convert-base-v2 --list | head -10"
 while IFS= read -r line; do o "${line}"; done < <(run --list | head -10)
@@ -219,6 +220,6 @@ echo "gen-screenshots: wrote 5 originals to ${LARGE} and thumbnails to ${SMALL}"
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## History
-##		- 2026-07-04 JC: First version. Five terminal transcripts (everyday,
+##		- 2026-07-04: First version. Five terminal transcripts (everyday,
 ##		  exotic bases, custom alphabets, binary streaming, config + list).
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

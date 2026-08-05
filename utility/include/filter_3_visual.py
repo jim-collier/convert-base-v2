@@ -13,7 +13,7 @@ Purpose:
 	--debug:           writes unicode_visual_debug_<LO>-<HI>.png
 	--debug-dir PATH:  directory for debug PNG (default: directory of this script)
 
-Copyright © 2026 Jim Collier
+Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
 Licensed under the GNU General Public License v2.0 or later.
 SPDX-License-Identifier: GPL-2.0-or-later
 """

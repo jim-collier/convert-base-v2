@@ -10,7 +10,7 @@ Purpose:
 		- Column with "[py: filter_messy]" in the heading: Output from 'filter_2_messy.py', using contents of '[py: filter_junk]' cell as input.
 		- Column with "[py: filter_visual]" in the heading: Output from 'filter_3_visual.py', with contents of '[py: filter_messy]' cell as input.
 
-Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
 Licensed under the GNU General Public License v2.0 or later. Full text at:
 	https://spdx.org/licenses/GPL-2.0-or-later.html
 SPDX-License-Identifier: GPL-2.0-or-later
