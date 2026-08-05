@@ -52,6 +52,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - Bugs
 
+- ✅ A build made from a clone reported the library's version instead of the tool's.
+	- Cause: the package tag and the tool's tag land on the same commit, and the command that reads the newest tag picked the package one.
+	- Fixed: that command now skips the package tags. Released builds were never affected, since the workflow passes the version in.
+	- Verified: a fresh build reports the tool's version again.
+
 - ✅ Two kinds of config file mistake were accepted and then ignored.
 	- Reproduced: a field written twice, and a field whose name is in quotes. Both loaded without complaint, and the base came out different from what the file said.
 	- Cause: a field given more than once reads back as nothing at all, and the loader treated that as absent, falling back to a default. A quoted name was left out of the list the check walks, so a quoted misspelling was never seen.
