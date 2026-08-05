@@ -249,8 +249,6 @@ Convert whole values, or stream through an `io.Reader` and `io.Writer` in consta
 
 The package version moves on its own, separately from the command's. It is at v0 for now, which means the shape of the API may still change.
 
-The first package tag has not been pushed yet, so `go get` cannot resolve it until it exists. Building against a local clone of the repository works today.
-
 ### WebAssembly, in a browser
 
 The [demo page](https://jim-collier.github.io/convert-base-v2/) is the whole library compiled to WebAssembly, with a small set of JavaScript calls:

@@ -48,11 +48,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ### New features and enhancements
 
-- 🔘 Push the first `lib/v0.1.0` tag, so the Go module can be fetched.
-	- Note: nothing can import the package until the tag exists, and the README should not claim otherwise before then.
-	- Note: a second project is waiting on it, and carries a local path override in the meantime.
-	- Note: blocked only on the current work branch merging.
-
 ### Done
 
 #### Done - Bugs
@@ -155,6 +150,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Fixed: a spec containing one is refused up front.
 
 #### Done - New features and enhancements
+
+- ✅ Push the first `lib/v0.1.0` tag, so the Go module can be fetched.
+	- Cause: nothing could import the package at any version, because the tag that addresses a module in a subdirectory had never been pushed.
+	- Done: the tag ships with v3.0.0, alongside the command's own tag.
+	- Note: a second project was waiting on it, and can drop its local path override.
 
 - ✅ Say which line of a config file is wrong.
 	- Cause: every complaint named the base and the field but not the line, so a long file had to be read through to find it. The parser could not place a field written twice, which is the mistake that most wants a line.
