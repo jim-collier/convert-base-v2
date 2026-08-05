@@ -156,6 +156,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 #### Done - New features and enhancements
 
+- ✅ Say which line of a config file is wrong.
+	- Cause: every complaint named the base and the field but not the line, so a long file had to be read through to find it. The parser could not place a field written twice, which is the mistake that most wants a line.
+	- Done: the vendored parser moved up to its 1.2.0 release, which added the call that answers with every line a name was bound on.
+	- Done: all eight ways a config file can be refused now cite a line, and a repeat names both the line it recurred on and the line it was first given.
+	- Verified: a test pins the line for each of the eight, and the rest of the suite is unchanged.
+
 - ✅ Retire `2048tt`, and rebuild the family on code-point-ordered alphabets.
 	- Cause: the alphabet was assembled out of code point order, so `2048tt` could not be corrected without leaving two different alphabets answering to one name.
 	- Done: `2048tt` removed, and `2048tz` put in its place. The old alphabet is kept as a comment in `bases.go`, since builds carrying it did produce output.

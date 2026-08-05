@@ -70,13 +70,16 @@ func (r *Registry) LoadConfig(path string) error {
 		return err
 	}
 	for i := 0; i < doc.Count("base"); i++ {
-		b, err := configBase(doc, fmt.Sprintf("base[#%d]", i))
+		sel := fmt.Sprintf("base[#%d]", i)
+		b, err := configBase(doc, sel)
 		if err != nil {
 			return err
 		}
 		b.Source = path
 		if err := r.Register(b); err != nil {
-			return err
+			// Registration errors already lead with the base name, so the
+			// block's line is all that is missing to place them in the file.
+			return fmt.Errorf("%s%w", citeLine(doc, sel), err)
 		}
 	}
 	r.LoadedConfigs = append(r.LoadedConfigs, path)
@@ -104,8 +107,32 @@ func configParseError(doc *shcl.Document) error {
 	return fmt.Errorf("%s", strings.Join(lines, "; "))
 }
 
+// citeLine names the source line of a config path, ready to prefix a message.
+// A path the document cannot place yields no prefix at all, so a citation that
+// is not available costs nothing in the text - "line 0" would be worse.
+func citeLine(doc *shcl.Document, path string) string {
+	for _, n := range doc.Lines(path) {
+		if n > 0 {
+			return fmt.Sprintf("line %d: ", n)
+		}
+	}
+	return ""
+}
+
+// repeatedField reports a field written twice, citing where it was written both
+// times. Lines() is what makes that possible: the singular Line() cannot place
+// a path resolving to more than one node, which is exactly this case.
+func repeatedField(doc *shcl.Document, path, base, field string) error {
+	msg := fmt.Sprintf("base %q: %s is given more than once", base, field)
+	lines := doc.Lines(path)
+	if len(lines) < 2 || lines[0] < 1 || lines[1] < 1 {
+		return errors.New(msg)
+	}
+	return fmt.Errorf("line %d: %s (first at line %d)", lines[1], msg, lines[0])
+}
+
 // checkConfigFields rejects anything the loader would not read, and anything it
-// would read only once. Children() gives the names as written, in file order,
+// would read only once. Children() gives the names as stored, in file order,
 // with repeats kept, which is what both halves need: a repeat is how a field
 // silently loses its value (the read comes back Multiple and the loader falls
 // back to a default), and a name needing quotes is invisible to Paths().
@@ -114,7 +141,8 @@ func checkConfigFields(doc *shcl.Document) error {
 	// names are checked at the top level.
 	for _, name := range doc.Children("") {
 		if !strings.EqualFold(name, "base") {
-			return fmt.Errorf("unknown setting %q (this file holds \"base:\" blocks only)", name)
+			return fmt.Errorf("%sunknown setting %q (this file holds \"base:\" blocks only)",
+				citeLine(doc, shcl.QuoteSegment(name)), name)
 		}
 	}
 	for i := 0; i < doc.Count("base"); i++ {
@@ -123,11 +151,14 @@ func checkConfigFields(doc *shcl.Document) error {
 		seen := make(map[string]bool)
 		for _, field := range doc.Children(sel) {
 			key := strings.ToLower(field)
+			// A name is stored folded but may still need quoting to splice
+			// into a lookup path, which is how the quoted typo is reached.
+			path := sel + "." + shcl.QuoteSegment(field)
 			if !configBaseFields[key] {
-				return fmt.Errorf("base %q: unknown field %q", name, field)
+				return fmt.Errorf("%sbase %q: unknown field %q", citeLine(doc, path), name, field)
 			}
 			if seen[key] {
-				return fmt.Errorf("base %q: %s is given more than once", name, field)
+				return repeatedField(doc, path, name, field)
 			}
 			seen[key] = true
 		}
@@ -140,7 +171,7 @@ func checkConfigFields(doc *shcl.Document) error {
 func configBase(doc *shcl.Document, sel string) (*Base, error) {
 	name := strings.TrimSpace(doc.ReadString(sel).Value)
 	if name == "" {
-		return nil, fmt.Errorf(`a "base:" line has no name`)
+		return nil, fmt.Errorf(`%sa "base:" line has no name`, citeLine(doc, sel))
 	}
 	b := &Base{Aliases: append([]string{name}, doc.GetStringArrayOr(sel+".aliases", nil)...)}
 
@@ -149,7 +180,7 @@ func configBase(doc *shcl.Document, sel string) (*Base, error) {
 		return nil, err
 	}
 	if len(symbols) == 0 {
-		return nil, fmt.Errorf("base %q: missing 'symbols'", name)
+		return nil, fmt.Errorf("%sbase %q: missing 'symbols'", citeLine(doc, sel), name)
 	}
 	b.Symbols = symbols
 
@@ -177,7 +208,8 @@ func configBase(doc *shcl.Document, sel string) (*Base, error) {
 	case shcl.Good:
 		b.PadEmit = r.Value
 	case shcl.BadType:
-		return nil, fmt.Errorf("base %q: pademit must be true or false", name)
+		return nil, fmt.Errorf("%sbase %q: pademit must be true or false",
+			citeLine(doc, sel+".pademit"), name)
 	}
 	return b, nil
 }
@@ -192,12 +224,12 @@ func configSymbols(doc *shcl.Document, path, baseName, field string) ([]string, 
 	case shcl.NotFound, shcl.Empty:
 		return nil, nil
 	case shcl.Multiple:
-		return nil, fmt.Errorf("base %q: %s is given more than once", baseName, field)
+		return nil, repeatedField(doc, path, baseName, field)
 	}
 	if len(read.Value) == 1 {
 		symbols, err := ParseSymbolSpec(read.Value[0])
 		if err != nil {
-			return nil, fmt.Errorf("base %q: %s: %w", baseName, field, err)
+			return nil, fmt.Errorf("%sbase %q: %s: %w", citeLine(doc, path), baseName, field, err)
 		}
 		return symbols, nil
 	}
