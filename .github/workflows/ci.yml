@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: source
+        working-directory: lib
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7

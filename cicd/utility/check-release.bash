@@ -5,7 +5,7 @@
 ##	Purpose:
 ##		- Release-readiness guard, run on a push to main before anything is
 ##		  tagged or published. Hard-fails (exit 1) unless:
-##		    1. `var version` in source/main.go is set,
+##		    1. `var version` in lib/cmd/convert-base-v2/main.go is set,
 ##		    2. its tag does not already exist (i.e. the version was bumped),
 ##		    3. it sorts strictly after the newest existing release tag (no going
 ##		       backwards),
@@ -27,7 +27,7 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "${here}/../.." && pwd)"
 [[ "${1:-}" == "--repo" && -n "${2:-}" ]] && root="$2"
 
-main_go="${root}/source/main.go"
+main_go="${root}/lib/cmd/convert-base-v2/main.go"
 readme="${root}/README.md"
 
 fFail(){ echo "release check FAILED: $*" >&2; exit 1; }
@@ -38,7 +38,7 @@ ver="$(sed -n 's/^var version = "\(v[0-9][^"]*\)".*/\1/p' "${main_go}")"
 
 ## 2. Its tag must not exist yet (bumped since the last release).
 if git -C "${root}" rev-parse -q --verify "refs/tags/${ver}" >/dev/null 2>&1; then
-	fFail "tag ${ver} already exists - bump 'var version' in source/main.go before merging to main"
+	fFail "tag ${ver} already exists - bump 'var version' in lib/cmd/convert-base-v2/main.go before merging to main"
 fi
 
 ## 3. Must sort strictly after the newest existing release tag. Map '-' to '~'

@@ -5,8 +5,9 @@
 <!-- markdownlint-disable MD041 -- First line in a file should be a top-level heading -->
 <div align="center">
 
-![Go](https://img.shields.io/github/go-mod/go-version/jim-collier/convert-base-v2?filename=source%2Fgo.mod&logo=go&logoColor=white&label=Go)
-![License: GPL v2](https://img.shields.io/badge/License-GPLv2-blue.svg)
+![Go](https://img.shields.io/github/go-mod/go-version/jim-collier/convert-base-v2?filename=lib%2Fgo.mod&logo=go&logoColor=white&label=Go)
+![License: GPL v2 or later](https://img.shields.io/badge/License-GPLv2%2B-blue.svg)
+![Library: Apache 2.0](https://img.shields.io/badge/Library-Apache_2.0-blue.svg)
 ![Lifecycle: Stable](https://img.shields.io/badge/Lifecycle-Stable-brightgreen)
 ![Support](https://img.shields.io/badge/Support-Maintained-brightgreen)
 ![CI](https://img.shields.io/github/actions/workflow/status/jim-collier/convert-base-v2/ci.yml?branch=main&label=CI)
@@ -29,8 +30,8 @@
 <table>
 	<tr>
 		<td>Convert any regular positional notation number, of any size - positive, negative, and/or decimal - to and from any numeric base.</td>
-		<td>Encode/decode streaming binary-to-text across far more bases than the standard tools like `base64` give you, and on average faster.</td>
-		<td>It's a single, fast, cross-platform static binary written in Go.</td>
+		<td>Encode/decode streaming binary-to-text across far more bases than the standard tools like <code>base64</code> give you, and on average faster.</td>
+		<td>A single, fast, cross-platform static binary. The same conversion core is also an Apache-licensed Go package and a WebAssembly module, so you can build it into your own program or web page.</td>
 	</tr>
 </table>
 
@@ -51,55 +52,105 @@ It's a single, fast, cross-platform static binary written in Go.
 <!-- TOC -->
 
 - [Features](#features)
+- [Try it online](#try-it-online)
 - [Install](#install)
+	- [Packages and installers](#packages-and-installers)
+	- [One-line install script](#one-line-install-script)
+	- [Build it yourself](#build-it-yourself)
 - [Usage](#usage)
 - [Configuration](#configuration)
+- [Use it in your own code](#use-it-in-your-own-code)
+	- [A Go package](#a-go-package)
+	- [WebAssembly, in a browser](#webassembly-in-a-browser)
+	- [WebAssembly, anywhere else](#webassembly-anywhere-else)
+	- [WebAssembly, as a function call](#webassembly-as-a-function-call)
+	- [Or just run it](#or-just-run-it)
+	- [Licensing](#licensing)
 - [Why convert a number to a large base](#why-convert-a-number-to-a-large-base)
 	- [Also why the -v2?](#also-why-the--v2)
 - [Speed](#speed)
+	- [Streaming binary and text](#streaming-binary-and-text)
+	- [Large numbers](#large-numbers)
 - [Third-party binary codecs, built in](#third-party-binary-codecs-built-in)
 - [List of predefined bases](#list-of-predefined-bases)
 - [How to design a numeric base](#how-to-design-a-numeric-base)
-- [Support](#support)
-- [Copyright and license](#copyright-and-license)
+- [Set up a development environment](#set-up-a-development-environment)
+- [Support convert-base-v2](#support-convert-base-v2)
+- [Legal stuff](#legal-stuff)
 
 <!-- /TOC -->
 
 ## Features
 
-- **Any number, any base.** Convert a value of any size to or from any base. All the usual standards are built in (base 10, 16, RFC 4648 base 32 and 64, and more), plus more than sixty predefined named bases.
+- **Any number, any base**: Convert a value of any size to or from any base. All the usual standards are built in (base 10, 16, RFC 4648 base 32 and 64, and more), plus more than sixty predefined named bases.
 
-- **Bring your own alphabet.** Define a base on the spot by listing its symbols. For example, "`a 0 c X 🫪 だ`" is a perfectly good base 6.
+- **Bring your own alphabet**: Define a base on the spot by listing its symbols. For example, "`a 0 c X 🫪 だ`" is a perfectly good base 6.
 
-- **Negatives and fractions.** Both work in nearly every base. Even bases meant only for binary encoding can be pressed into positional use. If the usual `-` and `.` markers clash with a base's own symbols, you can set your own.
+- **Negatives and fractions**: Both work in nearly every base. Even bases meant only for binary encoding can be pressed into positional use. If the usual `-` and `.` markers clash with a base's own symbols, you can set your own.
 
-- **Binary to text, in many more bases than usual.** Encode or decode raw binary in every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. That covers everything `basenc` does, at comparable speed, plus bases `basenc` never heard of. Bases with no byte-exact mapping are refused in binary mode, and `--list` shows which ones qualify.
+- **Digits you can actually type**: Some bases carry tab, newline and return as digits, so a whole text file converts as one number. Those digits can be written by name instead, as `⊳TAB` or `⊳LF`, and input takes the named and the raw forms mixed.
+
+- **Binary to text, in many more bases than usual**: Encode or decode raw binary in every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. That covers everything `basenc` does, at comparable speed, plus bases `basenc` never heard of. Bases with no byte-exact mapping are refused in binary mode, and `--list` shows which ones qualify.
 
 	- To re-encode straight between two text bases as bytes (hex to base 64, say), add `--binary`. Without it, two power-of-two text bases convert as a plain number, which drops leading zeros; a note on stderr points this out, and `--number` silences it.
 
-- **Reads from anywhere.** Takes input from the command line or from `stdin`, so it drops into a pipe.
+- **Subquadratic on huge values**: The number path uses the published divide and conquer radix conversion over Karatsuba multiplication and Burnikel-Ziegler division, so a million-digit conversion takes a third of a second instead of a couple of minutes. See [Large numbers](#large-numbers).
 
-- **One portable binary.** Cross-platform Go, no runtime or dependencies to install.
+- **Reads from anywhere**: Takes input from the command line or from `stdin`, so it drops into a pipe.
+
+- **One portable binary**: Cross-platform Go, no runtime or dependencies to install.
+
+## Try it online
+
+**[Open the converter in your browser](https://jim-collier.github.io/convert-base-v2/)**. Nothing to install, nothing to sign up for.
+
+It runs the real conversion core, compiled to WebAssembly, inside your own browser tab. Every base listed below works, including the large Unicode ones.
+
+*Note: Nothing you type is sent anywhere. Your browser downloads the page and the WASM module once, then does all the work locally - disconnect from the network and it keeps converting. No cookies, beacons, tracking, fingerprinting, analytics, or captchas that have you wondering if you are really a human.*
 
 ## Install
 
-Grab a build for your platform from the [Releases page](https://github.com/jim-collier/convert-base-v2/releases). Each release has the option of downloading a single static executable (per-platform).
+### Packages and installers
 
-- **Linux:** a `.deb` or `.rpm` (amd64 or arm64), or a `.tgz` tarball.
+Grab a build for your platform from the [Releases page](https://github.com/jim-collier/convert-base-v2/releases). Every option installs the same single static executable.
 
-- **Windows:** a one-click installer `.exe` that adds the tool to your PATH, or a plain `.zip`.
+- **Linux**: a `.deb` or `.rpm` (amd64 or arm64), or a `.tgz` tarball.
 
-- **macOS and FreeBSD:** a `.tgz` tarball.
+- **Windows**: a one-click installer `.exe` that adds the tool to your PATH, or a plain `.zip`.
 
-Every release ships a `checksums.txt` to verify your download.
+- **macOS and FreeBSD**: a `.tgz` tarball.
 
-To build from source instead, you need Go 1.21 or newer:
+Each release includes a `checksums.txt` so you can verify what you downloaded.
+
+### One-line install script
+
+For Linux, macOS, FreeBSD, and WSL. The script prints what it will do, verifies the download against the release's checksum file, and asks before touching anything.
+
+~~~bash
+bash <(curl -fsSL https://raw.githubusercontent.com/jim-collier/convert-base-v2/main/install.bash)
+~~~
+
+- `--release stable|dev` picks the channel. Default is stable.
+
+- `--target user|system` picks the location. A user install goes to `~/.local/bin/`, a system install to `/usr/local/bin/`.
+
+- `--arch x86_64|arm64` overrides the detected architecture.
+
+- `-y` skips the confirmation prompt.
+
+On Windows, use the installer `.exe` instead.
+
+### Build it yourself
+
+You need Go 1.21 or newer, and nothing else. There are no dependencies to fetch.
 
 ~~~bash
 git clone https://github.com/jim-collier/convert-base-v2
-cd convert-base-v2/source
+cd convert-base-v2/lib
 make local        # builds ./convert-base-v2
 ~~~
+
+Copy the resulting binary anywhere on your PATH. For the full set of build targets, see [Set up a development environment](#set-up-a-development-environment).
 
 ## Usage
 
@@ -108,7 +159,7 @@ make local        # builds ./convert-base-v2
 convert-base-v2 --from hex FF                 # 255
 
 # Decimal to hex-style base 64
-convert-base-v2 1767269700 64hex                # 1fLcL4
+convert-base-v2 1767269700 64hex              # 1fLcL4
 
 # Decimal to a base you invent on the spot
 convert-base-v2 --to-symbols "a b c d e f" 42 # bba
@@ -120,10 +171,19 @@ convert-base-v2 --from hex --from-neg '~' -- '~ff'  # -255
 some-command | convert-base-v2 --binary --to 64
 convert-base-v2 --binary --from 64 --to bytes < file.b64
 
+# Text in, text out: 98keyboard holds every character a text file normally does
+printf 'hi\nthere' | convert-base-v2 --from keyboard --to 10 -   # 3772491441706426
+
+# Its tab, newline and return digits can also be written by name
+convert-base-v2 --from keyboard --to 10 -n 'hi⊳LFthere'          # the same number
+convert-base-v2 --from 10 --to keyboard --escape-controls -n 3772491441706426
+
 # See every base, or one base's alphabet
 convert-base-v2 --list
 convert-base-v2 --show-symbols 64emoji
 ~~~
+
+A base can hold control characters as digits, which are impossible to type at a prompt and invisible on a terminal. Those can be written by name instead, as `⊳LF`, `⊳TAB`, `⊳CR` and so on. Input takes the named and the raw forms mixed, always; output writes them only when `--escape-controls` asks for it. The marker is a character no such base uses, so nothing ever needs escaping twice.
 
 Run `convert-base-v2 --help` for the full flag list, or `--examples` for more.
 
@@ -151,15 +211,95 @@ base: 10emoji
 	decimal: "⚽"
 ~~~
 
-That one ships in the file as a working example to copy from. The format is [SHCL](https://github.com/jim-collier/shcl), and the file itself documents every field.
+That base is in the file as a working example to copy from. The format is [SHCL](https://github.com/jim-collier/shcl), and the file itself documents every field.
+
+## Use it in your own code
+
+The conversion core is a library in its own right, and the command is a thin layer on top of it. Everything below runs that same code, so none of them can disagree with the command about what a base means.
+
+Five separate things get built here, and they are not interchangeable:
+
+- **The command**, `convert-base-v2`. A program. It parses flags, loads config files, and moves data through pipes.
+
+- **The Go package**, `lib/convertbase`. A library. Import it and call its functions. Permissive Apache 2.0 license.
+
+- **The browser module**, `web/convert-base.wasm`. The package compiled for a web page, with a small set of JavaScript calls. Permissive Apache 2.0 license.
+
+- **The WASI module**, `dist/convert-base-v2.wasm`. The whole command compiled to WebAssembly. A program, not a library.
+
+- **The reactor module**, `dist/convert-base-reactor.wasm`. The package compiled for any WebAssembly runtime, exporting plain functions. Permissive Apache 2.0 license.
+
+The line between the command and the package is about what each one is allowed to do. Writing a config file into someone's home directory is fine for a program that person chose to run. It is not fine for a library that got imported into somebody else's project, so the package does none of it. It touches no files, reads no environment variables, and prints nothing. The caller decides all of that.
+
+### A Go package
+
+```sh
+go get github.com/jim-collier/convert-base-v2/lib/convertbase
+```
+
+```go
+reg, _ := convertbase.NewRegistry()
+from, _ := convertbase.ResolveBase(reg, "10", "", nil)
+to, _ := convertbase.ResolveBase(reg, "62", "", nil)
+
+out, err := convertbase.Convert("86434491232548995369", from, to, -1)
+```
+
+Convert whole values, or stream through an `io.Reader` and `io.Writer` in constant memory for anything large. Define your own alphabets, override the negative and decimal markers, and read the base registry directly.
+
+The package version moves on its own, separately from the command's. It is at v0 for now, which means the shape of the API may still change.
+
+### WebAssembly, in a browser
+
+The [demo page](https://jim-collier.github.io/convert-base-v2/) is the whole library compiled to WebAssembly, with a small set of JavaScript calls:
+
+```js
+const res = convertBase.convert({value: "255", from: "10", to: "16"});
+// { ok: true, value: "FF" }
+```
+
+Serve the two files next to your page and it works offline, on static hosting, with no backend.
+
+This build talks to JavaScript through the browser, so a page is the only place it runs. It is not a general WebAssembly library.
+
+### WebAssembly, anywhere else
+
+The command also builds as a WASI module, which runs under Wasmtime, Wazero, Node, and the WebAssembly edge platforms. WASI hands it real argv, standard input, and standard output, so streaming works exactly as it does natively, and one file runs on every architecture.
+
+```sh
+wasmtime run dist/convert-base-v2.wasm -- --from hex --to 10 ff
+# 255
+```
+
+This is the command in a sandbox, not the library made portable. A Rust, Python, or C# program reaches it by starting it under a runtime and wiring up argv and pipes. That is running a program in process. It is not calling a function, and the module does not survive being run a second time in the same instance.
+
+That is still enough to cover callers in any language with a WebAssembly runtime, with no C interface to freeze and no per-platform build to ship. What it does not give you is conversion as a plain function call. That is what the reactor module is for.
+
+### WebAssembly, as a function call
+
+The reactor module is the library compiled for any WebAssembly runtime, exporting plain functions the host calls directly: one-shot conversion, base lookup, the radix and padding symbol of a base, symbol counting, and a stable numeric error code set with readable error text. It also slices and pads by symbol rather than by byte, which is what fixed-width identifier fields need once a base reaches outside ASCII and one digit is no longer one byte. Strings cross as a pointer and length through the module's memory, with an exported allocator pair; the full contract is in [`lib/reactor/README.md`](lib/reactor/README.md). Build it with `make reactor` (needs a Go 1.24 or newer toolchain).
+
+Streaming is there too, as a push API: open a stream, write raw bytes as they arrive, read output chunks back, finish. It runs the same constant-memory paths the command uses for piped data. The WASI module above remains the simpler choice when all you want is a pipe.
+
+### Or just run it
+
+If you can start a process, that is still the simplest option, and always has been. Input and output are pipes, so a conversion of any size streams through in constant memory whatever language you call it from. The library and the WebAssembly builds are for the cases where you cannot shell out.
+
+### Licensing
+
+Which license applies follows the same split.
+
+- The Go package, the browser module, and the reactor module are Apache-2.0. Build them into anything, commercial and closed-source work included. Keep the credit with them and you are done.
+
+- The command stays GPL-2.0-or-later, and so does the WASI module, because that module is the command.
 
 ## Why convert a number to a large base
 
 Plenty of everyday tasks are easier in a bigger base, and they usually mean chaining several tools together or reaching for a web page that can't be scripted.
 
-- **Short, readable IDs.** Say you want to hand-generate serial numbers now and then, unique to the minute, but short and unambiguous rather than a long date or number. Take POSIX time (seconds since 1970), optionally divide by 60 for minute precision, and convert it to a compact base. The value for "2026-01-01 12:15 PM" (1767269700) is `1fLcL4` in hex-style base 64 (`64hex`), or `ɷƨɞ«` in base 256 (`256tt`).
+- **Short, readable IDs**: Say you want to hand-generate serial numbers now and then, unique to the minute, but short and unambiguous rather than a long date or number. Take POSIX time (seconds since 1970), optionally divide by 60 for minute precision, and convert it to a compact base. The value for "2026-01-01 12:15 PM" (1767269700) is `1fLcL4` in hex-style base 64 (`64hex`), or `ɷƨɞ«` in base 256 (`256tt`).
 
-- **Compact binary as text.** Base 64 (`64rfc`, `64url`, `64code`) is the tightest way to pack binary into UTF-8 text. Higher bases help in niche cases: `2048qntm`, qntm's base built for Twitter posts, or `65536qntm` for UTF-32.
+- **Compact binary as text**: Base 64 (`64rfc`, `64url`, `64code`) is the tightest way to pack binary into UTF-8 text. Higher bases help in niche cases: `2048qntm`, qntm's base built for Twitter posts, or `65536qntm` for UTF-32.
 
 The larger custom bases here (like `256tt`) were designed with care to:
 
@@ -177,9 +317,15 @@ The `-v2` marks this as the successor to the original v1.
 
 As v1 anticipated, v2 changes its output in one narrow edge case, and a future version may change it again. There are no official standards for bases above 94 yet. If one ever appears and collides with a name used here, a new suffix keeps the old and new tools installed side by side, so a script that relies on today's exact, deterministic output never breaks. That is what lets `-v2` sit alongside `-v1` and `-v1b`, and leaves room for a `-v3` later.
 
+That compatibility is tested, not assumed. The original `convert-base-v1` and `convert-base-v1b` scripts are bundled in the repo, and every test run executes them and compares their output byte for byte against the compatibility bases here (`--list-compat` shows those).
+
 ## Speed
 
 `convert-base-v2` is fast enough to sit in a pipe next to the coreutils tools without being the bottleneck.
+
+There are two jobs here with two different cost curves, so they are measured separately: streaming a file through a codec, and converting one very large number between two arbitrary bases.
+
+### Streaming binary and text
 
 Binary and text stream encoding is the part that benchmarks cleanly, so here is measured throughput against the standard tools, one table per format. It decodes faster than the standard tools, and encodes in the same ballpark.
 
@@ -221,6 +367,39 @@ Base 64 is the most compact way to store binary as UTF-8 text, which is why it i
 
 - For binary tucked into a Twitter/X post, qntm's base 2048 is the reported optimum.
 
+### Large numbers
+
+Converting between two arbitrary bases is not a bit operation. Base 10 to base 36 has no shortcut through binary, so the value has to be built up and taken back apart with real arithmetic. The textbook way to do that costs one pass over the whole number per digit, in both directions, which is quadratic. At a few thousand digits nobody notices. At a million digits it is minutes.
+
+This uses the published subquadratic method instead.
+
+- **Divide and conquer radix conversion**: A long digit run is cut in half, each half is converted on its own, and the two are rejoined with a single wide multiply on the way in, or separated by a single wide divide on the way out. The powers of the radix at each split width are built once by repeated squaring and reused for the whole recursion. This is Schonhage's algorithm, written up as `FastIntegerInput` and `FastIntegerOutput` in Brent and Zimmermann, [Modern Computer Arithmetic](https://members.loria.fr/PZimmermann/mca/pub226.html) (Cambridge University Press, 2010), section 1.7. It costs `O(M(n) log n)`, where `M(n)` is the cost of one multiply, against `O(n^2)` for the schoolbook loop. Go's own `math/big` converts to and from decimal the same way.
+
+- **Karatsuba multiplication**: From Karatsuba and Ofman, "Multiplication of Multidigit Numbers on Automata" (Doklady Akademii Nauk SSSR 145, 1962). Splitting the number only pays if the multiply that rejoins the halves also beats `O(n^2)`. Karatsuba gets three half-size products to do the work of four, for `O(n^1.585)`. It comes from `math/big`, and it is where the recursion spends most of its time.
+
+- **Burnikel-Ziegler recursive division**: From ["Fast Recursive Division"](https://pure.mpg.de/rest/items/item_1819444/component/file_2599480/content) (Max Planck Institute for Informatics, MPI-I-98-1-022, 1998). The output leg splits by dividing rather than multiplying, so it needs division to be subquadratic for exactly the same reason. Also from `math/big`.
+
+- **Sub-base packing**: Below the recursion cutoff, digits are not handled one at a time. As many as fit in a 64-bit machine word are packed with ordinary integer arithmetic, and only then does one bignum operation carry the whole group: 19 digits at a time for base 10, 12 for base 36, 5 for base 2048. That is the classical `b^k` radix trick from Knuth, *The Art of Computer Programming*, volume 2, section 4.4, and it buys a constant factor of `k`. The leaf loops themselves are Horner's rule going in and repeated division coming out.
+
+- **No arithmetic at all, where the bases allow it**: Between two power-of-two bases, and for the byte codecs, a conversion is only a regrouping of bits. That path is `O(n)`, streams in constant memory, and never builds a bignum. It is the path the throughput tables above measure.
+
+Measured base 10 to base 36, against a straight schoolbook implementation on the same hardware using the same `math/big`:
+
+| Input digits | Schoolbook | `convert-base-v2` | Faster by |
+| --: | --: | --: | --: |
+| 1,000 | 0.16 ms | 0.04 ms | 4x |
+| 4,000 | 1.99 ms | 0.20 ms | 10x |
+| 16,000 | 29 ms | 1.0 ms | 28x |
+| 64,000 | 443 ms | 6.4 ms | 69x |
+| 256,000 | 7.0 s | 47 ms | 150x |
+| 1,000,000 | 107 s | 0.34 s | 310x |
+
+Four million digits convert in about 2.9 seconds. Same bench as the tables above, with both implementations in one process so the arithmetic library and the machine are held constant.
+
+The gap widens with size because the two are on different curves, not because one is tuned better. Fit an exponent to each column and the schoolbook one measures 2.00, while this one runs at 1.15 for short values and 1.53 at the top of the table.
+
+Short numbers pay nothing for any of it. Below the cutoff the recursion never starts, and a number of ordinary length converts in a few microseconds.
+
 ## Third-party binary codecs, built in
 
 Four well-known binary-to-text encodings normally live only in someone's JavaScript, Rust, or Python. This program includes all four, natively:
@@ -233,7 +412,9 @@ Four well-known binary-to-text encodings normally live only in someone's JavaScr
 
 - [Base 65536](https://github.com/qntm/base65536) by [qntm](https://github.com/qntm/), "Unicode's answer to Base64", the tightest fit for UTF-32.
 
-None are official standards, but all are published. They are more involved than positional base conversion, and the alphabets have to be generated rather than typed out. `convert-base-v2` uses none of their source code because they are written in JavaScript and Rust. Instead, each was rebuilt from its published description, then verified against the reference test vectors.
+None are official standards, but all are published. They are more involved than positional base conversion, and the alphabets have to be generated rather than typed out. `convert-base-v2` uses none of their source code because they are written in JavaScript and Rust. Each was rebuilt from its published description instead.
+
+The rebuilds are held to the originals, not to copied-down test vectors. Every test run executes actual builds of all four reference implementations, kept in the repo exactly as released, and compares three directions per base: this encoder must match theirs, this decoder must read their output, and their decoder must read this output. Two implementations can share the same misreading and still agree with each other, which is what crossing the outputs catches.
 
 ## List of predefined bases
 
@@ -241,7 +422,7 @@ Any number of any size converts to and from any of these bases, and most support
 
 These are the common, standard, and published bases, plus a set of [carefully designed](how_to_design_a_numeric_base.md) custom ones.
 
-The "Output" column shows the same base-10 number written in each base. Most rows show it as `-86434491232548995369.314`, negative and fractional. A few alphabets are explicitly defined as positive integer only, and show conversion from `86434491232548995369` instead. Long values are wrapped to keep the column narrow, and some of the larger bases look longer than they are, because the proportional font here stretches double-width characters. "Char count" is the real character count, and "UTF-8 byte count" is what it takes to store, which are not the same thing once a base reaches outside ASCII.
+The "Output" column shows the same base-10 number written in each base. Most rows show it as `-86434491232548995369.314`, negative and fractional. A few alphabets use every character they could have drawn on as a digit, so there is nothing left to mark a sign or a decimal point with. Those rows show `86434491232548995369` instead. Long values are wrapped to keep the column narrow, and some of the larger bases look longer than they are, because the proportional font here stretches double-width characters. "Char count" is the real character count, and "UTF-8 byte count" is what it takes to store, which are not the same thing once a base reaches outside ASCII.
 
 Bases kept only to reproduce the output of the older `convert-base-v1` and `convert-base-v1b` are left out below. Run `convert-base-v2 --list-compat` to see those.
 
@@ -262,7 +443,7 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 10 | 10hindi | devanagari | 25 | 71 | -८६४३४४९१२३२५<br>४८९९५३६९.३१४
 | 10 | 10arabicindic | easternarabic | 25 | 48 | -٨٦٤٣٤٤٩١٢٣٢٥<br>٤٨٩٩٥٣٦٩.٣١٤
 | 10 | 10rods | rods | 25 | 94 | -𝍧𝍥𝍣𝍢𝍣𝍣𝍨<br>𝍠𝍡𝍢𝍡𝍤𝍣𝍧𝍨<br>𝍨𝍤𝍢𝍥𝍨.𝍢𝍠𝍣
-| 10 | 10blocks | blocks | 25 | 75 | ◆▓▇▅▄▅▅▒▂▃▄▃▆<br>▅▓▒▒▆▄▇▒●▄▂▅
+| 10 | 10blocks | blocks | 25 | 75 | ◆▒▇▅▄▅▅▓▂▃▄▃▆<br>▅▒▓▓▆▄▇▓●▄▂▅
 | 10 | 10emoji | emoji10 | 25 | 99 | 🥕🙄😬😜😘😜😜🤔<br>😑😔😘😔😠😜🙄🤔<br>🤔😠😘😬🤔⚽😘😑😜
 | 12 | 12 | dozenal | 25 | 25 | -32B60A3489B6<br>3081435.3927
 | 16 | 16 | hex | 23 | 23 | -4AF84FFD391<br>B2C129.5062
@@ -292,7 +473,7 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 64 | 64hex | 64h | 17 | 17 | ~1A-4_zEHii4f.K69
 | 64 | 64code | programmer | 17 | 19 | -1Aʞ4λzEHii4f.K69
 | 64 | 64emoji |  | 17 | 62 | -😁😊😾😄😿😽😎<br>😑😬😬😄😩.😔😆😉
-| 64 | 64tt |  | 17 | 19 | -1A¢4£zEHii4f.K69
+| 64 | 64tt | 64tz | 17 | 19 | -1A¢4£zEHii4f.K69
 | 69 | 69nice | nice | 16 | 25 | -zn4x1ȹk⍢7≷q.l֏𐌸
 | 69 | 69emoji |  | 16 | 57 | -🔀👬🌊💥♋🔃👨<br>🤩🌮🤤💄.👩😗🪵
 | 85 | 85z | z85 | 11 | 11 | 4xffF@ChZ1X
@@ -300,27 +481,65 @@ Bases kept only to reproduce the output of the older `convert-base-v1` and `conv
 | 85 | 85ipv6 | rfc1924 | 11 | 11 | 4XFFf{cHz1x
 | 91 | 91hk | base91 | 11 | 11 | CT~oQ_nxbnP
 | 98 | 98keyboard | keyboard | 11 | 11 | 15 \n7f!F0E>
-| 128 | 128tt |  | 15 | 20 | -9l§£ΔvD¿2f.eO»
+| 128 | 128tt | 128tz | 15 | 20 | -9l§£ΔvD¿2f.eO»
 | 256 | bytes |  |  |  | (raw bytes 0x00-0xFF)
-| 256 | 256tt |  | 14 | 29 | -4६ψጎา϶ଌชf.ðɔß
-| 512 | 512tt |  | 13 | 28 | -9งd𐌈ʚʁ⅃ᛎ.կｧʊ
-| 1024 | 1024tt |  | 11 | 28 | -»倅ጎ佨ᚳ७ᛎ.ᥛ丘
-| 2048 | 2048tt |  | 11 | 25 | -1ℸæ咊劰勃ᛎ.亓Ͽ
+| 256 | 256tt | 256tz | 14 | 29 | -4६ψባา϶ଌชf.ðɔß
+| 512 | 512tt |  | 13 | 28 | -9งd𐊀ʚʁ⅃ᛎ.կꓱʊ
+| 512 | 512tz |  | 13 | 27 | -9งd亟ʚʁ⅃ᛎ.կ与ʊ
+| 1024 | 1024tz |  | 11 | 28 | -»傜ባ倄ᚳ७ᛎ.ᥛ仏
+| 2048 | 2048tz |  | 11 | 26 | -1ℸæ𐊄卙卲ᛎ.伮Ͽ
 | 2048 | 2048qntm | 2048twitter | 11 | 22 | -9ϤƂဤಛಮΚ.Ռȝ
 | 2048 | 2048llfourn |  | 11 | 23 | -µȟďპ൰උǩ.Дœ
 | 32768 | 32768qntm | 32768utf16 | 9 | 22 | -ڊꋇꛎ䦥枉.云㦵
 | 65536 | 65536qntm | 65536utf32 | 9 | 27 | -㐄𣖄𨗓𡞲𤜩.蕢苓
 
-
 ## How to design a numeric base
 
 [This companion document](how_to_design_a_numeric_base.md) walks through designing a good numeric base, whether as a positional notation system or a binary-to-text codec. It is harder than it looks, which is why so many of the "official" large bases are as quirky as they are.
 
-## Support
+## Set up a development environment
 
-This tool is free and open source, and built and maintained in spare time. If it saves you some, you can [sponsor the project on GitHub](https://github.com/sponsors/jim-collier). It is genuinely appreciated, and never expected.
+Prerequisites, in the order you are likely to need them.
 
-## Copyright and license
+- **Go 1.21 or newer** is the only requirement for the command, the library, and the tests. There are no third-party modules to fetch, so no network access is needed after the clone.
 
-> Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)<br />
-> Licensed under GNU GPL v2 <https://www.gnu.org/licenses/gpl-2.0.html>. No warranty.
+- **Go 1.24 or newer** is required only to build the reactor module, which uses a newer export directive. The declared minimum stays at 1.21, so an older toolchain builds everything else.
+
+- **Bash 4 and the usual GNU tools** are needed for the pipeline scripts, which is what all the checks run under.
+
+- **Optional tools** are probed for and skipped when missing: `golangci-lint`, `staticcheck`, `govulncheck`, `nfpm` and `makensis` for packaging, `node` and `cargo` for the third-party comparison tests, `gifsicle` and Python with Pillow for the demo animation.
+
+The Go tree is under `lib/`. The command is in `lib/cmd/convert-base-v2/`, the conversion core in `lib/convertbase/`, and the WebAssembly entry points in `lib/wasm/` and `lib/reactor/`.
+
+Build targets, all run from `lib/`.
+
+| Target | Result |
+| :-- | :-- |
+| `make local` | The optimized native binary, the same build that is released |
+| `make debug` | Native with symbols kept, for tests and the profiler |
+| `make test` | Unit tests |
+| `make vet` / `make fmt` | Static checks and formatting |
+| `make web` | The browser module and its loader, into `web/` |
+| `make wasm` | The whole command as a WASI module |
+| `make reactor` | The callable WebAssembly module |
+| `make release` | Cross-builds and packages every platform |
+
+Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. `--quick` skips the slow stages, `--long` runs the exhaustive tests, and every stage has its own `--no-...` switch.
+
+Tests sandbox their own config directory, so running them will not read or write the config file in your home directory.
+
+## Support convert-base-v2
+
+This tool is free and open source, and built and maintained in spare time. If it saves you some, you can [sponsor the project on GitHub](https://github.com/sponsors/jim-collier). It is appreciated, and never expected.
+
+## Legal stuff
+
+Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
+
+The CLI application, and the WASI build of it, are licensed under the [GNU General Public License v2.0 or later](https://spdx.org/licenses/GPL-2.0-or-later.html). The "or later" matters: it is what lets the two licenses here combine.
+
+- SPDX-License-Identifier: `GPL-2.0-or-later`
+
+The library under `lib/convertbase/`, the browser module under `lib/wasm/`, and the reactor module under `lib/reactor/` are licensed more permissively as appropriate for something linked into other software: Apache-2.0 <https://www.apache.org/licenses/LICENSE-2.0>, so they can be built into anything. The full text and the attribution notice are beside the library.
+
+- SPDX-License-Identifier: `Apache-2.0`

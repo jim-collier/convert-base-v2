@@ -37,6 +37,8 @@
 
 Done, on branch `wide`. The three tt bases above eight bits got tail repertoires, so every base that can carry raw bytes now streams in both directions. See [Outcome](#outcome) for measured results.
 
+Later change, 20260803: `2048tt` was removed, because its digits were not in code point order, and the family was rebuilt on two ordered alphabets. `512tt` is the largest that avoids CJK; `512tz`, `1024tz`, and `2048tz` carry it and reach further. Everything below still holds for all four, including the shared tail block at U+2E00 to U+2E07 and the eight-symbol width, which `2048tz` still uses.
+
 ## Introduction
 
 Binary encode and decode stream today only when the text base has one byte per digit and at most eight bits per digit. That covers base 16, 32, and 64 and their variants, which is what the system encoders do and what the throughput work targeted.

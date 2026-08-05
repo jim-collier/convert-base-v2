@@ -25,14 +25,15 @@
 ##			- Performance and profiling (unless --quick): streaming throughput, a peak-memory ceiling on every power-of-2 base, and a codec throughput guard.
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
+##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
-##			- CICDTEST_EXE ..........: path to the binary under test (default: ../source/bin/convert-base-v2).
+##			- CICDTEST_EXE ..........: path to the binary under test (default: ../lib/bin/convert-base-v2).
 ##			- CICDTEST_DO_LONGTEST ..: 1 for the exhaustive run (more fuzz iterations, larger inputs).
 ##			- CICDTEST_FUZZ_ITERS ...: override the fuzz iteration count.
 ##	History: At bottom of script.
 
-##	Copyright © 2026 Jim Collier (ID: 1cv◂‡Vᛦ)
+##	Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT
@@ -44,7 +45,7 @@ export LANG="C.UTF-8" LC_ALL="C.UTF-8"
 meDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 ## Binary under test, and the optional legacy binaries for back-compat cross-checks.
-EXE="${CICDTEST_EXE:-${meDir}/../source/bin/convert-base-v2}"
+EXE="${CICDTEST_EXE:-${meDir}/../lib/bin/convert-base-v2}"
 EXE_V1="${meDir}/utility/convert-base-v1"
 EXE_V1B="${meDir}/utility/convert-base-v1b"
 doLong=0; [[ "${CICDTEST_DO_LONGTEST:-0}" == "1" ]] && doLong=1
@@ -254,6 +255,16 @@ check eq  "pin 1000000 -> 85ipv6"    1rYy      -- --number 1000000 85ipv6
 check eq  "pin 65535 -> 62"          H31       -- --number 65535 62
 check eq  "--lower on hex"          ff        -- --lower 255 16
 check errmsg "--lower on mixed-case" "--lower is invalid for mixed-case" -- --lower 9 62
+## The case flags apply to digits only. A marker is not a digit, so recasing it
+## yields a value the same base cannot read back - and no output would show it.
+check eq  "--lower keeps neg marker" "Nff"    -- --lower --to 16 --to-neg N -- -255
+check eq  "--upper keeps dec marker" "FF.8"   -- --upper --to 16 --to-dec . -- 255.5
+check eq  "--lower keeps both"       "Nff.8"  -- --lower --to 16 --to-neg N -- -255.5
+## Precision is bounded, the same way the browser and reactor builds bound it:
+## the scale factor is one power of the output base, so a mistyped value asks
+## for gigabytes before it asks for anything else.
+check errmsg "precision upper bound" 'at most' -- --precision 100000000 0.1 16
+check ok  "precision at the bound"   -         -- --precision 100000 0.1 16
 ## --no-newline: exact bytes, no trailing newline.
 _run --no-newline 255 16
 { ((_rc == 0)) && [[ "$(wc -c <"${CBT_OUT}")" == "2" ]]; } && _pass "--no-newline has no trailing newline" || _fail "--no-newline has no trailing newline" "bytes=$(wc -c <"${CBT_OUT}")"
@@ -317,7 +328,14 @@ spacesym=$("${EXE}" --config "$cfg" --show-symbols-0 spacey 2>/dev/null | tr '\0
 [[ "$spacesym" == 'a b|c|d|e' ]] && _pass "config symbol with a space" || _fail "config symbol with a space" "got='$spacesym'"
 ## A typo has to fail loudly: silently dropping a field means the wrong alphabet.
 printf 'base: x\n\tsybmols: abc\n' >"${CBT_TMP}/typo.shcl"
-check errmsg "config typo rejected"  'unknown base field' -- --config "${CBT_TMP}/typo.shcl" 255 16
+check errmsg "config typo rejected"  'unknown field' -- --config "${CBT_TMP}/typo.shcl" 255 16
+## A quoted name is a typo too, and it used to slip past the check unseen.
+printf 'base: x\n\tsymbols: abc\n\t"weird.field": 1\n' >"${CBT_TMP}/quoted.shcl"
+check errmsg "config quoted typo rejected" 'unknown field' -- --config "${CBT_TMP}/quoted.shcl" 255 16
+## A field written twice reads back as nothing, so the base would quietly get a
+## default instead of what the file says.
+printf 'base: x\n\tsymbols: abc\n\tnegative: A\n\tnegative: B\n' >"${CBT_TMP}/twice.shcl"
+check errmsg "config repeated field rejected" 'more than once' -- --config "${CBT_TMP}/twice.shcl" 255 16
 printf 'base: x\n\tsymbols: abc\n  bogus indent\n' >"${CBT_TMP}/bad.shcl"
 check errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
 ## First run writes the default config, and 10emoji comes from it rather than
@@ -547,6 +565,12 @@ padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" 
 padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}")
 [[ "$padun" == "A" ]] && _pass "custom pad decode takes unpadded" || _fail "custom pad decode takes unpadded" "got='$padun'"
 check errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF" --from-pad "A" --to 10 5
+## Padding is a trailing run and nothing else. Both routes must say so the same
+## way: the argv one used to name the character instead of the mistake.
+check errmsg "interior pad, argv" 'data after padding' -- --binary --from 64rfc --to bytes "A=BC"
+printf 'A=BC' >"${CBT_TMP}/interior-pad"
+_run_in "${CBT_TMP}/interior-pad" --binary --from 64rfc --to bytes
+_assert errmsg "interior pad, pipe" 'data after padding'
 ## A pad is only ever applied on the bit-packed path, one character at a time.
 ## Definitions that could never take effect are rejected where they are written.
 check errmsg "multi-char pad rejected" 'must be a single character' -- --from bytes --to 64 --to-pad "==" 5
@@ -567,7 +591,7 @@ ntrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols 
 ## A tail that could never be used is rejected where it is declared.
 check errmsg "tail below 8 bits rejected" 'above 256 symbols' -- --from bytes --to 64 --to-tail "⸐ ⸑" 5
 check errmsg "tail not power of 2 rejected" 'power of 2' -- --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑ ⸒" 5
-check errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 2048tt --to-tail "⸐ ⸑" 5
+check errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 1024tz --to-tail "⸐ ⸑" 5
 check errmsg "tail on bytes rejected" 'do not apply' -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
 
 ## Same tail declared in a config file rather than on the command line.
@@ -663,6 +687,40 @@ for len in 1 2 5 33 200 1500; do
 		&& cmp -s "$ksrc" "$kout"; then :; else krand_fail=$((krand_fail+1)); fi
 done
 ((krand_fail == 0)) && _pass "keyboard random text round-trips (6 blobs)" || _fail "keyboard random text round-trips" "${krand_fail} lengths mismatched"
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Control-character escapes
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Tab, newline and return are digits of the keyboard base, so they can also be
+## written as a name. Input takes raw and escaped forms mixed, always; output
+## writes them only when asked. The pins are literal on both sides, so a change
+## to either direction shows up here rather than cancelling itself out.
+section "Control-character escapes"
+kesc_lf=$'A\nB'
+check eq "escape LF reads as the raw character"   "102225" -- --from keyboard --to 10 -n 'A⊳LFB'
+check eq "raw LF reads the same"                  "102225" -- --from keyboard --to 10 -n "$kesc_lf"
+check eq "lowercase name"                         "102225" -- --from keyboard --to 10 -n 'A⊳lfB'
+check eq "NEWLINE alias"                          "102225" -- --from keyboard --to 10 -n 'A⊳NEWLINEB'
+check eq "hex form"                               "102225" -- --from keyboard --to 10 -n 'A⊳x0AB'
+check eq "escaped output"                         'A⊳LFB'  -- --from 10 --to keyboard --escape-controls -n 102225
+check eq "output stays raw without the flag"      "$kesc_lf" -- --from 10 --to keyboard -n 102225
+## Raw and escaped in one value, and the same value written the other way.
+check eq "raw and escaped mixed"      "52830726402316" -- --from keyboard --to 10 -n 'x⊳HTy⊳CRz⊳LFw'
+check eq "all three escaped on output" 'x⊳HTy⊳CRz⊳LFw' -- --from 10 --to keyboard --escape-controls -n 52830726402316
+## A base with no control digits never grows an escape.
+check eq "no escapes where there are no controls" '!4' -- --from 10 --to keyboard --escape-controls -n 6472
+## --show-symbols is where the alphabet is actually legible.
+_run --show-symbols --escape-controls keyboard
+{ ((_rc == 0)) && [[ "$_out" == *'⊳HT⊳LF⊳CR'* ]]; } \
+	&& _pass "--show-symbols escapes the control digits" \
+	|| _fail "--show-symbols escapes the control digits" "rc=$_rc out=[$_out]"
+## Guards.
+check errmsg "unrecognized escape is an error"    "unrecognized escape" -- --from keyboard --to 10 -n 'A⊳ZZZB'
+check errmsg "escape the base cannot carry"       "not in base"         -- --from 16 --to 10 -n '⊳LF'
+check errmsg "escaping is refused in byte mode"   "number conversions only" -- --from 10 --to 16 --binary --escape-controls -n 65
+## The marker is not a digit of any built-in base, so it is never mistaken for one.
+check err "a bare marker is not a digit"          "" -- --from keyboard --to 10 -n 'A⊳'
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -901,6 +959,260 @@ if [[ -x "${EXE_V1B}" ]]; then
 	fCheckLegacy "${EXE_V1B}" v1b "${V1B_MAP[@]}"
 else
 	_warn "v1b back-compat skipped: script not found at ${EXE_V1B}"
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Interop: the four big bases against the implementations that defined them
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## The fixed vectors earlier pin a handful of known inputs, copied down by hand.
+## These run randomized bytes through the published implementations themselves -
+## qntm's three npm packages and LLFourn's Rust crate, unpacked verbatim under
+## utility/interop/thirdparty - and check all three directions:
+##   encode  : our output equals theirs, byte for byte
+##   decode  : we read back what they wrote
+##   xdecode : they read back what we wrote
+## Encode alone would not be enough. A shared misreading of the tail rules can
+## survive it, and only feeding each side the other's output catches that.
+##
+## Lengths start at zero and run up consecutively before going random, because
+## every disagreement these bases have ever had was about the final partial
+## chunk. The widths are 11, 15 and 16 bits, so the byte-boundary cycle closes
+## at 11, 15 and 2 bytes respectively - well inside the consecutive run.
+INTEROP_DIR="${meDir}/utility/interop"
+INTEROP_QNTM="${INTEROP_DIR}/drivers/qntm.mjs"
+INTEROP_RSBIN="${INTEROP_DIR}/build/release/llfourn2048"
+nSamples=40; ((doLong)) && nSamples=200
+
+## fInteropSamples FILE COUNT -> one lowercase hex string per line, no separators.
+fInteropSamples(){
+	local file="$1"; local -i count="$2" i len
+	: >"$file"
+	for ((i = 0; i < count; i++)); do
+		if ((i <= 24)); then len=$i; else len=$(( 1 + $(_rand16) % 4096 )); fi
+		((len)) && head -c "$len" /dev/urandom | od -An -tx1 -v | tr -d ' \n' >>"$file"
+		echo >>"$file"
+	done
+}
+
+## Name the sample that broke, not just the fact that something did. A tail bug
+## shows up at one specific length and that length is the whole diagnosis.
+fFirstDiff(){ # OURS THEIRS
+	local a="$1" b="$2" n
+	n="$(cmp "$a" "$b" 2>&1 | sed -n 's/.*line \([0-9][0-9]*\).*/\1/p' | head -1)"
+	[[ -n "$n" ]] || n=1
+	## The two line counts are part of the diagnosis: unequal means one side gave
+	## up early, and then the named sample is the last one they agreed on.
+	printf 'sample %s of %s/%s: ours=[%.60s] ref=[%.60s]' \
+		"$n" "$(wc -l <"$a")" "$(wc -l <"$b")" "$(sed -n "${n}p" "$a")" "$(sed -n "${n}p" "$b")"
+}
+
+## fCheckInterop V2BASE LABEL REF...   (REF is an adapter taking encode|decode)
+fCheckInterop(){
+	local v2base="$1" label="$2"; shift 2
+	local samples="${CBT_TMP}/io_samples" theirs="${CBT_TMP}/io_theirs" ours="${CBT_TMP}/io_ours"
+	local ourdec="${CBT_TMP}/io_ourdec" theirdec="${CBT_TMP}/io_theirdec" bin="${CBT_TMP}/io_bin"
+	local hex enc
+
+	fInteropSamples "$samples" "$nSamples"
+	if ! "$@" encode <"$samples" >"$theirs" 2>"${CBT_ERR}"; then
+		_fail "interop ${label}" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
+		return
+	fi
+
+	while IFS= read -r hex; do
+		printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$bin"
+		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$v2base" --no-newline <"$bin" 2>/dev/null || true
+		echo
+	done <"$samples" >"$ours"
+	cmp -s "$ours" "$theirs" \
+		&& _pass "interop encode == ${label} (${nSamples} samples)" \
+		|| _fail "interop encode == ${label}" "$(fFirstDiff "$ours" "$theirs")"
+
+	while IFS= read -r enc; do
+		printf '%s' "$enc" >"$bin"
+		"${TIMEOUT[@]}" "${EXE}" --from "$v2base" --to bytes <"$bin" 2>/dev/null | od -An -tx1 -v | tr -d ' \n' || true
+		echo
+	done <"$theirs" >"$ourdec"
+	cmp -s "$ourdec" "$samples" \
+		&& _pass "interop decode of ${label} output (${nSamples} samples)" \
+		|| _fail "interop decode of ${label} output" "$(fFirstDiff "$ourdec" "$samples")"
+
+	if ! "$@" decode <"$ours" >"$theirdec" 2>"${CBT_ERR}"; then
+		_fail "interop ${label} reads our output" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
+		return
+	fi
+	cmp -s "$theirdec" "$samples" \
+		&& _pass "interop ${label} reads our output (${nSamples} samples)" \
+		|| _fail "interop ${label} reads our output" "$(fFirstDiff "$theirdec" "$samples")"
+}
+
+section "Interop vs the published reference implementations"
+if [[ ! -d "${INTEROP_DIR}/thirdparty" ]]; then
+	_warn "interop skipped: no vendored references at ${INTEROP_DIR}/thirdparty (utility/interop/fetch.bash --refresh)"
+else
+	## Pinned versions, so a pass line says which release we agree with.
+	declare -A INTEROP_VER=()
+	# shellcheck disable=1091  ## 'Not following.' The pin file is data, next to the suite it describes.
+	source "${INTEROP_DIR}/pins.env"
+	for pin in "${INTEROP_PINS[@]}"; do
+		IFS='|' read -r ipName ipVer _rest <<< "${pin}"
+		INTEROP_VER["${ipName}"]="${ipVer}"
+	done
+
+	## An edited reference is worse than no reference: every check would still
+	## pass, against something nobody published. So this one fails, never skips.
+	if "${INTEROP_DIR}/fetch.bash" --verify >/dev/null 2>&1; then
+		_pass "interop references verbatim (${#INTEROP_PINS[@]} pinned packages)"
+	else
+		_fail "interop references verbatim" "$("${INTEROP_DIR}/fetch.bash" --verify 2>&1 | tail -2)"
+	fi
+
+	if command -v node >/dev/null 2>&1; then
+		fCheckInterop 2048qntm  "qntm base2048 ${INTEROP_VER[base2048-qntm]}"   node "${INTEROP_QNTM}" 2048
+		fCheckInterop 32768qntm "qntm base32768 ${INTEROP_VER[base32768-qntm]}" node "${INTEROP_QNTM}" 32768
+		fCheckInterop 65536qntm "qntm base65536 ${INTEROP_VER[base65536-qntm]}" node "${INTEROP_QNTM}" 65536
+	else
+		_warn "interop vs qntm base2048/base32768/base65536 skipped: node not installed"
+	fi
+
+	## The crate is a library, so the adapter around it has to be compiled. It
+	## builds offline from the vendored source in a few seconds and is cached
+	## after that, so this is not a per-run cost.
+	if command -v cargo >/dev/null 2>&1; then
+		CARGO_TARGET_DIR="${INTEROP_DIR}/build" cargo build --release --offline --quiet \
+			--manifest-path "${INTEROP_DIR}/drivers/llfourn2048/Cargo.toml" >/dev/null 2>&1 || true
+	fi
+	if [[ -x "${INTEROP_RSBIN}" ]]; then
+		fCheckInterop 2048llfourn "llfourn base2048 ${INTEROP_VER[base2048-llfourn]}" "${INTEROP_RSBIN}"
+	else
+		_warn "interop vs llfourn base2048 skipped: no adapter binary and cargo could not build one"
+	fi
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Reactor module: the callable WebAssembly library, driven from a host
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Builds the wasip1 reactor and exercises the whole ABI from a wazero host:
+## exports present and _start absent, conversions against known answers, base
+## metadata, the error codes, stale-pointer and double-free detection, and a
+## work loop that must end with zero outstanding regions. The host program has
+## its own module so the library keeps zero dependencies; fetching wazero needs
+## the network once, so an uncached offline build skips with a warning. The
+## reactor build itself needs Go 1.24+ (wasmexport landed there); an older
+## toolchain skips rather than failing with a confusing compiler error.
+section "Reactor module"
+REACTOR_HOST_DIR="${meDir}/utility/reactor-host"
+REACTOR_WASM="${CBT_TMP}/convert-base-reactor.wasm"
+goMinor="$(go env GOVERSION 2>/dev/null | sed -E 's/^go1\.([0-9]+).*$/\1/')"
+if [[ ! "${goMinor}" =~ ^[0-9]+$ ]] || ((goMinor < 24)); then
+	_warn "reactor module skipped: needs a Go 1.24+ toolchain (have $(go env GOVERSION 2>/dev/null || echo none))"
+elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "${REACTOR_WASM}" ./reactor) >"${CBT_ERR}" 2>&1; then
+	_fail "reactor module build" "$(tail -2 "${CBT_ERR}")"
+elif ! (cd "${REACTOR_HOST_DIR}" && go build -o "${CBT_TMP}/reactor-host" .) >"${CBT_ERR}" 2>&1; then
+	_warn "reactor ABI skipped: host harness would not build (wazero not cached and offline?)"
+elif "${CBT_TMP}/reactor-host" "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; then
+	_pass "reactor ABI (exports, conversions, metadata, streams, errors, leak loops)"
+else
+	_fail "reactor ABI" "$(tail -1 "${CBT_ERR}")"
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Frontend parity: the Go module and the reactor against the command
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Conversion behavior lives in the library, but each frontend has its own
+## resolve-and-call plumbing, so the same requests run through all three: the
+## command, the module natively (utility/module-driver), and the reactor
+## (reactor-host --batch), and the answers must agree byte for byte. Every
+## listed base, compat included, gets an integer both directions plus a signed
+## fractional value; a base that can't represent one must refuse it in all
+## three places, so agreement covers the error cases too. The compat and
+## interop suites stay on the command alone on purpose: parity here extends
+## what they establish to the other two frontends transitively.
+section "Frontend parity"
+MODDRV_DIR="${meDir}/utility/module-driver"
+MODDRV="${CBT_TMP}/module-driver"
+RHOST="${CBT_TMP}/reactor-host"
+if ! (cd "${MODDRV_DIR}" && go build -o "${MODDRV}" .) >"${CBT_ERR}" 2>&1; then
+	_fail "module driver build" "$(tail -2 "${CBT_ERR}")"
+else
+	preq="${CBT_TMP}/parity_req"; pcli="${CBT_TMP}/parity_cli"; pout="${CBT_TMP}/parity_out"
+	: >"$preq"; : >"$pcli"
+	pn=0
+	## parity_case FROM TO PRECISION VALUE: append the request in the driver
+	## protocol, run the command on it, and append the command's answer. The
+	## command's trailing newline is stripped by the head; values travel as hex
+	## so digits carrying tabs or newlines (the keyboard base) survive intact.
+	## --config /dev/null pins the command to the built-in bases: the module
+	## and the reactor load no config, so the sandbox's worked example
+	## (10emoji) exists only on the command's side. Config loading has its own
+	## checks above.
+	parity_case() {
+		local from="$1" to="$2" prec="$3" val="$4" rc=0 hexv hexo
+		hexv="$(printf '%s' "$val" | xxd -p | tr -d '\n')"
+		printf '%s\t%s\t%s\t%s\n' "$from" "$to" "$prec" "$hexv" >>"$preq"
+		local args=(--config /dev/null --from "$from" --to "$to")
+		((prec >= 0)) && args+=(--precision "$prec")
+		"${TIMEOUT[@]}" "${EXE}" "${args[@]}" -- "$val" >"${CBT_OUT}" 2>/dev/null || rc=$?
+		if ((rc == 0)); then
+			hexo="$(head -c -1 "${CBT_OUT}" | xxd -p | tr -d '\n')"
+			printf 'ok\t%s\n' "$hexo" >>"$pcli"
+		else
+			printf 'err\n' >>"$pcli"
+		fi
+		pn=$((pn + 1))
+	}
+	declare -a PARITY_BASES=()
+	while read -r pidx pname _; do
+		[[ "$pidx" =~ ^[0-9]+$ ]] || continue
+		[[ "$pname" == "bytes" ]] && continue
+		PARITY_BASES+=("$pname")
+	done < <("${EXE}" --config /dev/null --list --list-compat 2>/dev/null)
+	(( ${#PARITY_BASES[@]} >= 30 )) && _pass "parity scrape found bases (${#PARITY_BASES[@]})" || _fail "parity scrape found bases" "only ${#PARITY_BASES[@]} scraped (--list format changed?)"
+	for pname in "${PARITY_BASES[@]}"; do
+		parity_case 10 "$pname" -1 "12345678901234567890"
+		if [[ "$(tail -1 "$pcli")" == ok* ]]; then
+			pfwd="$(tail -1 "$pcli" | cut -f2 | xxd -r -p)"
+			parity_case "$pname" 10 -1 "$pfwd"
+		fi
+		parity_case 10 "$pname" 8 "-255.755"
+	done
+	if "${MODDRV}" <"$preq" >"$pout" 2>"${CBT_ERR}"; then
+		cmp -s "$pcli" "$pout" && _pass "module answers match the command (${pn} cases)" || _fail "module answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
+	else
+		_fail "module driver run" "$(tail -1 "${CBT_ERR}")"
+	fi
+	if [[ -x "$RHOST" && -s "$REACTOR_WASM" ]]; then
+		if "$RHOST" --batch "$REACTOR_WASM" <"$preq" >"$pout" 2>"${CBT_ERR}"; then
+			cmp -s "$pcli" "$pout" && _pass "reactor answers match the command (${pn} cases)" || _fail "reactor answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
+		else
+			_fail "reactor batch run" "$(tail -1 "${CBT_ERR}")"
+		fi
+		## Stream parity: one raw payload through the command's pipe and the
+		## reactor's push streams, both directions, over every raw-capable
+		## base. Deliberately odd chunk sizes so digit groups straddle the
+		## write boundaries; the length is a multiple of 4 so z85 is legal.
+		psrc="${CBT_TMP}/parity_src"
+		head -c 3332 /dev/urandom >"$psrc"
+		for pname in "${RAW_BASES[@]}"; do
+			sfail=""; rc1=0; rc2=0; rc3=0; rc4=0
+			"${TIMEOUT[@]}" "${EXE}" -n --from bytes --to "$pname" <"$psrc" >"${CBT_TMP}/ps_cli" 2>/dev/null || rc1=$?
+			"$RHOST" --stream "$REACTOR_WASM" bytes "$pname" 7 <"$psrc" >"${CBT_TMP}/ps_rea" 2>/dev/null || rc2=$?
+			if ((rc1 == 0 && rc2 == 0)); then
+				cmp -s "${CBT_TMP}/ps_cli" "${CBT_TMP}/ps_rea" || sfail="encode mismatch"
+				"${TIMEOUT[@]}" "${EXE}" -n --from "$pname" --to bytes <"${CBT_TMP}/ps_cli" >"${CBT_TMP}/ps_dcli" 2>/dev/null || rc3=$?
+				"$RHOST" --stream "$REACTOR_WASM" "$pname" bytes 11 <"${CBT_TMP}/ps_cli" >"${CBT_TMP}/ps_drea" 2>/dev/null || rc4=$?
+				{ ((rc3 == 0 && rc4 == 0)) && cmp -s "${CBT_TMP}/ps_dcli" "${CBT_TMP}/ps_drea" && cmp -s "$psrc" "${CBT_TMP}/ps_drea"; } || sfail="${sfail:+$sfail, }decode mismatch rc=${rc3}/${rc4}"
+			else
+				sfail="encode rc=${rc1}/${rc2}"
+			fi
+			[[ -z "$sfail" ]] && _pass "stream parity via ${pname}" || _fail "stream parity via ${pname}" "$sfail"
+		done
+	else
+		_warn "reactor parity skipped: reactor module or host not built"
+	fi
 fi
 
 
