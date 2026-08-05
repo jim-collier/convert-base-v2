@@ -1,5 +1,7 @@
 BINARY := convert-base-v2
-VERSION := $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
+## Skip the lib/vX.Y.Z module tags - they sit on the same commits as the command's
+## own tags, and describe would otherwise stamp the library's version on the binary.
+VERSION := $(shell git describe --tags --always --dirty --exclude 'lib/*' 2>/dev/null || echo dev)
 
 # Optimized (release/dogfood): stripped, no symbol/DWARF. Debug (test/profile):
 # keep symbols so delve works and flamegraphs read cleanly; still optimized so

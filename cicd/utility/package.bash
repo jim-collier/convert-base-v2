@@ -39,8 +39,9 @@ HOMEPAGE="https://github.com/jim-collier/convert-base-v2"
 SUMMARY="Universal base (radix) converter"
 DESC_LONG="Convert numbers of arbitrary size to and from any base. Dozens of predefined named bases plus user-defined alphabets, the RFC base-16/32/64 standards, negatives, floating point, and streaming binary."
 
-## Defaults, overridable by flags.
-VERSION="$(cd "${root}" && git describe --tags --always --dirty 2>/dev/null || echo dev)"
+## Defaults, overridable by flags. The lib/vX.Y.Z module tags are skipped: they land
+## on the same commits as the command's tags, so describe would stamp the wrong one.
+VERSION="$(cd "${root}" && git describe --tags --always --dirty --exclude 'lib/*' 2>/dev/null || echo dev)"
 OUT="${src}/dist"
 WANT_ARM=1
 
