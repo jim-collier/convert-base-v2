@@ -71,6 +71,40 @@ func TestConfigRejectsQuotedUnknownField(t *testing.T) {
 	}
 }
 
+// Every way a config file can be refused cites the line it went wrong on. The
+// repeat is the one that needs Lines() rather than Line(), since a path with two
+// bindings is exactly what the singular cannot place.
+func TestConfigErrorsCiteLines(t *testing.T) {
+	cases := []struct {
+		name string
+		text string
+		want string
+	}{
+		{"repeat", "base: a\n\tsymbols: ab\n\tnegative: X\n\tdecimal: D\n\tnegative: Y\n",
+			"line 5: base \"a\": negative is given more than once (first at line 3)"},
+		{"unknown", "base: a\n\tsymbols: ab\n\tsymbold: X\n", "line 3: base \"a\": unknown field"},
+		{"quoted", "base: a\n\tsymbols: ab\n\t\"weird.field\": 1\n", "line 3: base \"a\": unknown field"},
+		{"toplevel", "\n\"odd.name\": 1\nbase: a\n\tsymbols: ab\n", "line 2: unknown setting"},
+		{"nosymbols", "base: a\n\tsymbols: ab\n\nbase: b\n\tnegative: X\n", "line 4: base \"b\": missing"},
+		{"noname", "base: a\n\tsymbols: ab\n\nbase:\n\tsymbols: cd\n", "line 4: a \"base:\" line has no name"},
+		{"pademit", "base: a\n\tsymbols: ab\n\tpademit: maybe\n", "line 3: base \"a\": pademit"},
+		// Registration knows the base, not the field, so it cites the block.
+		{"badsymbols", "base: a\n\tsymbols: ab\n\nbase: b\n\tsymbols: \"c c\"\n",
+			"line 4: base \"b\": duplicate symbol"},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			err := loadConfigText(t, c.text)
+			if err == nil {
+				t.Fatalf("%s loaded without error", c.name)
+			}
+			if !strings.Contains(err.Error(), c.want) {
+				t.Fatalf("%s: want %q, got %v", c.name, c.want, err)
+			}
+		})
+	}
+}
+
 // The shapes the file is meant to carry still load.
 func TestConfigAcceptsValidShapes(t *testing.T) {
 	text := "base: myb\n\taliases: mybase, mb\n\tsymbols: \"z y x w\"\n\n" +

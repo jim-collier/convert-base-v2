@@ -74,6 +74,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The config format is SHCL, which reads and writes closer to how the rest of the tool is described. YAML was the last external dependency, so the program now builds from its own source and the standard library alone.
 - `--precision` is capped at 100000 digits. The scale factor is one power of the output base, so a mistyped value asked for gigabytes of memory before it asked for anything else. The browser and callable WebAssembly builds already had the same cap.
 - A padding character that could never take effect is now an error where it is defined, instead of being accepted and quietly ignored. Padding must be a single character, and only applies to power-of-2 bases of at most 256 symbols, which is the only place it is ever emitted. Fixes a multi-character pad overshooting the group boundary on encode.
+- Every complaint about a config file now names the line it is about, so a long file does not have to be read through to find the one bad line. A field written twice names both the line it was repeated on and the line it was first given.  [20260804]
 
 ### Removed
 
@@ -107,7 +108,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The list of predefined bases in the readme is narrower and no longer runs off the side of the page. It drops the description and specification columns, adds the UTF-8 byte count beside the character count, and wraps a long value across lines. A base whose digits are twice as wide on screen now takes about as much room as a plain one. It also lists `10emoji`, which comes from the config file rather than the built-in set, since a fresh install has it either way.  [20260731]
 - The conversion core is now a package of its own, so another program can convert in process instead of running the tool. Nothing about the tool changes: same commands, same output, same single binary. The parts that only make sense at a prompt stayed with the command.  [20260731]
 - That library is licensed Apache-2.0, so it can be linked into anything, commercial work included, as long as the credit travels with it. The command-line tool stays GPL-2.0-or-later. Both license texts ship in the repository.  [20260731]
-- The vendored config parser moved up to its 1.1.0 release.  [20260804]
+- The vendored config parser moved up to its 1.2.0 release.  [20260804]
 
 ## v2.0.0 - 2026-07-13
 
