@@ -11,7 +11,7 @@
 //	          which can never collide with real output (every alphabet here is
 //	          non-ASCII) and so shows up as a mismatch rather than a crash.
 //
-//	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
+//	Copyright (c) 2026 Bubbles
 //	Licensed under GNU GPL v2 <https://www.gnu.org/licenses/gpl-2.0.html>. No warranty.
 //	SPDX-License-Identifier: GPL-2.0-or-later
 

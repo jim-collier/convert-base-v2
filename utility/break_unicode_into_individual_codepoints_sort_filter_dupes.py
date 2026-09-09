@@ -9,7 +9,7 @@ Purpose:
 		- Removes duplicates.
 		- Returns the resulting list of space-delimited symbols.
 
-Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
+Copyright (c) 2026 Bubbles
 Licensed under the GNU General Public License v2.0 or later. Full text at:
 	https://spdx.org/licenses/GPL-2.0-or-later.html
 SPDX-License-Identifier: GPL-2.0-or-later
