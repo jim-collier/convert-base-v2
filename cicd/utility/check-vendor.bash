@@ -14,7 +14,7 @@
 ##		- Runnable by hand: cicd/utility/check-vendor.bash
 ##	History: At bottom.
 
-##	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
+##	Copyright (c) 2026 Bubbles
 ##	Licensed under GNU GPL v2 <https://www.gnu.org/licenses/gpl-2.0.html>. No warranty.
 ##	SPDX-License-Identifier: GPL-2.0-or-later
 

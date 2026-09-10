@@ -10,7 +10,7 @@
 ##		something new to read).
 ##	History: At bottom of script.
 
-##	Copyright © 2026 Bubbles (ID: XଌฅრX۳ᛟԃლፀƅꓩหδლც)
+##	Copyright (c) 2026 Bubbles
 ##	Licensed under The MIT License (MIT). Full text at:
 ##		https://mit-license.org/
 ##	SPDX-License-Identifier: MIT

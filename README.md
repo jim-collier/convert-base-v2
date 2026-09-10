@@ -534,7 +534,7 @@ This tool is free and open source, and built and maintained in spare time. If it
 
 ## Legal stuff
 
-Copyright © 2023-2026 Jim Collier (CryptogID: ѳ6ᴚ℈𐀘𐇦ɛ𐊁¥Mﾏb϶Δ𐌞)
+Copyright © 2023-2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]
 
 The CLI application, and the WASI build of it, are licensed under the [GNU General Public License v2.0 or later](https://spdx.org/licenses/GPL-2.0-or-later.html). The "or later" matters: it is what lets the two licenses here combine.
 
