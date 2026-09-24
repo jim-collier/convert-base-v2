@@ -530,7 +530,7 @@ Tests sandbox their own config directory, so running them will not read or write
 
 ## Support convert-base-v2
 
-This tool is free and open source, and built and maintained in spare time. If it saves you some, you can [sponsor the project on GitHub](https://github.com/sponsors/jim-collier). It is appreciated, and never expected.
+This tool is free and open source, and built and maintained in spare time. If it saves you some, you can sponsor the project on [GitHub](https://github.com/sponsors/jim-collier) or [Ko-fi](https://ko-fi.com/jimcollier). It is appreciated, and never expected.
 
 ## Legal stuff
 
