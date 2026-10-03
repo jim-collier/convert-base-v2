@@ -44,6 +44,14 @@ var configBaseFields = map[string]bool{
 	"tail":     true,
 }
 
+// Fields that take a raw block. A long alphabet is easier to write over several
+// lines, and the block reads exactly like the one-line spelling. Every other
+// field is one short value, where a block can only be a mistake.
+var configRawFields = map[string]bool{
+	"symbols": true,
+	"tail":    true,
+}
+
 // LoadConfig reads the SHCL config at path and registers each base it defines.
 // A missing file is not an error. Each base's Source is set to the full path.
 // Any other read failure comes back marked, for IsConfigUnreadable to sort out.
@@ -147,6 +155,9 @@ func checkConfigFields(doc *shcl.Document) error {
 	}
 	for i := 0; i < doc.Count("base"); i++ {
 		sel := fmt.Sprintf("base[#%d]", i)
+		if doc.ReadRaw(sel).Status == shcl.Good {
+			return fmt.Errorf(`%sa "base:" name is one line, not a raw block`, citeLine(doc, sel))
+		}
 		name := strings.TrimSpace(doc.ReadString(sel).Value)
 		seen := make(map[string]bool)
 		for _, field := range doc.Children(sel) {
@@ -163,6 +174,10 @@ func checkConfigFields(doc *shcl.Document) error {
 			seen[key] = true
 			if err := nestedField(doc, path, name, field); err != nil {
 				return err
+			}
+			if !configRawFields[key] && doc.ReadRaw(path).Status == shcl.Good {
+				return fmt.Errorf("%sbase %q: %s takes a one-line value, not a raw block",
+					citeLine(doc, path), name, field)
 			}
 		}
 	}
@@ -233,8 +248,17 @@ func configBase(doc *shcl.Document, sel string) (*Base, error) {
 // configSymbols decodes a symbols-shaped field. SHCL splits a value on unquoted
 // commas, so one element is the whitespace or comma delimited spelling and
 // several are literal digits, one per element - which is how a symbol carrying a
-// space or a comma of its own gets written.
+// space or a comma of its own gets written. A raw block is the one string
+// spelling over several lines, where a line break counts as a space.
 func configSymbols(doc *shcl.Document, path, baseName, field string) ([]string, error) {
+	// An array read of a raw block is BadType by SHCL's spec, and its empty
+	// value used to pass for an absent field.
+	if raw := doc.ReadRaw(path); raw.Status == shcl.Good {
+		if strings.TrimSpace(raw.Value) == "" {
+			return nil, nil
+		}
+		return configSpec(doc, path, baseName, field, raw.Value)
+	}
 	read := doc.ReadStringArray(path)
 	switch read.Status {
 	case shcl.NotFound, shcl.Empty:
@@ -243,13 +267,17 @@ func configSymbols(doc *shcl.Document, path, baseName, field string) ([]string, 
 		return nil, repeatedField(doc, path, baseName, field)
 	}
 	if len(read.Value) == 1 {
-		symbols, err := ParseSymbolSpec(read.Value[0])
-		if err != nil {
-			return nil, fmt.Errorf("%sbase %q: %s: %w", citeLine(doc, path), baseName, field, err)
-		}
-		return symbols, nil
+		return configSpec(doc, path, baseName, field, read.Value[0])
 	}
 	return read.Value, nil
+}
+
+func configSpec(doc *shcl.Document, path, baseName, field, spec string) ([]string, error) {
+	symbols, err := ParseSymbolSpec(spec)
+	if err != nil {
+		return nil, fmt.Errorf("%sbase %q: %s: %w", citeLine(doc, path), baseName, field, err)
+	}
+	return symbols, nil
 }
 
 // configMarker reads one marker field, keeping the tri-state the Base fields

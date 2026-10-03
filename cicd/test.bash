@@ -364,6 +364,12 @@ bssym=$("${EXE}" --config "${CBT_TMP}/bslash.shcl" --show-symbols-0 bs 2>/dev/nu
 [[ "$bssym" == 'a b|c' ]] && _pass "config bare backslash escape" || _fail "config bare backslash escape" "got='$bssym'"
 printf 'base: bs\n\tsymbols: "a\\ b c"\n' >"${CBT_TMP}/bslashq.shcl"
 check errmsg "config bad escape rejected" 'line 2'     -- --config "${CBT_TMP}/bslashq.shcl" 255 16
+## A raw block under symbols is the one-line spelling over several lines. It used
+## to be reported as missing symbols, and under any other field it was dropped.
+printf 'base: rb\n\tsymbols:\n\t\t~~~\n\t\t0 1 2 3\n\t\t4 5 6 7\n\t\t~~~\n' >"${CBT_TMP}/rawsym.shcl"
+check eq     "config raw block symbols"  '377'         -- --config "${CBT_TMP}/rawsym.shcl" --from 10 --to rb 255
+printf 'base: rb\n\tsymbols: 01\n\taliases:\n\t\t~~~\n\t\trbx\n\t\t~~~\n' >"${CBT_TMP}/rawalias.shcl"
+check errmsg "config raw block alias rejected" 'line 3: base "rb": aliases takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawalias.shcl" 255 16
 ## First run writes the default config, and 10emoji comes from it rather than
 ## from the built-in set. XDG_CONFIG_HOME was sandboxed at the top of the run.
 usercfg="${XDG_CONFIG_HOME}/convert-base-v2/convert-base-v2.shcl"
