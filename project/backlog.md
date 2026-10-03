@@ -63,12 +63,22 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - macOS gets a universal binary for both amd64 and ARM.
 	- ID: 2026100313304792
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Intel Mac and on an Apple silicon Mac. Check `--version` and one conversion on each, and that Gatekeeper treats it the same as the per-arch build.
 	- Opened: 20261003-133047
 	- Opened by: JC
 	- Target OS: macOS
 	- Progress log:
 		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
+		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
+		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
+		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
+	- Decisions:
+		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
+		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
+	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
+	- Branch: mac-universal
+	- Test case: `cicd/utility/macho-fat/main_test.go`, run as the "macOS universal binary" section of `cicd/test.bash`. It fails with the arm64 alignment or slice order broken.
 
 - When a shcl upgrade breaks compatibility with the application config file(s).
 	- ID: 2026100313304802

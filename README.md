@@ -118,7 +118,9 @@ Grab a build for your platform from the [Releases page](https://github.com/jim-c
 
 - **Windows**: a one-click installer `.exe` that adds the tool to your PATH, or a plain `.zip`.
 
-- **macOS and FreeBSD**: a `.tgz` tarball.
+- **macOS**: a `.tgz` tarball. The universal build runs on both Intel and Apple silicon Macs. A build for just one is half the size.
+
+- **FreeBSD**: a `.tgz` tarball.
 
 Each release includes a `checksums.txt` so you can verify what you downloaded.
 

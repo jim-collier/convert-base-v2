@@ -8,6 +8,8 @@
 ##		  and produces, into the output dir:
 ##		    - tarball (linux/darwin/freebsd) or zip (windows) of the bare binary
 ##		    - the bare binary itself, per platform/arch (grab-and-run)
+##		    - a macOS universal binary (amd64 + arm64), as tarball and bare,
+##		      when both darwin builds were made
 ##		    - .deb and .rpm per Linux arch (nfpm - cross-arch, no native tooling)
 ##		    - single-file Windows installer .exe per arch (makensis / NSIS)
 ##		    - checksums.txt
@@ -109,6 +111,20 @@ done
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## macOS universal binary: both darwin builds in one file, for a Mac of either
+## kind. The per-arch assets stay, since install.bash fetches those and they are
+## half the size. Packaging runs without lipo, so macho-fat joins them.
+
+if [[ -f "${work}/darwin-amd64/${EXE}" && -f "${work}/darwin-arm64/${EXE}" ]]; then
+	unidir="${work}/darwin-universal"; mkdir -p "${unidir}"
+	( cd "${here}/macho-fat" && go run . -o "${unidir}/${EXE}" "${work}/darwin-amd64/${EXE}" "${work}/darwin-arm64/${EXE}" )
+	tar -C "${unidir}" -czf "${OUT}/${PKG}-darwin-universal.tgz" "${EXE}"
+	cp "${unidir}/${EXE}" "${OUT}/${PKG}-darwin-universal"
+	fEcho "built darwin/universal"
+fi
+
+
+#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Linux packages: .deb and .rpm per arch, via nfpm (cross-arch, no native
 ## tooling). nfpm maps the one arch value to each format (deb: amd64/arm64,
 ## rpm: x86_64/aarch64) and turns 1.1.0-beta7 into 1.1.0~beta7 itself.
@@ -188,3 +204,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt | wc -l) 
 
 ##	History:
 ##		- 2026-07-12: Created. Self-contained cross-build + deb/rpm/NSIS packaging, replacing goreleaser.
+##		- 2026-10-03: macOS universal binary alongside the per-arch darwin builds.
