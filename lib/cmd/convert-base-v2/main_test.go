@@ -7,6 +7,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"io"
 	"reflect"
 	"strings"
@@ -75,7 +76,7 @@ func TestPrintInfoLoneIsUnchanged(t *testing.T) {
 // One blank line between outputs, whether or not the first one already ends
 // in a blank line (the help does, the others do not).
 func TestPrintInfoSeparation(t *testing.T) {
-	help := func(w io.Writer) { io.WriteString(w, "HELP\n\n") }
+	help := func(w io.Writer) { fmt.Fprint(w, "HELP\n\n") }
 
 	var got strings.Builder
 	if err := printInfo(&got, parseInfo(t, "--version", "--help", "--donate"), help); err != nil {
