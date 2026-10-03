@@ -102,6 +102,8 @@ func run() error {
 	flag.Var(asked.flag("help"), "help", "show help and exit")
 	flag.Var(asked.flag("help"), "h", "alias for -help")
 	flag.Var(asked.flag("version"), "version", "print version and exit")
+	flag.Var(asked.flag("version"), "v", "alias for -version")
+	flag.Var(asked.flag("version"), "V", "alias for -version")
 	flag.Var(asked.flag("about"), "about", "print version, copyright, license and project home, then exit")
 	flag.Var(asked.flag("donate"), "donate", "print ways to support the project, then exit")
 	flag.Var(asked.flag("examples"), "examples", "show usage examples and exit")
@@ -888,7 +890,7 @@ Other:
 Program info (several in one run each print once, in order, then exit):
   --help, -h           Show this help
   --examples           Show usage examples
-  --version            Print version
+  --version, -v, -V    Print version
   --about              Print version, copyright, license and project home
   --donate             Print ways to support the project
 

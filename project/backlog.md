@@ -80,10 +80,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Done: `--about` and `--donate` added. `--help`, `--examples`, `--version`, `--about` and `--donate` can be combined, and each prints once, in the order given, with one blank line between. `--about` covers `--version`. A lone output is unchanged, so `--version` is still one bare line.
 		- Done: help lists the five under a "Program info" heading. Its copyright line now uses the © sign, to match `--about`.
 		- Done: Ko-fi added to `.github/FUNDING.yml` and the README support section, taken from the unmerged `ko-fi` branch.
-		- Note: everything but the help now prints before the config files load, as `--version` already did. So `--examples` no longer creates the default config or fails on a broken one.
+		- Note: everything but the help now prints before the config files load, as `--version` already did. So `--examples` no longer creates the default config or fails on a broken one. That's fine.
 		- Fixed: the stale comments in `.github/FUNDING.yml`, which pointed at another project's DONATE.md, are gone.
 		- Note: an info flag after the NUMBER is still read as a positional, as before: `convert-base-v2 255 --about` reports an unknown base. shcl takes these flags anywhere; this project keeps flags before the NUMBER.
-		- Note: no `-v`/`-V` alias for `--version`, unlike shcl. The issue didn't ask for one.
+		- Done: `-v` and `-V` work as `--version`, as in shcl.
 	- Verified: go vet, golangci-lint and the new unit tests pass. The six new harness checks fail on the dev build and pass on this one.
 	- Branch: about-donate
 	- Commit: c420170, 67d980e
@@ -115,10 +115,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 			- Note: dev's copy had stopped matching its v1.2.0 pin when the 2026-09-09 copyright sweep edited its header, so the vendor check would have failed. The new copy is verbatim.
 		- 20261003: shcl friction found on the dev build. None needed a workaround in code here.
 			- The Go file does not compile for a 32-bit target: `GOARCH=386 go build ./...` fails because `math.MaxUint32` overflows `int`. v1.2.0 built fine. Expected: it builds on any Go target. Missing capability. Nothing shipped here is 32-bit, but a 32-bit program that imports the library can't build. Not in shcl's backlog, which treats 32-bit as no target.
+				- Fine as is. 32-bit is no target here either.
 			- The info block's Syntax link names tag `v3.0.0-beta1`, which does not exist yet, so a config written by a build from this pin carries a dead link. Expected: a link that resolves. Rough edge, and on purpose upstream, since the tag comes with the release.
 			- A file ending inside an unclosed raw block, such as `~~~` alone, comes back from `Migrate` unchanged, unstamped and not `Current`, with nothing to say why. A caller that rewrites until the file is current would loop. Expected: some signal. Rough edge. The loader here refuses such a file anyway.
 			- A file stamped Format 3 now reads as current to every later 3.0 build, and shcl plans more breaking changes before 3.0.0 (its 2026100207032800: no backslash escapes, no spaces in bare values, brackets for arrays, `- ` for list items). Under those, `aliases: a, b` and `* x` lines would be refused here. Known upstream as 2026100115403385. Missing capability.
-			- Question: should a release of this tool wait for shcl 3.0.0? A file written by a release on this pin says Format 3 but follows the dev rules, and a later shcl would not migrate it.
+			- Answered: no wait. The next release is a beta. A file written by a release on this pin says Format 3 but follows the dev rules, and a later shcl would not migrate it.
 		- 20261003: second half done, with the child test 2026100313304807.
 			- Done: a config with no Format line, or an older one, is read the old way. `LoadConfig` converts it in memory through shcl's `Migrate` before loading, so the library and the command agree.
 			- Done: the user and /etc files are converted on disk once. The original is kept beside the file as `convert-base-v2_backup_YYYYmmDD-HHMMSS_format-v1.shcl`, and the converted text replaces it through shcl's atomic write. One stderr note names the backup.
@@ -133,7 +134,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 				- Known bug 3 above, the unclosed raw block. The result is refused when it names no current format, so the file is never taken as old on every load. The strict loader refuses such a file anyway, so only the message changes.
 				- New: `Migrate("x: [ab]\n", true)` gives `x: ab` and counts nothing lost. The 1.2.0 and 2.0.0 Go parsers read that line with an error ("missing colon", E015), so the old loader refused the file. Expected: the line left as written or counted lost, since a strict caller refused it. Rough edge, and on purpose upstream, which counts this sugar as clean. Workaround: refused when the current parser flags E019 on the original, which it does for every such line.
 			- Verified: go vet, golangci-lint, staticcheck and `go test ./...` pass. The full `cicd/test.bash` passed 467 of 467. The old readings in the new tests match what v3.0.0, the last release on SHCL 1.x, gives for the same files. Each new Go test and harness check failed with its part of the change taken out, or with a fault put in.
-			- Question: should an unstamped file's backup say `format-v1`, what every release here read it with, or `format-v2`, what shcl calls it? It says `format-v1` for now.
+			- Answered: an unstamped file's backup says `format-v1`, what every release here read it with, not shcl's `format-v2`.
 	- Decisions:
 		- Built on shcl's unreleased 3.0 dev tree, not v2.0.0 and not waiting for 3.0.0. That breaks the "pin only released tags" rule on purpose until 3.0.0 is out.
 		- 20261003: a config with no Format line is old, and is read with its old meaning. A hand-written file meant for the current rules needs the Format line.

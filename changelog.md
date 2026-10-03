@@ -26,7 +26,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Added
 
-- `--about` prints the version, copyright, license and project home, with a short description. `--donate` lists the GitHub Sponsors and Ko-fi links.
+- `--about` prints the version, copyright, license and project home, with a short description. `--donate` lists the GitHub Sponsors and Ko-fi links. `-v` and `-V` work as `--version`.
 
 - A universal macOS build, `convert-base-v2-darwin-universal`, that runs on both Intel and Apple silicon Macs. The separate Intel and ARM builds are still there.
 
