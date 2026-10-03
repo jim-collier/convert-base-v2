@@ -95,11 +95,15 @@ func run() error {
 		showSymbols0  = flag.Bool("show-symbols-0", false, "like --show-symbols but NUL-separated, for machine parsing of multi-char symbols")
 		byIndex       = flag.Int("by-index", -1, "pick a base by its INDEX column in --list (0-based); used with --get-base-name / --show-symbols")
 		configFile    = flag.String("config", userConfigPath(), "user-level SHCL config file; /etc is always tried too (missing file is OK)\n        ")
-		showVersion   = flag.Bool("version", false, "print version and exit")
-		helpFlag      = flag.Bool("help", false, "show help and exit")
-		hFlag         = flag.Bool("h", false, "alias for -help")
-		examplesFlag  = flag.Bool("examples", false, "show usage examples and exit")
 	)
+
+	var asked infoAsks
+	flag.Var(asked.flag("help"), "help", "show help and exit")
+	flag.Var(asked.flag("help"), "h", "alias for -help")
+	flag.Var(asked.flag("version"), "version", "print version and exit")
+	flag.Var(asked.flag("about"), "about", "print version, copyright, license and project home, then exit")
+	flag.Var(asked.flag("donate"), "donate", "print ways to support the project, then exit")
+	flag.Var(asked.flag("examples"), "examples", "show usage examples and exit")
 
 	// Per-side overrides. These apply to whatever base the side resolved to,
 	// named or custom. An empty value disables the marker; an absent flag
@@ -127,9 +131,13 @@ func run() error {
 		return improveFlagError(perr)
 	}
 
-	if *showVersion {
-		fmt.Println(version)
-		return nil
+	// --about opens with the version line, so it covers --version. Only the help
+	// reports on the config files, so everything else prints before they load.
+	if asked.has("about") {
+		asked.drop("version")
+	}
+	if len(asked) > 0 && !asked.has("help") {
+		return printInfo(os.Stdout, asked, nil)
 	}
 
 	// Build registry and layer on config files (lowest to highest precedence):
@@ -192,15 +200,10 @@ func run() error {
 
 	// --help (with or without accompanying flags). Explicitly requested, so it
 	// goes to stdout (pipeable); the no-args error path below keeps stderr.
-	if *helpFlag || *hFlag {
-		printHelp(os.Stdout, reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
-		return nil
-	}
-
-	// --examples (explicitly requested -> stdout).
-	if *examplesFlag {
-		printExamples(os.Stdout)
-		return nil
+	if len(asked) > 0 {
+		return printInfo(os.Stdout, asked, func(w io.Writer) {
+			printHelp(w, reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
+		})
 	}
 
 	// --list shows the everyday bases, --list-compat the v1/v1b compatibility
@@ -545,6 +548,80 @@ func looksLikeNumber(s string) bool {
 	return false
 }
 
+// infoAsks is the informational outputs asked for, each once, in the order first
+// asked. flag.Visit walks flags sorted by name, so the order is kept as the
+// flags are set.
+type infoAsks []string
+
+func (a *infoAsks) flag(name string) *infoFlag { return &infoFlag{name: name, asks: a} }
+
+func (a infoAsks) has(name string) bool {
+	for _, n := range a {
+		if n == name {
+			return true
+		}
+	}
+	return false
+}
+
+func (a *infoAsks) drop(name string) {
+	kept := (*a)[:0]
+	for _, n := range *a {
+		if n != name {
+			kept = append(kept, n)
+		}
+	}
+	*a = kept
+}
+
+// infoFlag is a bool flag that records itself in an infoAsks when set.
+type infoFlag struct {
+	name string
+	asks *infoAsks
+}
+
+func (f *infoFlag) String() string   { return "" }
+func (f *infoFlag) IsBoolFlag() bool { return true }
+
+func (f *infoFlag) Set(s string) error {
+	on, err := strconv.ParseBool(s)
+	if err != nil {
+		return err
+	}
+	if !on {
+		f.asks.drop(f.name)
+	} else if !f.asks.has(f.name) {
+		*f.asks = append(*f.asks, f.name)
+	}
+	return nil
+}
+
+// printInfo writes each informational output asked for, in order, with one
+// blank line between them. A lone one prints just as it would by itself, so
+// --version stays one bare line for scripts.
+func printInfo(out io.Writer, asked infoAsks, help func(io.Writer)) error {
+	var all strings.Builder
+	for i, name := range asked {
+		if i > 0 && !strings.HasSuffix(all.String(), "\n\n") {
+			all.WriteString("\n")
+		}
+		switch name {
+		case "help":
+			help(&all)
+		case "version":
+			fmt.Fprintln(&all, version)
+		case "about":
+			printAbout(&all)
+		case "donate":
+			printDonate(&all)
+		case "examples":
+			printExamples(&all)
+		}
+	}
+	_, err := io.WriteString(out, all.String())
+	return err
+}
+
 // selectBase picks a base for the query flags: by --list index if byIndex >= 0,
 // otherwise by name/alias. Index order matches --list (see OrderedBases).
 func selectBase(reg *convertbase.Registry, byIndex int, name string) (*convertbase.Base, error) {
@@ -797,9 +874,13 @@ Other:
   --config FILE        User SHCL config; /etc is always tried too. Written with
                        a commented example on first run.
                        [default %s]
-  --examples           Show usage examples and exit
-  --version            Print version and exit
+
+Program info (several in one run each print once, in order, then exit):
   --help, -h           Show this help
+  --examples           Show usage examples
+  --version            Print version
+  --about              Print version, copyright, license and project home
+  --donate             Print ways to support the project
 
 `, userConfigPath())
 
@@ -883,12 +964,35 @@ func reportSide(out io.Writer, label string, reg *convertbase.Registry, name, sy
 
 func printCopyright(out io.Writer) {
 	fmt.Fprintf(out, `convert-base-v2 %s
-Copyright (c) %s %s.
+Copyright © %s %s.
 Licensed under the GNU General Public License v2.0 or later. Full text at:
   https://spdx.org/licenses/GPL-2.0-or-later.html
 There is no warranty, to the extent permitted by law.
 
 `, version, copyrightYear, author)
+}
+
+func printAbout(out io.Writer) {
+	printCopyright(out)
+	fmt.Fprint(out, `A universal base converter. It converts a number of any size, negative or
+fractional, between any two bases: dozens of named ones, the RFC 4648
+standards, or an alphabet of your own. It also streams raw binary data through
+power-of-2 bases, the way basenc does.
+
+Project home: https://github.com/jim-collier/convert-base-v2
+`)
+}
+
+func printDonate(out io.Writer) {
+	fmt.Fprint(out, `convert-base-v2 is free software, and stays that way.
+
+If it saves you time and you want to give something back:
+  https://github.com/sponsors/jim-collier
+  https://ko-fi.com/jimcollier
+
+A star on the project, a clear bug report, or a mention to someone who needs it
+are worth just as much.
+`)
 }
 
 func printExamples(out io.Writer) {

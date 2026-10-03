@@ -133,6 +133,21 @@ _run --help
 { ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Usage* ]]; } && _pass "--help writes to stdout" || _fail "--help writes to stdout" "rc=$_rc outlen=${#_out}"
 _run --examples
 { ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Examples* ]]; } && _pass "--examples writes to stdout" || _fail "--examples writes to stdout" "rc=$_rc outlen=${#_out}"
+_run --version; cbVer="$_out"
+_run --about
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 ${cbVer}"$'\n'* ]] && [[ "$_out" == *"Copyright ©"* ]] && [[ "$_out" == *GPL-2.0-or-later* ]] && [[ "$_out" == *"https://github.com/jim-collier/convert-base-v2"* ]]; } && _pass "--about names version, copyright, license, home" || _fail "--about names version, copyright, license, home" "rc=$_rc out=[$_out]"
+_run --donate
+{ ((_rc == 0)) && [[ "$_out" == *"https://github.com/sponsors/jim-collier"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]]; } && _pass "--donate lists both support links" || _fail "--donate lists both support links" "rc=$_rc out=[$_out]"
+## Several informational flags each print once, in the order given.
+_run --donate --version
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 is free"* ]] && [[ "$_out" == *$'\n\n'"${cbVer}" ]]; } && _pass "--donate --version prints both, in order" || _fail "--donate --version prints both, in order" "rc=$_rc out=[$_out]"
+_run --version --donate
+{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n\n'"convert-base-v2 is free"* ]]; } && _pass "--version --donate prints both, in order" || _fail "--version --donate prints both, in order" "rc=$_rc out=[$_out]"
+_run --help --donate --help
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 ${cbVer}"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]] && (($(grep -c '^Usage:' <<<"$_out") == 1)); } && _pass "--help --donate --help prints help once, then donate" || _fail "--help --donate --help prints help once, then donate" "rc=$_rc out=[$_out]"
+## --about opens with the version line, so --version adds nothing to it.
+_run --about --version
+{ ((_rc == 0)) && ! grep -qxF -- "${cbVer}" <<<"$_out"; } && _pass "--about covers --version" || _fail "--about covers --version" "rc=$_rc out=[$_out]"
 ## No-args error path keeps help on stderr, exit 2, stdout empty.
 _run
 { ((_rc == 2)) && [[ -z "$_out" ]] && [[ -n "$_err" ]]; } && _pass "no-args help stays on stderr" || _fail "no-args help stays on stderr" "rc=$_rc outlen=${#_out} errlen=${#_err}"

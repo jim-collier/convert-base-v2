@@ -22,6 +22,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Other work
 -->
 
+## vNEXT - DATE
+
+### Added
+
+- `--about` prints the version, copyright, license and project home, with a short description. `--donate` lists the GitHub Sponsors and Ko-fi links.
+
+### Changed
+
+- `--help`, `--examples`, `--version`, `--about` and `--donate` can be combined, and each prints once, in the order given. Before, the first one checked won and the rest were ignored.
+
+- The copyright line in `--help` uses the © sign.
+
 ## v3.0.0 - 2026-08-04
 
 ### Notes

@@ -185,7 +185,7 @@ convert-base-v2 --show-symbols 64emoji
 
 A base can hold control characters as digits, which are impossible to type at a prompt and invisible on a terminal. Those can be written by name instead, as `⊳LF`, `⊳TAB`, `⊳CR` and so on. Input takes the named and the raw forms mixed, always; output writes them only when `--escape-controls` asks for it. The marker is a character no such base uses, so nothing ever needs escaping twice.
 
-Run `convert-base-v2 --help` for the full flag list, or `--examples` for more.
+Run `convert-base-v2 --help` for the full flag list, or `--examples` for more. `--about` says what the tool is and where it lives, and `--donate` lists the ways to support it.
 
 To avoid confusion when working with binary data, you can add these aliases to your shell startup script:
 
@@ -530,7 +530,7 @@ Tests sandbox their own config directory, so running them will not read or write
 
 ## Support convert-base-v2
 
-This tool is free and open source, and built and maintained in spare time. If it saves you some, you can [sponsor the project on GitHub](https://github.com/sponsors/jim-collier). It is appreciated, and never expected.
+This tool is free and open source, and built and maintained in spare time. If it saves you some, you can sponsor the project on [GitHub](https://github.com/sponsors/jim-collier) or [Ko-fi](https://ko-fi.com/jimcollier). It is appreciated, and never expected.
 
 ## Legal stuff
 

@@ -34,6 +34,32 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- Support `--help`, `--about` and `--donate`, in a similar way as sister project shcl.
+	- ID: 2026100313304797
+	- Type: Enhancement
+	- Status: Waiting on signoff
+	- Needs local test suite run?: Full `cicd/test.bash`. The new CLI checks and everything up to stream parity passed (428 checks); the rest did not get to run.
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Target OS: Any
+	- Requirements  [Feature]:
+		- `--about` gives the version, copyright, project home, license and a short description.
+		- `--donate` lists GitHub Sponsors and Ko-fi.
+	- Progress log:
+		- 20261003: `-h`, `-help` and `-version` exist already. `--about` and `--donate` don't.
+		- 20261003: `--help` and `--version` already worked with two dashes, since Go's flag package takes either.
+		- Done: `--about` and `--donate` added. `--help`, `--examples`, `--version`, `--about` and `--donate` can be combined, and each prints once, in the order given, with one blank line between. `--about` covers `--version`. A lone output is unchanged, so `--version` is still one bare line.
+		- Done: help lists the five under a "Program info" heading. Its copyright line now uses the © sign, to match `--about`.
+		- Done: Ko-fi added to `.github/FUNDING.yml` and the README support section, taken from the unmerged `ko-fi` branch.
+		- Note: everything but the help now prints before the config files load, as `--version` already did. So `--examples` no longer creates the default config or fails on a broken one.
+		- Fixed: the stale comments in `.github/FUNDING.yml`, which pointed at another project's DONATE.md, are gone.
+		- Note: an info flag after the NUMBER is still read as a positional, as before: `convert-base-v2 255 --about` reports an unknown base. shcl takes these flags anywhere; this project keeps flags before the NUMBER.
+		- Note: no `-v`/`-V` alias for `--version`, unlike shcl. The issue didn't ask for one.
+	- Verified: go vet, golangci-lint and the new unit tests pass. The six new harness checks fail on the dev build and pass on this one.
+	- Branch: about-donate
+	- Commit: c420170, 67d980e
+	- Test case: `TestInfoFlagOrder`, `TestPrintInfoLoneIsUnchanged`, `TestPrintInfoSeparation`, `TestAboutAndDonateContent` in `main_test.go`; the `--about`/`--donate` checks under "CLI surface" in `cicd/test.bash`.
+
 - macOS gets a universal binary for both amd64 and ARM.
 	- ID: 2026100313304792
 	- Type: Enhancement
@@ -43,19 +69,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: macOS
 	- Progress log:
 		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
-
-- Support `--help`, `--about` and `--donate`, in a similar way as sister project shcl.
-	- ID: 2026100313304797
-	- Type: Enhancement
-	- Status: Queued
-	- Opened: 20261003-133047
-	- Opened by: JC
-	- Target OS: Any
-	- Requirements  [Feature]:
-		- `--about` gives the version, copyright, project home, license and a short description.
-		- `--donate` lists GitHub Sponsors and Ko-fi.
-	- Progress log:
-		- 20261003: `-h`, `-help` and `-version` exist already. `--about` and `--donate` don't.
 
 - When a shcl upgrade breaks compatibility with the application config file(s).
 	- ID: 2026100313304802
