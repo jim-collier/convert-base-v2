@@ -117,6 +117,33 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 51f59b6
 	- Test case: `TestConfigBackslashLayers` in `config_test.go`, `TestUserConfigIsStamped` in `userconfig_test.go`, and the "config bare backslash escape", "config bad escape rejected" and "user config names its format" checks in `cicd/test.bash`.
 
+- A raw block as a config field value is dropped or misreported.
+	- ID: 2026100315002873
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261003-150028
+	- Opened by: found while working 2026100314430255
+	- Target OS: Any
+	- Steps to reproduce:
+		- `aliases:` followed by a `~~~` raw block holding a name.
+		- `symbols:` followed by a `~~~` raw block holding the digits.
+	- Incorrect behavior: the aliases are dropped without a word, so the alias is later an unknown base. The symbols one is refused as "missing 'symbols'", which is wrong about the cause. A `tail` raw block would be dropped the same way.
+	- Expected behavior: read the value, or refuse it and say why.
+	- Reproduced: 20261003, on the nested-field branch.
+	- Possible cause: shcl answers an array read of a raw block with BadType. The aliases read takes that as no value, and the symbols read treats it as empty.
+
+- Write a test as part of CICD that creates old shcl file versions for settings, and tests the automatic (non-shcl-assisted) conversion.
+	- ID: 2026100313304807
+	- Type: Task
+	- Status: Queued
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Parent ID: 2026100313304802
+	- Target OS: Any
+	- Progress log:
+		- 20261003: waits on its parent.
+
 - A field written under another field in a config file is ignored without a word.
 	- ID: 2026100314430255
 	- Type: Bug
@@ -147,33 +174,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `TestConfigRejectsNestedField` and the "nested" case in `TestConfigErrorsCiteLines` in `config_test.go`; "config nested field rejected" in `cicd/test.bash`.
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261003-150028
-
-- A raw block as a config field value is dropped or misreported.
-	- ID: 2026100315002873
-	- Type: Bug
-	- Status: Queued
-	- Severity: Low
-	- Opened: 20261003-150028
-	- Opened by: found while working 2026100314430255
-	- Target OS: Any
-	- Steps to reproduce:
-		- `aliases:` followed by a `~~~` raw block holding a name.
-		- `symbols:` followed by a `~~~` raw block holding the digits.
-	- Incorrect behavior: the aliases are dropped without a word, so the alias is later an unknown base. The symbols one is refused as "missing 'symbols'", which is wrong about the cause. A `tail` raw block would be dropped the same way.
-	- Expected behavior: read the value, or refuse it and say why.
-	- Reproduced: 20261003, on the nested-field branch.
-	- Possible cause: shcl answers an array read of a raw block with BadType. The aliases read takes that as no value, and the symbols read treats it as empty.
-
-- Write a test as part of CICD that creates old shcl file versions for settings, and tests the automatic (non-shcl-assisted) conversion.
-	- ID: 2026100313304807
-	- Type: Task
-	- Status: Queued
-	- Opened: 20261003-133047
-	- Opened by: JC
-	- Parent ID: 2026100313304802
-	- Target OS: Any
-	- Progress log:
-		- 20261003: waits on its parent.
 
 ## Old format
 
