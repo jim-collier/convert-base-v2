@@ -120,7 +120,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - A raw block as a config field value is dropped or misreported.
 	- ID: 2026100315002873
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on signoff
+	- Needs local test suite run?: Full `cicd/test.bash`. Only the sections up to the config section ran.
 	- Severity: Low
 	- Opened: 20261003-150028
 	- Opened by: found while working 2026100314430255
@@ -132,6 +133,18 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Expected behavior: read the value, or refuse it and say why.
 	- Reproduced: 20261003, on the nested-field branch.
 	- Possible cause: shcl answers an array read of a raw block with BadType. The aliases read takes that as no value, and the symbols read treats it as empty.
+	- Reproduced: also a `tail` block dropped, and a marker or `pad` block taken as the marker, line breaks and all. A two-line `negative:` block loaded with a marker of `x`, newline, `y`. A raw block as the `base:` name was taken as the name. `pademit` was already refused, as not true or false.
+	- Actual cause: ours, not shcl's. shcl's spec says an array read of a raw block is BadType and a string read gives its text, and the vendored copy does exactly that. The loader had no arm for BadType.
+	- Progress log:
+		- 20261003: a raw block suits a long alphabet, so `symbols` and `tail` read one now. Every other field is one short value, so a block there is refused.
+		- Question: a block reads like the one-line form, so a line break counts as a space. That keeps one rule for both spellings, but a block of rows with no spaces, such as `ABCD` then `EFGH`, is two digits of four characters each, not eight digits. The docs say to put spaces between digits. Should each line be split per character instead?
+	- Actual fix: `symbols` and `tail` take a raw block and read it like the one-line form. Every other field, and the `base:` name, refuses one, naming the base, the field and the line. Documented in the README, the default config and the changelog.
+	- Sweep: every field config.go reads, plus the base name.
+	- Swept: `symbols` and `tail` read the block. `aliases`, `negative`, `decimal`, `pad`, `pademit` and the `base:` name refuse it. Two blocks under one field are two instances, already refused as a repeat. A field nested under a block is already refused. The refusal runs in the field check, before anything is read, so no read path can see a block it does not handle.
+	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The new unit tests fail against the old loader and pass on this branch, except the empty-block case, which already said missing symbols. The two new harness checks fail on a dev build and pass on this one; the harness up to the end of its config section passed 116 of 116. The README example converts as shown. Shellcheck finds nothing new in `cicd/test.bash`.
+	- Branch: rawblock
+	- Commit: 7c91a52
+	- Test case: `TestConfigRawBlockSymbols`, `TestConfigRejectsRawBlockValue`, and the "raw marker" and "raw name" cases in `TestConfigErrorsCiteLines`, in `config_test.go`; "config raw block symbols" and "config raw block alias rejected" in `cicd/test.bash`.
 
 - Write a test as part of CICD that creates old shcl file versions for settings, and tests the automatic (non-shcl-assisted) conversion.
 	- ID: 2026100313304807
