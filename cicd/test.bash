@@ -353,10 +353,19 @@ printf 'base: x\n\tsymbols: abc\n\tnegative: A\n\tnegative: B\n' >"${CBT_TMP}/tw
 check errmsg "config repeated field rejected" 'more than once' -- --config "${CBT_TMP}/twice.shcl" 255 16
 printf 'base: x\n\tsymbols: abc\n  bogus indent\n' >"${CBT_TMP}/bad.shcl"
 check errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
+## SHCL leaves a bare backslash alone, so the symbol spec's own escape still
+## puts a space inside a digit. In double quotes an unknown escape is refused.
+printf 'base: bs\n\tsymbols: a\\ b c\n' >"${CBT_TMP}/bslash.shcl"
+bssym=$("${EXE}" --config "${CBT_TMP}/bslash.shcl" --show-symbols-0 bs 2>/dev/null | tr '\0' '|')
+[[ "$bssym" == 'a b|c' ]] && _pass "config bare backslash escape" || _fail "config bare backslash escape" "got='$bssym'"
+printf 'base: bs\n\tsymbols: "a\\ b c"\n' >"${CBT_TMP}/bslashq.shcl"
+check errmsg "config bad escape rejected" 'line 2'     -- --config "${CBT_TMP}/bslashq.shcl" 255 16
 ## First run writes the default config, and 10emoji comes from it rather than
 ## from the built-in set. XDG_CONFIG_HOME was sandboxed at the top of the run.
 usercfg="${XDG_CONFIG_HOME}/convert-base-v2/convert-base-v2.shcl"
 [[ -s "$usercfg" ]] && _pass "first run creates the user config" || _fail "first run creates the user config" "missing $usercfg"
+## It names its SHCL format, so a later version can tell it from an older file.
+grep -Eq '^##    Format   [0-9]+$' "$usercfg" && _pass "user config names its format" || _fail "user config names its format" "no Format line in $usercfg"
 check eq  "10emoji comes from config"  '😑😔😘😜' -- --from 10 --to 10emoji 1234
 check eq  "10emoji keeps its old name" '😑😔😘😜' -- --from 10 --to emoji10 1234
 

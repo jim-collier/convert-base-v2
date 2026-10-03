@@ -36,6 +36,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The copyright line in `--help` uses the © sign.
 
+- Config files are read with SHCL 3.0. A backslash in a value is plain text unless it is inside double quotes, where only `\t`, `\n`, `\\`, `\"`, `\'` and `\u` escapes are accepted. Any other escape there is refused. `\,` and `\#` no longer protect a comma or a `#` outside quotes; quote the value instead. A config without backslashes in it reads the same as before.
+
+- The config file written on the first run ends with SHCL's info block, which names the format version it was written for.
+
 ## v3.0.0 - 2026-08-04
 
 ### Notes
