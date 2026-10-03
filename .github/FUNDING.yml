@@ -1,7 +1,3 @@
-# Drives the "Sponsor" button on the GitHub repo. An unconfigured github:/patreon:
-# handle 404s the button, so until those profiles exist it points at DONATE.md
-# instead. Enable the entries below once the profiles are live.
+# Drives the "Sponsor" button on the GitHub repo.
 github: [jim-collier]
 ko_fi: jimcollier
-# patreon: your-handle
-# custom: ["https://github.com/jim-collier/rapid-photo-downloader-pro/blob/main/DONATE.md"]
