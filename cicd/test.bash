@@ -1232,6 +1232,18 @@ fi
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## The macOS universal binary is joined here, not by lipo, and there is no Mac
+## to run it on. Its tests check the fat layout against hand-made slices and
+## against the real command cross-built for both Macs.
+section "macOS universal binary"
+if (cd "${meDir}/utility/macho-fat" && go test -count=1 .) >"${CBT_ERR}" 2>&1; then
+	_pass "macho-fat tests"
+else
+	_fail "macho-fat tests" "$(grep -E -- '--- FAIL|main_test.go|macho-fat' "${CBT_ERR}" | head -4 || true)"
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Performance: streaming throughput of the binary path (long test only)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## A repeatable throughput baseline for the streaming binary<->text path, with

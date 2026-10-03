@@ -160,6 +160,8 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 	- Per platform: a tarball (zip on Windows) of the static binary, a `.deb` and `.rpm` for each Linux arch, a single-file Windows installer that adds the tool to PATH and can update an existing install, and a checksums file. macOS `.dmg` and a native FreeBSD `.pkg` are deferred; those platforms ship as tarballs for now.
 
+	- macOS also gets a universal binary, both darwin builds joined into one file. Packaging runs on Linux with no lipo, so `cicd/utility/macho-fat` does the join, and checks each slice against its input. The per-arch macOS assets stay, since the install script fetches those and they are half the size. A `--no-arm` run makes no universal binary.
+
 - Releases are automatic on a merge to `main`. The version var in `lib/cmd/convert-base-v2/main.go` is the source of truth. A guard runs first and fails the workflow if the version was not bumped, if it sorts behind the newest tag, or if the README Lifecycle badge does not match the version stage. On success the workflow tags, packages, and publishes.
 
 - Release prep on `dev`: rename the changelog's next-version heading to the version and date, bump the version var, and set the Lifecycle badge to match the stage.
