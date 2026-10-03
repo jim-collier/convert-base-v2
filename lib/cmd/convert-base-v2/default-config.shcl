@@ -7,9 +7,7 @@
 #
 #	"Forgiving and predictable. The parser does the work instead of you."
 #
-#	Home     https://github.com/jim-collier/shcl
-#	Syntax   https://github.com/jim-collier/shcl/blob/main/project/spec.md
-#	License  MIT. Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ].
+#	Links and license are in the block at the end of this file.
 #
 #
 # convert-base-v2 creates this file on the first run and never rewritten afterwards,
@@ -23,6 +21,9 @@
 # only needs quotes when it contains a space, a comma, a colon, a "#", or a
 # quote character.
 #
+# A backslash is plain text, except inside double quotes, where it starts an
+# escape and has to be written twice.
+#
 #
 # Defining a base
 #
@@ -34,7 +35,10 @@
 #	symbols    The digit symbols, in order. Required. Either one string, split
 #	           on whitespace or on commas ("0123456789abcdef", "0 1 2 3"), or a
 #	           list with one entry per digit. Use the list form for symbols that
-#	           carry a space or a comma of their own.
+#	           carry a space or a comma of their own. In the one string form, a
+#	           backslash keeps a space inside a digit ("\ "), and "\t", "\n"
+#	           and "\\" are a tab, a newline and a backslash. Write those
+#	           without double quotes, or double each backslash.
 #
 #	negative   Marker for a negative number. Defaults to "-".
 #	decimal    Marker for the fractional point. Defaults to ".".

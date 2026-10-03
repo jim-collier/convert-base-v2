@@ -84,7 +84,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - When a shcl upgrade breaks compatibility with the application config file(s).
 	- ID: 2026100313304802
 	- Type: Feature
-	- Status: Queued
+	- Status: Started
 	- Opened: 20261003-133047
 	- Opened by: JC
 	- Target OS: Any
@@ -95,6 +95,43 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- FYI future versions of shcl might do the config backup and conversion for you. So just be careful not to race, conflict, or trample what shcl might try to do. (And first, while wiring up a new version of shcl in code, see if it has a new API to do or at least assist with the conversion for you.)
 	- Progress log:
 		- 20261003: the vendored shcl is v1.2.0, and v2.0.0 is out. Its one format break is escapes in field names, which no config field here uses.
+		- 20261003: first half done. The second half is the backup and rewrite, plus the child test 2026100313304807.
+			- Done: shcl's 3.0 dev build is vendored, pinned to commit `f8e27a22` of `yottacore/shcl`, where the project moved. It needed no code change, and the loader is as strict as before.
+			- Done: the vendor check takes a commit as well as a tag. It stays strict, and prints a pre-release notice on every run while the pin is a commit.
+			- Done: the config file written on the first run ends with SHCL's info block. Its Format line says which rules the file was written under, and older files have none, so `shcl.FormatVersion` tells them apart.
+			- Done: the 3.0 escape rules only change values with backslashes in them. No shipped config, test fixture or doc example has one, and every base they define resolves to the same symbols, markers and encoding under both versions. The default config, README and changelog now say how a backslash is read.
+			- Left: when an existing file has no Format line, back it up and write it again. `shcl.Migrate(text, true)` rewrites a 1.x or 2.x file for the 3.0 rules and stamps it. On every fixture here it kept every value the same. `MigrateUnstamped` plus `GenBanner` is the pair for a program that writes its own block.
+			- Left: the backup name in the requirement differs from shcl's own plan for the same feature (its 2026100313461649), which puts the old file's format version in the name. shcl may later do this itself, so the two should agree.
+			- Left: `ensureUserConfig` writes with a plain file write. A rewrite of an existing file should go through shcl's save or an atomic rename. shcl's optional `shcl_windows.go` is not vendored, and a Windows save through the library needs it to keep file attributes.
+			- Note: dev's copy had stopped matching its v1.2.0 pin when the 2026-09-09 copyright sweep edited its header, so the vendor check would have failed. The new copy is verbatim.
+		- 20261003: shcl friction found on the dev build. None needed a workaround in code here.
+			- The Go file does not compile for a 32-bit target: `GOARCH=386 go build ./...` fails because `math.MaxUint32` overflows `int`. v1.2.0 built fine. Expected: it builds on any Go target. Missing capability. Nothing shipped here is 32-bit, but a 32-bit program that imports the library can't build. Not in shcl's backlog, which treats 32-bit as no target.
+			- The info block's Syntax link names tag `v3.0.0-beta1`, which does not exist yet, so a config written by a build from this pin carries a dead link. Expected: a link that resolves. Rough edge, and on purpose upstream, since the tag comes with the release.
+			- A file ending inside an unclosed raw block, such as `~~~` alone, comes back from `Migrate` unchanged, unstamped and not `Current`, with nothing to say why. A caller that rewrites until the file is current would loop. Expected: some signal. Rough edge. The loader here refuses such a file anyway.
+			- A file stamped Format 3 now reads as current to every later 3.0 build, and shcl plans more breaking changes before 3.0.0 (its 2026100207032800: no backslash escapes, no spaces in bare values, brackets for arrays, `- ` for list items). Under those, `aliases: a, b` and `* x` lines would be refused here. Known upstream as 2026100115403385. Missing capability.
+			- Question: should a release of this tool wait for shcl 3.0.0? A file written by a release on this pin says Format 3 but follows the dev rules, and a later shcl would not migrate it.
+	- Decisions:
+		- Built on shcl's unreleased 3.0 dev tree, not v2.0.0 and not waiting for 3.0.0. That breaks the "pin only released tags" rule on purpose until 3.0.0 is out.
+	- Verified: go vet, golangci-lint, staticcheck and `go test ./...` pass. The full `cicd/test.bash` passed 445 of 445. The command builds for every shipped target and the three WASM ones. The vendor check failed on a made-up commit, a wrong commit, an edited copy, and the old tag against the new file. The new tests fail against the old build or the old shcl.
+	- Branch: shcl3
+	- Commit: 51f59b6
+	- Test case: `TestConfigBackslashLayers` in `config_test.go`, `TestUserConfigIsStamped` in `userconfig_test.go`, and the "config bare backslash escape", "config bad escape rejected" and "user config names its format" checks in `cicd/test.bash`.
+
+- A field written under another field in a config file is ignored without a word.
+	- ID: 2026100314430255
+	- Type: Bug
+	- Status: Queued
+	- Severity: High
+	- Opened: 20261003-144302
+	- Opened by: found while working 2026100313304802
+	- Target OS: Any
+	- Steps to reproduce:
+		- A base block with `negative:` and, indented under it, `decimal: X`.
+	- Incorrect behavior: it loads. The negative marker is switched off and the decimal line is never read.
+	- Expected behavior: refused, like any other unknown or misplaced field, citing the line.
+	- Reproduced: 20261003, with both the old and the new shcl.
+	- Possible cause: the field check looks one level down only.
+	- Note: blocks release, since the result is a wrong alphabet at exit 0.
 
 - Write a test as part of CICD that creates old shcl file versions for settings, and tests the automatic (non-shcl-assisted) conversion.
 	- ID: 2026100313304807

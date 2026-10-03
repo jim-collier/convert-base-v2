@@ -213,7 +213,9 @@ base: 10emoji
 	decimal: "⚽"
 ~~~
 
-That base is in the file as a working example to copy from. The format is [SHCL](https://github.com/jim-collier/shcl), and the file itself documents every field.
+That base is in the file as a working example to copy from. The format is [SHCL](https://github.com/yottacore/shcl), and the file itself documents every field.
+
+A backslash in a value is plain text, except inside double quotes, where it starts an escape and has to be doubled. The symbol list has escapes of its own on top of that: `symbols: a\ b c` makes `a b` one digit, and in double quotes the same list is `"a\\ b c"`.
 
 ## Use it in your own code
 

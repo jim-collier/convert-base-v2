@@ -116,3 +116,67 @@ func TestConfigAcceptsValidShapes(t *testing.T) {
 		t.Fatalf("valid config rejected: %v", err)
 	}
 }
+
+// A backslash in a symbols value can belong to one of two layers. SHCL reads
+// escapes only inside double quotes, and the one string form then goes through
+// ParseSymbolSpec, which has escapes of its own. These pin which layer reads
+// which backslash, so a parser change that would quietly change an alphabet
+// fails here first.
+func TestConfigBackslashLayers(t *testing.T) {
+	uEscape := `"` + `\` + `u00e9 x"` // spelled in pieces to keep the escape out of the source text
+	cases := []struct {
+		name  string
+		value string
+		want  []string // nil means the load must fail
+	}{
+		{"bare space escape", `a\ b c`, []string{"a b", "c"}},
+		{"double quoted, doubled", `"a\\ b c"`, []string{"a b", "c"}},
+		{"single quoted is literal", `'a\ b c'`, []string{"a b", "c"}},
+		{"bare tab escape", `x\ty`, []string{"x", "\t", "y"}},
+		{"bare backslash digit", `\\ x`, []string{`\`, "x"}},
+		{"double quoted backslash digit", `"\\\\ x"`, []string{`\`, "x"}},
+		// SHCL turns this one into a real tab, which the spec then splits on.
+		{"double quoted tab separates", `"x\ty"`, []string{"x", "y"}},
+		{"double quoted u escape", uEscape, []string{"é", "x"}},
+		// The list form skips ParseSymbolSpec, so a backslash there is a digit.
+		{"list element is literal", `a\ b, c`, []string{`a\ b`, "c"}},
+		// \, and \# protected the next character before shcl 3.0. Now the comma
+		// splits and the # starts a comment.
+		{"comma no longer protected", `a\, b`, []string{`a\`, "b"}},
+		{"hash no longer protected", `a\#b c`, []string{"a", `\`}},
+		{"unknown escape in double quotes", `"a\ b"`, nil},
+		{"bracket text", `[ab]`, nil},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "convert-base-v2.shcl")
+			if err := os.WriteFile(path, []byte("base: bs\n\tsymbols: "+c.value+"\n"), 0o600); err != nil {
+				t.Fatal(err)
+			}
+			r, err := NewRegistry()
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = r.LoadConfig(path)
+			if c.want == nil {
+				if err == nil {
+					t.Fatalf("%s loaded without error", c.value)
+				}
+				if !strings.Contains(err.Error(), "line 2") {
+					t.Fatalf("%s: error does not cite line 2: %v", c.value, err)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatalf("%s: %v", c.value, err)
+			}
+			b, err := ResolveBase(r, "bs", "", nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if strings.Join(b.Symbols, "|") != strings.Join(c.want, "|") {
+				t.Fatalf("%s: symbols %q, want %q", c.value, b.Symbols, c.want)
+			}
+		})
+	}
+}

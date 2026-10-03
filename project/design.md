@@ -129,6 +129,8 @@ The rationale behind the choices most likely to be questioned later. Each was se
 - **Config override keeps the base list truthful.** When a config base shadows a built-in one, the shadowed entry is dropped or loses only the stolen aliases, so `--list` and the index space stay accurate.
 
 - **The config format is SHCL, and its parser is a copied file.** SHCL comes as one drop-in source file per language, so vendoring it is the intended way to use it rather than a shortcut. It also leaves the program with no external dependencies, which matters for a tool whose whole promise is a single static binary. The copy stays byte-identical to upstream, so picking up a fix there is a file copy.
+	- The pin names a release tag, or a commit while a needed release is not out yet. SHCL is pinned to its unreleased 3.0 dev tree for now, and the pipeline prints a pre-release notice on every run until it is moved to a tag.
+	- The file written on the first run ends with SHCL's own info block, taken from the library rather than the embedded file. Its Format line is how a later version tells a file written under the current rules from an older one.
 
 - **The config is written, not just documented.** The first run creates the user file with a commented example in it. A documented path that does not exist is a feature most people never find, and there is no example to copy from until they have already worked out the syntax. The file is embedded in the binary, so the shipped example and the real file cannot disagree.
 

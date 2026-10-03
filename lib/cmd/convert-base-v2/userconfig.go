@@ -10,13 +10,24 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/jim-collier/convert-base-v2/lib/shcl"
 )
 
-// defaultConfig is written verbatim to the user config path on first run, so
-// the documented example and the file people actually edit can't drift apart.
+// defaultConfig is written to the user config path on first run, so the
+// documented example and the file people actually edit can't drift apart.
 //
 //go:embed default-config.shcl
 var defaultConfig string
+
+// userConfigText is the file the first run writes: the shipped default, then
+// SHCL's own info block. The block's Format line is what lets a later version
+// tell a file written under these rules from an older one (shcl.FormatVersion).
+// It comes from the library rather than the embedded file, so it moves with
+// the vendored copy.
+func userConfigText() string {
+	return strings.TrimRight(defaultConfig, "\n") + "\n\n\n" + shcl.GenBanner
+}
 
 // ensureUserConfig writes the shipped default the first time the program runs,
 // so the path in the help text points at a real file to read and edit instead
@@ -37,7 +48,7 @@ func ensureUserConfig(path string) bool {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return false
 	}
-	return os.WriteFile(path, []byte(defaultConfig), 0o644) == nil
+	return os.WriteFile(path, []byte(userConfigText()), 0o644) == nil
 }
 
 // legacyConfigPath is the pre-SHCL name of a config file. Nothing reads one any
