@@ -161,9 +161,25 @@ func checkConfigFields(doc *shcl.Document) error {
 				return repeatedField(doc, path, name, field)
 			}
 			seen[key] = true
+			if err := nestedField(doc, path, name, field); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+// nestedField refuses anything written under a base field. Every field takes a
+// value, never fields of its own, and nothing reads below this level - so a
+// line indented one step too far was dropped while the field above it read as
+// Empty, which disables a marker. Refusing at this level covers any depth.
+func nestedField(doc *shcl.Document, path, base, field string) error {
+	kids := doc.Children(path)
+	if len(kids) == 0 {
+		return nil
+	}
+	return fmt.Errorf("%sbase %q: %q is nested under %s, which takes a value, not fields",
+		citeLine(doc, path+"."+shcl.QuoteSegment(kids[0])), base, kids[0], field)
 }
 
 // configBase builds one base from the block at sel (a positional selector, so a

@@ -40,6 +40,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The config file written on the first run ends with SHCL's info block, which names the format version it was written for.
 
+### Fixed
+
+- A config field indented under another field, such as `decimal:` under `negative:`, was never read, and an empty field above it still switched its marker off. The base was built wrong with no error. It is refused now, naming the base, the field and the line.
+
 ## v3.0.0 - 2026-08-04
 
 ### Notes

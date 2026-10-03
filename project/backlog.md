@@ -117,21 +117,21 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 51f59b6
 	- Test case: `TestConfigBackslashLayers` in `config_test.go`, `TestUserConfigIsStamped` in `userconfig_test.go`, and the "config bare backslash escape", "config bad escape rejected" and "user config names its format" checks in `cicd/test.bash`.
 
-- A field written under another field in a config file is ignored without a word.
-	- ID: 2026100314430255
+- A raw block as a config field value is dropped or misreported.
+	- ID: 2026100315002873
 	- Type: Bug
 	- Status: Queued
-	- Severity: High
-	- Opened: 20261003-144302
-	- Opened by: found while working 2026100313304802
+	- Severity: Low
+	- Opened: 20261003-150028
+	- Opened by: found while working 2026100314430255
 	- Target OS: Any
 	- Steps to reproduce:
-		- A base block with `negative:` and, indented under it, `decimal: X`.
-	- Incorrect behavior: it loads. The negative marker is switched off and the decimal line is never read.
-	- Expected behavior: refused, like any other unknown or misplaced field, citing the line.
-	- Reproduced: 20261003, with both the old and the new shcl.
-	- Possible cause: the field check looks one level down only.
-	- Note: blocks release, since the result is a wrong alphabet at exit 0.
+		- `aliases:` followed by a `~~~` raw block holding a name.
+		- `symbols:` followed by a `~~~` raw block holding the digits.
+	- Incorrect behavior: the aliases are dropped without a word, so the alias is later an unknown base. The symbols one is refused as "missing 'symbols'", which is wrong about the cause. A `tail` raw block would be dropped the same way.
+	- Expected behavior: read the value, or refuse it and say why.
+	- Reproduced: 20261003, on the nested-field branch.
+	- Possible cause: shcl answers an array read of a raw block with BadType. The aliases read takes that as no value, and the symbols read treats it as empty.
 
 - Write a test as part of CICD that creates old shcl file versions for settings, and tests the automatic (non-shcl-assisted) conversion.
 	- ID: 2026100313304807
@@ -143,6 +143,37 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: Any
 	- Progress log:
 		- 20261003: waits on its parent.
+
+- A field written under another field in a config file is ignored without a word.
+	- ID: 2026100314430255
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261003-144302
+	- Opened by: found while working 2026100313304802
+	- Target OS: Any
+	- Steps to reproduce:
+		- A base block with `negative:` and, indented under it, `decimal: X`.
+	- Incorrect behavior: it loads. The negative marker is switched off and the decimal line is never read.
+	- Expected behavior: refused, like any other unknown or misplaced field, citing the line.
+	- Reproduced: 20261003, with both the old and the new shcl.
+		- 20261003: again on dev. With `negative: N` and `decimal: D` under it, 1.5 to that base printed `1.5` at exit 0.
+	- Possible cause: the field check looks one level down only.
+	- Actual cause: the field check looked at the names directly under each base block and nothing below them. No base field takes fields of its own, so anything under one was dropped unread. A dotted name like `negative.decimal: X` builds the same tree and slipped past the same way.
+	- Note: blocks release, since the result is a wrong alphabet at exit 0.
+	- Progress log:
+		- Done: anything under a base field is refused, at any depth. The error names the base, the stray field and the field it sits under, and cites the stray field's line. That makes nine refusal paths that cite a line.
+		- Note: no shcl bug was involved. Two same-named fields that both have fields under them merge into one in shcl, so the repeat check misses them, but the new check still catches the fields under them.
+		- Note: found along the way, logged as 2026100315002873: a raw block as a field value drops aliases without a word and reports symbols as missing.
+	- Actual fix: the field check now also refuses any field under a base field.
+	- Sweep: every place config.go walks children, the top level of the file, fields under list-valued fields, and whether `lib/wasm` and `lib/reactor` load configs.
+	- Swept: config.go walks children in two places, the top level and each base block. The top level refuses every name but `base`, so nothing under them is ever read. Each base block's fields are now checked for children. Under `aliases:` and stacked `* x` lists, a field is caught by this check or already refused by shcl as a list mixed with fields. `configBase` only reads fixed paths. `lib/wasm` and `lib/reactor` load no config at all; the only `LoadConfig` callers are the command's two paths in `main.go`, both through `Registry.LoadConfig`.
+	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The new unit test and the new harness check fail on dev and pass on this branch. The full `cicd/test.bash` passed 446 of 446 with the fixed build. Shellcheck finds nothing new in `cicd/test.bash`.
+	- Branch: nested-field
+	- Commit: 5c64d73
+	- Test case: `TestConfigRejectsNestedField` and the "nested" case in `TestConfigErrorsCiteLines` in `config_test.go`; "config nested field rejected" in `cicd/test.bash`.
+	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
+	- Closed: 20261003-150028
 
 ## Old format
 
