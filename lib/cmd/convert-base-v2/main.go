@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jim-collier/convert-base-v2/lib/convertbase"
 )
@@ -147,6 +148,10 @@ func run() error {
 	if err != nil {
 		return err
 	}
+	now := time.Now()
+	if note := upgradeConfigFile(etcConfigPath, now); note != "" {
+		fmt.Fprintln(os.Stderr, note)
+	}
 	// Nobody types the system path, so a copy that will not open at all just
 	// means there is no system config. A file that opens and will not parse
 	// still stops us, since that one was put there on purpose.
@@ -180,6 +185,9 @@ func run() error {
 			if _, statErr := os.Stat(userPath); statErr != nil {
 				return fmt.Errorf("config %s: %w", userPath, statErr)
 			}
+			if note := explicitConfigNote(userPath); note != "" {
+				fmt.Fprintln(os.Stderr, note)
+			}
 		} else if ensureUserConfig(userPath) {
 			// First run: there is now a real file at the path the help text
 			// names, with a working example base in it.
@@ -189,6 +197,8 @@ func run() error {
 					fmt.Fprintf(os.Stderr, "note: %s is the older YAML config and is no longer read\n", legacy)
 				}
 			}
+		} else if note := upgradeConfigFile(userPath, now); note != "" {
+			fmt.Fprintln(os.Stderr, note)
 		}
 		// A typed --config already failed above if it was not readable, so the
 		// only unreadable file reaching here is the default path, same case as

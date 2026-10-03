@@ -359,10 +359,12 @@ printf 'base: x\n\tsymbols: abc\n  bogus indent\n' >"${CBT_TMP}/bad.shcl"
 check errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
 ## SHCL leaves a bare backslash alone, so the symbol spec's own escape still
 ## puts a space inside a digit. In double quotes an unknown escape is refused.
-printf 'base: bs\n\tsymbols: a\\ b c\n' >"${CBT_TMP}/bslash.shcl"
+## Both files name the current format, since one without it is read the old
+## way (see the migration section).
+printf 'base: bs\n\tsymbols: a\\ b c\n##    Format   3\n' >"${CBT_TMP}/bslash.shcl"
 bssym=$("${EXE}" --config "${CBT_TMP}/bslash.shcl" --show-symbols-0 bs 2>/dev/null | tr '\0' '|')
 [[ "$bssym" == 'a b|c' ]] && _pass "config bare backslash escape" || _fail "config bare backslash escape" "got='$bssym'"
-printf 'base: bs\n\tsymbols: "a\\ b c"\n' >"${CBT_TMP}/bslashq.shcl"
+printf 'base: bs\n\tsymbols: "a\\ b c"\n##    Format   3\n' >"${CBT_TMP}/bslashq.shcl"
 check errmsg "config bad escape rejected" 'line 2'     -- --config "${CBT_TMP}/bslashq.shcl" 255 16
 ## A raw block under symbols is the one-line spelling over several lines. It used
 ## to be reported as missing symbols, and under any other field it was dropped.
@@ -378,6 +380,97 @@ usercfg="${XDG_CONFIG_HOME}/convert-base-v2/convert-base-v2.shcl"
 grep -Eq '^##    Format   [0-9]+$' "$usercfg" && _pass "user config names its format" || _fail "user config names its format" "no Format line in $usercfg"
 check eq  "10emoji comes from config"  '😑😔😘😜' -- --from 10 --to 10emoji 1234
 check eq  "10emoji keeps its old name" '😑😔😘😜' -- --from 10 --to emoji10 1234
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Config files written for an older SHCL format
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+section "Config migration"
+## An old file as the SHCL 1.x releases wrote one, with no Format line. Under
+## the current rules the bare \t is two characters, so oldtab would be one
+## digit, and the \# marker would be a backslash.
+oldcfg="${CBT_TMP}/oldcfg.shcl"
+{
+	printf '# my bases\n'
+	printf 'base: oldtab\n\tsymbols: 0\\t1\\t2\\t3\n\n'
+	printf 'base: oldq\n\taliases: oq\n\tsymbols: "a\\ b"\n\tnegative: \\#\n'
+} >"$oldcfg"
+## A fresh config dir holding FILE as its user config. Prints the dir.
+fMigDir(){ local d="${CBT_TMP}/$1"; mkdir -p "${d}/convert-base-v2"; cp "$2" "${d}/convert-base-v2/convert-base-v2.shcl"; printf '%s' "$d"; }
+## How many backups sit beside a user config.
+fBackups(){ local -a found=("$1"/convert-base-v2/convert-base-v2_backup_[0-9]*-[0-9]*_format-v1.shcl); [[ -e "${found[0]}" ]] && printf '%s' "${#found[@]}" || printf '0'; }
+
+migdir="$(fMigDir mig1 "$oldcfg")"; migcfg="${migdir}/convert-base-v2/convert-base-v2.shcl"
+XDG_CONFIG_HOME="$migdir" _run --from 10 --to oldtab 6
+_assert eq "old config converts and reads the old way" '12'
+[[ "$_err" == *"note: converted ${migcfg}"*"_format-v1.shcl"* ]] && _pass "conversion note names the backup" || _fail "conversion note names the backup" "err=[$_err]"
+nbak="$(fBackups "$migdir")"
+if [[ "$nbak" == "1" ]]; then
+	bak=("${migdir}"/convert-base-v2/convert-base-v2_backup_*_format-v1.shcl)
+	cmp -s "${bak[0]}" "$oldcfg" && _pass "backup holds the original bytes" || _fail "backup holds the original bytes" "${bak[0]} differs"
+else
+	_fail "backup holds the original bytes" "found ${nbak} backups"
+fi
+grep -q '^##    Format   3$' "$migcfg" && _pass "converted config names format 3" || _fail "converted config names format 3" "no Format line in $migcfg"
+grep -q '^# my bases$' "$migcfg" && _pass "converted config keeps its comments" || _fail "converted config keeps its comments" "comment gone from $migcfg"
+migsym=$(XDG_CONFIG_HOME="$migdir" "${EXE}" --show-symbols-0 oldtab 2>/dev/null | tr '\0' '|' || true)
+[[ "$migsym" == '0|1|2|3' ]] && _pass "converted config resolves the same alphabet" || _fail "converted config resolves the same alphabet" "got='$migsym'"
+XDG_CONFIG_HOME="$migdir" check eq "converted config keeps the old marker" '\#ba' -- --from 10 --to oq -- -6
+cp "$migcfg" "${CBT_TMP}/mig1-after.shcl"
+XDG_CONFIG_HOME="$migdir" _run --from 10 --to oldtab 6
+{ ((_rc == 0)) && [[ -z "$_err" ]] && [[ "$(fBackups "$migdir")" == "1" ]] && cmp -s "$migcfg" "${CBT_TMP}/mig1-after.shcl"; } \
+	&& _pass "second run changes nothing" || _fail "second run changes nothing" "rc=$_rc err=[$_err] backups=$(fBackups "$migdir")"
+
+## The same file under the old rules, from v3.0.0, the last release on SHCL 1.x.
+## It is built from the tag, so it needs the git history.
+repoTop="$(git -C "${meDir}" rev-parse --show-toplevel 2>/dev/null || true)"
+oldExe="${CBT_TMP}/convert-base-v2-v3.0.0"
+if [[ -z "$repoTop" ]] || ! command -v go >/dev/null 2>&1 || ! git -C "$repoTop" rev-parse -q --verify 'v3.0.0^{commit}' >/dev/null 2>&1; then
+	_warn "config migration vs v3.0.0 (needs go and the v3.0.0 tag)"
+elif ! { mkdir -p "${CBT_TMP}/v3src" && git -C "$repoTop" archive v3.0.0 lib | tar -x -C "${CBT_TMP}/v3src" \
+	&& (cd "${CBT_TMP}/v3src/lib" && go build -o "$oldExe" ./cmd/convert-base-v2); } >"${CBT_ERR}" 2>&1; then
+	_fail "build v3.0.0 for the migration check" "$(head -c 400 "${CBT_ERR}")"
+else
+	for mb in oldtab oldq; do
+		want=$(XDG_CONFIG_HOME="${CBT_TMP}/xdg" "$oldExe" --config "$oldcfg" --show-symbols-0 "$mb" 2>&1 | tr '\0' '|' || true)
+		got=$("${EXE}" --config "${CBT_TMP}/mig1-after.shcl" --show-symbols-0 "$mb" 2>&1 | tr '\0' '|' || true)
+		[[ -n "$want" && "$got" == "$want" ]] && _pass "converted $mb matches v3.0.0 on the original" || _fail "converted $mb matches v3.0.0 on the original" "v3.0.0='$want' now='$got'"
+	done
+	want=$(XDG_CONFIG_HOME="${CBT_TMP}/xdg" "$oldExe" --config "$oldcfg" --from 10 --to oq -- -6 2>&1 || true)
+	got=$("${EXE}" --config "${CBT_TMP}/mig1-after.shcl" --from 10 --to oq -- -6 2>&1 || true)
+	[[ "$got" == "$want" ]] && _pass "converted marker matches v3.0.0" || _fail "converted marker matches v3.0.0" "v3.0.0='$want' now='$got'"
+fi
+
+## The old rules read [ab] with an error, and the conversion would turn it into
+## a value that loads. It has to stay refused, and stay untouched.
+printf 'base: x\n\tsymbols: [ab]\n' >"${CBT_TMP}/oldbad.shcl"
+migdir="$(fMigDir mig2 "${CBT_TMP}/oldbad.shcl")"
+XDG_CONFIG_HOME="$migdir" _run 255 16
+_assert errmsg "unconvertible old config refused" 'cannot be converted'
+{ cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "${CBT_TMP}/oldbad.shcl" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
+	&& _pass "unconvertible old config left alone" || _fail "unconvertible old config left alone" "changed, or backups=$(fBackups "$migdir")"
+
+## A directory that cannot be written loses nothing, and the run goes on.
+if [[ "$(id -u)" == "0" ]]; then
+	_warn "config migration in a read-only dir (root writes through it)"
+else
+	migdir="$(fMigDir mig3 "$oldcfg")"
+	chmod 555 "${migdir}/convert-base-v2"
+	XDG_CONFIG_HOME="$migdir" _run --from 10 --to oldtab 6
+	_assert eq "read-only config dir still reads the old way" '12'
+	[[ "$_err" == *"could not be converted"* ]] && _pass "read-only config dir says so" || _fail "read-only config dir says so" "err=[$_err]"
+	{ cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "$oldcfg" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
+		&& _pass "read-only config dir loses nothing" || _fail "read-only config dir loses nothing" "changed, or backups=$(fBackups "$migdir")"
+	chmod 755 "${migdir}/convert-base-v2"
+fi
+
+## A file named with --config is never rewritten. It is read the old way.
+migdir="$(fMigDir mig4 "$oldcfg")"
+_run --config "${migdir}/convert-base-v2/convert-base-v2.shcl" --from 10 --to oldtab 6
+_assert eq "explicit old config reads the old way" '12'
+[[ "$_err" == *"shcl migrate --write"* ]] && _pass "explicit old config says how to convert it" || _fail "explicit old config says how to convert it" "err=[$_err]"
+{ cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "$oldcfg" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
+	&& _pass "explicit old config left alone" || _fail "explicit old config left alone" "changed, or backups=$(fBackups "$migdir")"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

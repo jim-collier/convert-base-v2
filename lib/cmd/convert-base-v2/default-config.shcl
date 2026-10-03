@@ -7,11 +7,14 @@
 #
 #	"Forgiving and predictable. The parser does the work instead of you."
 #
-#	Links and license are in the block at the end of this file.
+#	Links and license are in the block at the end of this file. Its Format line
+#	says which SHCL rules the file follows, so keep it.
 #
 #
 # convert-base-v2 creates this file on the first run and never rewritten afterwards,
 # so anything you put here is safe. Delete it and it comes back with these defaults.
+# The one exception is a later version that reads SHCL differently. It converts
+# the file once, keeping your settings, and leaves the original beside it.
 #
 # You can create a system-wide file at '/etc/convert-base-v2/convert-base-v2.shcl'.
 # It is read first, so anything here wins over it. Both override the built-in bases:

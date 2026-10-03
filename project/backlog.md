@@ -89,31 +89,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: c420170, 67d980e
 	- Test case: `TestInfoFlagOrder`, `TestPrintInfoLoneIsUnchanged`, `TestPrintInfoSeparation`, `TestAboutAndDonateContent` in `main_test.go`; the `--about`/`--donate` checks under "CLI surface" in `cicd/test.bash`.
 
-- macOS gets a universal binary for both amd64 and ARM.
-	- ID: 2026100313304792
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Intel Mac and on an Apple silicon Mac. Check `--version` and one conversion on each, and that Gatekeeper treats it the same as the per-arch build.
-	- Opened: 20261003-133047
-	- Opened by: JC
-	- Target OS: macOS
-	- Progress log:
-		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
-		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
-		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
-		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
-	- Decisions:
-		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
-		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
-	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
-	- Branch: mac-universal
-	- Commit: 22452c9
-	- Test case: `cicd/utility/macho-fat/main_test.go`, run as the "macOS universal binary" section of `cicd/test.bash`. It fails with the arm64 alignment or slice order broken.
-
 - When a shcl upgrade breaks compatibility with the application config file(s).
 	- ID: 2026100313304802
 	- Type: Feature
-	- Status: Started
+	- Status: Waiting on signoff
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 467 of 467 on the branch.
 	- Opened: 20261003-133047
 	- Opened by: JC
 	- Target OS: Any
@@ -139,23 +119,79 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 			- A file ending inside an unclosed raw block, such as `~~~` alone, comes back from `Migrate` unchanged, unstamped and not `Current`, with nothing to say why. A caller that rewrites until the file is current would loop. Expected: some signal. Rough edge. The loader here refuses such a file anyway.
 			- A file stamped Format 3 now reads as current to every later 3.0 build, and shcl plans more breaking changes before 3.0.0 (its 2026100207032800: no backslash escapes, no spaces in bare values, brackets for arrays, `- ` for list items). Under those, `aliases: a, b` and `* x` lines would be refused here. Known upstream as 2026100115403385. Missing capability.
 			- Question: should a release of this tool wait for shcl 3.0.0? A file written by a release on this pin says Format 3 but follows the dev rules, and a later shcl would not migrate it.
+		- 20261003: second half done, with the child test 2026100313304807.
+			- Done: a config with no Format line, or an older one, is read the old way. `LoadConfig` converts it in memory through shcl's `Migrate` before loading, so the library and the command agree.
+			- Done: the user and /etc files are converted on disk once. The original is kept beside the file as `convert-base-v2_backup_YYYYmmDD-HHMMSS_format-v1.shcl`, and the converted text replaces it through shcl's atomic write. One stderr note names the backup.
+			- Done: a file `Migrate` cannot fully keep, or whose converted text the strict loader refuses, is left as it is. The run stops with an error naming the line.
+			- Done: a failed write, such as a read-only directory, loses nothing. The run converts the file in memory, and says so on stderr when that changes a value.
+			- Done: a file named with `--config` is never rewritten. It is read the old way, with a note naming `shcl migrate --write --from-2x` when that changes a value.
+			- Done: lib/wasm and lib/reactor still load no config files.
+			- Note: the library is v0.2.0, for the new `UpgradeConfig`.
+			- Note: `TestConfigBackslashLayers` and the "config bare backslash escape" and "config bad escape rejected" checks pin the current rules, so their files now end with the Format line. Without it, six of their cases read the old way and fail. Nothing was removed.
+			- Note: the names differ. This backup says `format-v1`. shcl's `migrate --write` keeps `NAME_old_v2.EXT`, its plan for this feature (its 2026100313461649) calls an unstamped file `format-v2`, and `Migrate` writes "Migrated from SHCL 2.x." into the file. They should agree once shcl does the backup itself.
+			- shcl friction found in this half. Both have a workaround, marked in `configformat.go`.
+				- Known bug 3 above, the unclosed raw block. The result is refused when it names no current format, so the file is never taken as old on every load. The strict loader refuses such a file anyway, so only the message changes.
+				- New: `Migrate("x: [ab]\n", true)` gives `x: ab` and counts nothing lost. The 1.2.0 and 2.0.0 Go parsers read that line with an error ("missing colon", E015), so the old loader refused the file. Expected: the line left as written or counted lost, since a strict caller refused it. Rough edge, and on purpose upstream, which counts this sugar as clean. Workaround: refused when the current parser flags E019 on the original, which it does for every such line.
+			- Verified: go vet, golangci-lint, staticcheck and `go test ./...` pass. The full `cicd/test.bash` passed 467 of 467. The old readings in the new tests match what v3.0.0, the last release on SHCL 1.x, gives for the same files. Each new Go test and harness check failed with its part of the change taken out, or with a fault put in.
+			- Question: should an unstamped file's backup say `format-v1`, what every release here read it with, or `format-v2`, what shcl calls it? It says `format-v1` for now.
 	- Decisions:
 		- Built on shcl's unreleased 3.0 dev tree, not v2.0.0 and not waiting for 3.0.0. That breaks the "pin only released tags" rule on purpose until 3.0.0 is out.
+		- 20261003: a config with no Format line is old, and is read with its old meaning. A hand-written file meant for the current rules needs the Format line.
+		- 20261003: the file is converted with `Migrate`, not written again from scratch. It keeps comments and layout, where a fresh file would drop whatever else the old one held. The result goes through the strict loader before anything is written.
+		- 20261003: the backup name uses the format the file was written for, so `format-v1` for a file with no Format line, since every release here read it with SHCL 1.x.
+		- 20261003: the backup is a hard link to the original, made before the atomic write replaces the path, so the path always holds a whole file. A copy is the fallback where links don't work. After a failed write the backup goes only while the path still holds the same bytes.
+		- 20261003: refusing beats converting. A file that can't be fully kept stops the run, even the default user file, since loading the rest could leave an alias on a built-in alphabet.
+		- 20261003: a file named with `--config` is converted in memory only, with a note, and never renamed.
+		- 20261003: /etc is converted like the user file, since the program finds it on its own. Without write access it is converted in memory.
+		- 20261003: a note for an in-memory conversion shows only when a value had to be written differently, so a read-only /etc with no backslashes stays quiet.
 	- Verified: go vet, golangci-lint, staticcheck and `go test ./...` pass. The full `cicd/test.bash` passed 445 of 445. The command builds for every shipped target and the three WASM ones. The vendor check failed on a made-up commit, a wrong commit, an edited copy, and the old tag against the new file. The new tests fail against the old build or the old shcl.
-	- Branch: shcl3
-	- Commit: 51f59b6
+	- Branch: shcl3, cfg-migrate
+	- Commit: 51f59b6, 9acc437
 	- Test case: `TestConfigBackslashLayers` in `config_test.go`, `TestUserConfigIsStamped` in `userconfig_test.go`, and the "config bare backslash escape", "config bad escape rejected" and "user config names its format" checks in `cicd/test.bash`.
+		- Second half: `TestUpgradeConfigKeepsOldMeaning`, `TestUpgradeConfigCurrentIsLeftAlone` and `TestUpgradeConfigRefuses` in `configformat_test.go`, the `TestUpgradeConfigFile` tests and `TestExplicitConfigNote` in `userconfig_test.go`, and the "Config migration" section of `cicd/test.bash`.
 
 - Write a test as part of CICD that creates old shcl file versions for settings, and tests the automatic (non-shcl-assisted) conversion.
+	- Note: the conversion now goes through shcl's own `Migrate`. "Non-shcl-assisted" is read as: the program does the backup and rewrite itself, rather than shcl's CLI doing it.
 	- ID: 2026100313304807
 	- Type: Task
-	- Status: Queued
+	- Status: Waiting on signoff
 	- Opened: 20261003-133047
 	- Opened by: JC
 	- Parent ID: 2026100313304802
 	- Target OS: Any
 	- Progress log:
 		- 20261003: waits on its parent.
+		- 20261003: done with the parent's second half.
+			- Done: the "Config migration" section of `cicd/test.bash` writes an old user config with no Format line, as the SHCL 1.x releases did, with a bare `\t` and a `\#` whose meaning changed in 3.0. Each case runs in its own config dir under the harness's temp dir.
+			- Done: it checks that the backup exists under the right name with the original bytes, that the new file names format 3, keeps its comment and resolves the same alphabet and marker, and that a second run prints nothing and changes nothing.
+			- Done: it checks that a file the conversion can't fully keep is refused and left alone, that a read-only config dir loses nothing and still reads the old way, and that a `--config` file is read the old way and left alone.
+			- Done: when git and go are there, it builds v3.0.0 from its tag and checks that the converted file gives the same symbols and marker that v3.0.0 gives on the original. Otherwise that part is skipped with a warning.
+			- Done: Go tests cover the same ground, plus a failed write after the backup and a symlinked config.
+			- Verified: the full `cicd/test.bash` passed 467 of 467. Against a dev build 15 of the new checks fail, against a build without the command's part 6 fail, and the "left alone", "keeps its comments" and "loses nothing" checks each failed with a fault put in.
+	- Branch: cfg-migrate
+	- Commit: 9acc437
+	- Test case: the "Config migration" section of `cicd/test.bash`, plus the tests named on the parent.
+
+- macOS gets a universal binary for both amd64 and ARM.
+	- ID: 2026100313304792
+	- Type: Enhancement
+	- Status: Waiting for testing
+	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Intel Mac and on an Apple silicon Mac. Check `--version` and one conversion on each, and that Gatekeeper treats it the same as the per-arch build.
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Target OS: macOS
+	- Progress log:
+		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
+		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
+		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
+		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
+	- Decisions:
+		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
+		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
+	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
+	- Branch: mac-universal
+	- Commit: 22452c9
+	- Test case: `cicd/utility/macho-fat/main_test.go`, run as the "macOS universal binary" section of `cicd/test.bash`. It fails with the arm64 alignment or slice order broken.
 
 - A field written under another field in a config file is ignored without a word.
 	- ID: 2026100314430255

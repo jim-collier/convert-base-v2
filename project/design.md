@@ -132,6 +132,13 @@ The rationale behind the choices most likely to be questioned later. Each was se
 	- The pin names a release tag, or a commit while a needed release is not out yet. SHCL is pinned to its unreleased 3.0 dev tree for now, and the pipeline prints a pre-release notice on every run until it is moved to a tag.
 	- The file written on the first run ends with SHCL's own info block, taken from the library rather than the embedded file. Its Format line is how a later version tells a file written under the current rules from an older one.
 
+- **An old config keeps its meaning.** A config with no Format line was written for SHCL 1.x, and is read that way, through SHCL's own `Migrate`, in the library as well as the command.
+	- `Migrate` is used rather than writing a fresh file, since it keeps comments and layout. A regenerated file would drop whatever was written in the old one besides the bases.
+	- Files the program found on its own are converted on disk once. The original is hard-linked to its backup name before the converted text replaces it through an atomic rename, so the path always holds a whole file and the backup is the very file that was there. A failed write leaves the original, and the run converts it in memory instead.
+	- A file named with `--config` may be anywhere and was not put there by the program, so it is never rewritten.
+	- Anything `Migrate` cannot keep, or a converted file the strict loader refuses, stops the run with the file untouched. Loading part of it would mean a different alphabet with no error, for the same reason an unknown field is an error.
+	- The backup is named for the format the file was written for, `format-v1`, since that says how to read it. SHCL's own `migrate --write` keeps `NAME_old_v2.EXT`, and its plan for this feature calls an unstamped file `format-v2`, because it cannot tell 1.x from 2.x. The two differ only in escapes in field names, which no file the loader accepts can hold.
+
 - **The config is written, not just documented.** The first run creates the user file with a commented example in it. A documented path that does not exist is a feature most people never find, and there is no example to copy from until they have already worked out the syntax. The file is embedded in the binary, so the shipped example and the real file cannot disagree.
 
 - **`10emoji` lives in the config rather than in the code.** It was the most decorative of the built-in bases and the most obvious thing to imitate, which makes it a better example than a placeholder alphabet. Anyone who wants it keeps it; anyone who wants their own edits it in place.

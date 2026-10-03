@@ -17,4 +17,4 @@ package convertbase
 //
 // v0 is deliberate for now: it promises nothing about compatibility, which is
 // the honest signal for an API published for the first time.
-const Version = "v0.1.0"
+const Version = "v0.2.0"

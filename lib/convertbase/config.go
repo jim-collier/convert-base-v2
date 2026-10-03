@@ -55,6 +55,8 @@ var configRawFields = map[string]bool{
 // LoadConfig reads the SHCL config at path and registers each base it defines.
 // A missing file is not an error. Each base's Source is set to the full path.
 // Any other read failure comes back marked, for IsConfigUnreadable to sort out.
+// A file written for an older SHCL format is converted in memory first, as
+// UpgradeConfig does, and refused when that cannot be done safely.
 func (r *Registry) LoadConfig(path string) error {
 	if path == "" {
 		return nil
@@ -69,8 +71,24 @@ func (r *Registry) LoadConfig(path string) error {
 		// reports ENOTDIR, so neither can be treated as a real failure here.
 		return unreadableConfig{err}
 	}
-	// Both callers already name the file, so nothing below repeats the path.
-	doc := shcl.Parse(string(data))
+	// A file written for an older format is read the way that format read it.
+	// Converting the file itself is the caller's business.
+	text := string(data)
+	up, err := UpgradeConfig(text)
+	if err != nil {
+		return err
+	}
+	if up != nil {
+		text = up.Text
+	}
+	return r.loadConfigText(path, text)
+}
+
+// loadConfigText is LoadConfig on text already read and in the current format.
+// Both callers of LoadConfig already name the file, so nothing here repeats
+// the path.
+func (r *Registry) loadConfigText(path, text string) error {
+	doc := shcl.Parse(text)
 	if err := configParseError(doc); err != nil {
 		return err
 	}
