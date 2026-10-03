@@ -121,7 +121,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- ID: 2026100314430255
 	- Type: Bug
 	- Status: Queued
-	- Severity: Avg
+	- Severity: High
 	- Opened: 20261003-144302
 	- Opened by: found while working 2026100313304802
 	- Target OS: Any
@@ -131,6 +131,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Expected behavior: refused, like any other unknown or misplaced field, citing the line.
 	- Reproduced: 20261003, with both the old and the new shcl.
 	- Possible cause: the field check looks one level down only.
+	- Note: blocks release, since the result is a wrong alphabet at exit 0.
 
 - Write a test as part of CICD that creates old shcl file versions for settings, and tests the automatic (non-shcl-assisted) conversion.
 	- ID: 2026100313304807
