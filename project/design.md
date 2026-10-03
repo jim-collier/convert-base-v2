@@ -89,6 +89,8 @@ Inside the package:
 
 - Query flags (`--list`, `--show-symbols`, and friends) each print one value and exit, so scripts can read the base set from the program itself.
 
+- The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` stays one bare line for scripts. Only the help reports on the config files, so the others print before any config is read.
+
 ## Key design decisions
 
 The rationale behind the choices most likely to be questioned later. Each was settled during pre-1.0 review.
