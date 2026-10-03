@@ -27,87 +27,149 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Notes
 
 - Breaking: some bases and aliases were removed or renamed, listed under Changed and Removed below. Every name the older `convert-base-v1` and `convert-base-v1b` accepted still works, so scripts written against those are safe; a script that used one of the dropped v2 spellings needs the new name.
+
 - Breaking: the `neg=`, `dec=`, and `pad=` tokens are gone from symbol specs. A spec that still carries one is now an error naming its replacement, so nothing changes meaning silently. Update any script or config file that used the old form.
+
 - Breaking: config files are SHCL now, not YAML, and are named `convert-base-v2.shcl`. An old `convert-base-v2.conf` is no longer read. The fields are the same, so rewriting one is mostly a matter of spelling; the new file created on first run shows the shape.
+
 - Breaking: `2048tt` is gone, replaced by `2048tz`, and the digits of `256tt` and `512tt` changed. Anything written in one of those bases has to be decoded with the previous build before upgrading. `32tt`, `64tt`, and `128tt` are untouched.
 
 ### Added
 
 - Two base 69s, `69nice` and `69emoji`. Every `69emoji` digit is a color emoji by Unicode definition, so none of them fall back to a line-art glyph.
+
 - A base 10 written in block characters, `10blocks`.
+
 - A `--list-compat` flag, which lists the compatibility bases that `--list` no longer shows.
+
 - Compatibility bases covering both older tools, named after what they match: `48ws_compat_v1`, `64ws_compat_v1`, `128_compat_v1`, `48ws_compat_v1b`, `64ws_compat_v1b`, `128ws_compat_v1b`, `128_compat_v1b`, `256_compat_v1`, and `288_compat_v1`. Every name the older tools accepted still resolves.
+
 - Six flags to set the markers directly: `--from-neg`, `--from-dec`, `--from-pad`, `--to-neg`, `--to-dec`, `--to-pad`. An empty value disables a marker, and an omitted flag leaves the base as it was.
+
 - A second large family, `tz`, which carries CJK digits and so reaches further: `512tz`, `1024tz`, and `2048tz`. Below 512 symbols the two families are the same alphabet, so `32tz` through `256tz` are simply other names for `32tt` through `256tt`. At 512 they part company, and above it only `tz` continues. `512tt` is the one to pick when every digit should be a single-width character; `512tz` is the one to pick for consistency with the larger `tz` bases.
+
 - The conversion core is now an importable Go package, `github.com/jim-collier/convert-base-v2/lib/convertbase`, under Apache-2.0. It carries its own version, starting at v0.1.0, which moves separately from the command's.
+
 - A WebAssembly build of the command, for Wasmtime, Wazero, Node, and the WebAssembly edge platforms. It reads and writes real standard input and output, so streaming behaves as it does natively, and one file runs on every architecture.
+
 - A browser build of the library, Apache-2.0 like the library itself, plus a demo page that runs it with no server involved.
+
 - A reactor build of the library, `make reactor`: a WebAssembly module a host program loads and calls as functions, instead of running the command. Covers one-shot conversion, base lookup, radix and padding-symbol metadata, symbol counting, and a stable numeric error code set with readable error text. The contract is documented in `lib/reactor/README.md`; Apache-2.0 like the library.
+
 - The reactor also streams: `stream_new`/`stream_write`/`stream_finish`/`stream_free` push raw bytes through the same constant-memory paths the command uses for piped binary conversion, covering every raw-capable base. Codec pairs buffer and emit at finish, matching the command.
+
 - The test suite now holds the Go module and the reactor to the command's answers directly: identical requests through all three, over every base both directions, plus piped payloads through the command and the reactor streams. Any drift between the frontends fails the run.
+
 - Symbol-boundary slicing for fixed-width fields: `SymbolSlice` and `Fit` in the library, and `symbol_slice`, `fit`, and `convert_fit` in the reactor. Fit right-aligns a value to a width counted in symbols, left-filling with the base's zero symbol or keeping the rightmost symbols, so multi-byte alphabets pad and truncate correctly.
+
 - Markers can now be set on any base, named or custom. `--from hex --from-neg '~'` reads `~ff` as -255. Previously only a hand-written alphabet could carry custom markers.
+
 - A `tail:` field in config files, and matching `--from-tail` and `--to-tail` flags, so a base of your own with more than 256 symbols can stream binary data. Without a tail such a base has to write a length count before the first digit, which means reading all the input first. Declaring one drops a 24 MB encode from 244 MB of memory to 21 MB.
+
 - The first run writes a commented config file at `~/.config/convert-base-v2/convert-base-v2.shcl`, so there is a real file to edit instead of a documented path that does not exist yet. It is never rewritten afterwards.
+
 - A config file that names a field the program does not know is now an error, rather than being loaded with that field ignored. A typo in an alphabet is not something the output would ever reveal.
+
 - An extra base name no longer has to be the first of a list: the `base:` line carries the canonical name and an optional `aliases:` field adds the rest.
+
 - A one-line shell installer, `install.bash`, for Linux, BSD, macOS, and WSL. It picks the right build for the machine, verifies it against the release's checksum file, states its plan, and asks before installing. Takes stable or pre-release, user or system install, and an architecture override.
+
 - Control characters that are digits of a base, such as the tab, newline, and return in `98keyboard`, can now be written by name: `⊳LF`, `⊳TAB`, `⊳CR`, and so on for the rest of them. Input takes named and raw forms mixed, always. Output writes them only with `--escape-controls`, so nothing that reads the plain output changes. `--show-symbols --escape-controls` is how to actually see such an alphabet.
 
 ### Changed
 
 - `--list` no longer shows the compatibility bases, so the everyday listing is not half legacy. They still convert, and still answer to every old name.
+
 - A system or default config file that cannot be opened at all no longer stops the program. Only a missing file was forgiven before, so a directory that was really a file, or a restricted one, was fatal over a file nobody asked for. A file that opens and will not parse still stops, and a path given with `--config` is still checked, since a typo there would silently drop the bases you meant to load.
+
 - Base names and aliases now follow one scheme: all lowercase, radix first (`20mayan`, `64emoji`, `69nice`), and at most a few aliases per base, the memorable one first (`hex`, `dozenal`, `crockford`, `rfc4648s6`, `ascii85`, `pluscode`). Renamed: `32` -> `32rfc`, `32h` -> `32hex`, `32zbase` -> `32z`, `64` -> `64rfc`, `64u` -> `64url`, `64h` -> `64hex`, `64jc1` -> `64code`, `keyboard` -> `98keyboard`, `2048twitter` -> `2048qntm`, `2048rust` -> `2048llfourn`, and the script base-10s are `10cjk`, `10hindi`, `10arabicindic`, `10rods`, `10blocks`.
+
 - The old spellings `32`, `32h`, `64`, `64u`, `64h`, `keyboard`, and `2048twitter` still resolve, as does every name the older tools accepted. The rest of the dropped spellings error with a near-match suggestion: the joke aliases (`venti`, `nerd`, `seximal`, `bestagon`, `TheUltimateAnswer`), the redundant hex-style markers (`12h` through `62h`), long duplicates (`hexadecimal`, `duodecimal`, `alphanumeric`, `oct`, `dec`, `arabic`, `alpha`), and one-off spellings like `emoji64`, `2048x`, `64p`, `20w`, and `45r`. Also fixed: base 4 is `quaternary`, not `quarternary`.
+
 - The Kanji and Hanzi base-10s are now one base, `10cjk`, since they share the same digits.
+
 - `64emoji` takes negatives and fractions now. Its digits are all emoji, so the usual `-` and `.` were never at risk of colliding with one.
+
 - Crockford base 32 (`32c`) now writes lower case, which is easier to read and is the point of that alphabet. Reading is unchanged and still case-insensitive.
+
 - Converting a long number between two bases that are not powers of two is much faster and uses far less memory, and the cost no longer grows with the square of the length. A 16,000 digit conversion dropped from 251 milliseconds to about 1, and from 882 MB of working memory to about 1 MB. A 160,000 digit number converts in under a tenth of a second, most of which is program startup. Short numbers are unaffected in practice, but gain too.
+
 - Raw binary now streams through every base that can carry it, not just the single-character ones. A large file through one of the multi-byte bases holds steady near 20 MB of memory instead of growing with the file, and decoding runs about three times faster. Encoding a 48 MB file to `64emoji` used to peak at 1.2 GB.
+
 - The large `tt` and `tz` bases end a byte stream with a tail character, the same approach the published big bases use, which is what lets them stream. Their binary layout changed as a result. None of them has been in a release, so no existing data is affected.
+
 - The digits of the `tt` and `tz` bases are now in ascending code point order. That changes what `256tt` and `512tt` write, since the first digit that moved sits inside the first 256. `32tt`, `64tt`, and `128tt` draw only from the part that did not move, so they are unchanged.
+
 - The `10blocks` digits are in code point order too. The base is new in this release, so nothing can have been written with the earlier arrangement.
+
 - Binary decoding of a base with multi-character digits now accepts line breaks, so wrapped output reads back. The single-character bases already did.
+
 - Base-45 decoding accepts line breaks too, so wrapped base-45 reads back like every other base that carries raw bytes. Spaces are still digits there, and still meaningful.  [20260730]
+
 - A symbol spec is digit symbols and nothing else, matching how the predefined bases and the config file fields already worked.
+
 - The config format is SHCL, which reads and writes closer to how the rest of the tool is described. YAML was the last external dependency, so the program now builds from its own source and the standard library alone.
+
 - `--precision` is capped at 100000 digits. The scale factor is one power of the output base, so a mistyped value asked for gigabytes of memory before it asked for anything else. The browser and callable WebAssembly builds already had the same cap.
+
 - A padding character that could never take effect is now an error where it is defined, instead of being accepted and quietly ignored. Padding must be a single character, and only applies to power-of-2 bases of at most 256 symbols, which is the only place it is ever emitted. Fixes a multi-character pad overshooting the group boundary on encode.
+
 - Every complaint about a config file now names the line it is about, so a long file does not have to be read through to find the one bad line. A field written twice names both the line it was repeated on and the line it was first given.  [20260804]
 
 ### Removed
 
 - The `neg=`, `dec=`, and `pad=` tokens inside symbol specs, on the command line and in config files. Config files keep their `negative:`, `decimal:`, and `pad:` fields, which are unchanged.
+
 - Base `2048tt`. Its digits were not in code point order, and there was no way to correct that without leaving two incompatible alphabets under one name. `2048tz` takes its place.
+
 - Bech32 (`32bip`) and base 58 (`58btc`). Both are misleading here: neither is a plain base conversion, so this tool could never produce a real address with them.
+
 - Base 69 `69prsh`, replaced by `69nice`.
+
 - The base-48 hex variant, and the word-safe 48, 64, and 128 bases. The word-safe alphabets remain available through the compatibility bases.
+
 - Base `emoji10` is no longer built in. It is in the config file created on first run, as the worked example, under the name `10emoji` to match the rest, and the old spelling still resolves.
 
 ### Fixed
 
 - Cutting a value down to a number of symbols could crash instead of clamping, when the count asked for was near the largest whole number the machine handles. It clamps at every size now.  [20260802]
+
 - The WebAssembly module could be stopped dead by a host asking to pad a value to an unreasonable width. Width is now capped, and anything larger is refused with an error, the same way an unreasonable precision already was.  [20260802]
+
 - Writing control characters by name got slower the longer the value was, enough to matter on a large one. It now costs the same per character whatever the length. Output is unchanged.  [20260802]
+
 - The browser module reported a value that is not a real number as an unrecognized digit. It now says what is actually wrong.  [20260802]
+
 - A config file field written twice was accepted and then dropped, so the base quietly took a default instead of the value in the file. It is refused now, naming the base and the field.  [20260804]
+
 - A misspelled config field whose name was quoted slipped past the check that catches misspellings, so the line was ignored without a word. Quoted names are checked like any other now.  [20260804]
+
 - The one-line install script stopped without a word before it did anything, once the release listing it reads grew past a certain size. It installs again.  [20260804]
+
 - `--help` printed nothing when the install script was run the way the readme shows.  [20260804]
+
 - `--lower` and `--upper` also changed the case of the output base's negative and decimal markers, which could produce a value that base would not read back. They apply to digits now.  [20260804]
+
 - Padding in the middle of a value, rather than at the end, gave a different message depending on whether the value arrived on the command line or through a pipe.  [20260804]
 
 ### Other work
 
 - Error messages from the library no longer mention command-line flags, so a program importing it, or the browser page, gets text that reads right outside a terminal. The command's own messages are unchanged, character for character.
+
 - The vendored config-parser source is pinned to an upstream release, and the pipeline verifies it still matches that release before building. A copy that has drifted stops the build; a newer upstream release is reported without stopping anything.  [20260729]
+
 - The test suite builds its base lists from the tool itself instead of naming them, so an added or renamed base is covered everywhere without editing the tests. Both older tools are cross-checked against every base they offer, and anything left uncovered has to be listed as such.  [20260730]
+
 - Each alias the older tools depend on is marked as such in the source, and a test now holds those notes to the alias lists, so a rename can't quietly drop one. Two v1 bases have no counterpart here and are recorded as permanently uncovered rather than reported every run.  [20260730]
+
 - The four big published bases are now tested against actual builds of the implementations that defined them, kept in the repo exactly as released, rather than against test vectors copied down by hand. Three directions per base: the encodings must match, and each side must decode the other's output. An edited or missing reference fails the run; a missing toolchain only warns.  [20260731]
+
 - The list of predefined bases in the readme is narrower and no longer runs off the side of the page. It drops the description and specification columns, adds the UTF-8 byte count beside the character count, and wraps a long value across lines. A base whose digits are twice as wide on screen now takes about as much room as a plain one. It also lists `10emoji`, which comes from the config file rather than the built-in set, since a fresh install has it either way.  [20260731]
+
 - The conversion core is now a package of its own, so another program can convert in process instead of running the tool. Nothing about the tool changes: same commands, same output, same single binary. The parts that only make sense at a prompt stayed with the command.  [20260731]
+
 - That library is licensed Apache-2.0, so it can be linked into anything, commercial work included, as long as the credit travels with it. The command-line tool stays GPL-2.0-or-later. Both license texts ship in the repository.  [20260731]
+
 - The vendored config parser moved up to its 1.2.0 release.  [20260804]
 
 ## v2.0.0 - 2026-07-13
@@ -119,6 +181,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - `--precision` now defaults to `auto`, which sizes the output fraction to the input's own precision instead of always padding to 50 digits. Converting a short value like `0.1` no longer grows a long, imprecise tail in the target base. Pass `--precision N` for a fixed number of fractional digits (needed for lossless round-tripping, since auto keeps only the digits the input justified at each step).  [20260711]
+
 - The base-65536 encoding is now named `65536qntm` (alias `65536utf32`), matching the `32768qntm` and `2048*` naming. The bare `65536` name is gone, so it can't collide with a future base of that size.  [20260711]
 
 ## v1.1.0-beta7 - 2026-07-11
@@ -130,23 +193,37 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Raw binary encode and decode for four more bases, each per its official spec: base45 (RFC 9285), Ascii85 (Adobe/PostScript), Z85 (ZeroMQ RFC 32), and base91 (basE91). These are chunked binary-to-text codecs, so they carry bytes exactly and round-trip at any length (Z85 requires 4-byte-aligned input, per its spec). Powers of two still use the fast bit-packing path. Any other base has no byte-exact mapping and is refused in binary mode.  [20260707]
+
 - `--binary` (aliases `--bin`, `-b`): re-encode directly between two power-of-two text bases as byte data, the way `basenc` does (e.g. hex to base-64), instead of converting the value as a number. Both bases must be powers of two. Piped input streams.  [20260708]
+
 - `--number` (aliases `--num`, `-N`): assert the numeric reading of a conversion and silence the byte-vs-number note.  [20260708]
+
 - `--show-symbols-0`: like `--show-symbols` but separates symbols with a NUL byte, so scripts can split bases whose symbols are more than one character.  [20260708]
+
 - Near-match suggestions on an unknown base, and clearer messages for the common stumbles: flags placed after the number, a negative number typed without the `--` separator, and a mistyped flag.  [20260709]
 
 ### Changed
 
 - `--list` gains a RAW column showing which bases can carry a raw binary stream (the power-of-two bases plus the codecs above).  [20260707]
+
 - `--list` gains a leading INDEX column (the value `--by-index` takes). `--by-index` outside a query flag now notes on stderr that it is ignored.  [20260709]
+
 - Crockford base32 (`32c`) now decodes `O` as 0 and `I`/`L` as 1 (case-insensitive), per the spec, while still emitting only the strict alphabet.  [20260709]
+
 - The URL and hex RFC 4648 variants (`64u`, `64h`, `32h`) now pad their binary/codec output to the group boundary like the strict `64`/`32` variants; number-mode output is still never padded, and decode accepts padded or unpadded input.  [20260709]
+
 - Conflicting base selectors (`--from-symbols` vs `--from`, `--to-symbols` or `--to` vs a positional output base) now print a stderr note instead of silently choosing one.  [20260709]
+
 - `--help` and `--examples` write to stdout when explicitly requested, so they can be piped; the no-argument help stays on stderr.  [20260709]
+
 - The 256-value raw-byte base is now named `bytes`. Its former names `binary`, `bin`, and `raw` are removed - use `--from bytes` / `--to bytes`, or `--binary` for text-to-text byte re-encoding.  [20260708]
+
 - Converting between two power-of-two text bases with no mode flag now prints a note on stderr: the value is read as a number (leading zeros dropped), not re-encoded as bytes. Add `--binary` or `--number` to pick a reading.  [20260708]
+
 - The `--raw` output flag is renamed `--no-newline` (`-n`), matching `echo -n`.  [20260708]
+
 - `--show-symbols` now prints the symbols concatenated with no delimiter instead of one per line. Use `--show-symbols-0` for a machine-splittable list.  [20260708]
+
 - The README no longer includes screenshots, and the pipeline no longer regenerates them by default. The generator is kept for on-demand use.  [20260706]
 
 ### Fixed
@@ -156,11 +233,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Other work
 
 - Broadened the test harness: raw round-trips now cover every base the RAW column advertises, with fixed spec vectors for each codec and a check that non-codec bases refuse raw binary. Added a resource profile (peak memory and wall time) and a codec throughput guard, both skipped by `--quick`.  [20260707]
+
 - Added real Go unit tests (number, codec, native-base, padding, marker, and spec-parser vectors, plus a streaming-vs-buffered equivalence test), so `make test` gates the conversion logic instead of running only benchmarks. Filled several test-harness gaps and pinned known-value vectors for bases that previously had only self-round-trip coverage.  [20260709]
+
 - Documentation accuracy sweep: regenerated the README bases table from the program (fixing stale aliases and the swapped 32/32h alphabets), corrected the serial-number and 85ps examples, and fixed the UTF byte-count table and changelog dates.  [20260709]
+
 - Hosted CI: every push and pull request now builds, vets, and tests on GitHub Actions. The full local pipeline is unchanged.  [20260711]
+
 - Releases are now cut automatically when dev merges to main: the workflow tags the version from the source and publishes the release with all six platform archives plus a checksums file, notes taken from this changelog.  [20260711]
+
 - Release packaging is self-contained, building the tarballs, zips, `.deb`/`.rpm`, Windows installers, and checksums directly, with consistent archive names across platforms.  [20260711]
+
 - The pipeline's lint and audit tools are pinned to fixed versions, and dependency and workflow updates now arrive as grouped pull requests against dev.  [20260711]
 
 ## v1.1.0-beta6 - 2026-07-06
@@ -168,17 +251,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 
 - Flags to query bases from a script: `--get-index-count`, `--get-base-name`, and `--show-symbols`. A base can be chosen by name, alias, or `--by-index`.
+
 - User-defined bases can opt into RFC-style output padding with a `pad=X` token in the symbol spec (or a `pad:` field in a config file). It follows the same group-boundary rule as the built-in base32/base64 bases: encode pads to the boundary, decode accepts input with or without it. A pad character that is also a digit is rejected.
+
 - New base "keyboard" (base 98): every printable keyboard character of a plain-text document, plus tab, newline, and return. The alphabet leads with the 62 alphanumerics 0-9 A-Z a-z, then the remaining characters in code-point order. Source code, prose, JSON, HTML, and embedded base64 are all valid input as-is, so a text file can be converted without escaping. Aliases: 98, text, ascii, kbd.
+
 - New base "emoji64" (base 64): the Unicode emoticon faces, U+1F600 through U+1F63F (56 yellow faces and 8 cat faces), all single code points with no skin-tone variants. Being a power of two it also encodes binary streams, so a file can be turned straight into emoji and back.
+
 - New base "emoji10" (base 10): ten hand-picked emoji as the digits 0-9, with a carrot for negative and a soccer ball for the decimal point.
 
 ### Changed
 
 - Streaming binary conversion is much faster in both directions. Piped input streams straight to output with no whole-file buffering, and the standard bases (16, 32, 64) use hand-unrolled, byte-aligned inner loops like the system tools. Encoding and decoding to and from base-64/32/16 now run at hundreds of MiB/s; on the test bench, base-64 decode is faster than `base64` and `basenc`, and encode is close behind. Output is unchanged, and decoding tolerates line-wrapped input, so it reads `base64`'s default output. See the throughput table in the README.
+
 - Bases whose symbols include `-` now use `~` as the negative marker, instead of the en-dash, which is too visually confusing. Affects base 45, 64u, 64h, and 69prsh.
+
 - `--list` no longer repeats the base name in its aliases column.
+
 - Clearer help text for the base-query flags.
+
 - Base64 (RFC 4648 s4) and base32 (RFC 4648 s6) binary output is now padded with `=` to the standard group boundary. The URL and hex variants stay unpadded, and decoding accepts input with or without padding.
 
 ### Fixed
@@ -247,6 +338,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Changed
 
 - Made word-safe bases all consistent, while maintaining backward-compatibility with `convert-base-v1`. [20260419]
+
 - Fixed an egregious bug where RFC 4648 section 4 and section 5 were defined completely wrong.
 	- They were defined, reasonably enough, as "hex-style".
 	- But the RFC standards put the digits almost last.
@@ -254,6 +346,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 		- As a base converter it means 3 -> "C" and "12" -> "M", which is odd.
 		- For most bases 12 and up, 3 -> "3" and 12 -> "C".
 		- But it is the published RFC standard, so the RFC base matches the RFC, not what feels natural.
+
 - Added a new hex-style base 64, named "64hex", which the old base-64-URL RFC had previously been defined as.
 
 ## v1.0.0-rc2 - 2026-04-19
@@ -275,5 +368,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Other work
 
 - Created repo and project structure [20260417]
+
 - Finished first draft of README.md [20260418]
+
 - Added testing script. (Tests pass for most common scenarios - e.g. all integers with bases <= 288.)
