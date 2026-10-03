@@ -71,6 +71,35 @@ func TestConfigRejectsQuotedUnknownField(t *testing.T) {
 	}
 }
 
+// No base field takes fields of its own, so anything indented under one is a
+// mistake. The field above it still reads, often as Empty, which disables a
+// marker on purpose - so the stray line used to cost a marker without a word.
+func TestConfigRejectsNestedField(t *testing.T) {
+	cases := map[string]string{
+		"under empty":  "base: a\n\tsymbols: ab\n\tnegative:\n\t\tdecimal: X\n",
+		"under value":  "base: a\n\tsymbols: ab\n\tnegative: N\n\t\tdecimal: X\n",
+		"under alias":  "base: a\n\tsymbols: ab\n\taliases: p\n\t\tdecimal: X\n",
+		"under symbol": "base: a\n\tsymbols: ab\n\t\tpad: =\n",
+		"under bool":   "base: a\n\tsymbols: ab\n\tpademit: false\n\t\tpad: =\n",
+		"deeper":       "base: a\n\tsymbols: ab\n\tnegative:\n\t\tdecimal:\n\t\t\tpad: Y\n",
+		"dotted":       "base: a\n\tsymbols: ab\n\tnegative.decimal: X\n",
+		"quoted":       "base: a\n\tsymbols: ab\n\tnegative:\n\t\t\"odd.x\": X\n",
+		"later base":   "base: a\n\tsymbols: ab\n\nbase: b\n\tsymbols: cd\n\tdecimal:\n\t\tnegative: X\n",
+		"merged twice": "base: a\n\tsymbols: ab\n\tnegative:\n\t\tdecimal: X\n\tnegative:\n\t\tpad: Y\n",
+	}
+	for name, text := range cases {
+		t.Run(name, func(t *testing.T) {
+			err := loadConfigText(t, text)
+			if err == nil {
+				t.Fatalf("nested field (%s) loaded without error", name)
+			}
+			if !strings.Contains(err.Error(), "nested under") {
+				t.Fatalf("nested field (%s): got %v", name, err)
+			}
+		})
+	}
+}
+
 // Every way a config file can be refused cites the line it went wrong on. The
 // repeat is the one that needs Lines() rather than Line(), since a path with two
 // bindings is exactly what the singular cannot place.
@@ -88,6 +117,8 @@ func TestConfigErrorsCiteLines(t *testing.T) {
 		{"nosymbols", "base: a\n\tsymbols: ab\n\nbase: b\n\tnegative: X\n", "line 4: base \"b\": missing"},
 		{"noname", "base: a\n\tsymbols: ab\n\nbase:\n\tsymbols: cd\n", "line 4: a \"base:\" line has no name"},
 		{"pademit", "base: a\n\tsymbols: ab\n\tpademit: maybe\n", "line 3: base \"a\": pademit"},
+		{"nested", "base: a\n\tsymbols: ab\n\tnegative:\n\t\tdecimal: X\n",
+			"line 4: base \"a\": \"decimal\" is nested under negative"},
 		// Registration knows the base, not the field, so it cites the block.
 		{"badsymbols", "base: a\n\tsymbols: ab\n\nbase: b\n\tsymbols: \"c c\"\n",
 			"line 4: base \"b\": duplicate symbol"},
