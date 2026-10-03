@@ -114,6 +114,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Built on shcl's unreleased 3.0 dev tree, not v2.0.0 and not waiting for 3.0.0. That breaks the "pin only released tags" rule on purpose until 3.0.0 is out.
 	- Verified: go vet, golangci-lint, staticcheck and `go test ./...` pass. The full `cicd/test.bash` passed 445 of 445. The command builds for every shipped target and the three WASM ones. The vendor check failed on a made-up commit, a wrong commit, an edited copy, and the old tag against the new file. The new tests fail against the old build or the old shcl.
 	- Branch: shcl3
+	- Commit: 51f59b6
 	- Test case: `TestConfigBackslashLayers` in `config_test.go`, `TestUserConfigIsStamped` in `userconfig_test.go`, and the "config bare backslash escape", "config bad escape rejected" and "user config names its format" checks in `cicd/test.bash`.
 
 - A field written under another field in a config file is ignored without a word.
