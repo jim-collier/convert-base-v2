@@ -23,6 +23,8 @@ func parseInfo(t *testing.T, args ...string) infoAsks {
 	fs.Var(asked.flag("help"), "help", "")
 	fs.Var(asked.flag("help"), "h", "")
 	fs.Var(asked.flag("version"), "version", "")
+	fs.Var(asked.flag("version"), "v", "")
+	fs.Var(asked.flag("version"), "V", "")
 	fs.Var(asked.flag("about"), "about", "")
 	fs.Var(asked.flag("donate"), "donate", "")
 	fs.Var(asked.flag("examples"), "examples", "")
@@ -40,6 +42,7 @@ func TestInfoFlagOrder(t *testing.T) {
 		{[]string{"--donate", "--version"}, infoAsks{"donate", "version"}},
 		{[]string{"--version", "--donate"}, infoAsks{"version", "donate"}},
 		{[]string{"-h", "--about", "--help"}, infoAsks{"help", "about"}},
+		{[]string{"-v", "--donate", "-V"}, infoAsks{"version", "donate"}},
 		{[]string{"--help", "--help=false", "--examples"}, infoAsks{"examples"}},
 		{[]string{"--from", "16"}, nil},
 	}

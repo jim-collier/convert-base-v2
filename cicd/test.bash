@@ -125,6 +125,10 @@ _rand16(){ od -An -N2 -tu2 /dev/urandom | tr -d ' '; }
 section "CLI surface"
 _run --version
 { ((_rc == 0)) && [[ "$_out" == v* ]]; } && _pass "--version prints a version" || _fail "--version prints a version" "rc=$_rc out=[$_out]"
+for _vflag in -v -V; do
+	_run "$_vflag"
+	{ ((_rc == 0)) && [[ "$_out" == v* ]]; } && _pass "$_vflag prints a version" || _fail "$_vflag prints a version" "rc=$_rc out=[$_out]"
+done
 check ok  "--help exits 0"          -   --help
 check ok  "-h exits 0"              -   -h
 check ok  "--examples exits 0"      -   --examples
