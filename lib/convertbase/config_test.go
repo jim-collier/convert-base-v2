@@ -10,6 +10,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/jim-collier/convert-base-v2/lib/shcl"
 )
 
 func loadConfigText(t *testing.T, text string) error {
@@ -185,7 +187,10 @@ func TestConfigBackslashLayers(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			path := filepath.Join(t.TempDir(), "convert-base-v2.shcl")
-			if err := os.WriteFile(path, []byte("base: bs\n\tsymbols: "+c.value+"\n"), 0o600); err != nil {
+			// Stamped, since these pin the current rules. An unstamped file is
+			// read the old way; TestUpgradeConfigKeepsOldMeaning pins that.
+			text := "base: bs\n\tsymbols: " + c.value + "\n" + shcl.FormatLine + "\n"
+			if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
 				t.Fatal(err)
 			}
 			r, err := NewRegistry()

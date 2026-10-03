@@ -228,6 +228,12 @@ base: myhex
 		~~~
 ~~~~
 
+The file the first run writes ends with a Format line, `##    Format   3`, which names the SHCL rules it follows. A config with no such line, which is every config written before this version, follows the older rules, where a backslash could start an escape outside quotes too. Such a file is read the way the older rules read it, so its bases stay the same.
+
+The user and system config files are also converted once. The original is kept beside the file as `convert-base-v2_backup_YYYYmmDD-HHMMSS_format-v1.shcl`, the converted file takes its place, comments and all, and a note on stderr names the backup. When the file can't be written, it is converted in memory on each run instead, and nothing on disk changes. A file named with `--config` is never rewritten. It is read the old way every time, with a note when that makes a difference.
+
+When part of an old file can't be carried over exactly, nothing is loaded from it. The program stops with an error naming the line, and the file is left as it is.
+
 ## Use it in your own code
 
 The conversion core is a library in its own right, and the command is a thin layer on top of it. Everything below runs that same code, so none of them can disagree with the command about what a base means.

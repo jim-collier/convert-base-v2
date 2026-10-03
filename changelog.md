@@ -32,6 +32,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A config file can write `symbols` or `tail` as a raw block over several lines, which suits a long alphabet. It reads like the one-line form, with line breaks counting as spaces.
 
+- Library: `UpgradeConfig` converts the text of a config file written for an older SHCL format, so it loads to the same bases. `LoadConfig` uses it. The library is now v0.2.0.
+
 ### Changed
 
 - `--help`, `--examples`, `--version`, `--about` and `--donate` can be combined, and each prints once, in the order given. Before, the first one checked won and the rest were ignored.
@@ -41,6 +43,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Config files are read with SHCL 3.0. A backslash in a value is plain text unless it is inside double quotes, where only `\t`, `\n`, `\\`, `\"`, `\'` and `\u` escapes are accepted. Any other escape there is refused. `\,` and `\#` no longer protect a comma or a `#` outside quotes; quote the value instead. A config without backslashes in it reads the same as before.
 
 - The config file written on the first run ends with SHCL's info block, which names the format version it was written for.
+
+- A config file without a Format line, which is every one written before this version, is read the way the older SHCL rules read it, so its bases stay the same. The user and system config files are converted once, and the original is kept beside them as `convert-base-v2_backup_YYYYmmDD-HHMMSS_format-v1.shcl`. A file named with `--config` is never rewritten. A file that can't be carried over exactly is refused, naming the line, and left as it is.
 
 ### Fixed
 
