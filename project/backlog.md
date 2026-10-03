@@ -1,52 +1,93 @@
 <!-- markdownlint-disable MD007 -- Unordered list indentation -->
 <!-- markdownlint-disable MD010 -- No hard tabs -->
-<!-- markdownlint-disable MD033 -- No inline html -->
-<!-- markdownlint-disable MD055 -- Table pipe style [Expected: leading_and_trailing; Actual: leading_only; Missing trailing pipe] -->
 <!-- markdownlint-disable MD041 -- First line in a file should be a top-level heading -->
 
 <!-- TOC ignore:true -->
 # Project backlog
 
-This is a product backlog just for pre-v1.0.0 release. After that, bugs, features, and enhancements will be managed in Github Issues, and/or [todo.md](../todo.md)
-
 <!-- TOC ignore:true -->
 ## Table of contents
+
 <!-- TOC -->
 
-- [Conventions](#conventions)
-- [Backlog](#backlog)
-	- [Todo](#todo)
+- [Introduction](#introduction)
+- [Issues](#issues)
+- [Old format](#old-format)
 	- [Bugs](#bugs)
-	- [New features and enhancements](#new-features-and-enhancements)
+	- [Features and enhancements](#features-and-enhancements)
 	- [Done](#done)
 		- [Done - Bugs](#done---bugs)
-		- [Done - New features and enhancements](#done---new-features-and-enhancements)
+		- [Done - Features and enhancements](#done---features-and-enhancements)
 	- [Deferred](#deferred)
 	- [Canceled](#canceled)
+- [Template](#template)
 
 <!-- /TOC -->
 
-## Conventions
+## Introduction
 
-In each section, items are listed approximately from newest to oldest.
+Going forward, new issues in the new template at the bottom of this file, will go in the '## New format' section only. No more status emojis. Refer to '## Reference' for sort order. Issues in the old format (with status emojis) won't be refactored, but will continue to be worked until moved to closed, canceled, or deferred sections, and emojis updated. (Eventually this will all be moved to nano-git-db anyway. This new template is an intermediate effort to make issues going forward more structured and importable.)
 
-| Icon | Status
-| :--: | :--
-| 🔘   | Not started
-| 🛠️   | Started, and/or partially complete
-| ✋   | Defer
-| ✅   | Complete
-| 🚫   | Canceled
+This is a product backlog just for pre-v1.0.0 release. After that, bugs, features, and enhancements will be managed in Github Issues, and/or [todo.md](../todo.md)
 
 Sub-bullets can be prefaced with a short tag so the note's role is clear at a glance: `Reproduced:`, `Cause:`, `Probable fix:`, `Fixed:`, `Done:`, `Verified:`, or `Note:`.
 
-## Backlog
+## Issues
 
-### Todo
+- macOS gets a universal binary for both amd64 and ARM.
+	- ID: 2026100313304792
+	- Type: Enhancement
+	- Status: Queued
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Target OS: macOS
+	- Progress log:
+		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
+
+- Support `--help`, `--about` and `--donate`, in a similar way as sister project shcl.
+	- ID: 2026100313304797
+	- Type: Enhancement
+	- Status: Queued
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Target OS: Any
+	- Requirements  [Feature]:
+		- `--about` gives the version, copyright, project home, license and a short description.
+		- `--donate` lists GitHub Sponsors and Ko-fi.
+	- Progress log:
+		- 20261003: `-h`, `-help` and `-version` exist already. `--about` and `--donate` don't.
+
+- When a shcl upgrade breaks compatibility with the application config file(s).
+	- ID: 2026100313304802
+	- Type: Feature
+	- Status: Queued
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Target OS: Any
+	- Requirements  [Feature]:
+		- Check if the new shcl version has breaking changes. If so:
+			- Rename the latest config file `[origname]_backup_YYYYmmDD-HHMMSS_format-v[shcl version].shcl`.
+			- Write a new config file with the same previous path and name, from scratch through shcl, using whatever settings and conversions shcl can handle.
+		- FYI future versions of shcl might do the config backup and conversion for you. So just be careful not to race, conflict, or trample what shcl might try to do. (And first, while wiring up a new version of shcl in code, see if it has a new API to do or at least assist with the conversion for you.)
+	- Progress log:
+		- 20261003: the vendored shcl is v1.2.0, and v2.0.0 is out. Its one format break is escapes in field names, which no config field here uses.
+
+- Write a test as part of CICD that creates old shcl file versions for settings, and tests the automatic (non-shcl-assisted) conversion.
+	- ID: 2026100313304807
+	- Type: Task
+	- Status: Queued
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Parent ID: 2026100313304802
+	- Target OS: Any
+	- Progress log:
+		- 20261003: waits on its parent.
+
+## Old format
 
 ### Bugs
 
-### New features and enhancements
+### Features and enhancements
 
 ### Done
 
@@ -154,7 +195,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Cause: those characters are used internally to hold escaped whitespace aside during the split.
 	- Fixed: a spec containing one is refused up front.
 
-#### Done - New features and enhancements
+#### Done - Features and enhancements
 
 - ✅ Push the first `lib/v0.1.0` tag, so the Go module can be fetched.
 	- Cause: nothing could import the package at any version, because the tag that addresses a module in a subdirectory had never been pushed.
@@ -362,6 +403,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- ✅ Full release packaging + build split + main guard (20260712): packages every platform for both arches (adds freebsd, deb/rpm, Windows installers); split debug (test/profile) vs optimized (dogfood) native builds; main merge now hard-fails via `check-release.bash` unless the version was bumped and the Lifecycle badge matches.
 	- ✅ Pinned tool versions + dependabot: pins live in `cicd/tool-versions.env` (the pipeline installs anything missing or drifted before stage 1); dependabot files grouped weekly update PRs against dev.
 	- ✅ README badges: dynamic Go version, CI status, and latest release, replacing the static Go and Status badges.
+
 - ✅ Some hosted or hook-based CI gate. (BxZNl-24)
 	- Note: deferred at first. Nothing ran unless the pipeline was invoked by hand, and `make test` already covered the real logic locally.
 	- Done: a hosted workflow now vets, tests, and builds on every push and pull request to the two long-lived branches. It is a safety net only; the full pipeline stays local.
@@ -459,3 +501,78 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Cause: the v1 base-128 definition is a "word-safe" version, which base 256 and 288 are not. Base 128 should have been a subset of 256. When writing v2, an incorrect assumption was made about the base-128 structure instead of copying v1 verbatim. Because 128 is a power of two, the difference could be as small as a single character in some binary encodings.
 	- Verified: compared v2 against the bundled v1b for all 128 values. `128v1compat` and `128jc1` are byte-for-byte identical to v1b, and the v1 cross-check passes.
 	- Note: cannot confirm any discrepancy without the original v1 (not v1b) alphabet, and changing it now would break the verified v1b compatibility.
+
+## Template
+
+### Old format
+
+- 🔘 Not started
+
+- 🛠️ Started, and/or partially complete
+
+- 🔬 Testing not started or finished
+
+- ✋ Defer
+
+- ✅ Complete
+
+- 🚫 Canceled
+
+### New format
+
+- Notes:
+
+	- Only use rows that you actually need or expect will be filled in. Always fill in the title, ID, Type, Status, Opened and Created by.
+
+	- The ID is the local time to the hundredth of a second. Opened is when it was written down, which may differ. (Use a keyboard macro and possibly something like project 'zuid' to generate.)
+
+	- Status values meaning: Testing means the fix is in and checks are running or still to run. Waiting on signoff means automated testing passed. Moot means something else changed that made it irrelevant. Canceled means it still applies but was decided against. Waiting for testing means the fix is in and waits on a long CI run or an outside test host. Can't reproduce means a real attempt to reproduce it failed.
+
+	- As issues are worked, and statuses change, place them in correct sorting order within the list:
+		- First by status: Waiting for answers, Waiting on signoff, Testing, Waiting for testing, Can't reproduce, Stalled, Started, Queued, Done, Deferred, Canceled, Moot
+		- Then by severity|priority: Critical, High, Avg, Low
+		- Then by type: Bugs, [not bugs together]
+
+	- Rows marked [Bug] are for bugs only, and rows marked [Feature] for features and enhancements. Priority and Severity share one row and one scale. Priority is for a Feature or Enhancement, and Severity for a Bug. Children are not nested. They sit at the top level and point back with Parent ID.
+
+Template:
+
+- Title
+	- ID: YYYYmmDDHHMMSSNN
+	- Type: [Bug|Feature|Enhancement|Task]
+	- Status: [Queued|Waiting for answers|Waiting on signoff|Waiting for testing|Started|Testing|Stalled|Can't reproduce|Moot|Canceled|Deferred|Done]
+	- Needs local test suite run?:
+	- Needs external testing:
+	- Priority [Feature|Enhancement] | Severity [Bug]: [Critical|High|Avg|Low]
+	- Opened:
+	- Opened by:
+	- Assigned to:
+	- Parent ID:
+	- Prereq IDs:
+	- Related IDs:
+	- Target OS:
+	- Test environment:
+	- Version and build:
+	- Requirements  [Feature]:
+		- Hierarchical bulleted list.
+	- Steps to reproduce [Bug]:
+		- …
+	- Incorrect behavior [Bug]:
+	- Expected behavior [Bug]:
+	- Reproduced [Bug]: [No, or when, where and how]
+	- Possible cause [Bug]:
+	- Actual cause [Bug]:
+		- …
+	- Estimated effort: [High|Avg|Low]
+	- Actual effort: [High|Avg|Low]
+	- Progress log:
+		- …
+	- Decisions:
+		- …
+	- Actual fix [Bug]:
+	- Branch:
+	- Commit:
+	- Test case: [Reason not applicable, or CI test case #]
+	- Acceptance signoff:
+	- Superseded by ID:
+	- Closed:
