@@ -217,6 +217,17 @@ That base is in the file as a working example to copy from. The format is [SHCL]
 
 A backslash in a value is plain text, except inside double quotes, where it starts an escape and has to be doubled. The symbol list has escapes of its own on top of that: `symbols: a\ b c` makes `a b` one digit, and in double quotes the same list is `"a\\ b c"`.
 
+A long alphabet can go in a raw block, the lines between two `~~~` fences. The block is taken as written, so a `#` or a quote in it is a digit, and it reads like the one-line form with each line break counting as a space. `tail` takes one too. No other field does, and a raw block under one is refused.
+
+~~~~text
+base: myhex
+	symbols:
+		~~~
+		0 1 2 3 4 5 6 7
+		8 9 a b c d e f
+		~~~
+~~~~
+
 ## Use it in your own code
 
 The conversion core is a library in its own right, and the command is a thin layer on top of it. Everything below runs that same code, so none of them can disagree with the command about what a base means.

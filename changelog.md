@@ -30,6 +30,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A universal macOS build, `convert-base-v2-darwin-universal`, that runs on both Intel and Apple silicon Macs. The separate Intel and ARM builds are still there.
 
+- A config file can write `symbols` or `tail` as a raw block over several lines, which suits a long alphabet. It reads like the one-line form, with line breaks counting as spaces.
+
 ### Changed
 
 - `--help`, `--examples`, `--version`, `--about` and `--donate` can be combined, and each prints once, in the order given. Before, the first one checked won and the rest were ignored.
@@ -43,6 +45,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 
 - A config field indented under another field, such as `decimal:` under `negative:`, was never read, and an empty field above it still switched its marker off. The base was built wrong with no error. It is refused now, naming the base, the field and the line.
+
+- A raw block as a config value was mishandled. Under `symbols` it was reported as missing symbols, and under `aliases` or `tail` it was dropped without a word. A marker took the block's text, line breaks and all. Every field but `symbols` and `tail` now refuses one, naming the base, the field and the line.
 
 ## v3.0.0 - 2026-08-04
 
