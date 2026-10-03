@@ -38,7 +38,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- ID: 2026100315002873
 	- Type: Bug
 	- Status: Waiting on signoff
-	- Needs local test suite run?: Full `cicd/test.bash`. Only the sections up to the config section ran.
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 467 of 467 on the cfg-migrate branch, which had this merged.
 	- Severity: Low
 	- Opened: 20261003-150028
 	- Opened by: found while working 2026100314430255
@@ -67,7 +67,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- ID: 2026100313304797
 	- Type: Enhancement
 	- Status: Waiting on signoff
-	- Needs local test suite run?: Full `cicd/test.bash`. The new CLI checks and everything up to stream parity passed (428 checks); the rest did not get to run.
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 467 of 467 on the cfg-migrate branch, which had this merged.
 	- Opened: 20261003-133047
 	- Opened by: JC
 	- Target OS: Any
