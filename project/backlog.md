@@ -817,7 +817,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- Done: the five scripts are MIT, with the same header as the other helpers.
 		- Done: the two interop drivers, `qntm.mjs` and `llfourn2048/src/main.rs`, were also Bubbles and GPL, and were missed by the review. They are MIT now too.
-		- Note: eight Unicode research scripts under `utility/` are Bubbles and GPL as well. Left as they are, pending an answer.
+		- Done: eight Unicode research scripts under `utility/` were Bubbles and GPL as well. Asked, and moved to MIT.
 		- Note: the package license in `package.bash` stays GPL-2.0-or-later, since it is the command's.
 	- Test case: none, license headers only.
 	- Closed: 20261004-140028
