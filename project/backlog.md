@@ -34,39 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- Release notes group the downloads in a table, with CPU architecture in columns and target OS in rows.
-	- ID: 2026100409572736
-	- Type: Feature
-	- Status: Waiting on signoff
-	- Needs local test suite run?: No. The full `cicd/test.bash` passed 489 of 489 on dev after the merge, and CI passed.
-	- Needs external testing: The next release on GitHub. Check that the table renders, that every link downloads, and that the notes end with the build line.
-	- Priority: Avg
-	- Opened: 20261004-095727
-	- Opened by: JC
-	- Target OS: Any
-	- Note: the notes are written in `.github/workflows/release.yml`, in its "release notes" step.
-	- Progress log:
-		- Done: the notes come from the new `cicd/utility/release-notes.bash`: the changelog section, then a downloads table, then a checksums link, then the version line the linux-x86_64 build prints, build number included. It publishes nothing, so it runs by hand against `make release`.
-		- Done: the table is made from the files packaging wrote. A row or column with nothing in it is left out, so a `--no-arm` build has no arm64 column. A file it can't place is still linked under the table, with a warning.
-		- Done: links use the name GitHub serves an asset under, so a prerelease `.deb` named with `~` links to its `.` name.
-		- Done: packaging now also ships the WASI build of the command, `convert-base-v2.wasm`, so WebAssembly has something in its row.
-		- Done: the workflow packages and writes the notes before it tags, so a failed build leaves no tag behind.
-		- Fixed: the old notes step matched the changelog heading by prefix, so a v3.1.0 release would have taken a v3.1.0-beta1 section. It matches the whole version now.
-		- Note: found along the way, logged as 2026100412472515: `checksums.txt` names prerelease packages with `~`, which GitHub renames on upload.
-		- Note: found along the way, logged as 2026100412472615: the archives and packages don't rebuild to the same bytes. The binaries do.
-	- Decisions:
-		- Columns are x86_64, arm64 and Universal. Rows are Linux, macOS, Windows, FreeBSD and WebAssembly (WASI). Best guess, reversible.
-		- macOS gets the universal build in the Universal column, beside its per-arch builds.
-		- WebAssembly gets a row, with the WASI command in the Universal column, since one file runs on every CPU. The reactor module is not shipped. Best guess, reversible.
-		- The notes end with the build's version line, as gitsby's do.
-	- Verified: the table was made from a real `make release` output of 25 files and reads right. The three new harness checks fail with the old heading match, without the GitHub name rule, with `.wasm` unplaced, or without the warning, and pass with the change. `make release` twice a minute apart gives the same checksums for every bare binary and the `.wasm`. Shellcheck finds nothing in the new script, and nothing new elsewhere beyond the harness's usual `A && B || C` notes. `test-ids.py check` passes. Nothing was tagged or published.
-	- Branch: build-num
-	- Commit: 947757f
-	- Test case: `ErlN8Nk` "release notes: changelog, downloads table, build line", `ErlN8OJ` "release notes warn of a file they can't place" and `ErlN8Oq` "release notes: only filled columns, no build line for another version" in the harness. The workflow itself only runs on a merge to main.
-	- Question: releases now ship `convert-base-v2.wasm`, the WASI build of the command, so the WebAssembly row has something in it. Keep it? Dropping it is one block in `package.bash`, and the row then goes away by itself.
-	- Acceptance signoff: waits on the Universal column, the WebAssembly row and the question above, which were best guesses.
-
-
 - macOS gets a universal binary for both amd64 and ARM.
 	- ID: 2026100313304792
 	- Type: Enhancement
@@ -181,6 +148,41 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `ErlL5bp` TestCrockfordBase32, `ErlL5cK` TestBuildNumber, `ErlL5cs` TestVersionText and `ErlL5dO` TestBuildEpochIsPatchable; `ErlL5dx` "--version is one line, version then build number" and `ErlL5eT` "make stamps every command build with the commit's time" in the harness.
 	- Acceptance signoff: Self-closed: the format and placement were the ones asked for, its tests pass, and the full suite passed.
 	- Closed: 20261004-131952
+
+
+- Release notes group the downloads in a table, with CPU architecture in columns and target OS in rows.
+	- ID: 2026100409572736
+	- Type: Feature
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 489 of 489 on dev after the merge, and CI passed.
+	- Priority: Avg
+	- Opened: 20261004-095727
+	- Opened by: JC
+	- Target OS: Any
+	- Note: the notes are written in `.github/workflows/release.yml`, in its "release notes" step.
+	- Progress log:
+		- Done: the notes come from the new `cicd/utility/release-notes.bash`: the changelog section, then a downloads table, then a checksums link, then the version line the linux-x86_64 build prints, build number included. It publishes nothing, so it runs by hand against `make release`.
+		- Done: the table is made from the files packaging wrote. A row or column with nothing in it is left out, so a `--no-arm` build has no arm64 column. A file it can't place is still linked under the table, with a warning.
+		- Done: links use the name GitHub serves an asset under, so a prerelease `.deb` named with `~` links to its `.` name.
+		- Done: packaging now also ships the WASI build of the command, `convert-base-v2.wasm`, so WebAssembly has something in its row.
+		- Done: the workflow packages and writes the notes before it tags, so a failed build leaves no tag behind.
+		- Fixed: the old notes step matched the changelog heading by prefix, so a v3.1.0 release would have taken a v3.1.0-beta1 section. It matches the whole version now.
+		- Note: found along the way, logged as 2026100412472515: `checksums.txt` names prerelease packages with `~`, which GitHub renames on upload.
+		- Note: found along the way, logged as 2026100412472615: the archives and packages don't rebuild to the same bytes. The binaries do.
+	- Decisions:
+		- Columns are x86_64, arm64 and Universal. Rows are Linux, macOS, Windows, FreeBSD and WebAssembly (WASI). Best guess, reversible.
+		- macOS gets the universal build in the Universal column, beside its per-arch builds.
+		- WebAssembly gets a row, with the WASI command in the Universal column, since one file runs on every CPU. The reactor module is not shipped. Best guess, reversible.
+		- The notes end with the build's version line, as gitsby's do.
+	- Verified: the table was made from a real `make release` output of 25 files and reads right. The three new harness checks fail with the old heading match, without the GitHub name rule, with `.wasm` unplaced, or without the warning, and pass with the change. `make release` twice a minute apart gives the same checksums for every bare binary and the `.wasm`. Shellcheck finds nothing in the new script, and nothing new elsewhere beyond the harness's usual `A && B || C` notes. `test-ids.py check` passes. Nothing was tagged or published.
+	- Branch: build-num
+	- Commit: 947757f
+	- Test case: `ErlN8Nk` "release notes: changelog, downloads table, build line", `ErlN8OJ` "release notes warn of a file they can't place" and `ErlN8Oq` "release notes: only filled columns, no build line for another version" in the harness. The workflow itself only runs on a merge to main.
+	- Question: releases now ship `convert-base-v2.wasm`, the WASI build of the command, so the WebAssembly row has something in it. Keep it? Dropping it is one block in `package.bash`, and the row then goes away by itself.
+		- Answered: keep shipping it. zuid embeds the reactor module, which its own cicd builds from the pinned `convertbase` source, so nothing downloads this asset yet.
+	- Note: check again at the next release. The table renders, every link downloads, and the notes end with the build line.
+	- Acceptance signoff: Signed off 20261004.
+	- Closed: 20261004-132358
 
 
 - A raw block as a config field value is dropped or misreported.
