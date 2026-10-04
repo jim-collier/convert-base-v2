@@ -113,6 +113,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- The notes end with the build's version line, as gitsby's do.
 	- Verified: the table was made from a real `make release` output of 25 files and reads right. The three new harness checks fail with the old heading match, without the GitHub name rule, with `.wasm` unplaced, or without the warning, and pass with the change. `make release` twice a minute apart gives the same checksums for every bare binary and the `.wasm`. Shellcheck finds nothing in the new script, and nothing new elsewhere beyond the harness's usual `A && B || C` notes. `test-ids.py check` passes. Nothing was tagged or published.
 	- Branch: build-num
+	- Commit: 947757f
 	- Test case: `ErlN8Nk` "release notes: changelog, downloads table, build line", `ErlN8OJ` "release notes warn of a file they can't place" and `ErlN8Oq` "release notes: only filled columns, no build line for another version" in the harness. The workflow itself only runs on a merge to main.
 
 
