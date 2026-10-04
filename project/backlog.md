@@ -128,7 +128,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `package.bash` deletes whatever directory `--out` names before it builds. (Code review 20261004 item 4)
 	- ID: 2026100413480004
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes. The full cicd run, stage 6 included, since `make release` now stops on an unmarked `lib/dist`. A `lib/dist` left by an older build has no mark, so trash it once first.
 	- Severity: High
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -140,6 +141,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Reproduced: 20261004, by the review, with a fake `go` and a scratch dir.
 	- Origin: `package.bash:115`, from 9c40e8d "release packaging" on 2026-07-12. Not seen by an earlier round. Confirmed.
 	- Sweep: every `rm -rf` on a variable path in `cicd/` and `utility/`. `interop/fetch.bash:93` is one; see item 16.
+	- Actual cause: the script cleared `--out` with `rm -rf` before building, whatever it held. `make clean` did the same to `DIST`.
+	- Actual fix: a build marks the dir it makes with a hidden file. `package.bash` clears a dir only when it has the mark, takes over an empty one, and refuses anything else with a message. `make wasm` and `make reactor` mark the dir when they create it, and `make clean` follows the same rule. The mark stays out of `checksums.txt`, and the release workflow's `lib/dist/*` upload skips it as a dotfile.
+	- Swept: every `rm -r` in `cicd/`, `utility/`, `install.bash` and `lib/Makefile`. The trap removes in `package.bash`, `check-vendor.bash`, `interop/fetch.bash`, `test.bash`, `bench-encoders.bash`, `gen-screenshots.bash` and `install.bash` each take a dir the same script made with `mktemp -d`. `interop/fetch.bash:94` is fixed under item 16. `lib/Makefile` clean was the twin of this one and is fixed here. The other `rm` calls remove single files.
+	- Verified: 20261004, the three new checks fail on dev and pass on this branch. The packaging section ran with real builds: two full packages still rebuild to the same checksums, and the prerelease name checks pass. `make wasm` into a new dir marks it, and the next packaging run clears it. Shellcheck finds nothing new.
+	- Note: `make release` and `make clean` now stop on an old `lib/dist` with no mark, and say so. Trash it once.
+	- Branch: bash-traps
+	- Commit: 65ce2be
+	- Test case: harness checks `Erm3Sws` (an `--out` with other files is left alone), `Erm3SxT` (a marked dir is cleared and an empty one taken), `Erm3Syv` (`make clean`) and `Erm3SyD` (the mark is not in `checksums.txt`). The first three fail on dev. `Erm3SyD` fails when the mark is left in the checksum list.
+	- Acceptance signoff: open, since it changes what a build deletes.
 
 - Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
 	- ID: 2026100413480017
@@ -204,7 +214,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `check-release.bash` and `install.bash` exit without their own error messages. (Code review 20261004 item 9)
 	- ID: 2026100413480009
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Severity: Avg
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -214,6 +224,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Reproduced: 20261004, by the review, against scratch inputs.
 	- Possible cause: a `grep` that finds nothing inside `x="$(...)"` under `set -e`.
 	- Origin: `check-release.bash:61-62` from 9c40e8d on 2026-07-12, `install.bash:119-120,167-168` from 33cdd30 on 2026-08-04. Not seen by an earlier round. Confirmed.
+	- Actual cause: as the possible cause says. In `check-release.bash` a missing `main.go`, or a dir that is not a repo, also ended with no message of its own, at the `sed` and at `git tag`.
+	- Actual fix: `|| true` inside each lookup's substitution, so its own message prints. `check-release.bash` reads the badge with `grep -m1` and no pipe, and says so when the tags can't be listed.
+	- Swept: every `x="$(...)"` in both scripts. In `install.bash` the rest are guarded already, and the hash line reads a file the script just wrote. In `check-release.bash`, all four lookups.
+	- Verified: 20261004, both checks fail on dev in all five cases, at exit 1, 2 or 128 with no message of the script's own, and pass on this branch. The badge reads the same from the real README. Shellcheck clean.
+	- Branch: bash-traps
+	- Commit: 65ce2be
+	- Test case: harness checks `Erm3Szg` (`check-release.bash` with no `main.go`, outside a repo, and with no badge) and `Erm3T0M` (`install.bash` with a stand-in curl: no tag, and no checksum line).
+	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after.
+	- Closed: 20261004-154100
 
 - `bench-encoders.bash` and `gen-screenshots.bash` use base names and flags that were removed. (Code review 20261004 item 10)
 	- ID: 2026100413480010
@@ -364,7 +383,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - A few Bash trap patterns are latent in the cicd scripts. (Code review 20261004 item 16)
 	- ID: 2026100413480016
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Severity: Low
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -376,6 +395,19 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Expected behavior: here-strings, `ENVIRON`, and a name check before the remove.
 	- Reproduced: no. 0 of 50 and 0 of 30 tries for the two pipes; real version strings don't trip `awk -v`.
 	- Origin: several commits. Not seen by an earlier round. Plausible.
+	- Progress log:
+		- Pinned: `gen-screenshots.bash:59` and `pin-tools.bash` fail when the tool in front writes more than a pipe holds. The probe then says pango is missing, and `pin-tools.bash` exits 141 with no message. The cited line 196 doesn't exist; the pattern is at line 45, `go version -m` into an `awk` that exits.
+		- Pinned: `release-notes.bash` misses the changelog section for a version with a backslash in it.
+		- Pinned: `interop/fetch.bash --refresh` with an empty pin name removed all of `thirdparty/`.
+		- Can't reproduce: `test.bash:215`. The largest alphabet with a `-` digit prints 195 bytes, far under a pipe buffer, and a failed pipe there falls to `|| continue` rather than ending the run. Left as is.
+	- Actual fix: the tool's output goes to a variable and then a here-string in front of `grep -q` and `awk ... exit`. `ENVIRON` in place of `awk -v`. The pin name has to be a plain name, checked right before the remove.
+	- Swept: every pipe into `head`, `grep -q`, `grep -m` or an exiting `awk` in `cicd/`, `utility/` and `install.bash`. `check-release.bash:62` is fixed under item 9. The rest read a file or a here-string, end in `|| true`, run without pipefail, or get a few lines from `sed -n`, as `bench-encoders.bash:89` does.
+	- Verified: 20261004, the four checks fail on dev and pass on this branch, the two pipe ones 10 of 10 runs each way. `fetch.bash --verify` passes, and release notes for v3.0.0 still find the section. Shellcheck clean.
+	- Branch: bash-traps
+	- Commit: 65ce2be
+	- Test case: harness checks `Erm3T0v` (gen-screenshots), `Erm3T1Z` (pin-tools), `Erm3T2D` (release notes) and `Erm3T2q` (interop refresh). None for `test.bash:215`, which can't be made to fail with the current bases.
+	- Acceptance signoff: Self-closed: each fix's check failed before and passes after; the one part that could not be reproduced is left alone.
+	- Closed: 20261004-154100
 
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
