@@ -14,8 +14,9 @@ Purpose:
 	--debug-dir PATH:  directory for debug PNG (default: directory of this script)
 
 Copyright (c) 2026 Bubbles
-Licensed under the GNU General Public License v2.0 or later.
-SPDX-License-Identifier: GPL-2.0-or-later
+Licensed under The MIT License (MIT). Full text at:
+	https://mit-license.org/
+SPDX-License-Identifier: MIT
 """
 
 import sys

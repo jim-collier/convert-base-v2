@@ -32,9 +32,9 @@ Purpose:
 	It works from metadata and online reference only. The visual checks are in 'filter_3_visual.py'.
 
 Copyright (c) 2026 Bubbles
-Licensed under the GNU General Public License v2.0 or later. Full text at:
-	https://spdx.org/licenses/GPL-2.0-or-later.html
-SPDX-License-Identifier: GPL-2.0-or-later
+Licensed under The MIT License (MIT). Full text at:
+	https://mit-license.org/
+SPDX-License-Identifier: MIT
 """
 
 import unicodedata
