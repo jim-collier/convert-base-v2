@@ -132,32 +132,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `ErmCp2H` "--quick reaches the harness" and `ErmCp2I` "-q drops the plan and progress lines, not the stage results". Both fail on dev and pass after. The harness side of the skip has no check, since that would run the harness inside itself.
 	- Acceptance signoff: open, since what `-q` hides is a call on output.
 
-- A failed write of the result still exits 0. (Code review 20261004 item 1)
-	- ID: 2026100413480001
-	- Type: Bug
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes. The full `cicd/test.bash`. Its fuzz, back-compat and interop sections compare command output and were not run on this change.
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Steps to reproduce:
-		- `convert-base-v2 255 16 >/dev/full`
-	- Incorrect behavior: exit 0 with nothing written. Same for `--list`, `--get-index-count`, `--get-base-name` and a piped `-` input.
-	- Expected behavior: an error and a non-zero exit, as `-n 255 16`, `--version` and streaming already do.
-	- Reproduced: 20261004, with a stripped build.
-	- Possible cause: the result prints go through `fmt.Fprint*` with errcheck turned off for them, and nothing checks a flush. The `.golangci.yml` comment says every write that matters is checked; these are not.
-	- Probable fix: one buffered writer over stdout in `run()`, with the flush error returned.
-	- Origin: `main.go:509` and its siblings, from the first v1.0.0-rc1 commit ad488ce. Not seen by an earlier round. Confirmed.
-	- Sweep: every stdout write in `lib/cmd`, `lib/wasm` and `lib/reactor`.
-	- Actual cause: the result prints were unchecked, as the possible cause says. Only `-n` output, `--version`/`--help` and the streams checked their writes.
-	- Actual fix: one buffered writer over stdout in `run()`. It keeps the first write error, and the deferred flush returns it, so the run exits 1 with the error. The streams still write stdout directly and check their own writes. The errcheck exclusions in `.golangci.yml` add that writer's `WriteString`, and their comment now says where each kind of write is checked.
-	- Swept: every stdout write in `lib/cmd/convert-base-v2`, all in `main.go`: the info flags, `--list` and `--list-compat`, `--get-index-count`, `--get-base-name`, `--show-symbols` and `-0`, the newline after a stream, and the result. `lib/wasm` and `lib/reactor` write nothing to stdout, by `grep -n 'os.Stdout\|fmt.Print'`. The library's `Registry.Print` writes to the writer it is given, so its errors come out at the command's flush.
-	- Verified: 20261004, the harness sections from CLI surface through control-character escapes pass, 342 of 342, and so do the reactor, browser module and frontend parity sections. Output of 25 sample commands matched the dev build byte for byte, apart from the version stamp. go vet, golangci-lint, staticcheck and `go test ./...` clean.
-	- Branch: exit-fixes
-	- Commit: 7eb27c9
-	- Test case: harness check `Erm02E7`, 13 ways of writing a result to `/dev/full`. On dev 8 of them exit 0. With the fix all 13 fail with the write error.
-
 - `package.bash` deletes whatever directory `--out` names before it builds. (Code review 20261004 item 4)
 	- ID: 2026100413480004
 	- Type: Bug
@@ -219,35 +193,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Probable fix: keep built-ins as cheap specs and finalize each on first lookup, or on `--list`. Config bases still validate at load. A unit test that builds every built-in keeps catching bad data. Add a `NewRegistry` benchmark with a threshold.
 	- Origin: the registry design from ad488ce. The cost was noted in passing on 2026-08-02 and in G12, never filed. Confirmed by timing and pprof.
 	- Related IDs: 2026100413480018
-
-- One failing check can abort the test harness or lose its failure detail. (Code review 20261004 item 8)
-	- ID: 2026100413480008
-	- Type: Bug
-	- Status: Done
-	- Severity: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Incorrect behavior:
-		- A conversion that fails inside `x="$(...)"` kills the harness with HARNESS ABORTED, no summary, and the rest unrun.
-		- `fFirstDiff` runs `cmp`, which exits 1 on any difference, so a failed interop check prints false abort lines and loses its detail.
-		- With Go off the PATH, the reactor section aborts instead of skipping with its warning.
-	- Expected behavior: a failure is counted and reported, and the run goes on.
-	- Reproduced: 20261004, by the review, with scratch copies of each pattern.
-	- Origin: several commits from 4ff92e8 on 2026-07-10 to 36d7ccc on 2026-08-02. Not seen by an earlier round. Confirmed.
-	- Sweep: every command substitution in `cicd/test.bash` that runs the program, `cmp`, `diff`, `grep` or `go`. The review listed lines 155, 176, 364, 392, 415, 679, 702, 727, 749-823, 969-971, 1190, 1256, 1296, 1316, 1360, 1389 and 1395.
-	- Reproduced: 20261004, against a program that refuses everything. The run ended at the first capture in the CLI surface section.
-	- Actual cause: the harness runs under errexit, with an ERR trap that also fires inside `$( )` and `<( )`. A plain capture of a refused conversion ended the run. Inside a substitution the trap cut the output short wherever a non-zero status is the normal answer, as with `cmp` in `fFirstDiff`.
-	- Actual fix: the trap no longer ends a subshell, so the status goes to whatever reads it. A single run of the program is captured through `_run` or `_run_in`, which keep the status. A pipeline capture ends in `|| true`, and so do the `go env` lookups and the perf section's bare runs. The two fuzz loops skip an empty base list, since a modulo by its size ended the run.
-	- Note: a helper run through `$( )` no longer stops at its first failed command. Each one feeds a check that fails on a wrong result.
-	- Note: the self-check adds about 9 seconds to a run.
-	- Verified: a full harness run passed 569 of 569. The run against a program that refuses everything, with Go off the PATH, reached its summary with no abort. shellcheck shows no new warnings, and `test-ids.py check` passes.
-	- Swept: every capture in `cicd/test.bash` that runs the program, `cmp`, `diff`, `grep` or `go`. That is the CLI surface lists and counts, the `85ps` and config symbol reads, `cvec`, `nvec`, `pipecheck`, the pad, tail and `--binary` captures, the fuzz base count and names, and the reactor and browser `go env` lookups. The trap change covers `fFirstDiff`, the parity `diff` messages, the interop verify message and every `<( )` base listing. The perf section's bare runs were guarded too. A grep for assignments from `$( )` that name those tools and have no `||` or `&&` after leaves only `fFirstDiff` and helpers that make dirs or random input.
-	- Branch: harness-abort
-	- Commit: 2590437
-	- Test case: `ErmGPkH` "every check failing still reaches the summary", `ErmGPkf` "reactor section skips with Go off the PATH" and `ErmGPl4` "failed interop check keeps its detail". They run the harness against a program that refuses everything. All three fail before the fix and pass after. Putting back the old trap, the reactor lookup or one capture alone turns at least two of them red.
-	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
-	- Closed: 20261004-165412
 
 - `ParseSymbolSpec` splits every token on commas before checking for one, and rebuilds a replacer per token. (Code review 20261004 item 18)
 	- ID: 2026100413480018
@@ -358,6 +303,18 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Expected behavior: `Finalize` refuses a tail scheme without a tail, naming the base.
 	- Reproduced: no. Seen while reading; binary mode picks the tail decoder from `BinaryScheme`, not from whether a tail is set. The command and config can't reach it.
 
+- The frontend parity and macOS universal binary sections of the harness fail when Go is missing, where the reactor section skips.
+	- ID: 2026100416545665
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-165456
+	- Opened by: found while working 2026100413480008
+	- Target OS: Linux
+	- Incorrect behavior: with no `go` on the PATH, both sections count failures.
+	- Expected behavior: they skip with a warning, as the reactor section does.
+	- Reproduced: no. Seen while testing 2026100413480008 with a stub `go` that acts as missing.
+
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
 	- Type: Enhancement
@@ -458,6 +415,34 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Probable fix: when the backup no longer matches, write the old bytes under a new name.
 	- Origin: `configupgrade.go:157-161`, from 9acc437 on 2026-10-03. Not seen by an earlier round. Plausible.
 
+- A failed write of the result still exits 0. (Code review 20261004 item 1)
+	- ID: 2026100413480001
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 569 of 569 on 20261004, on a tree with this fix merged.
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- `convert-base-v2 255 16 >/dev/full`
+	- Incorrect behavior: exit 0 with nothing written. Same for `--list`, `--get-index-count`, `--get-base-name` and a piped `-` input.
+	- Expected behavior: an error and a non-zero exit, as `-n 255 16`, `--version` and streaming already do.
+	- Reproduced: 20261004, with a stripped build.
+	- Possible cause: the result prints go through `fmt.Fprint*` with errcheck turned off for them, and nothing checks a flush. The `.golangci.yml` comment says every write that matters is checked; these are not.
+	- Probable fix: one buffered writer over stdout in `run()`, with the flush error returned.
+	- Origin: `main.go:509` and its siblings, from the first v1.0.0-rc1 commit ad488ce. Not seen by an earlier round. Confirmed.
+	- Sweep: every stdout write in `lib/cmd`, `lib/wasm` and `lib/reactor`.
+	- Actual cause: the result prints were unchecked, as the possible cause says. Only `-n` output, `--version`/`--help` and the streams checked their writes.
+	- Actual fix: one buffered writer over stdout in `run()`. It keeps the first write error, and the deferred flush returns it, so the run exits 1 with the error. The streams still write stdout directly and check their own writes. The errcheck exclusions in `.golangci.yml` add that writer's `WriteString`, and their comment now says where each kind of write is checked.
+	- Swept: every stdout write in `lib/cmd/convert-base-v2`, all in `main.go`: the info flags, `--list` and `--list-compat`, `--get-index-count`, `--get-base-name`, `--show-symbols` and `-0`, the newline after a stream, and the result. `lib/wasm` and `lib/reactor` write nothing to stdout, by `grep -n 'os.Stdout\|fmt.Print'`. The library's `Registry.Print` writes to the writer it is given, so its errors come out at the command's flush.
+	- Verified: 20261004, the harness sections from CLI surface through control-character escapes pass, 342 of 342, and so do the reactor, browser module and frontend parity sections. Output of 25 sample commands matched the dev build byte for byte, apart from the version stamp. go vet, golangci-lint, staticcheck and `go test ./...` clean.
+	- Branch: exit-fixes
+	- Commit: 7eb27c9
+	- Test case: harness check `Erm02E7`, 13 ways of writing a result to `/dev/full`. On dev 8 of them exit 0. With the fix all 13 fail with the write error.
+	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, the Sweep is answered, and the full suite passed.
+	- Closed: 20261004-165456
+
 - A field written under another field in a config file is ignored without a word.
 	- ID: 2026100314430255
 	- Type: Bug
@@ -488,6 +473,35 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Erg4X7J` TestConfigRejectsNestedField and the "nested" case in `Em2MFrs` TestConfigErrorsCiteLines; `Erg4X7I` "config nested field rejected" in the harness.
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261003-150028
+
+- One failing check can abort the test harness or lose its failure detail. (Code review 20261004 item 8)
+	- ID: 2026100413480008
+	- Type: Bug
+	- Status: Done
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior:
+		- A conversion that fails inside `x="$(...)"` kills the harness with HARNESS ABORTED, no summary, and the rest unrun.
+		- `fFirstDiff` runs `cmp`, which exits 1 on any difference, so a failed interop check prints false abort lines and loses its detail.
+		- With Go off the PATH, the reactor section aborts instead of skipping with its warning.
+	- Expected behavior: a failure is counted and reported, and the run goes on.
+	- Reproduced: 20261004, by the review, with scratch copies of each pattern.
+	- Origin: several commits from 4ff92e8 on 2026-07-10 to 36d7ccc on 2026-08-02. Not seen by an earlier round. Confirmed.
+	- Sweep: every command substitution in `cicd/test.bash` that runs the program, `cmp`, `diff`, `grep` or `go`. The review listed lines 155, 176, 364, 392, 415, 679, 702, 727, 749-823, 969-971, 1190, 1256, 1296, 1316, 1360, 1389 and 1395.
+	- Reproduced: 20261004, against a program that refuses everything. The run ended at the first capture in the CLI surface section.
+	- Actual cause: the harness runs under errexit, with an ERR trap that also fires inside `$( )` and `<( )`. A plain capture of a refused conversion ended the run. Inside a substitution the trap cut the output short wherever a non-zero status is the normal answer, as with `cmp` in `fFirstDiff`.
+	- Actual fix: the trap no longer ends a subshell, so the status goes to whatever reads it. A single run of the program is captured through `_run` or `_run_in`, which keep the status. A pipeline capture ends in `|| true`, and so do the `go env` lookups and the perf section's bare runs. The two fuzz loops skip an empty base list, since a modulo by its size ended the run.
+	- Note: a helper run through `$( )` no longer stops at its first failed command. Each one feeds a check that fails on a wrong result.
+	- Note: the self-check adds about 9 seconds to a run.
+	- Verified: a full harness run passed 569 of 569. The run against a program that refuses everything, with Go off the PATH, reached its summary with no abort. shellcheck shows no new warnings, and `test-ids.py check` passes.
+	- Swept: every capture in `cicd/test.bash` that runs the program, `cmp`, `diff`, `grep` or `go`. That is the CLI surface lists and counts, the `85ps` and config symbol reads, `cvec`, `nvec`, `pipecheck`, the pad, tail and `--binary` captures, the fuzz base count and names, and the reactor and browser `go env` lookups. The trap change covers `fFirstDiff`, the parity `diff` messages, the interop verify message and every `<( )` base listing. The perf section's bare runs were guarded too. A grep for assignments from `$( )` that name those tools and have no `||` or `&&` after leaves only `fFirstDiff` and helpers that make dirs or random input.
+	- Branch: harness-abort
+	- Commit: 2590437
+	- Test case: `ErmGPkH` "every check failing still reaches the summary", `ErmGPkf` "reactor section skips with Go off the PATH" and `ErmGPl4` "failed interop check keeps its detail". They run the harness against a program that refuses everything. All three fail before the fix and pass after. Putting back the old trap, the reactor lookup or one capture alone turns at least two of them red.
+	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
+	- Closed: 20261004-165412
 
 - Any failed fuzz run aborts the whole pipeline, including the deadline case meant to pass. (Code review 20261004 item 5)
 	- ID: 2026100413480005
