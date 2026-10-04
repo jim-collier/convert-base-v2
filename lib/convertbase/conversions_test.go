@@ -8,10 +8,13 @@ package convertbase
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
+	"io"
 	"math/big"
 	"math/rand"
 	"strings"
 	"testing"
+	"testing/iotest"
 )
 
 // Real unit tests for the conversion core. `make test` used to run only
@@ -86,6 +89,7 @@ func mustHex(t testing.TB, h string) string {
 // nvec() helper in test.bash.
 func runes(cps ...rune) string { return string(cps) }
 
+// Test ID: EjeDvPM
 func TestNumberVectors(t *testing.T) {
 	reg := newReg(t)
 	cases := []struct {
@@ -119,6 +123,7 @@ func TestNumberVectors(t *testing.T) {
 
 // prec = -1 asks Convert for auto precision: output frac length tracks the
 // input's, scaled by base size, so no invented tail. These pin the odd corners.
+// Test ID: Ejlud57
 func TestAutoPrecision(t *testing.T) {
 	reg := newReg(t)
 	cases := []struct{ from, to, in, want string }{
@@ -148,6 +153,32 @@ func TestAutoPrecision(t *testing.T) {
 	}
 }
 
+// A value smaller than one output digit rounds to nothing. It used to print an
+// invented zero fraction, with a sign on it when the value was negative.
+// Test ID: ErkSf4c
+func TestTinyFractionRoundsToZero(t *testing.T) {
+	reg := newReg(t)
+	dec10, hex16 := base(t, reg, "10"), base(t, reg, "16")
+	for _, c := range []struct {
+		in   string
+		to   *Base
+		prec int
+	}{
+		{"0.0001", hex16, 2},
+		{"-0.0001", hex16, 2},
+		{"0.0001", dec10, 3},
+		{"-0.0004", dec10, 3},
+	} {
+		got, err := Convert(c.in, dec10, c.to, c.prec)
+		if err != nil {
+			t.Errorf("Convert(%q, p%d): %v", c.in, c.prec, err)
+		} else if got != "0" {
+			t.Errorf("Convert(%q, p%d) = %q, want 0", c.in, c.prec, got)
+		}
+	}
+}
+
+// Test ID: EjeDvPN
 func TestCodecVectors(t *testing.T) {
 	reg := newReg(t)
 	bytesB := base(t, reg, "bytes")
@@ -182,6 +213,7 @@ func TestCodecVectors(t *testing.T) {
 	}
 }
 
+// Test ID: EjeDvPO
 func TestNativeBaseVectors(t *testing.T) {
 	reg := newReg(t)
 	bytesB := base(t, reg, "bytes")
@@ -226,6 +258,7 @@ func TestNativeBaseVectors(t *testing.T) {
 }
 
 // RFC 4648 vectors: every RFC variant pads to the group boundary in codec mode.
+// Test ID: EjeDvPP
 func TestRFCPaddingVectors(t *testing.T) {
 	reg := newReg(t)
 	bytesB := base(t, reg, "bytes")
@@ -272,6 +305,7 @@ func TestRFCPaddingVectors(t *testing.T) {
 
 // Crockford base32 decodes O as 0 and I/L as 1 (case-insensitive) but only ever
 // emits the strict alphabet.
+// Test ID: EjeDvPQ
 func TestCrockfordAsymmetric(t *testing.T) {
 	reg := newReg(t)
 	b32c := base(t, reg, "32c")
@@ -299,6 +333,7 @@ func TestCrockfordAsymmetric(t *testing.T) {
 	}
 }
 
+// Test ID: EjeDvPR
 func TestCustomSymbolsAndMarkers(t *testing.T) {
 	reg := newReg(t)
 	dec10 := base(t, reg, "10")
@@ -329,6 +364,7 @@ func TestCustomSymbolsAndMarkers(t *testing.T) {
 	}
 }
 
+// Test ID: EjeDvPS
 func TestSpecParser(t *testing.T) {
 	reg := newReg(t)
 	// Multi-token comma split: "0,1 2 3" is four digits.
@@ -347,8 +383,20 @@ func TestSpecParser(t *testing.T) {
 	}
 }
 
+// The spec parser holds escaped whitespace aside as noncharacters, so a spec
+// that already has one would turn it into a whitespace digit.
+// Test ID: ErkSf4d
+func TestSpecRejectsNoncharacters(t *testing.T) {
+	for _, r := range []rune{0xFDD0, 0xFFFE, 0xFFFF} {
+		if _, err := ParseSymbolSpec("a b " + string(r) + " c"); err == nil {
+			t.Errorf("spec with U+%04X should be refused", r)
+		}
+	}
+}
+
 // The retired marker tokens must be an error, never a digit symbol. Accepting
 // them as digits would silently shift a whole alphabet.
+// Test ID: El4bQL1
 func TestRetiredMarkerTokensRejected(t *testing.T) {
 	for _, spec := range []string{
 		"0123456789 neg=~",
@@ -371,6 +419,7 @@ func TestRetiredMarkerTokensRejected(t *testing.T) {
 }
 
 // Marker flags apply to any base, and must not disturb the shared registry copy.
+// Test ID: El4bQL2
 func TestApplyMarkers(t *testing.T) {
 	reg := newReg(t)
 	dec10 := base(t, reg, "10")
@@ -445,6 +494,7 @@ func TestApplyMarkers(t *testing.T) {
 // Padding is only ever applied on the bit-packed path, one character at a time.
 // A definition that can never take effect must be rejected where it is written,
 // not accepted and then quietly ignored.
+// Test ID: El51s2F
 func TestPadRejections(t *testing.T) {
 	reg := newReg(t)
 	pad := func(name, p string) error {
@@ -490,6 +540,7 @@ func TestPadRejections(t *testing.T) {
 }
 
 // Bad base definitions must be rejected by Finalize(), not silently accepted.
+// Test ID: EjeDvPT
 func TestFinalizeRejections(t *testing.T) {
 	reg := newReg(t)
 	bad := []string{
@@ -507,6 +558,7 @@ func TestFinalizeRejections(t *testing.T) {
 // Wrapped encoder output must decode back to the original, on both paths and at
 // wrap widths that fall inside a multi-byte digit. Line breaks have to be dropped
 // before the bytes are read as runes, or a split digit looks like bad UTF-8.
+// Test ID: El5P4dm
 func TestWrappedBinaryDecode(t *testing.T) {
 	reg := newReg(t)
 	bytesB := base(t, reg, "bytes")
@@ -579,6 +631,7 @@ func tailSymbols(n int) []string {
 // A user-defined base above 8 bits streams only once it declares a tail; without
 // one it falls back to the length-prefixed packing, which can't stream-encode.
 // Both layouts must still round-trip at every awkward length.
+// Test ID: El5mcJr
 func TestUserDefinedTail(t *testing.T) {
 	reg := newReg(t)
 	bytesB := base(t, reg, "bytes")
@@ -644,6 +697,7 @@ func TestUserDefinedTail(t *testing.T) {
 // A codec name and a tail layout share Base.BinaryScheme, so clearing a tail
 // must leave a codec alone. Otherwise --to-tail "" would quietly stop base45
 // and friends doing binary at all.
+// Test ID: El5mcJs
 func TestEmptyTailSparesCodecs(t *testing.T) {
 	reg := newReg(t)
 	for _, name := range []string{"45", "85ps", "85z", "91hk"} {
@@ -679,6 +733,7 @@ func TestEmptyTailSparesCodecs(t *testing.T) {
 
 // A tail that could never work is rejected where it is declared, not silently
 // ignored at conversion time.
+// Test ID: El5mcJt
 func TestTailValidation(t *testing.T) {
 	cases := []struct {
 		name    string
@@ -717,6 +772,7 @@ func TestTailValidation(t *testing.T) {
 // The crown-jewel test: the streaming and buffered binary paths must produce
 // identical output, for both encode and decode, across power-of-2 bases and many
 // lengths (the two are otherwise only ever tested against themselves).
+// Test ID: EjeDvPU
 func TestStreamBufferedEquivalence(t *testing.T) {
 	reg := newReg(t)
 	bytesB := base(t, reg, "bytes")
@@ -795,7 +851,41 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 	t.Logf("compared %d streamed/buffered encodings", streamed)
 }
 
+// A read that fails partway is an error, not the end of the input. Streaming
+// used to finish the output as if the data had run out, which looks complete.
+// Test ID: ErkSf4b
+func TestStreamReadErrorIsReported(t *testing.T) {
+	reg := newReg(t)
+	bin := base(t, reg, "bytes")
+	boom := errors.New("disk on fire")
+	for _, name := range []string{"64", "16", "2048tz", "65536qntm"} {
+		b := base(t, reg, name)
+		var enc bytes.Buffer
+		if _, err := StreamConvert(strings.NewReader("hello, world"), &enc, bin, b); err != nil {
+			t.Fatalf("%s: encode: %v", name, err)
+		}
+		legs := []struct {
+			dir      string
+			src      string
+			from, to *Base
+		}{
+			{"encode", "hello, world", bin, b},
+			{"decode", enc.String(), b, bin},
+		}
+		for _, leg := range legs {
+			r := io.MultiReader(strings.NewReader(leg.src), iotest.ErrReader(boom))
+			handled, err := StreamConvert(r, io.Discard, leg.from, leg.to)
+			if !handled {
+				t.Errorf("%s %s: not streamed", name, leg.dir)
+			} else if !errors.Is(err, boom) {
+				t.Errorf("%s %s: read error came back as %v", name, leg.dir, err)
+			}
+		}
+	}
+}
+
 // Random values round-trip through a spread of bases (number path).
+// Test ID: EjeDvPV
 func TestRoundTripNumber(t *testing.T) {
 	reg := newReg(t)
 	dec10 := base(t, reg, "10")
@@ -861,6 +951,7 @@ func naiveConvert(t *testing.T, input string, from, to *Base) string {
 // significant one. Only lengths either side of a chunk boundary show it, and a
 // wrong answer still looks like a plausible number, so pin it against the plain
 // one-digit-at-a-time version.
+// Test ID: Elm99Wy
 func TestDigitChunkBoundaries(t *testing.T) {
 	reg := newReg(t)
 	dec10 := base(t, reg, "10")
@@ -900,6 +991,7 @@ func TestDigitChunkBoundaries(t *testing.T) {
 // radix it can express it is a stronger oracle than the naive reference above,
 // which shares this code's own assumptions about chunking. Symbols map by
 // value, so the check holds whatever order a base's alphabet is in.
+// Test ID: ElmJ1ea
 func TestDivideConquerBoundaries(t *testing.T) {
 	const goDigits = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"
 	reg := newReg(t)
@@ -949,6 +1041,7 @@ func TestDivideConquerBoundaries(t *testing.T) {
 // Same boundaries on the fractional side. A fraction converted to its own base
 // has to come back unchanged, whatever the length, which is an exact check the
 // integer comparison above cannot give for fractions.
+// Test ID: Elm99Wz
 func TestFractionChunkBoundaries(t *testing.T) {
 	reg := newReg(t)
 	rng := rand.New(rand.NewSource(11))

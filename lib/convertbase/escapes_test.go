@@ -6,10 +6,12 @@
 package convertbase
 
 import (
+	"runtime"
 	"strings"
 	"testing"
 )
 
+// Test ID: Elotfax
 func TestExpandEscapes(t *testing.T) {
 	cases := []struct {
 		in, want string
@@ -43,6 +45,7 @@ func TestExpandEscapes(t *testing.T) {
 	}
 }
 
+// Test ID: Elotfay
 func TestExpandEscapesErrors(t *testing.T) {
 	for _, in := range []string{"⊳", "⊳ZZZ", "⊳x0", "⊳xZZ", "A⊳QQQ⊳LF", "⊳ "} {
 		if _, err := ExpandEscapes(in, nil); err == nil {
@@ -53,6 +56,7 @@ func TestExpandEscapesErrors(t *testing.T) {
 
 // A base owning the marker as a digit keeps it. Expanding there would turn its
 // own digits into something else.
+// Test ID: Elotfaz
 func TestExpandEscapesMarkerIsDigit(t *testing.T) {
 	b := &Base{Aliases: []string{"marky"}, Symbols: []string{"⊳", "L", "F", "a"}}
 	if err := b.Finalize(); err != nil {
@@ -74,6 +78,7 @@ func TestExpandEscapesMarkerIsDigit(t *testing.T) {
 // The round trip is the whole contract, and the place it can break is a control
 // character whose name runs into whatever follows it (SO before an H reads as
 // SOH). Every control against every ASCII character covers that exhaustively.
+// Test ID: Elotfb0
 func TestEscapeControlsRoundTrip(t *testing.T) {
 	var controls []byte
 	for c := 0; c < 0x20; c++ {
@@ -109,6 +114,7 @@ func TestEscapeControlsRoundTrip(t *testing.T) {
 	}
 }
 
+// Test ID: Elotfb1
 func TestEscapeControlsLeavesTextAlone(t *testing.T) {
 	const in = "Hello, World! 0123 ⊳ 日本"
 	if got := EscapeControls(in, nil); got != in {
@@ -117,6 +123,7 @@ func TestEscapeControlsLeavesTextAlone(t *testing.T) {
 }
 
 // End to end through the keyboard base, which is the reason any of this exists.
+// Test ID: Elotfb2
 func TestKeyboardBaseEscapes(t *testing.T) {
 	reg, err := NewRegistry()
 	if err != nil {
@@ -156,5 +163,23 @@ func TestKeyboardBaseEscapes(t *testing.T) {
 	}
 	if again != num {
 		t.Fatalf("escaped input gave %q, want %q", again, num)
+	}
+}
+
+// Each name is checked against the text after it. That check once copied the
+// whole rest of the value, so escaping a long value was quadratic. Count the
+// bytes allocated: linear stays near the input size, quadratic runs to gigabytes.
+// Test ID: ErkSf4f
+func TestEscapeControlsIsLinear(t *testing.T) {
+	in := strings.Repeat("\n", 64*1024)
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	out := EscapeControls(in, nil)
+	runtime.ReadMemStats(&after)
+	if want := strings.Repeat("⊳LF", len(in)); out != want {
+		t.Fatalf("escaped output is wrong, %d bytes", len(out))
+	}
+	if used := after.TotalAlloc - before.TotalAlloc; used > 64*uint64(len(in)) {
+		t.Errorf("escaping %d bytes allocated %d", len(in), used)
 	}
 }

@@ -22,6 +22,7 @@ import (
 // The written file has to name its format, or a later version cannot tell it
 // from one written under older rules. It also has to load cleanly and define
 // the worked example.
+// Test ID: Erg0gZ1
 func TestUserConfigIsStamped(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "sub", "convert-base-v2.shcl")
 	if !ensureUserConfig(path) {
@@ -123,6 +124,7 @@ func fileText(t *testing.T, path string) string {
 
 var upgradeTime = time.Date(2026, 10, 3, 14, 5, 9, 0, time.Local)
 
+// Test ID: ErgDzUQ
 func TestUpgradeConfigFile(t *testing.T) {
 	dir := t.TempDir()
 	path := writeOld(t, dir, oldUserConfig)
@@ -163,6 +165,7 @@ func TestUpgradeConfigFile(t *testing.T) {
 
 // A file the conversion cannot carry over is left exactly as it is, with no
 // backup, for LoadConfig to refuse.
+// Test ID: ErgDzUR
 func TestUpgradeConfigFileRefused(t *testing.T) {
 	dir := t.TempDir()
 	const text = "base: x\n\tsymbols: [ab]\n"
@@ -187,6 +190,7 @@ func TestUpgradeConfigFileRefused(t *testing.T) {
 
 // A directory that cannot be written loses nothing, and the run still reads
 // the file the old way.
+// Test ID: ErgDzUS
 func TestUpgradeConfigFileReadOnlyDir(t *testing.T) {
 	if os.Geteuid() == 0 || runtime.GOOS == "windows" {
 		t.Skip("a read-only mode on a directory does not stop root, or windows")
@@ -215,6 +219,7 @@ func TestUpgradeConfigFileReadOnlyDir(t *testing.T) {
 
 // The backup is made and then the write fails: the original stays at its
 // path, and the backup, now a second copy of it, goes.
+// Test ID: ErgDzUT
 func TestUpgradeConfigFileWriteFails(t *testing.T) {
 	dir := t.TempDir()
 	path := writeOld(t, dir, oldUserConfig)
@@ -236,6 +241,7 @@ func TestUpgradeConfigFileWriteFails(t *testing.T) {
 
 // A file that reads the same under both formats only gains the Format line.
 // When that cannot be written there is nothing to tell anyone.
+// Test ID: ErgDzUU
 func TestUpgradeConfigFileQuietWhenSame(t *testing.T) {
 	dir := t.TempDir()
 	path := writeOld(t, dir, "base: plain\n\tsymbols: 0123\n")
@@ -249,6 +255,7 @@ func TestUpgradeConfigFileQuietWhenSame(t *testing.T) {
 
 // A symlinked config, as a dotfiles checkout makes, stays a link. The target
 // is converted, and the backup sits beside it.
+// Test ID: ErgDzUV
 func TestUpgradeConfigFileSymlink(t *testing.T) {
 	realDir, linkDir := t.TempDir(), t.TempDir()
 	target := writeOld(t, realDir, oldUserConfig)
@@ -271,6 +278,7 @@ func TestUpgradeConfigFileSymlink(t *testing.T) {
 }
 
 // A file named with --config is read the old way and never rewritten.
+// Test ID: ErgDzUW
 func TestExplicitConfigNote(t *testing.T) {
 	dir := t.TempDir()
 	path := writeOld(t, dir, oldUserConfig)
