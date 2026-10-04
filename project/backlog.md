@@ -120,7 +120,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `checksums.txt` names a prerelease `.deb` or `.rpm` with a `~`, but GitHub serves the file with a `.` there.
 	- ID: 2026100412472515
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its new release packaging section was run, 3 of 3.
+	- Needs external testing: The next beta on GitHub. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
 	- Severity: Avg
 	- Opened: 20261004-124725
 	- Opened by: found while working 2026100409572736
@@ -130,13 +132,24 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Incorrect behavior: nfpm names the packages `3.1.0~beta1`, `checksums.txt` lists that name, and GitHub serves `3.1.0.beta1`, so the check can't find the files.
 	- Expected behavior: the names in `checksums.txt` match the names served.
 	- Reproduced: not yet. Read only; no prerelease has shipped packages so far. The next release is a beta.
+		- 20261004: packaging v9.9.9-beta1 put four `~` names in `checksums.txt`. With the files under the names GitHub would serve, `sha256sum -c` could not find those four.
 	- Possible cause: packaging hashes before GitHub's rename. Rename before hashing.
+	- Actual cause: nfpm names the file after the package version, which has a `~` for a prerelease, and nothing changed that name before the checksums were taken.
+	- Actual fix: packaging renames any file GitHub would rename to the name GitHub serves, before it writes `checksums.txt`. Two files that would end up with one name stop the run. The version inside the package keeps the `~`.
+	- Sweep: everything that builds or reads an asset name.
+	- Swept: `release-notes.bash` already links the served name, and now finds the renamed packages with no warning. `install.bash` fetches only the bare binary and `checksums.txt`, and neither name has a `~`. The release workflow uploads `lib/dist/*` as written. `cicd.bash` counts the files by extension. The installer shows the version but its file name has none.
+	- Verified: a v9.9.9-beta1 package run names all four packages with a `.`, and `sha256sum -c checksums.txt` passes beside them. `dpkg-deb` and `rpm` read `9.9.9~beta1` from inside them, and dpkg sorts that below 9.9.9. `ErlP6Bg` fails with dev's packaging and passes with the fix. `ErlP6CE` passes on both, and fails when the package version is given a `.` in place of the `~`. Nothing was tagged or published.
+	- Branch: pkg-repro
+	- Commit: cdd002f
+	- Test case: `ErlP6Bg` "prerelease packages named as GitHub serves them" and `ErlP6CE` "prerelease package version keeps its ~" in the harness.
 
 
 - The release archives and packages don't rebuild to the same bytes.
 	- ID: 2026100412472615
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its new release packaging section was run, 3 of 3.
+	- Needs external testing: After the next release, rebuild its tag with the Go, nfpm and NSIS versions the workflow used, and compare with its `checksums.txt`. NSIS comes from the runner's apt, so its version has to be read from the workflow log.
 	- Severity: Low
 	- Opened: 20261004-124726
 	- Opened by: found while working 2026100409572736
@@ -146,7 +159,18 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Incorrect behavior: every bare binary and the `.wasm` match, but the `.tgz`, `.zip`, `.deb`, `.rpm` and installer checksums differ.
 	- Expected behavior: a rebuild of one commit matches the published checksums for every asset.
 	- Reproduced: 20261004.
+		- 20261004: again on dev. Two v9.9.9-beta1 runs a few seconds apart differed in 15 of 25 files, every archive, package and installer.
 	- Possible cause: file times and archive headers taken from the clock. Probably fixed by setting them from the commit's time.
+	- Actual cause: each binary went into its archive or installer with the time it was built and a mode from the umask. nfpm stamped the packages with the clock and the rpm with the host name, and took the license file's checkout time and mode. The zip kept local time and owner fields. The Go builds also took a VCS stamp, so a dirty tree or a source tarball built other bytes.
+	- Actual fix: every file that goes into an asset gets the commit's time and a fixed mode. The tarballs have fixed owners and no gzip time, the zip is made in UTC without the extra fields, and nfpm takes the commit's time, a fixed build host and a fixed license mode. The Go builds have no VCS stamp or build ID. `checksums.txt` is sorted the same in any locale.
+	- Sweep: every file package.bash writes.
+	- Swept: all 25 files of a full run, the macOS universal build and the `.wasm` included. `make release` runs package.bash, and no other path builds a release asset.
+	- Verified: two package runs a few seconds apart, the second with another umask and time zone, gave the same checksums for all 25 files. So did a run from a dirty tree against one from a clean export of the commit at another path. `ErlP6B8` fails with dev's packaging, naming the 15 files, and passes with the fix. It also fails when the zip loses its fixed time zone. The macho-fat tests pass and the universal build still has both slices.
+	- Note: no part was left open. The installer rebuilt the same once its input had a fixed time.
+	- Note: matching a published checksum needs the same tool versions. Go and nfpm are pinned. NSIS, tar, gzip and zip come from the OS, and NSIS is the one most likely to differ between a runner and a local box.
+	- Branch: pkg-repro
+	- Commit: cdd002f
+	- Test case: `ErlP6B8` "release assets rebuild to the same bytes" in the harness.
 
 
 - A field written under another field in a config file is ignored without a word.
