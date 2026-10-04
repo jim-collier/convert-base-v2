@@ -178,6 +178,26 @@ func TestTinyFractionRoundsToZero(t *testing.T) {
 	}
 }
 
+// A lone decimal marker, with or without a sign, has no digits. It used to be
+// read as zero. Either side of the marker alone is still a number.
+// Test ID: Erlz3L2
+func TestMarkersWithoutDigits(t *testing.T) {
+	reg := newReg(t)
+	dec10, hex16 := base(t, reg, "10"), base(t, reg, "16")
+	for _, in := range []string{".", "-.", "-"} {
+		got, err := Convert(in, dec10, hex16, -1)
+		if err == nil || err.Error() != "no digits in input" {
+			t.Errorf("Convert(%q) = %q, %v; want error \"no digits in input\"", in, got, err)
+		}
+	}
+	for in, want := range map[string]string{".5": "0.8", "-.5": "-0.8", "5.": "5", "-5.": "-5"} {
+		got, err := Convert(in, dec10, hex16, -1)
+		if err != nil || got != want {
+			t.Errorf("Convert(%q) = %q, %v; want %q", in, got, err, want)
+		}
+	}
+}
+
 // Test ID: EjeDvPN
 func TestCodecVectors(t *testing.T) {
 	reg := newReg(t)

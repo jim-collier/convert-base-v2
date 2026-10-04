@@ -541,6 +541,8 @@ check Ejlud56 errmsg "precision bad word"   'non-negative integer or'           
 check EizUJE3 errmsg "empty input"          'empty input'                        -- "" 16
 check EizUJE4 err   "multiple decimals"     -                                     -- --from 10 1.2.3 16
 check EizUJE5 err   "double negative"       -                                     -- -- --5 16
+## A decimal marker with no digits on either side is not zero.
+for nd in . -.; do check ErlzAd6 errmsg "no digits: '${nd}'" 'no digits in input' -- --from 10 --to 16 -- "$nd"; done
 
 ## Conflicting base selectors: still convert, but emit a stderr note (BxZNl-17).
 _run --to 16 255 8
@@ -1385,6 +1387,8 @@ else
 		fi
 		parity_case 10 "$pname" 8 "-255.755"
 	done
+	parity_case 10 16 -1 "."
+	parity_case 10 16 -1 "-."
 	if "${MODDRV}" <"$preq" >"$pout" 2>"${CBT_ERR}"; then
 		cmp -s "$pcli" "$pout" && _pass EloQXv6 "module answers match the command (${pn} cases)" || _fail EloQXv6 "module answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
 	else
