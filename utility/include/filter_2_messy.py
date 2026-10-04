@@ -3,7 +3,33 @@
 """
 Purpose:
 	Filters out unicode characters that are too "messy", e.g. have diacritics, or
-	are ASCII-like puncuation symbols.
+	are ASCII-like punctuation symbols.
+	Same CLI and import API as 'filter_1_junk.py' and 'filter_3_visual.py'. Input
+	may or may not be delimited with whitespace.
+
+	Filtered out:
+	1. Universal:
+		- Anything that looks even a little like a Capital or lowercase letter "O"
+		- Obvious numbers (e.g. numbered balls, fractions, etc.)
+	2. Except for complex east-asian "wide" characters:
+		- Characters with built-in diacritics
+		- Most middle-barred characters that look "crossed-out"
+		- Things that look like ASCII keyboard symbols
+		- Combined Letters, e.g. "ᴁ"
+		- Glyphs that look like the same horizontally repeated symbol, or different symbols separated horizontally
+		- Straight vertical lines that look like pipe symbol
+		- Straight horizontal lines that look like dash or mdash
+		- Plain middle dots except for symbols code block
+		- Any grouping of just dots
+		- Graphical symbols (e.g. emoji)
+		- Adjacent symbols that look nearly identical (keep the first occurrence)
+		- Nearby symbols in same set that differ only by a tiny extra flourish (keep the simplest)
+		- Bitmap-rendered symbols
+		- Real symbols that look like symbols for tofu "can't render"
+		- Math symbols unless in ANSI or a math symbols code block
+		- If an ASCII character is in between two non-ASCII characters, remove it
+		- If a character decomposes to two characters, remove them both
+	It works from metadata and online reference only. The visual checks are in 'filter_3_visual.py'.
 
 Copyright (c) 2026 Bubbles
 Licensed under the GNU General Public License v2.0 or later. Full text at:
@@ -444,34 +470,3 @@ if __name__ == '__main__':
 	args = [a for a in sys.argv[1:] if a != '--debug']
 	text = ' '.join(args) if args else sys.stdin.read().strip()
 	print(extract(text, debug=debug))
-
-
-"""
-Use the same CLI interface, and a simiar Python-importable API as 'filter_1_junk.py' and 'filter_3_visual.py'. Requirements:
-1. For unicode input, which may or may not be delimited with whitespace, filter out characters:
-1.1 Universal:
-	- Anything that looks even a little like a Capital or lowercase letter "O"
-	- Obvious numbers (e.g. numbered balls, fractions, etc.)
-1.2 Except for complex east-asian "wide" characters:
-	- Characters with built-in diacritics
-	- Most middle-barred characters that look "crossed-out"
-	- Things that look like ASCII keyboard symbols
-	- Combined Letters, e.g. "ᴁ"
-	- Glyphs that look like the same horizontally repeated symbol, or different symbols separated horizontally
-	- Straight vertical lines that look like pipe symbol
-	- Straight horizontal lines that look like dash or mdash
-	- Plain middle dots except for symbols code block
-	- Any grouping of just dots
-	- Graphical symbols (e.g. emoji)
-	- Adjacent symbols that look nearly identical (keep the first occurrence)
-	- Nearby symbols in same set that differ only by a tiny extra flourish (keep the simplest)
-	- Bitmap-rendered symbols [this script can't fix]
-	- Real symbols that look like symbols for tofu "can't render"
-	- Math symbols unless in ANSI or a math symbols code block
-	- If an ASCII character is in between two non-ASCII characters, remove it
-	- If a character decomposes to two characters, remove them both
-1.3 Misc
-	- Try not to repeat logic from 'filter_1_junk.py', unless necessary.
-	- Don't repeat the visual system from 'filter_3_visual.py'. Just do the best you can with metadata or online reference.
-	- Don't modify 'filter_1_junk.py' or 'filter_3_visual.py'
-"""
