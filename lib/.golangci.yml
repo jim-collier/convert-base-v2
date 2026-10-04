@@ -21,12 +21,15 @@ linters:
       - shcl/
   settings:
     errcheck:
-      # Diagnostic/help/usage output goes to os.Stderr via the fmt.Fprint family,
-      # where a write error is not actionable (if stderr is broken we cannot report
-      # it anyway). Where the write target matters (the buffered --show-symbols
-      # writer) the real error is caught at the checked w.Flush(). So skip errcheck
-      # on this family rather than wrapping every diagnostic print in a dead check.
+      # Notes and errors go to os.Stderr, where a failed write can't be reported
+      # anyway. Results go to stdout through the one bufio.Writer in run(), which
+      # keeps the first write error and returns it from the deferred Flush, so a
+      # check at each print would be dead code. Help and --version build a string
+      # first and write it through that writer too. Anything written straight to
+      # a file or to os.Stdout, the streams included, is not on this list and
+      # stays checked.
       exclude-functions:
         - fmt.Fprint
         - fmt.Fprintf
         - fmt.Fprintln
+        - (*bufio.Writer).WriteString
