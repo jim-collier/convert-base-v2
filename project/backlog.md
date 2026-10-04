@@ -88,6 +88,50 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 44ed0be
 	- Test case: `Erm5wwf` TestTailNeedsOneCharDigits, `Erm5wxB` "tail on two-character digits rejected" and `Erm5wxg` "config tail on two-character digits rejected". All three fail before the fix and pass after.
 
+- The dogfood stage reports a failed copy as installed. (Code review 20261004 item 11)
+	- ID: 2026100413480011
+	- Type: Bug
+	- Status: Waiting on signoff
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior: when `cp` fails under `$HOME`, "OK: installed" prints anyway. Outside `$HOME` it runs `sudo` with no guard, which blocks a `-q` run on a password prompt.
+	- Expected behavior: a failed copy is an error. `sudo` only with `-n`, and never when unattended.
+	- Reproduced: 20261004, by the review, with the block in a scratch script.
+	- Origin: `cicd.bash:411-414`, from 9c40e8d on 2026-07-12. Not seen by an earlier round. Confirmed.
+	- Actual cause: the `cp` result was tested only together with the `$HOME` check, so under `$HOME` a failure went unseen, and outside it `sudo` could prompt.
+	- Actual fix: a failed copy ends the run with an error. Outside `$HOME`, an attended run tries `sudo -n` once, which never prompts. A `-y` or `-q` run doesn't try `sudo` at all.
+	- Swept: no other `sudo` in `cicd/`, `utility/` or `install.bash`, outside `legacy/`.
+	- Branch: cicd-fixes
+	- Commit: ffeed2e
+	- Test case: `ErmCp2J` "dogfood: a failed copy under HOME is an error", `ErmCp2K` "dogfood: an unattended run never calls sudo" and `ErmCp2L` "dogfood: an attended run tries only sudo -n". All three fail on dev and pass after.
+	- Acceptance signoff: open, since it changes when the pipeline uses sudo.
+
+- In `cicd.bash`, `-q` does the same as `-y`, and `--quick` doesn't reach the harness. (Code review 20261004 item 12)
+	- ID: 2026100413480012
+	- Type: Bug
+	- Status: Waiting on signoff
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior: `quiet` is set and never read, though the help says `-y` is "unattended but not quiet". The harness still runs its two packaging rebuilds, about 6 s each, under `--quick`.
+	- Expected behavior: `-q` cuts stage chatter or is merged into `-y`, and `--quick` skips the packaging rebuild check.
+	- Reproduced: 20261004, by the review. Shellcheck flags `quiet` as unused once the blanket disables are off.
+	- Origin: `cicd.bash:86` from a8d50ce on 2026-07-09. Not seen by an earlier round. Confirmed.
+	- Actual cause: nothing read `quiet`, and the harness call had no quick knob.
+	- Decisions:
+		- `-q` keeps its own meaning, since the help already sets it apart from `-y`. It drops the plan and the progress lines. Stage headers, results, warnings, errors and the output of each stage's tools still print.
+	- Actual fix: the plan and progress lines go through a helper that `-q` silences. Under `--quick` the engine passes `CICDTEST_QUICK=1`, and the harness skips the two packaging runs and lists their four checks as skipped.
+	- Note: a `-q` run still prints every harness and unit test line. Quieting those too would take a harness knob, and is left alone.
+	- Swept: every `fEcho_Clean` in `cicd.bash`. The ones left are spacing, the flamegraph path and hot spots, and the missing-utility notices.
+	- Verified: 20261004, the packaging section passes in full without the knob, and shows its four checks skipped with it.
+	- Branch: cicd-fixes
+	- Commit: ffeed2e
+	- Test case: `ErmCp2H` "--quick reaches the harness" and `ErmCp2I` "-q drops the plan and progress lines, not the stage results". Both fail on dev and pass after. The harness side of the skip has no check, since that would run the harness inside itself.
+	- Acceptance signoff: open, since what `-q` hides is a call on output.
+
 - A failed write of the result still exits 0. (Code review 20261004 item 1)
 	- ID: 2026100413480001
 	- Type: Bug
@@ -176,53 +220,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Origin: the registry design from ad488ce. The cost was noted in passing on 2026-08-02 and in G12, never filed. Confirmed by timing and pprof.
 	- Related IDs: 2026100413480018
 
-- Any failed fuzz run aborts the whole pipeline, including the deadline case meant to pass. (Code review 20261004 item 5)
-	- ID: 2026100413480005
-	- Type: Bug
-	- Status: Done
-	- Severity: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Steps to reproduce:
-		- A fuzz target that exits non-zero, such as Go's bare `context deadline exceeded`.
-	- Incorrect behavior: the ERR trap fires at the `go test | tee` line and cicd prints CICD ABORTED. The check that tells a deadline from a real find never runs, and the temp log stays in `/tmp`.
-	- Expected behavior: the deadline case passes with a note, as G18 says, and a real find fails the stage with its own message.
-	- Reproduced: 20261004, with the same trap and pipeline in a scratch script. `set +e` does not stop the ERR trap.
-	- Origin: `cicd.bash:303-306`, from 6e3fd63 "Fuzz stage fixes" on 2026-08-01, on top of the trap from a8d50ce. Not seen by an earlier round. Confirmed.
-	- Actual cause: the ERR trap fires on a failed pipeline whatever `set +e` says, so the stage aborted before it read the log.
-	- Actual fix: the fuzz run is guarded with `||`, so its status reaches the check. The deadline case passes with its note, a real find fails the stage with its own message, and the temp log is removed either way.
-	- Swept: no other `set +e` or `PIPESTATUS` in `cicd/`, `utility/` or `install.bash`, outside `legacy/`. The other pipelines in `cicd.bash` already end in `|| fDie`.
-	- Verified: 20261004, on dev both cases abort with CICD ABORTED and leave the temp log behind.
-	- Branch: cicd-fixes
-	- Commit: ffeed2e
-	- Test case: `ErmCp2E` "fuzz deadline passes with a note, and its log is removed" and `ErmCp2F` "fuzz find fails the stage with its own message". Both fail before the fix and pass after.
-	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after.
-	- Closed: 20261004-161813
-
-- The constant-memory check never runs in a normal pipeline. (Code review 20261004 item 7)
-	- ID: 2026100413480007
-	- Type: Bug
-	- Status: Done
-	- Severity: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Incorrect behavior: the harness's perf section, with the streaming memory guard, runs only with `--long`. Its header still says the engine turns it on unless `--quick`.
-	- Expected behavior: it runs on every non-quick pipeline.
-	- Reproduced: 20261004. Nothing sets `CICDTEST_DO_PERF` any more.
-	- Possible cause: a8d50ce on 2026-07-09 dropped `CICDTEST_DO_PERF` from the harness call in `cicd.bash`.
-	- Origin: regression of 8df148a "Run perf stage unless quick" on 2026-07-06. Not seen by an earlier round. Confirmed.
-	- Actual cause: as the possible cause says. The harness call lost `CICDTEST_DO_PERF` when the engine was rewritten.
-	- Actual fix: the engine sets `CICDTEST_DO_PERF=1` on the harness call unless `--quick`. A long run still turns it on by itself.
-	- Swept: the harness reads `CICDTEST_EXE`, `CICDTEST_DO_LONGTEST`, `CICDTEST_DO_PERF`, `CICDTEST_QUICK` and `CICDTEST_FUZZ_ITERS`. The engine sets all but the last, which is a manual override.
-	- Verified: 20261004, the perf section alone against the current build passes 36 of 36, the constant-memory check on every power-of-2 base included. It adds about 35 s to a normal run.
-	- Branch: cicd-fixes
-	- Commit: ffeed2e
-	- Test case: `ErmCp2G` "harness perf section asked for", for a full and a `--quick` run. It fails before the fix and passes after.
-	- Acceptance signoff: Self-closed: restores 8df148a, and its test failed before the fix and passes after.
-	- Closed: 20261004-161813
-
 - One failing check can abort the test harness or lose its failure detail. (Code review 20261004 item 8)
 	- ID: 2026100413480008
 	- Type: Bug
@@ -239,29 +236,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Reproduced: 20261004, by the review, with scratch copies of each pattern.
 	- Origin: several commits from 4ff92e8 on 2026-07-10 to 36d7ccc on 2026-08-02. Not seen by an earlier round. Confirmed.
 	- Sweep: every command substitution in `cicd/test.bash` that runs the program, `cmp`, `diff`, `grep` or `go`. The review listed lines 155, 176, 364, 392, 415, 679, 702, 727, 749-823, 969-971, 1190, 1256, 1296, 1316, 1360, 1389 and 1395.
-
-- `bench-encoders.bash` and `gen-screenshots.bash` use base names and flags that were removed. (Code review 20261004 item 10)
-	- ID: 2026100413480010
-	- Type: Bug
-	- Status: Done
-	- Severity: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Incorrect behavior: `bench-encoders.bash` times error exits from `--from binary` and `--raw`, and reports 2,211 MiB/s decode for them. The README says its throughput table can be reproduced with this script. `gen-screenshots.bash` uses `20w` and `binary` and would die at screenshot 4.
-	- Expected behavior: both use `bytes` and `20ws`, and the benchmark fails on a non-zero exit.
-	- Reproduced: 20261004, by the review, for bench-encoders. gen-screenshots was checked by base lookup only, since it writes into `assets/`.
-	- Origin: bench-encoders from d47b533 on 2026-07-06, gen-screenshots from 0c6709c on 2026-07-25; both went stale with later renames. Not seen by an earlier round. Confirmed.
-	- Actual cause: both scripts predate the 20260708 renames to `bytes` and `--no-newline`, and `20w` was dropped later. The benchmark threw away each command's errors, so an error exit was timed as a result.
-	- Actual fix: both use `bytes` and `20ws`. The benchmark stops on a failed command and prints it with its error. The screenshot script stops before drawing a picture once any of its commands has failed, instead of drawing an empty line.
-	- Note: the README throughput table is from 20260706, before the rename, so its numbers came from working commands.
-	- Swept: no other `--from binary`, `--to binary`, `--raw` or `20w` in the scripts, README or demo scenario. A comment in `registry.go` said `--to binary` and now says `bytes`. Two dated design docs keep the old names as history.
-	- Verified: 20261004, the screenshot script ran every scene against the current build without drawing anything or touching `assets/`. The benchmark ran at 1 MiB against the current build.
-	- Branch: cicd-fixes
-	- Commit: db57771
-	- Test case: `ErmCp2M` "bench-encoders stops on a failed conversion", `ErmCp2N` "bench-encoders runs every convert-base-v2 row", `ErmCp2O` "gen-screenshots: every command in every scene works" and `ErmCp2P` "gen-screenshots draws nothing after a failed command". `ErmCp2M`, `ErmCp2O` and `ErmCp2P` fail on dev. `ErmCp2N` passes on dev, which hid the errors, and fails with one old name put back.
-	- Acceptance signoff: Self-closed: the names are mechanical, and the tests failed before the fix and pass after.
-	- Closed: 20261004-161813
 
 - `ParseSymbolSpec` splits every token on commas before checking for one, and rebuilds a replacer per token. (Code review 20261004 item 18)
 	- ID: 2026100413480018
@@ -312,50 +286,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Origin: the lint stage from a8d50ce on 2026-07-09. Directive gap, filed against the 2026-10-04 directives.
 	- Prereq IDs: 2026100413480032
 	- Note: item 32 answered. ruff's naming rules stay on, with `flame-report.py` excluded since it came from silkterm.
-
-- The dogfood stage reports a failed copy as installed. (Code review 20261004 item 11)
-	- ID: 2026100413480011
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Severity: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Incorrect behavior: when `cp` fails under `$HOME`, "OK: installed" prints anyway. Outside `$HOME` it runs `sudo` with no guard, which blocks a `-q` run on a password prompt.
-	- Expected behavior: a failed copy is an error. `sudo` only with `-n`, and never when unattended.
-	- Reproduced: 20261004, by the review, with the block in a scratch script.
-	- Origin: `cicd.bash:411-414`, from 9c40e8d on 2026-07-12. Not seen by an earlier round. Confirmed.
-	- Actual cause: the `cp` result was tested only together with the `$HOME` check, so under `$HOME` a failure went unseen, and outside it `sudo` could prompt.
-	- Actual fix: a failed copy ends the run with an error. Outside `$HOME`, an attended run tries `sudo -n` once, which never prompts. A `-y` or `-q` run doesn't try `sudo` at all.
-	- Swept: no other `sudo` in `cicd/`, `utility/` or `install.bash`, outside `legacy/`.
-	- Branch: cicd-fixes
-	- Commit: ffeed2e
-	- Test case: `ErmCp2J` "dogfood: a failed copy under HOME is an error", `ErmCp2K` "dogfood: an unattended run never calls sudo" and `ErmCp2L` "dogfood: an attended run tries only sudo -n". All three fail on dev and pass after.
-	- Acceptance signoff: open, since it changes when the pipeline uses sudo.
-
-- In `cicd.bash`, `-q` does the same as `-y`, and `--quick` doesn't reach the harness. (Code review 20261004 item 12)
-	- ID: 2026100413480012
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Severity: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Incorrect behavior: `quiet` is set and never read, though the help says `-y` is "unattended but not quiet". The harness still runs its two packaging rebuilds, about 6 s each, under `--quick`.
-	- Expected behavior: `-q` cuts stage chatter or is merged into `-y`, and `--quick` skips the packaging rebuild check.
-	- Reproduced: 20261004, by the review. Shellcheck flags `quiet` as unused once the blanket disables are off.
-	- Origin: `cicd.bash:86` from a8d50ce on 2026-07-09. Not seen by an earlier round. Confirmed.
-	- Actual cause: nothing read `quiet`, and the harness call had no quick knob.
-	- Decisions:
-		- `-q` keeps its own meaning, since the help already sets it apart from `-y`. It drops the plan and the progress lines. Stage headers, results, warnings, errors and the output of each stage's tools still print.
-	- Actual fix: the plan and progress lines go through a helper that `-q` silences. Under `--quick` the engine passes `CICDTEST_QUICK=1`, and the harness skips the two packaging runs and lists their four checks as skipped.
-	- Note: a `-q` run still prints every harness and unit test line. Quieting those too would take a harness knob, and is left alone.
-	- Swept: every `fEcho_Clean` in `cicd.bash`. The ones left are spacing, the flamegraph path and hot spots, and the missing-utility notices.
-	- Verified: 20261004, the packaging section passes in full without the knob, and shows its four checks skipped with it.
-	- Branch: cicd-fixes
-	- Commit: ffeed2e
-	- Test case: `ErmCp2H` "--quick reaches the harness" and `ErmCp2I` "-q drops the plan and progress lines, not the stage results". Both fail on dev and pass after. The harness side of the skip has no check, since that would run the harness inside itself.
-	- Acceptance signoff: open, since what `-q` hides is a call on output.
 
 - The "Config files" part of `--help` can be wrong or missing. (Code review 20261004 item 13)
 	- ID: 2026100413480013
@@ -546,6 +476,76 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Erg4X7J` TestConfigRejectsNestedField and the "nested" case in `Em2MFrs` TestConfigErrorsCiteLines; `Erg4X7I` "config nested field rejected" in the harness.
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261003-150028
+
+- Any failed fuzz run aborts the whole pipeline, including the deadline case meant to pass. (Code review 20261004 item 5)
+	- ID: 2026100413480005
+	- Type: Bug
+	- Status: Done
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Steps to reproduce:
+		- A fuzz target that exits non-zero, such as Go's bare `context deadline exceeded`.
+	- Incorrect behavior: the ERR trap fires at the `go test | tee` line and cicd prints CICD ABORTED. The check that tells a deadline from a real find never runs, and the temp log stays in `/tmp`.
+	- Expected behavior: the deadline case passes with a note, as G18 says, and a real find fails the stage with its own message.
+	- Reproduced: 20261004, with the same trap and pipeline in a scratch script. `set +e` does not stop the ERR trap.
+	- Origin: `cicd.bash:303-306`, from 6e3fd63 "Fuzz stage fixes" on 2026-08-01, on top of the trap from a8d50ce. Not seen by an earlier round. Confirmed.
+	- Actual cause: the ERR trap fires on a failed pipeline whatever `set +e` says, so the stage aborted before it read the log.
+	- Actual fix: the fuzz run is guarded with `||`, so its status reaches the check. The deadline case passes with its note, a real find fails the stage with its own message, and the temp log is removed either way.
+	- Swept: no other `set +e` or `PIPESTATUS` in `cicd/`, `utility/` or `install.bash`, outside `legacy/`. The other pipelines in `cicd.bash` already end in `|| fDie`.
+	- Verified: 20261004, on dev both cases abort with CICD ABORTED and leave the temp log behind.
+	- Branch: cicd-fixes
+	- Commit: ffeed2e
+	- Test case: `ErmCp2E` "fuzz deadline passes with a note, and its log is removed" and `ErmCp2F` "fuzz find fails the stage with its own message". Both fail before the fix and pass after.
+	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after.
+	- Closed: 20261004-161813
+
+- The constant-memory check never runs in a normal pipeline. (Code review 20261004 item 7)
+	- ID: 2026100413480007
+	- Type: Bug
+	- Status: Done
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior: the harness's perf section, with the streaming memory guard, runs only with `--long`. Its header still says the engine turns it on unless `--quick`.
+	- Expected behavior: it runs on every non-quick pipeline.
+	- Reproduced: 20261004. Nothing sets `CICDTEST_DO_PERF` any more.
+	- Possible cause: a8d50ce on 2026-07-09 dropped `CICDTEST_DO_PERF` from the harness call in `cicd.bash`.
+	- Origin: regression of 8df148a "Run perf stage unless quick" on 2026-07-06. Not seen by an earlier round. Confirmed.
+	- Actual cause: as the possible cause says. The harness call lost `CICDTEST_DO_PERF` when the engine was rewritten.
+	- Actual fix: the engine sets `CICDTEST_DO_PERF=1` on the harness call unless `--quick`. A long run still turns it on by itself.
+	- Swept: the harness reads `CICDTEST_EXE`, `CICDTEST_DO_LONGTEST`, `CICDTEST_DO_PERF`, `CICDTEST_QUICK` and `CICDTEST_FUZZ_ITERS`. The engine sets all but the last, which is a manual override.
+	- Verified: 20261004, the perf section alone against the current build passes 36 of 36, the constant-memory check on every power-of-2 base included. It adds about 35 s to a normal run.
+	- Branch: cicd-fixes
+	- Commit: ffeed2e
+	- Test case: `ErmCp2G` "harness perf section asked for", for a full and a `--quick` run. It fails before the fix and passes after.
+	- Acceptance signoff: Self-closed: restores 8df148a, and its test failed before the fix and passes after.
+	- Closed: 20261004-161813
+
+- `bench-encoders.bash` and `gen-screenshots.bash` use base names and flags that were removed. (Code review 20261004 item 10)
+	- ID: 2026100413480010
+	- Type: Bug
+	- Status: Done
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior: `bench-encoders.bash` times error exits from `--from binary` and `--raw`, and reports 2,211 MiB/s decode for them. The README says its throughput table can be reproduced with this script. `gen-screenshots.bash` uses `20w` and `binary` and would die at screenshot 4.
+	- Expected behavior: both use `bytes` and `20ws`, and the benchmark fails on a non-zero exit.
+	- Reproduced: 20261004, by the review, for bench-encoders. gen-screenshots was checked by base lookup only, since it writes into `assets/`.
+	- Origin: bench-encoders from d47b533 on 2026-07-06, gen-screenshots from 0c6709c on 2026-07-25; both went stale with later renames. Not seen by an earlier round. Confirmed.
+	- Actual cause: both scripts predate the 20260708 renames to `bytes` and `--no-newline`, and `20w` was dropped later. The benchmark threw away each command's errors, so an error exit was timed as a result.
+	- Actual fix: both use `bytes` and `20ws`. The benchmark stops on a failed command and prints it with its error. The screenshot script stops before drawing a picture once any of its commands has failed, instead of drawing an empty line.
+	- Note: the README throughput table is from 20260706, before the rename, so its numbers came from working commands.
+	- Swept: no other `--from binary`, `--to binary`, `--raw` or `20w` in the scripts, README or demo scenario. A comment in `registry.go` said `--to binary` and now says `bytes`. Two dated design docs keep the old names as history.
+	- Verified: 20261004, the screenshot script ran every scene against the current build without drawing anything or touching `assets/`. The benchmark ran at 1 MiB against the current build.
+	- Branch: cicd-fixes
+	- Commit: db57771
+	- Test case: `ErmCp2M` "bench-encoders stops on a failed conversion", `ErmCp2N` "bench-encoders runs every convert-base-v2 row", `ErmCp2O` "gen-screenshots: every command in every scene works" and `ErmCp2P` "gen-screenshots draws nothing after a failed command". `ErmCp2M`, `ErmCp2O` and `ErmCp2P` fail on dev. `ErmCp2N` passes on dev, which hid the errors, and fails with one old name put back.
+	- Acceptance signoff: Self-closed: the names are mechanical, and the tests failed before the fix and pass after.
+	- Closed: 20261004-161813
 
 - `check-release.bash` and `install.bash` exit without their own error messages. (Code review 20261004 item 9)
 	- ID: 2026100413480009
