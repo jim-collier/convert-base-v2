@@ -244,6 +244,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: a full harness run passed 569 of 569. The run against a program that refuses everything, with Go off the PATH, reached its summary with no abort. shellcheck shows no new warnings, and `test-ids.py check` passes.
 	- Swept: every capture in `cicd/test.bash` that runs the program, `cmp`, `diff`, `grep` or `go`. That is the CLI surface lists and counts, the `85ps` and config symbol reads, `cvec`, `nvec`, `pipecheck`, the pad, tail and `--binary` captures, the fuzz base count and names, and the reactor and browser `go env` lookups. The trap change covers `fFirstDiff`, the parity `diff` messages, the interop verify message and every `<( )` base listing. The perf section's bare runs were guarded too. A grep for assignments from `$( )` that name those tools and have no `||` or `&&` after leaves only `fFirstDiff` and helpers that make dirs or random input.
 	- Branch: harness-abort
+	- Commit: 2590437
 	- Test case: `ErmGPkH` "every check failing still reaches the summary", `ErmGPkf` "reactor section skips with Go off the PATH" and `ErmGPl4` "failed interop check keeps its detail". They run the harness against a program that refuses everything. All three fail before the fix and pass after. Putting back the old trap, the reactor lookup or one capture alone turns at least two of them red.
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261004-165412
