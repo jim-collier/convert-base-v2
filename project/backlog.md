@@ -137,7 +137,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
 	- ID: 2026100413480003
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on signoff
 	- Severity: High
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -150,6 +150,16 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Possible cause: `Finalize` accepts the tail, and the buffered big-base decoder reads one character at a time. The streaming path already demands one-character digits.
 	- Origin: `convert.go:1773` and `registry.go` Finalize, from 2757bd5 "Big-base binary interop" on 2026-07-06. Not seen by an earlier round. Confirmed.
 	- Related IDs: 2026100413480020
+	- Note: also reproduced 20261004 on the command. Five bytes encoded through `--to-symbols` and `--to-tail`, and decoding them failed both piped and as an argument.
+	- Actual cause: both binary decoders of a tail base read one character per digit. The streaming one is kept off such a base by its one-character gate, but the buffered one is not, and `Finalize` accepted the tail.
+	- Decisions:
+		- A tail now needs every digit and every tail symbol to be one character, checked in `Finalize`. That is the rule the streaming path already had, and a tail's whole point is that the base streams.
+		- Supporting longer digits was passed over. The tokenizer would have to tell a tail symbol from the start of a longer digit at the end of the input, for a case no built-in base has.
+	- Actual fix: `Finalize` refuses such a tail with an error naming the base and the offending digit or tail symbol. The config comments and the wide-symbols design doc say so. README and design.md don't describe tails.
+	- Verified: every built-in base and the default config still load. Every built-in tail base round trips. `go vet`, `golangci-lint`, `go test ./...` and the harness Binary/streaming section pass.
+	- Swept: every way a tail is set goes through `Finalize`: the built-ins, the config `tail:` field, `--from-tail`/`--to-tail` through `ApplyOptions`, and library callers. The browser and reactor modules take no tail. `decodeBigBaseNative` has no other caller.
+	- Branch: bigbase-tail
+	- Test case: `Erm5wwf` TestTailNeedsOneCharDigits, `Erm5wxB` "tail on two-character digits rejected" and `Erm5wxg` "config tail on two-character digits rejected". All three fail before the fix and pass after.
 
 - Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
 	- ID: 2026100413480017

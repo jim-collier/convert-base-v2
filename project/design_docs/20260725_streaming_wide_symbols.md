@@ -120,7 +120,7 @@ The eight symbols have to sit outside `base_2048tt`, which holds exactly 2048 wi
 
 A user-defined base above eight bits can declare its own tail, through a `tail:` config field or the `--from-tail` / `--to-tail` flags, in the same string-or-list form as the symbols. Declaring one moves the base onto the tail scheme and it streams like any built-in. Leaving it out keeps the varint packing, which still round-trips but has to buffer the encode, so nothing that worked before changed.
 
-A hand-declared tail always gets the qntm layout. It is the scheme that streams cleanly in both directions, and choosing it here means a config never has to name one. The width rule above is enforced at load time rather than at conversion time, so a tail that could never be used is an error where it is written.
+A hand-declared tail always gets the qntm layout. It is the scheme that streams cleanly in both directions, and choosing it here means a config never has to name one. The width rule above is enforced at load time rather than at conversion time, so a tail that could never be used is an error where it is written. So is a tail on a base whose digits or tail symbols are longer than one character, since both decoders read one character per digit.
 
 ## Detailed solution
 
