@@ -158,7 +158,8 @@ fi
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## The whole command for any WASI runtime. Same build as `make wasm`.
+## The whole command for any WASI runtime. Same build as `make wasm`, less the
+## VCS stamp.
 
 ( cd "${src}" && CGO_ENABLED=0 GOOS=wasip1 GOARCH=wasm \
 	go build -trimpath -buildvcs=false -ldflags "-s -w -buildid= -X main.version=${VERSION} -X main.buildEpoch=${BUILD_EPOCH}" -o "${OUT}/${PKG}.wasm" ./cmd/convert-base-v2 )
