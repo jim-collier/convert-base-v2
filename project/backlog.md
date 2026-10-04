@@ -34,27 +34,31 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- macOS gets a universal binary for both amd64 and ARM.
-	- ID: 2026100313304792
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Apple silicon Mac. The Intel half passed on b26. Check `--version` and one conversion, and that Gatekeeper treats it the same as the per-arch build.
-	- Opened: 20261003-133047
-	- Opened by: JC
-	- Target OS: macOS
-	- Progress log:
-		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
-		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
-		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
-		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
-	- Decisions:
-		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
-		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
-	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
-	- Branch: mac-universal
-	- Commit: 22452c9
-	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
-	- Verified: 20261004, on an Intel Mac with macOS 15.8.1. The universal binary, the per-arch x86_64 one and the one from the universal `.tgz` all print the same version and build line. A hex to base-62 conversion and a bytes to base-64 one match the Linux build. Gatekeeper rejects the universal and per-arch builds the same way, unsigned, with and without the quarantine flag.
+- The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
+	- ID: 2026100413480002
+	- Type: Bug
+	- Status: Waiting on signoff
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- Leave a truncated copy of the default config where the first run writes it, then run `convert-base-v2 255 16`.
+		- Or start 16 first runs at once on an empty config dir.
+	- Incorrect behavior: a cut that drops the Format line gets migrated and stamped as current. A cut inside the `10emoji` block makes every run fail, `--help` included, with an error that blames an old format. Parallel first runs both wrote the file in 1 of 30 trials.
+	- Expected behavior: the file is either whole or absent, and only one process creates it.
+	- Reproduced: 20261004, by the review, in a scratch home.
+	- Possible cause: `userconfig.go:51` uses `os.WriteFile`. The migration path already writes atomically.
+	- Probable fix: `shcl.WriteFileAtomic`, which creates exclusively through a temp file and a link.
+	- Origin: `userconfig.go:51`, last touched by 51f59b6 on 2026-10-03; the in-place write is older. Not seen by an earlier round. Confirmed.
+	- Actual cause: `os.WriteFile` creates and truncates in place, so a half-written file is visible, and a second run that passed the existence check writes over the first.
+	- Actual fix: `shcl.WriteFileAtomic`. The text goes to a synced temp file, which is then linked into place. The link fails if anything turned up at the path, so only one run creates the file and the rest leave it be. The truncated-copy case has the same cause: now a whole file appears or none does.
+	- Note: a new file takes 0666 less the umask, like any newly created file, where it took 0644 less the umask. Under the usual 022 umask both are 0644. A crash mid-write can leave a `.convert-base-v2.shcl.tmp*` file beside the config instead of a broken config.
+	- Verified: 20261004, go vet, golangci-lint and `go test ./...` clean.
+	- Branch: exit-fixes
+	- Commit: e5892c9
+	- Test case: `ErlzPLg` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
+	- Acceptance signoff: open, since it changes how the program writes a file in the home directory.
 
 - A failed write of the result still exits 0. (Code review 20261004 item 1)
 	- ID: 2026100413480001
@@ -82,31 +86,27 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 7eb27c9
 	- Test case: harness check `Erm02E7`, 13 ways of writing a result to `/dev/full`. On dev 8 of them exit 0. With the fix all 13 fail with the write error.
 
-- The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
-	- ID: 2026100413480002
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Steps to reproduce:
-		- Leave a truncated copy of the default config where the first run writes it, then run `convert-base-v2 255 16`.
-		- Or start 16 first runs at once on an empty config dir.
-	- Incorrect behavior: a cut that drops the Format line gets migrated and stamped as current. A cut inside the `10emoji` block makes every run fail, `--help` included, with an error that blames an old format. Parallel first runs both wrote the file in 1 of 30 trials.
-	- Expected behavior: the file is either whole or absent, and only one process creates it.
-	- Reproduced: 20261004, by the review, in a scratch home.
-	- Possible cause: `userconfig.go:51` uses `os.WriteFile`. The migration path already writes atomically.
-	- Probable fix: `shcl.WriteFileAtomic`, which creates exclusively through a temp file and a link.
-	- Origin: `userconfig.go:51`, last touched by 51f59b6 on 2026-10-03; the in-place write is older. Not seen by an earlier round. Confirmed.
-	- Actual cause: `os.WriteFile` creates and truncates in place, so a half-written file is visible, and a second run that passed the existence check writes over the first.
-	- Actual fix: `shcl.WriteFileAtomic`. The text goes to a synced temp file, which is then linked into place. The link fails if anything turned up at the path, so only one run creates the file and the rest leave it be. The truncated-copy case has the same cause: now a whole file appears or none does.
-	- Note: a new file takes 0666 less the umask, like any newly created file, where it took 0644 less the umask. Under the usual 022 umask both are 0644. A crash mid-write can leave a `.convert-base-v2.shcl.tmp*` file beside the config instead of a broken config.
-	- Verified: 20261004, go vet, golangci-lint and `go test ./...` clean.
-	- Branch: exit-fixes
-	- Commit: e5892c9
-	- Test case: `ErlzPLg` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
-	- Acceptance signoff: open, since it changes how the program writes a file in the home directory.
+- macOS gets a universal binary for both amd64 and ARM.
+	- ID: 2026100313304792
+	- Type: Enhancement
+	- Status: Waiting for testing
+	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Apple silicon Mac. The Intel half passed on b26. Check `--version` and one conversion, and that Gatekeeper treats it the same as the per-arch build.
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Target OS: macOS
+	- Progress log:
+		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
+		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
+		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
+		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
+	- Decisions:
+		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
+		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
+	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
+	- Branch: mac-universal
+	- Commit: 22452c9
+	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
+	- Verified: 20261004, on an Intel Mac with macOS 15.8.1. The universal binary, the per-arch x86_64 one and the one from the universal `.tgz` all print the same version and build line. A hex to base-62 conversion and a bytes to base-64 one match the Linux build. Gatekeeper rejects the universal and per-arch builds the same way, unsigned, with and without the quarantine flag.
 
 - A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
 	- ID: 2026100413480003
@@ -141,6 +141,20 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Origin: `package.bash:115`, from 9c40e8d "release packaging" on 2026-07-12. Not seen by an earlier round. Confirmed.
 	- Sweep: every `rm -rf` on a variable path in `cicd/` and `utility/`. `interop/fetch.bash:93` is one; see item 16.
 
+- Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
+	- ID: 2026100413480017
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: `255 16` takes about 68 ms, against 1 ms for `--version`. `NewRegistry` is about 53 ms of that, and `32768qntm` and `65536qntm` alone are about 48 ms.
+	- Note: the test harness makes about 5000 calls, so startup is over five minutes of each run. Scripts that call the command in a loop pay the same.
+	- Probable fix: keep built-ins as cheap specs and finalize each on first lookup, or on `--list`. Config bases still validate at load. A unit test that builds every built-in keeps catching bad data. Add a `NewRegistry` benchmark with a threshold.
+	- Origin: the registry design from ad488ce. The cost was noted in passing on 2026-08-02 and in G12, never filed. Confirmed by timing and pprof.
+	- Related IDs: 2026100413480018
+
 - Any failed fuzz run aborts the whole pipeline, including the deadline case meant to pass. (Code review 20261004 item 5)
 	- ID: 2026100413480005
 	- Type: Bug
@@ -155,32 +169,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Expected behavior: the deadline case passes with a note, as G18 says, and a real find fails the stage with its own message.
 	- Reproduced: 20261004, with the same trap and pipeline in a scratch script. `set +e` does not stop the ERR trap.
 	- Origin: `cicd.bash:303-306`, from 6e3fd63 "Fuzz stage fixes" on 2026-08-01, on top of the trap from a8d50ce. Not seen by an earlier round. Confirmed.
-
-- `.` and `-.` convert to `0` at exit 0. (Code review 20261004 item 6)
-	- ID: 2026100413480006
-	- Type: Bug
-	- Status: Done
-	- Severity: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Steps to reproduce:
-		- `convert-base-v2 --from 10 --to 16 -- .`
-	- Incorrect behavior: prints `0`, exit 0.
-	- Expected behavior: `no digits in input`, as for an empty value.
-	- Reproduced: 20261004.
-	- Possible cause: the empty integer part is set to the zero digit before the no-digits check runs, so the check never sees an empty value.
-	- Origin: `convert.go:372-379`, from the first v1.0.0-rc1 commit ad488ce. Not seen by an earlier round. Confirmed.
-	- Sweep: the same check in `lib/wasm` and `lib/reactor`, which call the same `Convert`.
-	- Actual cause: the empty integer part became the zero digit before the no-digits check, and that check only caught a fully empty value.
-	- Actual fix: the check runs first and fails when both sides of the decimal marker are empty. `.5` and `5.` still read as numbers.
-	- Swept: `lib/wasm` and `lib/reactor` have no check of their own. Both call the same `Convert`. The frontend parity section now sends `.` and `-.` through the command, the module and the reactor.
-	- Verified: 20261004, `.` and `-.` give `no digits in input` at exit 1. Parity passes over 209 cases on both the module and the reactor.
-	- Branch: exit-fixes
-	- Commit: 74cf4ea
-	- Test case: `Erlz3L2` TestMarkersWithoutDigits and harness check `ErlzAd6`. Both fail on dev and pass with the fix.
-	- Acceptance signoff: Self-closed: reproduced, its tests fail before the fix and pass after, and the sweep is answered.
-	- Closed: 20261004-152620
 
 - The constant-memory check never runs in a normal pipeline. (Code review 20261004 item 7)
 	- ID: 2026100413480007
@@ -239,6 +227,68 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Expected behavior: both use `bytes` and `20ws`, and the benchmark fails on a non-zero exit.
 	- Reproduced: 20261004, by the review, for bench-encoders. gen-screenshots was checked by base lookup only, since it writes into `assets/`.
 	- Origin: bench-encoders from d47b533 on 2026-07-06, gen-screenshots from 0c6709c on 2026-07-25; both went stale with later renames. Not seen by an earlier round. Confirmed.
+
+- `ParseSymbolSpec` splits every token on commas before checking for one, and rebuilds a replacer per token. (Code review 20261004 item 18)
+	- ID: 2026100413480018
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: the built-in alphabets run to 65536 tokens, so this runs on every start. Checking for a comma first and building the replacer once took `NewRegistry` from 64 ms to 46 ms and from 224k allocations to 4.5k.
+	- Origin: `symbolspec.go:79` and `:150-154`. Not seen by an earlier round. Confirmed by benchmark.
+	- Related IDs: 2026100413480017
+
+- The number path looks up each digit twice. (Code review 20261004 item 19)
+	- ID: 2026100413480019
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: `Tokenize` knows each digit's value, turns it back into a string, and `parseLeaf` hashes it again. Passing values instead was 30 to 37 percent faster from 1K to 64K digits, and the suite passed.
+	- Note: this leaves the divide and conquer design alone.
+	- Origin: `convert.go:148` from a6c8612 on 2026-08-02, and `Tokenize`. Not seen by an earlier round. Confirmed by benchmark.
+
+- The buffered big-base decoder allocates for every character. (Code review 20261004 item 20)
+	- ID: 2026100413480020
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: it makes a string per character and looks that up, though the streaming decoder's per-character table is there. Using it took a 1 MiB `65536qntm` decode from 37 ms and 524k allocations to 15 ms and 3. This path serves typed input, the browser page and the reactor.
+	- Origin: `convert.go:1773`, from 2757bd5 on 2026-07-06. Not seen by an earlier round. Confirmed by benchmark.
+	- Prereq IDs: 2026100413480003
+
+- The demo gif generator holds every frame uncompressed in memory. (Code review 20261004 item 21)
+	- ID: 2026100413480021
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Note: 3166 frames at 960x540 come to about 1.6 GB before the save, on a box where `/tmp` has failed under memory pressure. Each added frame also copies itself and the previous frame to compare them.
+	- Probable fix: keep the last frame's bytes, and store frames compressed until the save.
+	- Origin: `gen-demo-gif.py:599-610`, from f4339b4 on 2026-07-11. Not seen by an earlier round. Confirmed by arithmetic on the committed gif.
+
+- The lint stage checks Go only. Shellcheck and ruff don't run, and nothing configures them. (Code review 20261004 item 22)
+	- ID: 2026100413480022
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Note: shellcheck finds 106 SC2015 notes in `test.bash`, all the harmless `&& _pass || _fail` form, plus a few false positives. Default ruff finds 150, none a real bug, nine of them in the pipeline tools.
+	- Probable fix: clear the notes, add `shellcheck -x` and ruff to the lint stage, and add a `pyproject.toml` with tab indent so existing files stay as they are.
+	- Origin: the lint stage from a8d50ce on 2026-07-09. Directive gap, filed against the 2026-10-04 directives.
+	- Prereq IDs: 2026100413480032
+	- Note: item 32 answered. ruff's naming rules stay on, with `flame-report.py` excluded since it came from silkterm.
 
 - The dogfood stage reports a failed copy as installed. (Code review 20261004 item 11)
 	- ID: 2026100413480011
@@ -326,82 +376,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Expected behavior: here-strings, `ENVIRON`, and a name check before the remove.
 	- Reproduced: no. 0 of 50 and 0 of 30 tries for the two pipes; real version strings don't trip `awk -v`.
 	- Origin: several commits. Not seen by an earlier round. Plausible.
-
-- Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
-	- ID: 2026100413480017
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: `255 16` takes about 68 ms, against 1 ms for `--version`. `NewRegistry` is about 53 ms of that, and `32768qntm` and `65536qntm` alone are about 48 ms.
-	- Note: the test harness makes about 5000 calls, so startup is over five minutes of each run. Scripts that call the command in a loop pay the same.
-	- Probable fix: keep built-ins as cheap specs and finalize each on first lookup, or on `--list`. Config bases still validate at load. A unit test that builds every built-in keeps catching bad data. Add a `NewRegistry` benchmark with a threshold.
-	- Origin: the registry design from ad488ce. The cost was noted in passing on 2026-08-02 and in G12, never filed. Confirmed by timing and pprof.
-	- Related IDs: 2026100413480018
-
-- `ParseSymbolSpec` splits every token on commas before checking for one, and rebuilds a replacer per token. (Code review 20261004 item 18)
-	- ID: 2026100413480018
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: the built-in alphabets run to 65536 tokens, so this runs on every start. Checking for a comma first and building the replacer once took `NewRegistry` from 64 ms to 46 ms and from 224k allocations to 4.5k.
-	- Origin: `symbolspec.go:79` and `:150-154`. Not seen by an earlier round. Confirmed by benchmark.
-	- Related IDs: 2026100413480017
-
-- The number path looks up each digit twice. (Code review 20261004 item 19)
-	- ID: 2026100413480019
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: `Tokenize` knows each digit's value, turns it back into a string, and `parseLeaf` hashes it again. Passing values instead was 30 to 37 percent faster from 1K to 64K digits, and the suite passed.
-	- Note: this leaves the divide and conquer design alone.
-	- Origin: `convert.go:148` from a6c8612 on 2026-08-02, and `Tokenize`. Not seen by an earlier round. Confirmed by benchmark.
-
-- The buffered big-base decoder allocates for every character. (Code review 20261004 item 20)
-	- ID: 2026100413480020
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: it makes a string per character and looks that up, though the streaming decoder's per-character table is there. Using it took a 1 MiB `65536qntm` decode from 37 ms and 524k allocations to 15 ms and 3. This path serves typed input, the browser page and the reactor.
-	- Origin: `convert.go:1773`, from 2757bd5 on 2026-07-06. Not seen by an earlier round. Confirmed by benchmark.
-	- Prereq IDs: 2026100413480003
-
-- The demo gif generator holds every frame uncompressed in memory. (Code review 20261004 item 21)
-	- ID: 2026100413480021
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Note: 3166 frames at 960x540 come to about 1.6 GB before the save, on a box where `/tmp` has failed under memory pressure. Each added frame also copies itself and the previous frame to compare them.
-	- Probable fix: keep the last frame's bytes, and store frames compressed until the save.
-	- Origin: `gen-demo-gif.py:599-610`, from f4339b4 on 2026-07-11. Not seen by an earlier round. Confirmed by arithmetic on the committed gif.
-
-- The lint stage checks Go only. Shellcheck and ruff don't run, and nothing configures them. (Code review 20261004 item 22)
-	- ID: 2026100413480022
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Note: shellcheck finds 106 SC2015 notes in `test.bash`, all the harmless `&& _pass || _fail` form, plus a few false positives. Default ruff finds 150, none a real bug, nine of them in the pipeline tools.
-	- Probable fix: clear the notes, add `shellcheck -x` and ruff to the lint stage, and add a `pyproject.toml` with tab indent so existing files stay as they are.
-	- Origin: the lint stage from a8d50ce on 2026-07-09. Directive gap, filed against the 2026-10-04 directives.
-	- Prereq IDs: 2026100413480032
-	- Note: item 32 answered. ruff's naming rules stay on, with `flame-report.py` excluded since it came from silkterm.
 
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
@@ -534,6 +508,32 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261003-150028
 
+- `.` and `-.` convert to `0` at exit 0. (Code review 20261004 item 6)
+	- ID: 2026100413480006
+	- Type: Bug
+	- Status: Done
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- `convert-base-v2 --from 10 --to 16 -- .`
+	- Incorrect behavior: prints `0`, exit 0.
+	- Expected behavior: `no digits in input`, as for an empty value.
+	- Reproduced: 20261004.
+	- Possible cause: the empty integer part is set to the zero digit before the no-digits check runs, so the check never sees an empty value.
+	- Origin: `convert.go:372-379`, from the first v1.0.0-rc1 commit ad488ce. Not seen by an earlier round. Confirmed.
+	- Sweep: the same check in `lib/wasm` and `lib/reactor`, which call the same `Convert`.
+	- Actual cause: the empty integer part became the zero digit before the no-digits check, and that check only caught a fully empty value.
+	- Actual fix: the check runs first and fails when both sides of the decimal marker are empty. `.5` and `5.` still read as numbers.
+	- Swept: `lib/wasm` and `lib/reactor` have no check of their own. Both call the same `Convert`. The frontend parity section now sends `.` and `-.` through the command, the module and the reactor.
+	- Verified: 20261004, `.` and `-.` give `no digits in input` at exit 1. Parity passes over 209 cases on both the module and the reactor.
+	- Branch: exit-fixes
+	- Commit: 74cf4ea
+	- Test case: `Erlz3L2` TestMarkersWithoutDigits and harness check `ErlzAd6`. Both fail on dev and pass with the fix.
+	- Acceptance signoff: Self-closed: reproduced, its tests fail before the fix and pass after, and the sweep is answered.
+	- Closed: 20261004-152620
+
 - `checksums.txt` names a prerelease `.deb` or `.rpm` with a `~`, but GitHub serves the file with a `.` there.
 	- ID: 2026100412472515
 	- Type: Bug
@@ -593,7 +593,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: the format and placement were the ones asked for, its tests pass, and the full suite passed.
 	- Closed: 20261004-131952
 
-
 - Release notes group the downloads in a table, with CPU architecture in columns and target OS in rows.
 	- ID: 2026100409572736
 	- Type: Feature
@@ -628,7 +627,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
 
-
 - A raw block as a config field value is dropped or misreported.
 	- ID: 2026100315002873
 	- Type: Bug
@@ -661,7 +659,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Signed off 20261003.
 	- Closed: 20261003-180637
 
-
 - The release archives and packages don't rebuild to the same bytes.
 	- ID: 2026100412472615
 	- Type: Bug
@@ -692,6 +689,58 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
 
+- Python tools use three naming styles. Which one should they follow? (Code review 20261004 item 32)
+	- ID: 2026100413480032
+	- Type: Task
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Note: the cicd tools use `fCamelCase`, `gen-bases-table.py` uses camelCase, and `test-ids.py` and the research scripts use snake_case.
+	- Note: the directives point two ways. Code style says the language's case conventions win, which means PEP 8 snake_case. The Profiling section says to match silkterm's Python, which is `fCamelCase`.
+	- Question: snake_case everywhere, or `fCamelCase` as the house rule with ruff's N8xx rules turned off? Item 22 needs the answer for its ruff config.
+		- Answered: idiomatic Python for code written here. Code written by hand keeps its case, and so does a script copied in from elsewhere.
+	- Progress log:
+		- Done: the Code style directive now says PEP 8 names, with those two exceptions, and the profiling section no longer reads as asking for silkterm's names.
+		- Note: `flame-report.py` came from silkterm and keeps its names. `pprof2flame.py`, `gen-demo-gif.py` and `gen-bases-table.py` move to snake_case under item 25. `test-ids.py` and the research scripts already use it.
+	- Test case: none, a directive change.
+	- Closed: 20261004-140028
+
+- Five project helper scripts are GPL, where helpers are usually MIT. (Code review 20261004 item 33)
+	- ID: 2026100413480033
+	- Type: Task
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Note: `check-release.bash`, `check-vendor.bash`, `package.bash`, `release-notes.bash` and `interop/fetch.bash` all carry the Bubbles copyright with GPL. The other cicd helpers are MIT.
+	- Question: keep them GPL since they only make sense in this project, or move them to MIT?
+		- Answered: MIT.
+	- Progress log:
+		- Done: the five scripts are MIT, with the same header as the other helpers.
+		- Done: the two interop drivers, `qntm.mjs` and `llfourn2048/src/main.rs`, were also Bubbles and GPL, and were missed by the review. They are MIT now too.
+		- Done: eight Unicode research scripts under `utility/` were Bubbles and GPL as well. Asked, and moved to MIT.
+		- Note: the package license in `package.bash` stays GPL-2.0-or-later, since it is the command's.
+	- Test case: none, license headers only.
+	- Closed: 20261004-140028
+
+- `filter_2_messy.py` ends with a block of requirements written as instructions for a code generator. (Code review 20261004 item 34)
+	- ID: 2026100413480034
+	- Type: Task
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Note: `utility/include/filter_2_messy.py:449-477`, a bare string after the main block, from de93848 on 2026-05-08. It is public on main and in three tags.
+	- Note: the text is the project's own. It is filed only because it reads as a prompt, which no word scrub can catch.
+	- Question: delete it, fold the real requirements into the Purpose header, or keep it as is? History stays untouched either way.
+		- Answered: clean it up.
+	- Progress log:
+		- Done: the trailing block is gone. Its list of what gets filtered out moved into the Purpose header in its own words, without the lines aimed at whoever was writing the script. A spelling slip in the header was fixed.
+		- Note: the bitmap item lost its "can't fix" remark, since the script does filter box drawing, block elements and Braille by range.
+	- Verified: the same input gives the same output before and after.
+	- Test case: none, comments only, and the research scripts have no tests.
+	- Closed: 20261004-140028
 
 - Support `--help`, `--about` and `--donate`, in a similar way as sister project shcl.
 	- ID: 2026100313304797
@@ -720,7 +769,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Erfqe2I` TestInfoFlagOrder, `Erfqe2J` TestPrintInfoLoneIsUnchanged, `Erfqe2K` TestPrintInfoSeparation and `Erfqe2L` TestAboutAndDonateContent; `Erfqe2C` to `Erfqe2H` and `ErgVwO8` in the harness.
 	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
 	- Closed: 20261003-180637
-
 
 - When a shcl upgrade breaks compatibility with the application config file(s).
 	- ID: 2026100313304802
@@ -786,7 +834,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
 	- Closed: 20261003-180637
 
-
 - Write a test as part of CICD that creates old shcl file versions for settings, and tests the automatic (non-shcl-assisted) conversion.
 	- Note: the conversion now goes through shcl's own `Migrate`. "Non-shcl-assisted" is read as: the program does the backup and rewrite itself, rather than shcl's CLI doing it.
 	- ID: 2026100313304807
@@ -810,60 +857,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: the "Config migration" section, `ErgDzU8` to `ErgDzUP`, plus the tests named on the parent.
 	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
 	- Closed: 20261003-180637
-
-
-- Python tools use three naming styles. Which one should they follow? (Code review 20261004 item 32)
-	- ID: 2026100413480032
-	- Type: Task
-	- Status: Done
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Note: the cicd tools use `fCamelCase`, `gen-bases-table.py` uses camelCase, and `test-ids.py` and the research scripts use snake_case.
-	- Note: the directives point two ways. Code style says the language's case conventions win, which means PEP 8 snake_case. The Profiling section says to match silkterm's Python, which is `fCamelCase`.
-	- Question: snake_case everywhere, or `fCamelCase` as the house rule with ruff's N8xx rules turned off? Item 22 needs the answer for its ruff config.
-		- Answered: idiomatic Python for code written here. Code written by hand keeps its case, and so does a script copied in from elsewhere.
-	- Progress log:
-		- Done: the Code style directive now says PEP 8 names, with those two exceptions, and the profiling section no longer reads as asking for silkterm's names.
-		- Note: `flame-report.py` came from silkterm and keeps its names. `pprof2flame.py`, `gen-demo-gif.py` and `gen-bases-table.py` move to snake_case under item 25. `test-ids.py` and the research scripts already use it.
-	- Test case: none, a directive change.
-	- Closed: 20261004-140028
-
-- Five project helper scripts are GPL, where helpers are usually MIT. (Code review 20261004 item 33)
-	- ID: 2026100413480033
-	- Type: Task
-	- Status: Done
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Note: `check-release.bash`, `check-vendor.bash`, `package.bash`, `release-notes.bash` and `interop/fetch.bash` all carry the Bubbles copyright with GPL. The other cicd helpers are MIT.
-	- Question: keep them GPL since they only make sense in this project, or move them to MIT?
-		- Answered: MIT.
-	- Progress log:
-		- Done: the five scripts are MIT, with the same header as the other helpers.
-		- Done: the two interop drivers, `qntm.mjs` and `llfourn2048/src/main.rs`, were also Bubbles and GPL, and were missed by the review. They are MIT now too.
-		- Done: eight Unicode research scripts under `utility/` were Bubbles and GPL as well. Asked, and moved to MIT.
-		- Note: the package license in `package.bash` stays GPL-2.0-or-later, since it is the command's.
-	- Test case: none, license headers only.
-	- Closed: 20261004-140028
-
-- `filter_2_messy.py` ends with a block of requirements written as instructions for a code generator. (Code review 20261004 item 34)
-	- ID: 2026100413480034
-	- Type: Task
-	- Status: Done
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Note: `utility/include/filter_2_messy.py:449-477`, a bare string after the main block, from de93848 on 2026-05-08. It is public on main and in three tags.
-	- Note: the text is the project's own. It is filed only because it reads as a prompt, which no word scrub can catch.
-	- Question: delete it, fold the real requirements into the Purpose header, or keep it as is? History stays untouched either way.
-		- Answered: clean it up.
-	- Progress log:
-		- Done: the trailing block is gone. Its list of what gets filtered out moved into the Purpose header in its own words, without the lines aimed at whoever was writing the script. A spelling slip in the header was fixed.
-		- Note: the bitmap item lost its "can't fix" remark, since the script does filter box drawing, block elements and Braille by range.
-	- Verified: the same input gives the same output before and after.
-	- Test case: none, comments only, and the research scripts have no tests.
-	- Closed: 20261004-140028
 
 - The Unicode research pipeline repeats expensive work per chunk. (Code review 20261004 item 31)
 	- ID: 2026100413480031
