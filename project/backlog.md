@@ -34,6 +34,38 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- Python tools use three naming styles. Which one should they follow? (Code review 20261004 item 32)
+	- ID: 2026100413480032
+	- Type: Task
+	- Status: Waiting for answers
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Note: the cicd tools use `fCamelCase`, `gen-bases-table.py` uses camelCase, and `test-ids.py` and the research scripts use snake_case.
+	- Note: the directives point two ways. Code style says the language's case conventions win, which means PEP 8 snake_case. The Profiling section says to match silkterm's Python, which is `fCamelCase`.
+	- Question: snake_case everywhere, or `fCamelCase` as the house rule with ruff's N8xx rules turned off? Item 22 needs the answer for its ruff config.
+
+- Five project helper scripts are GPL, where helpers are usually MIT. (Code review 20261004 item 33)
+	- ID: 2026100413480033
+	- Type: Task
+	- Status: Waiting for answers
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Note: `check-release.bash`, `check-vendor.bash`, `package.bash`, `release-notes.bash` and `interop/fetch.bash` all carry the Bubbles copyright with GPL. The other cicd helpers are MIT.
+	- Question: keep them GPL since they only make sense in this project, or move them to MIT?
+
+- `filter_2_messy.py` ends with a block of requirements written as instructions for a code generator. (Code review 20261004 item 34)
+	- ID: 2026100413480034
+	- Type: Task
+	- Status: Waiting for answers
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Note: `utility/include/filter_2_messy.py:449-477`, a bare string after the main block, from de93848 on 2026-05-08. It is public on main and in three tags.
+	- Note: the text is the project's own. It is filed only because it reads as a prompt, which no word scrub can catch.
+	- Question: delete it, fold the real requirements into the Purpose header, or keep it as is? History stays untouched either way.
+
 - macOS gets a universal binary for both amd64 and ARM.
 	- ID: 2026100313304792
 	- Type: Enhancement
@@ -56,6 +88,425 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
 	- Verified: 20261004, on an Intel Mac with macOS 15.8.1. The universal binary, the per-arch x86_64 one and the one from the universal `.tgz` all print the same version and build line. A hex to base-62 conversion and a bytes to base-64 one match the Linux build. Gatekeeper rejects the universal and per-arch builds the same way, unsigned, with and without the quarantine flag.
 
+- A failed write of the result still exits 0. (Code review 20261004 item 1)
+	- ID: 2026100413480001
+	- Type: Bug
+	- Status: Queued
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- `convert-base-v2 255 16 >/dev/full`
+	- Incorrect behavior: exit 0 with nothing written. Same for `--list`, `--get-index-count`, `--get-base-name` and a piped `-` input.
+	- Expected behavior: an error and a non-zero exit, as `-n 255 16`, `--version` and streaming already do.
+	- Reproduced: 20261004, with a stripped build.
+	- Possible cause: the result prints go through `fmt.Fprint*` with errcheck turned off for them, and nothing checks a flush. The `.golangci.yml` comment says every write that matters is checked; these are not.
+	- Probable fix: one buffered writer over stdout in `run()`, with the flush error returned.
+	- Origin: `main.go:509` and its siblings, from the first v1.0.0-rc1 commit ad488ce. Not seen by an earlier round. Confirmed.
+	- Sweep: every stdout write in `lib/cmd`, `lib/wasm` and `lib/reactor`.
+
+- The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
+	- ID: 2026100413480002
+	- Type: Bug
+	- Status: Queued
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- Leave a truncated copy of the default config where the first run writes it, then run `convert-base-v2 255 16`.
+		- Or start 16 first runs at once on an empty config dir.
+	- Incorrect behavior: a cut that drops the Format line gets migrated and stamped as current. A cut inside the `10emoji` block makes every run fail, `--help` included, with an error that blames an old format. Parallel first runs both wrote the file in 1 of 30 trials.
+	- Expected behavior: the file is either whole or absent, and only one process creates it.
+	- Reproduced: 20261004, by the review, in a scratch home.
+	- Possible cause: `userconfig.go:51` uses `os.WriteFile`. The migration path already writes atomically.
+	- Probable fix: `shcl.WriteFileAtomic`, which creates exclusively through a temp file and a link.
+	- Origin: `userconfig.go:51`, last touched by 51f59b6 on 2026-10-03; the in-place write is older. Not seen by an earlier round. Confirmed.
+
+- A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
+	- ID: 2026100413480003
+	- Type: Bug
+	- Status: Queued
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- Define a 2048-symbol base with two-character digits, an 8-symbol tail and the qntm scheme, then encode bytes to it and decode them back.
+	- Incorrect behavior: the encode works, and the decode fails with `symbol "..." is not in the base`.
+	- Expected behavior: the base is refused when it is defined, or it round trips.
+	- Reproduced: 20261004, by the review, with a throwaway test in package `convertbase`. A config `tail:` field or `--to-tail` reaches it.
+	- Possible cause: `Finalize` accepts the tail, and the buffered big-base decoder reads one character at a time. The streaming path already demands one-character digits.
+	- Origin: `convert.go:1773` and `registry.go` Finalize, from 2757bd5 "Big-base binary interop" on 2026-07-06. Not seen by an earlier round. Confirmed.
+	- Related IDs: 2026100413480020
+
+- `package.bash` deletes whatever directory `--out` names before it builds. (Code review 20261004 item 4)
+	- ID: 2026100413480004
+	- Type: Bug
+	- Status: Queued
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Steps to reproduce:
+		- `make release DIST=<a dir with other files in it>`
+	- Incorrect behavior: the directory is emptied, whatever was in it.
+	- Expected behavior: only a directory the script made or marked as its own is cleared. Anything else is refused.
+	- Reproduced: 20261004, by the review, with a fake `go` and a scratch dir.
+	- Origin: `package.bash:115`, from 9c40e8d "release packaging" on 2026-07-12. Not seen by an earlier round. Confirmed.
+	- Sweep: every `rm -rf` on a variable path in `cicd/` and `utility/`. `interop/fetch.bash:93` is one; see item 16.
+
+- Any failed fuzz run aborts the whole pipeline, including the deadline case meant to pass. (Code review 20261004 item 5)
+	- ID: 2026100413480005
+	- Type: Bug
+	- Status: Queued
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Steps to reproduce:
+		- A fuzz target that exits non-zero, such as Go's bare `context deadline exceeded`.
+	- Incorrect behavior: the ERR trap fires at the `go test | tee` line and cicd prints CICD ABORTED. The check that tells a deadline from a real find never runs, and the temp log stays in `/tmp`.
+	- Expected behavior: the deadline case passes with a note, as G18 says, and a real find fails the stage with its own message.
+	- Reproduced: 20261004, with the same trap and pipeline in a scratch script. `set +e` does not stop the ERR trap.
+	- Origin: `cicd.bash:303-306`, from 6e3fd63 "Fuzz stage fixes" on 2026-08-01, on top of the trap from a8d50ce. Not seen by an earlier round. Confirmed.
+
+- `.` and `-.` convert to `0` at exit 0. (Code review 20261004 item 6)
+	- ID: 2026100413480006
+	- Type: Bug
+	- Status: Queued
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- `convert-base-v2 --from 10 --to 16 -- .`
+	- Incorrect behavior: prints `0`, exit 0.
+	- Expected behavior: `no digits in input`, as for an empty value.
+	- Reproduced: 20261004.
+	- Possible cause: the empty integer part is set to the zero digit before the no-digits check runs, so the check never sees an empty value.
+	- Origin: `convert.go:372-379`, from the first v1.0.0-rc1 commit ad488ce. Not seen by an earlier round. Confirmed.
+	- Sweep: the same check in `lib/wasm` and `lib/reactor`, which call the same `Convert`.
+
+- The constant-memory check never runs in a normal pipeline. (Code review 20261004 item 7)
+	- ID: 2026100413480007
+	- Type: Bug
+	- Status: Queued
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior: the harness's perf section, with the streaming memory guard, runs only with `--long`. Its header still says the engine turns it on unless `--quick`.
+	- Expected behavior: it runs on every non-quick pipeline.
+	- Reproduced: 20261004. Nothing sets `CICDTEST_DO_PERF` any more.
+	- Possible cause: a8d50ce on 2026-07-09 dropped `CICDTEST_DO_PERF` from the harness call in `cicd.bash`.
+	- Origin: regression of 8df148a "Run perf stage unless quick" on 2026-07-06. Not seen by an earlier round. Confirmed.
+
+- One failing check can abort the test harness or lose its failure detail. (Code review 20261004 item 8)
+	- ID: 2026100413480008
+	- Type: Bug
+	- Status: Queued
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior:
+		- A conversion that fails inside `x="$(...)"` kills the harness with HARNESS ABORTED, no summary, and the rest unrun.
+		- `fFirstDiff` runs `cmp`, which exits 1 on any difference, so a failed interop check prints false abort lines and loses its detail.
+		- With Go off the PATH, the reactor section aborts instead of skipping with its warning.
+	- Expected behavior: a failure is counted and reported, and the run goes on.
+	- Reproduced: 20261004, by the review, with scratch copies of each pattern.
+	- Origin: several commits from 4ff92e8 on 2026-07-10 to 36d7ccc on 2026-08-02. Not seen by an earlier round. Confirmed.
+	- Sweep: every command substitution in `cicd/test.bash` that runs the program, `cmp`, `diff`, `grep` or `go`. The review listed lines 155, 176, 364, 392, 415, 679, 702, 727, 749-823, 969-971, 1190, 1256, 1296, 1316, 1360, 1389 and 1395.
+
+- `check-release.bash` and `install.bash` exit without their own error messages. (Code review 20261004 item 9)
+	- ID: 2026100413480009
+	- Type: Bug
+	- Status: Queued
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux, macOS
+	- Incorrect behavior: a README with no Lifecycle badge, a checksums file without the asset, or no release tag ends the script at exit 1 with nothing printed.
+	- Expected behavior: "no Lifecycle badge found", "No checksum for ..." and "could not determine the release tag" print as written.
+	- Reproduced: 20261004, by the review, against scratch inputs.
+	- Possible cause: a `grep` that finds nothing inside `x="$(...)"` under `set -e`.
+	- Origin: `check-release.bash:61-62` from 9c40e8d on 2026-07-12, `install.bash:119-120,167-168` from 33cdd30 on 2026-08-04. Not seen by an earlier round. Confirmed.
+
+- `bench-encoders.bash` and `gen-screenshots.bash` use base names and flags that were removed. (Code review 20261004 item 10)
+	- ID: 2026100413480010
+	- Type: Bug
+	- Status: Queued
+	- Severity: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior: `bench-encoders.bash` times error exits from `--from binary` and `--raw`, and reports 2,211 MiB/s decode for them. The README says its throughput table can be reproduced with this script. `gen-screenshots.bash` uses `20w` and `binary` and would die at screenshot 4.
+	- Expected behavior: both use `bytes` and `20ws`, and the benchmark fails on a non-zero exit.
+	- Reproduced: 20261004, by the review, for bench-encoders. gen-screenshots was checked by base lookup only, since it writes into `assets/`.
+	- Origin: bench-encoders from d47b533 on 2026-07-06, gen-screenshots from 0c6709c on 2026-07-25; both went stale with later renames. Not seen by an earlier round. Confirmed.
+
+- The dogfood stage reports a failed copy as installed. (Code review 20261004 item 11)
+	- ID: 2026100413480011
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior: when `cp` fails under `$HOME`, "OK: installed" prints anyway. Outside `$HOME` it runs `sudo` with no guard, which blocks a `-q` run on a password prompt.
+	- Expected behavior: a failed copy is an error. `sudo` only with `-n`, and never when unattended.
+	- Reproduced: 20261004, by the review, with the block in a scratch script.
+	- Origin: `cicd.bash:411-414`, from 9c40e8d on 2026-07-12. Not seen by an earlier round. Confirmed.
+
+- In `cicd.bash`, `-q` does the same as `-y`, and `--quick` doesn't reach the harness. (Code review 20261004 item 12)
+	- ID: 2026100413480012
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior: `quiet` is set and never read, though the help says `-y` is "unattended but not quiet". The harness still runs its two packaging rebuilds, about 6 s each, under `--quick`.
+	- Expected behavior: `-q` cuts stage chatter or is merged into `-y`, and `--quick` skips the packaging rebuild check.
+	- Reproduced: 20261004, by the review. Shellcheck flags `quiet` as unused once the blanket disables are off.
+	- Origin: `cicd.bash:86` from a8d50ce on 2026-07-09. Not seen by an earlier round. Confirmed.
+
+- The "Config files" part of `--help` can be wrong or missing. (Code review 20261004 item 13)
+	- ID: 2026100413480013
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Incorrect behavior: a config at mode 000 shows as `[loaded]`, though the load skipped it. A config that fails to parse stops `--help` from printing at all.
+	- Expected behavior: help shows "unreadable" or the parse error in that section, and prints the rest.
+	- Reproduced: 20261004, by the review, in a scratch home.
+	- Possible cause: `describePath` only checks that `os.Stat` works. The config load runs before the help branch and returns on error.
+	- Origin: `main.go:902-912`, from ad488ce. Not seen by an earlier round. Confirmed.
+
+- `flame-report.py` exits 1 on an unreadable flamegraph, where the spec says 2, and misfiles the big-number path. (Code review 20261004 item 14)
+	- ID: 2026100413480014
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Incorrect behavior: a non-UTF-8 or mode-000 SVG gives a traceback and exit 1, so the startup `--check` gate shows a crash, not a skip. `dcState.parse`/`format` and their leaf helpers land in "other, app code", which understates the big-int share. Those two are about 36% of inclusive time.
+	- Expected behavior: exit 2 on any read or decode failure, and a big-int bucket that has the divide and conquer functions.
+	- Reproduced: 20261004, by the review.
+	- Origin: `flame-report.py:65` from a8d50ce on 2026-07-09; the buckets predate the divide and conquer change a6c8612 on 2026-08-02. Not seen by an earlier round. Confirmed.
+
+- The Unicode research tools have small bugs and stale headers. (Code review 20261004 item 15)
+	- ID: 2026100413480015
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior:
+		- The three `unicode_*_alter_xclipboard_contents.bash` scripts write an empty clipboard when the Python filter fails, since `local` hides its exit status.
+		- `test_filter_all_from_xclipboard_input.bash` prints the python3 message for a missing `eog`, and opens `eog` on the visible display.
+		- The ODS writer in `populate_unicode_spreadsheets_with_filtered_results.py` maps every row of a repeated-row group to one row. Plausible, read only.
+		- Purpose headers in `filter_1_junk.py`, `blocks.py`, `generate_unicode_all_grouped_by_block.py` and `filter_3_visual.py` describe other files or old names. The `.gitignore` line for the debug image no longer matches its name.
+		- `filter_2_messy.py` builds a `kept` set it never reads, and tests membership in lists inside loops.
+	- Expected behavior: a failed filter leaves the clipboard alone, and headers describe their own file.
+	- Reproduced: the clipboard mechanism with a failing filter in a scratch script, and the `.gitignore` miss with `git check-ignore`.
+	- Origin: b3e719f and de93848, 2026-05-06 to 05-08. Not seen by an earlier round. Confirmed except the ODS writer.
+
+- A few Bash trap patterns are latent in the cicd scripts. (Code review 20261004 item 16)
+	- ID: 2026100413480016
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior:
+		- An early-exiting reader after a writer under pipefail, at `test.bash:215`, `gen-screenshots.bash:59` and `pin-tools.bash:196`.
+		- `awk -v` passing the version in `release-notes.bash:49`.
+		- `interop/fetch.bash:93` removes a path built from pin data with no check, so an empty name would remove all of `thirdparty/`.
+	- Expected behavior: here-strings, `ENVIRON`, and a name check before the remove.
+	- Reproduced: no. 0 of 50 and 0 of 30 tries for the two pipes; real version strings don't trip `awk -v`.
+	- Origin: several commits. Not seen by an earlier round. Plausible.
+
+- Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
+	- ID: 2026100413480017
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: `255 16` takes about 68 ms, against 1 ms for `--version`. `NewRegistry` is about 53 ms of that, and `32768qntm` and `65536qntm` alone are about 48 ms.
+	- Note: the test harness makes about 5000 calls, so startup is over five minutes of each run. Scripts that call the command in a loop pay the same.
+	- Probable fix: keep built-ins as cheap specs and finalize each on first lookup, or on `--list`. Config bases still validate at load. A unit test that builds every built-in keeps catching bad data. Add a `NewRegistry` benchmark with a threshold.
+	- Origin: the registry design from ad488ce. The cost was noted in passing on 2026-08-02 and in G12, never filed. Confirmed by timing and pprof.
+	- Related IDs: 2026100413480018
+
+- `ParseSymbolSpec` splits every token on commas before checking for one, and rebuilds a replacer per token. (Code review 20261004 item 18)
+	- ID: 2026100413480018
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: the built-in alphabets run to 65536 tokens, so this runs on every start. Checking for a comma first and building the replacer once took `NewRegistry` from 64 ms to 46 ms and from 224k allocations to 4.5k.
+	- Origin: `symbolspec.go:79` and `:150-154`. Not seen by an earlier round. Confirmed by benchmark.
+	- Related IDs: 2026100413480017
+
+- The number path looks up each digit twice. (Code review 20261004 item 19)
+	- ID: 2026100413480019
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: `Tokenize` knows each digit's value, turns it back into a string, and `parseLeaf` hashes it again. Passing values instead was 30 to 37 percent faster from 1K to 64K digits, and the suite passed.
+	- Note: this leaves the divide and conquer design alone.
+	- Origin: `convert.go:148` from a6c8612 on 2026-08-02, and `Tokenize`. Not seen by an earlier round. Confirmed by benchmark.
+
+- The buffered big-base decoder allocates for every character. (Code review 20261004 item 20)
+	- ID: 2026100413480020
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: it makes a string per character and looks that up, though the streaming decoder's per-character table is there. Using it took a 1 MiB `65536qntm` decode from 37 ms and 524k allocations to 15 ms and 3. This path serves typed input, the browser page and the reactor.
+	- Origin: `convert.go:1773`, from 2757bd5 on 2026-07-06. Not seen by an earlier round. Confirmed by benchmark.
+	- Prereq IDs: 2026100413480003
+
+- The demo gif generator holds every frame uncompressed in memory. (Code review 20261004 item 21)
+	- ID: 2026100413480021
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Note: 3166 frames at 960x540 come to about 1.6 GB before the save, on a box where `/tmp` has failed under memory pressure. Each added frame also copies itself and the previous frame to compare them.
+	- Probable fix: keep the last frame's bytes, and store frames compressed until the save.
+	- Origin: `gen-demo-gif.py:599-610`, from f4339b4 on 2026-07-11. Not seen by an earlier round. Confirmed by arithmetic on the committed gif.
+
+- The lint stage checks Go only. Shellcheck and ruff don't run, and nothing configures them. (Code review 20261004 item 22)
+	- ID: 2026100413480022
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Note: shellcheck finds 106 SC2015 notes in `test.bash`, all the harmless `&& _pass || _fail` form, plus a few false positives. Default ruff finds 150, none a real bug, nine of them in the pipeline tools.
+	- Probable fix: clear the notes, add `shellcheck -x` and ruff to the lint stage, and add a `pyproject.toml` with tab indent so existing files stay as they are.
+	- Origin: the lint stage from a8d50ce on 2026-07-09. Directive gap, filed against the 2026-10-04 directives.
+	- Prereq IDs: 2026100413480032
+
+- Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
+	- ID: 2026100413480023
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: `Finalize` scores 117 on gocognit, and copies its case-flip block three times, one copy already different. `Convert` opens with 70 lines of byte-mode branching before the number path. `run()` is 440 lines with an `os.Exit(2)` inside.
+	- Note: alias flags are separate bools ORed at each use. `canLowercase` and `canUppercase` are copies. The `case from.allOneByte` arm in `convertBitPacked` can never be reached.
+	- Origin: mostly ad488ce, grown since. Not seen by an earlier round. Confirmed by gocognit and a coverage profile.
+
+- Small Go style fixes. (Code review 20261004 item 24)
+	- ID: 2026100413480024
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: `SpecOpts` is exported but only `mkSpec` uses it. `real` shadows the builtin in `configupgrade.go:93`. Seven comments in `bases.go` use a section sign where ASCII would do.
+	- Note: errors are dropped with `_` and no comment in the `convert_test.go` benchmarks and two `reactor-host` writes.
+	- Note: `lib/wasm` and `lib/reactor` repeat the 100000 precision and width limits as literals beside the constants.
+	- Origin: several commits. Not seen by an earlier round. Confirmed by grep.
+
+- The Python pipeline tools miss most of the Python style rules. (Code review 20261004 item 25)
+	- ID: 2026100413480025
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: no type hints anywhere, files opened without `with`, lists and tuples used as records, os.path over pathlib. Scope is `flame-report.py`, `pprof2flame.py`, `test-ids.py`, `gen-demo-gif.py` and `gen-bases-table.py`.
+	- Note: also unused `wpx` in pprof2flame and `prog` in gen-demo-gif, a private Pillow call, a `find(" ")` of -1 that skips the fast-typing start for a one-word command, and test-ids keying tests by directory basename.
+	- Origin: a8d50ce onward. Not seen by an earlier round. Confirmed by mypy and ruff.
+	- Prereq IDs: 2026100413480032
+
+- The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
+	- ID: 2026100413480026
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Note: most harness and helper functions are not `fCamelCase`, many variables are snake_case, and private globals take one underscore. About 850 expansions are unbraced.
+	- Note: some files lack History or a `## Purpose` header, some have shellcheck disables mid-file, and a few print errors to stdout. `test.bash` groups output with `>>>` rather than the house section rule.
+	- Note: fix a file when it is next touched. `gfs-rotate.bash` is a shared copy, so leave it.
+	- Origin: several commits. Directive gap, filed against the 2026-10-04 directives.
+
+- The harness repeats calls and forks that one pass could do. (Code review 20261004 item 27)
+	- ID: 2026100413480027
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Note: the `IDX_NAME` loop, the README name check and the dash check run the program per base, about 13 s together. One listing would do.
+	- Note: `$(cat f)`, a per-symbol `printf` loop and `_rand_int` fork in loops. `$(<f)`, `printf -v` and `$SRANDOM` are near free.
+	- Origin: several commits from 4ff92e8 on. Not seen by an earlier round. Confirmed by timing.
+	- Related IDs: 2026100413480017
+
+- There is no public code style guide or contributing.md. (Code review 20261004 item 28)
+	- ID: 2026100413480028
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: the directives want `project/style-guide_code.md`, a `contributing.md` that links it, and a short README pointer to both. None exist.
+	- Origin: directive gap, filed against the 2026-10-04 directives.
+
+- The reactor scans every open region for each pointer a host passes. (Code review 20261004 item 29)
+	- ID: 2026100413480029
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: a convert call took 67 us with no other allocations open, 948 us with 1,000 and 8.3 ms with 10,000.
+	- Probable fix: an exact lookup on the start pointer first, with the scan only for pointers into the middle of a region.
+	- Origin: `reactor/main.go:136-148`, from 36d7ccc on 2026-08-02. Not seen by an earlier round. Confirmed with a scratch reactor-host bench.
+
+- A config migration can lose an edit made to the original during the backup. (Code review 20261004 item 30)
+	- ID: 2026100413480030
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: the backup is a hard link to the original. An in-place write between the backup check and the rename goes into both, and `keepBackup` then puts the old bytes over it. The window is milliseconds.
+	- Probable fix: when the backup no longer matches, write the old bytes under a new name.
+	- Origin: `configupgrade.go:157-161`, from 9acc437 on 2026-10-03. Not seen by an earlier round. Plausible.
 
 - A field written under another field in a config file is ignored without a word.
 	- ID: 2026100314430255
@@ -88,7 +539,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261003-150028
 
-
 - `checksums.txt` names a prerelease `.deb` or `.rpm` with a `~`, but GitHub serves the file with a `.` there.
 	- ID: 2026100412472515
 	- Type: Bug
@@ -116,7 +566,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next beta. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
-
 
 - `--version` also shows the build number: Linux epoch seconds, in lower-case Crockford base 32.
 	- ID: 2026100408500169
@@ -367,6 +816,18 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
 	- Closed: 20261003-180637
 
+
+- The Unicode research pipeline repeats expensive work per chunk. (Code review 20261004 item 31)
+	- ID: 2026100413480031
+	- Type: Enhancement
+	- Status: Deferred
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Note: each filter call reparses `confusables.txt` and reloads four fonts, and the populate script runs all three filters on the same 683 chunks for each of three spreadsheets.
+	- Note: reopen when the alphabet research is next run. These are one-off tools, so minutes of rework don't matter until then.
+	- Origin: b3e719f and de93848, 2026-05. Not seen by an earlier round. Plausible, not timed.
 
 ## Old format
 
