@@ -34,10 +34,63 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- macOS gets a universal binary for both amd64 and ARM.
+	- ID: 2026100313304792
+	- Type: Enhancement
+	- Status: Waiting for testing
+	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Intel Mac and on an Apple silicon Mac. Check `--version` and one conversion on each, and that Gatekeeper treats it the same as the per-arch build.
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Target OS: macOS
+	- Progress log:
+		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
+		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
+		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
+		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
+	- Decisions:
+		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
+		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
+	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
+	- Branch: mac-universal
+	- Commit: 22452c9
+	- Test case: `cicd/utility/macho-fat/main_test.go`, run as the "macOS universal binary" section of `cicd/test.bash`. It fails with the arm64 alignment or slice order broken.
+
+
+- A field written under another field in a config file is ignored without a word.
+	- ID: 2026100314430255
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261003-144302
+	- Opened by: found while working 2026100313304802
+	- Target OS: Any
+	- Steps to reproduce:
+		- A base block with `negative:` and, indented under it, `decimal: X`.
+	- Incorrect behavior: it loads. The negative marker is switched off and the decimal line is never read.
+	- Expected behavior: refused, like any other unknown or misplaced field, citing the line.
+	- Reproduced: 20261003, with both the old and the new shcl.
+		- 20261003: again on dev. With `negative: N` and `decimal: D` under it, 1.5 to that base printed `1.5` at exit 0.
+	- Possible cause: the field check looks one level down only.
+	- Actual cause: the field check looked at the names directly under each base block and nothing below them. No base field takes fields of its own, so anything under one was dropped unread. A dotted name like `negative.decimal: X` builds the same tree and slipped past the same way.
+	- Note: blocks release, since the result is a wrong alphabet at exit 0.
+	- Progress log:
+		- Done: anything under a base field is refused, at any depth. The error names the base, the stray field and the field it sits under, and cites the stray field's line. That makes nine refusal paths that cite a line.
+		- Note: no shcl bug was involved. Two same-named fields that both have fields under them merge into one in shcl, so the repeat check misses them, but the new check still catches the fields under them.
+		- Note: found along the way, logged as 2026100315002873: a raw block as a field value drops aliases without a word and reports symbols as missing.
+	- Actual fix: the field check now also refuses any field under a base field.
+	- Sweep: every place config.go walks children, the top level of the file, fields under list-valued fields, and whether `lib/wasm` and `lib/reactor` load configs.
+	- Swept: config.go walks children in two places, the top level and each base block. The top level refuses every name but `base`, so nothing under them is ever read. Each base block's fields are now checked for children. Under `aliases:` and stacked `* x` lists, a field is caught by this check or already refused by shcl as a list mixed with fields. `configBase` only reads fixed paths. `lib/wasm` and `lib/reactor` load no config at all; the only `LoadConfig` callers are the command's two paths in `main.go`, both through `Registry.LoadConfig`.
+	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The new unit test and the new harness check fail on dev and pass on this branch. The full `cicd/test.bash` passed 446 of 446 with the fixed build. Shellcheck finds nothing new in `cicd/test.bash`.
+	- Branch: nested-field
+	- Commit: 5c64d73
+	- Test case: `TestConfigRejectsNestedField` and the "nested" case in `TestConfigErrorsCiteLines` in `config_test.go`; "config nested field rejected" in `cicd/test.bash`.
+	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
+	- Closed: 20261003-150028
+
 - A raw block as a config field value is dropped or misreported.
 	- ID: 2026100315002873
 	- Type: Bug
-	- Status: Waiting on signoff
+	- Status: Done
 	- Needs local test suite run?: No. The full `cicd/test.bash` passed 467 of 467 on the cfg-migrate branch, which had this merged.
 	- Severity: Low
 	- Opened: 20261003-150028
@@ -63,11 +116,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: rawblock
 	- Commit: 7c91a52
 	- Test case: `TestConfigRawBlockSymbols`, `TestConfigRejectsRawBlockValue`, and the "raw marker" and "raw name" cases in `TestConfigErrorsCiteLines`, in `config_test.go`; "config raw block symbols" and "config raw block alias rejected" in `cicd/test.bash`.
+	- Acceptance signoff: Signed off 20261003.
+	- Closed: 20261003-180637
+
 
 - Support `--help`, `--about` and `--donate`, in a similar way as sister project shcl.
 	- ID: 2026100313304797
 	- Type: Enhancement
-	- Status: Waiting on signoff
+	- Status: Done
 	- Needs local test suite run?: No. The full `cicd/test.bash` passed 467 of 467 on the cfg-migrate branch, which had this merged.
 	- Opened: 20261003-133047
 	- Opened by: JC
@@ -89,11 +145,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: about-donate
 	- Commit: c420170, 67d980e
 	- Test case: `TestInfoFlagOrder`, `TestPrintInfoLoneIsUnchanged`, `TestPrintInfoSeparation`, `TestAboutAndDonateContent` in `main_test.go`; the `--about`/`--donate` checks under "CLI surface" in `cicd/test.bash`.
+	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
+	- Closed: 20261003-180637
+
 
 - When a shcl upgrade breaks compatibility with the application config file(s).
 	- ID: 2026100313304802
 	- Type: Feature
-	- Status: Waiting on signoff
+	- Status: Done
 	- Needs local test suite run?: No. The full `cicd/test.bash` passed 467 of 467 on the branch.
 	- Opened: 20261003-133047
 	- Opened by: JC
@@ -151,12 +210,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 51f59b6, 9acc437
 	- Test case: `TestConfigBackslashLayers` in `config_test.go`, `TestUserConfigIsStamped` in `userconfig_test.go`, and the "config bare backslash escape", "config bad escape rejected" and "user config names its format" checks in `cicd/test.bash`.
 		- Second half: `TestUpgradeConfigKeepsOldMeaning`, `TestUpgradeConfigCurrentIsLeftAlone` and `TestUpgradeConfigRefuses` in `configformat_test.go`, the `TestUpgradeConfigFile` tests and `TestExplicitConfigNote` in `userconfig_test.go`, and the "Config migration" section of `cicd/test.bash`.
+	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
+	- Closed: 20261003-180637
+
 
 - Write a test as part of CICD that creates old shcl file versions for settings, and tests the automatic (non-shcl-assisted) conversion.
 	- Note: the conversion now goes through shcl's own `Migrate`. "Non-shcl-assisted" is read as: the program does the backup and rewrite itself, rather than shcl's CLI doing it.
 	- ID: 2026100313304807
 	- Type: Task
-	- Status: Waiting on signoff
+	- Status: Done
 	- Opened: 20261003-133047
 	- Opened by: JC
 	- Parent ID: 2026100313304802
@@ -173,58 +235,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: cfg-migrate
 	- Commit: 9acc437
 	- Test case: the "Config migration" section of `cicd/test.bash`, plus the tests named on the parent.
+	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
+	- Closed: 20261003-180637
 
-- macOS gets a universal binary for both amd64 and ARM.
-	- ID: 2026100313304792
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Intel Mac and on an Apple silicon Mac. Check `--version` and one conversion on each, and that Gatekeeper treats it the same as the per-arch build.
-	- Opened: 20261003-133047
-	- Opened by: JC
-	- Target OS: macOS
-	- Progress log:
-		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
-		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
-		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
-		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
-	- Decisions:
-		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
-		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
-	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
-	- Branch: mac-universal
-	- Commit: 22452c9
-	- Test case: `cicd/utility/macho-fat/main_test.go`, run as the "macOS universal binary" section of `cicd/test.bash`. It fails with the arm64 alignment or slice order broken.
-
-- A field written under another field in a config file is ignored without a word.
-	- ID: 2026100314430255
-	- Type: Bug
-	- Status: Done
-	- Severity: High
-	- Opened: 20261003-144302
-	- Opened by: found while working 2026100313304802
-	- Target OS: Any
-	- Steps to reproduce:
-		- A base block with `negative:` and, indented under it, `decimal: X`.
-	- Incorrect behavior: it loads. The negative marker is switched off and the decimal line is never read.
-	- Expected behavior: refused, like any other unknown or misplaced field, citing the line.
-	- Reproduced: 20261003, with both the old and the new shcl.
-		- 20261003: again on dev. With `negative: N` and `decimal: D` under it, 1.5 to that base printed `1.5` at exit 0.
-	- Possible cause: the field check looks one level down only.
-	- Actual cause: the field check looked at the names directly under each base block and nothing below them. No base field takes fields of its own, so anything under one was dropped unread. A dotted name like `negative.decimal: X` builds the same tree and slipped past the same way.
-	- Note: blocks release, since the result is a wrong alphabet at exit 0.
-	- Progress log:
-		- Done: anything under a base field is refused, at any depth. The error names the base, the stray field and the field it sits under, and cites the stray field's line. That makes nine refusal paths that cite a line.
-		- Note: no shcl bug was involved. Two same-named fields that both have fields under them merge into one in shcl, so the repeat check misses them, but the new check still catches the fields under them.
-		- Note: found along the way, logged as 2026100315002873: a raw block as a field value drops aliases without a word and reports symbols as missing.
-	- Actual fix: the field check now also refuses any field under a base field.
-	- Sweep: every place config.go walks children, the top level of the file, fields under list-valued fields, and whether `lib/wasm` and `lib/reactor` load configs.
-	- Swept: config.go walks children in two places, the top level and each base block. The top level refuses every name but `base`, so nothing under them is ever read. Each base block's fields are now checked for children. Under `aliases:` and stacked `* x` lists, a field is caught by this check or already refused by shcl as a list mixed with fields. `configBase` only reads fixed paths. `lib/wasm` and `lib/reactor` load no config at all; the only `LoadConfig` callers are the command's two paths in `main.go`, both through `Registry.LoadConfig`.
-	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The new unit test and the new harness check fail on dev and pass on this branch. The full `cicd/test.bash` passed 446 of 446 with the fixed build. Shellcheck finds nothing new in `cicd/test.bash`.
-	- Branch: nested-field
-	- Commit: 5c64d73
-	- Test case: `TestConfigRejectsNestedField` and the "nested" case in `TestConfigErrorsCiteLines` in `config_test.go`; "config nested field rejected" in `cicd/test.bash`.
-	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
-	- Closed: 20261003-150028
 
 ## Old format
 
