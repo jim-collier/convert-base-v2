@@ -59,13 +59,30 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `--version` also shows the build number: Linux epoch seconds, in lower-case Crockford base 32.
 	- ID: 2026100408500169
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its CLI surface section was run, 36 of 36.
 	- Priority: Avg
 	- Opened: 20261004-085001
 	- Opened by: JC
 	- Target OS: Any
 	- Note: release builds are rebuilt to their published checksums, so the seconds should come from the commit date, not the clock.
 	- Note: `--version` alone prints one bare line today, and scripts may read it.
+	- Progress log:
+		- Done: `--version` prints `v3.0.0 build dbrk8` when the build was stamped, and the version alone when not. `--about` and the help open with the same line.
+		- Done: `make local`, `make debug`, `make wasm` and `make release` stamp the commit's time. `package.bash` takes `--build-epoch`, and defaults to HEAD's commit time, so the release workflow's build is stamped with no change there.
+		- Fixed: `install.bash` compared the whole `--version` line to the release tag, so with a build number on it every run would have reinstalled. It compares the version part now.
+		- Note: `lib/wasm` and `lib/reactor` are unchanged. They report `convertbase.Version`, the library's own number, which names a package surface rather than a build.
+		- Note: the parity and interop harnesses compare conversion answers only, never the version line, so they are unaffected.
+	- Decisions:
+		- Match sister projects gitsby and shcl, not the epoch seconds in the title: minutes from 2000-01-01 00:00 UTC to the commit's time, in lower-case Crockford base32, five characters until 2063.
+		- Taken from the commit date, never the clock, so release builds still rebuild to their published checksums.
+		- Same line, like the sisters: `v3.0.0 build dbrk8`. A build with no stamp, such as `go install`, prints the version alone, as before.
+		- It stays a `var` patched by `-X`, beside `version`.
+		- `--version` alone stays one line, per 2026100313304797. `--about` still covers it.
+	- Swept: every `-X main.version` in the tree (Makefile, `package.bash`), every reader of `--version` (`install.bash`, `cicd.bash` log lines, the harness), the three hosted workflows (`release.yml` builds through `package.bash`, `ci.yml` builds unstamped, `pages.yml` builds only the browser module), and the docs that describe the version output.
+	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The four new Go tests and the two new harness checks fail with the version on two lines, `buildEpoch` as a const, or the Makefile without the stamp, and pass with the change. A plain `go build` prints `v3.0.0` alone. `test-ids.py check` passes. Shellcheck finds nothing new.
+	- Branch: build-num
+	- Test case: `ErlL5bp` TestCrockfordBase32, `ErlL5cK` TestBuildNumber, `ErlL5cs` TestVersionText and `ErlL5dO` TestBuildEpochIsPatchable; `ErlL5dx` "--version is one line, version then build number" and `ErlL5eT` "make stamps every command build with the commit's time" in the harness.
 
 
 - Release notes group the downloads in a table, with CPU architecture in columns and target OS in rows.

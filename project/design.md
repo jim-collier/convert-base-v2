@@ -89,7 +89,7 @@ Inside the package:
 
 - Query flags (`--list`, `--show-symbols`, and friends) each print one value and exit, so scripts can read the base set from the program itself.
 
-- The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` stays one bare line for scripts. Only the help reports on the config files, so the others print before any config is read.
+- The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` stays one bare line for scripts, such as `v3.1.0 build dbrk8`, or the version alone when the build was not stamped. Only the help reports on the config files, so the others print before any config is read.
 
 ## Key design decisions
 
@@ -152,6 +152,13 @@ The rationale behind the choices most likely to be questioned later. Each was se
 	- Naming applies to the number path only. Byte mode writes raw bytes or a fixed alphabet, where the flag would be accepted and then do nothing, so it is refused there instead.
 
 - **The version is a `var`, not a `const`.** The release build patches it through a linker flag, which only works on a var. The source value is the single source of truth for the released version.
+
+- **Every build has a build number, matching sister projects gitsby and shcl.** A version alone does not tell apart the many builds between two releases.
+	- It is the minutes from 2000-01-01 00:00 UTC to the commit's time, in lower-case Crockford base32. That is five characters until 2063, with no I, L, O or U to misread.
+	- It comes from the commit, never the clock. A clock stamp would change on every rebuild, so a published asset could never be rebuilt to its published checksum.
+	- The build passes the commit's unix seconds in through a second linker-patched var, `buildEpoch`, and the program does the encoding. A build with no stamp, such as `go install`, prints the version alone rather than make one up.
+	- It goes on the version line, not a line of its own, so `--version` stays one line.
+	- The browser and reactor modules report the library's own version, which names a package surface, not a build. They have no build number.
 
 - **Output stays deterministic and stable.** Given the same input and base, the output never changes across runs or platforms. Any future change that would alter output goes to a new version suffix so old scripts keep working.
 

@@ -621,7 +621,7 @@ func printInfo(out io.Writer, asked infoAsks, help func(io.Writer)) error {
 		case "help":
 			help(&all)
 		case "version":
-			fmt.Fprintln(&all, version)
+			fmt.Fprintln(&all, versionText())
 		case "about":
 			printAbout(&all)
 		case "donate":
@@ -890,7 +890,7 @@ Other:
 Program info (several in one run each print once, in order, then exit):
   --help, -h           Show this help
   --examples           Show usage examples
-  --version, -v, -V    Print version
+  --version, -v, -V    Print version and build number
   --about              Print version, copyright, license and project home
   --donate             Print ways to support the project
 
@@ -981,7 +981,7 @@ Licensed under the GNU General Public License v2.0 or later. Full text at:
   https://spdx.org/licenses/GPL-2.0-or-later.html
 There is no warranty, to the extent permitted by law.
 
-`, version, copyrightYear, author)
+`, versionText(), copyrightYear, author)
 }
 
 func printAbout(out io.Writer) {

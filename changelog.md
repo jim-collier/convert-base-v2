@@ -28,6 +28,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `--about` prints the version, copyright, license and project home, with a short description. `--donate` lists the GitHub Sponsors and Ko-fi links. `-v` and `-V` work as `--version`.
 
+- `--version` names the build too, as `v3.1.0 build dbrk8`, still on one line. The build number is the minutes from the start of 2000 to the time of the commit it was built from, in lower-case Crockford base32. It comes from the commit, not the clock, so a release can still be rebuilt to its published checksums. `--about` and `--help` open with the same line. A plain `go build` or `go install` prints the version alone.
+
 - A universal macOS build, `convert-base-v2-darwin-universal`, that runs on both Intel and Apple silicon Macs. The separate Intel and ARM builds are still there.
 
 - Library: `UpgradeConfig` converts the text of a config file written for an older SHCL format, so it loads to the same bases. `LoadConfig` uses it. The library is now v0.2.0.

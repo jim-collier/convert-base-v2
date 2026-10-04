@@ -142,6 +142,18 @@ done
 ## build from a clone once stamped the library's version on the command.
 _run --version
 { ((_rc == 0)) && [[ "$_out" == v[1-9]* ]]; } && _pass ErkSf4k "--version is the command's tag, not the library's" || _fail ErkSf4k "--version is the command's tag, not the library's" "out=[$_out]"
+## Still one line for scripts: the version, then the build number when the build
+## was stamped. Crockford base32, lower case, so no i, l, o or u.
+_run --version
+{ ((_rc == 0)) && [[ "$_out" =~ ^v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+)?$ ]]; } && _pass ErlL5dx "--version is one line, version then build number" || _fail ErlL5dx "--version is one line, version then build number" "out=[$_out]"
+## make stamps the commit's time, never the clock, so a release rebuilds to its checksums.
+cbEpoch="$(git -C "${meDir}" log -1 --format=%ct 2>/dev/null || true)"
+if [[ -z "${cbEpoch}" ]] || ! command -v make >/dev/null 2>&1; then
+	_warn ErlL5eT "make build stamp not checked (needs git and make)"
+else
+	cbMake="$(make -n -C "${meDir}/../lib" local debug wasm release 2>/dev/null || true)"
+	{ (($(grep -cF -- "-X main.buildEpoch=${cbEpoch}" <<<"$cbMake") == 3)) && grep -qF -- "--build-epoch '${cbEpoch}'" <<<"$cbMake"; } && _pass ErlL5eT "make stamps every command build with the commit's time" || _fail ErlL5eT "make stamps every command build with the commit's time" "want ${cbEpoch} in local, debug, wasm and release: [$cbMake]"
+fi
 check EizUJDd ok  "--help exits 0"          -   --help
 check EizUJDe ok  "-h exits 0"              -   -h
 check EizUJDf ok  "--examples exits 0"      -   --examples

@@ -66,7 +66,7 @@ func TestPrintInfoLoneIsUnchanged(t *testing.T) {
 	if err := printInfo(&got, parseInfo(t, "--version"), nil); err != nil {
 		t.Fatal(err)
 	}
-	if got.String() != version+"\n" {
+	if got.String() != versionText()+"\n" {
 		t.Errorf("--version: got %q", got.String())
 	}
 
@@ -92,7 +92,7 @@ func TestPrintInfoSeparation(t *testing.T) {
 	}
 	var donate strings.Builder
 	printDonate(&donate)
-	want := version + "\n\nHELP\n\n" + donate.String()
+	want := versionText() + "\n\nHELP\n\n" + donate.String()
 	if got.String() != want {
 		t.Errorf("got %q\nwant %q", got.String(), want)
 	}
@@ -106,7 +106,7 @@ func TestAboutAndDonateContent(t *testing.T) {
 	var about, donate strings.Builder
 	printAbout(&about)
 	printDonate(&donate)
-	for _, s := range []string{version, "Copyright ©", "GPL-2.0-or-later", "https://github.com/jim-collier/convert-base-v2"} {
+	for _, s := range []string{versionText(), "Copyright ©", "GPL-2.0-or-later", "https://github.com/jim-collier/convert-base-v2"} {
 		if !strings.Contains(about.String(), s) {
 			t.Errorf("--about is missing %q", s)
 		}
