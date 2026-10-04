@@ -55,9 +55,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261003: a raw block suits a long alphabet, so `symbols` and `tail` read one now. Every other field is one short value, so a block there is refused.
 		- Question: a block reads like the one-line form, so a line break counts as a space. That keeps one rule for both spellings, but a block of rows with no spaces, such as `ABCD` then `EFGH`, is two digits of four characters each, not eight digits. The docs say to put spaces between digits. Should each line be split per character instead?
-	- Actual fix: `symbols` and `tail` take a raw block and read it like the one-line form. Every other field, and the `base:` name, refuses one, naming the base, the field and the line. Documented in the README, the default config and the changelog.
+			- Answered: neither. It's ambiguous, so a block is refused under `symbols` and `tail` too.
+	- Actual fix: every field, and the `base:` name, refuses a raw block, naming the base, the field and the line. Documented in the README, the default config and the changelog.
 	- Sweep: every field config.go reads, plus the base name.
-	- Swept: `symbols` and `tail` read the block. `aliases`, `negative`, `decimal`, `pad`, `pademit` and the `base:` name refuse it. Two blocks under one field are two instances, already refused as a repeat. A field nested under a block is already refused. The refusal runs in the field check, before anything is read, so no read path can see a block it does not handle.
+	- Swept: `symbols`, `tail`, `aliases`, `negative`, `decimal`, `pad`, `pademit` and the `base:` name refuse it. Two blocks under one field are two instances, already refused as a repeat. A field nested under a block is already refused. The refusal runs in the field check, before anything is read, so no read path can see a block it does not handle.
 	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The new unit tests fail against the old loader and pass on this branch, except the empty-block case, which already said missing symbols. The two new harness checks fail on a dev build and pass on this one; the harness up to the end of its config section passed 116 of 116. The README example converts as shown. Shellcheck finds nothing new in `cicd/test.bash`.
 	- Branch: rawblock
 	- Commit: 7c91a52

@@ -221,91 +221,15 @@ func TestConfigBackslashLayers(t *testing.T) {
 	}
 }
 
-// A raw block under symbols or tail is the one string spelling over several
-// lines. Before, an array read of a block came back BadType with no value, so
-// symbols reported as missing and a tail was dropped without a word.
-func TestConfigRawBlockSymbols(t *testing.T) {
-	cases := []struct {
-		name string
-		body string // the lines of the block, already indented
-		want []string
-	}{
-		{"several lines", "\t\t~~~\n\t\tA B\n\t\tC D\n\t\t~~~\n", []string{"A", "B", "C", "D"}},
-		{"one word splits per rune", "\t\t~~~\n\t\tABCD\n\t\t~~~\n", []string{"A", "B", "C", "D"}},
-		{"fence on the field line", " ~~~\n\t\tw x\n\t\ty z\n\t\t~~~\n", []string{"w", "x", "y", "z"}},
-		{"label ignored", "\t\t~~~text\n\t\tp q\n\t\t~~~\n", []string{"p", "q"}},
-		// SHCL leaves a block's text alone, so # and quotes are digits.
-		{"no comments or quotes", "\t\t```\n\t\t# \" '\n\t\t```\n", []string{"#", `"`, "'"}},
-		{"spec escapes still apply", "\t\t~~~\n\t\ta\\ b c\n\t\t~~~\n", []string{"a b", "c"}},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			path := filepath.Join(t.TempDir(), "convert-base-v2.shcl")
-			if err := os.WriteFile(path, []byte("base: rb\n\tsymbols:"+c.body), 0o600); err != nil {
-				t.Fatal(err)
-			}
-			r, err := NewRegistry()
-			if err != nil {
-				t.Fatal(err)
-			}
-			if err := r.LoadConfig(path); err != nil {
-				t.Fatalf("%v", err)
-			}
-			b, err := ResolveBase(r, "rb", "", nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if strings.Join(b.Symbols, "|") != strings.Join(c.want, "|") {
-				t.Fatalf("symbols %q, want %q", b.Symbols, c.want)
-			}
-		})
-	}
-
-	t.Run("big alphabet with a tail", func(t *testing.T) {
-		var text strings.Builder
-		text.WriteString("base: cjk512\n\tsymbols:\n\t\t~~~\n")
-		for row := 0; row < 16; row++ {
-			text.WriteString("\t\t")
-			for col := 0; col < 32; col++ {
-				text.WriteRune(rune(0x4E00 + row*32 + col))
-				text.WriteByte(' ')
-			}
-			text.WriteByte('\n')
-		}
-		text.WriteString("\t\t~~~\n\ttail:\n\t\t~~~\n\t\t\u2E10 \u2E11\n\t\t~~~\n")
-		path := filepath.Join(t.TempDir(), "convert-base-v2.shcl")
-		if err := os.WriteFile(path, []byte(text.String()), 0o600); err != nil {
-			t.Fatal(err)
-		}
-		r, err := NewRegistry()
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := r.LoadConfig(path); err != nil {
-			t.Fatal(err)
-		}
-		b, err := ResolveBase(r, "cjk512", "", nil)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if len(b.Symbols) != 512 || len(b.TailSymbols) != 2 {
-			t.Fatalf("got %d symbols and %d tail symbols, want 512 and 2", len(b.Symbols), len(b.TailSymbols))
-		}
-	})
-
-	t.Run("empty block is no symbols", func(t *testing.T) {
-		err := loadConfigText(t, "base: rb\n\tsymbols:\n\t\t~~~\n\t\t~~~\n")
-		if err == nil || !strings.Contains(err.Error(), "missing 'symbols'") {
-			t.Fatalf("got %v", err)
-		}
-	})
-}
-
-// Every other field is one short value. A block there used to be dropped, as an
-// alias was, or read with its line breaks kept, as a marker was. So it is refused.
+// No field takes a raw block. One used to be dropped, as an alias or a tail was,
+// or read with its line breaks kept, as a marker was. Under symbols it could mean
+// two different alphabets, one digit per row or one per character.
 func TestConfigRejectsRawBlockValue(t *testing.T) {
 	block := "\n\t\t~~~\n\t\tx\n\t\t~~~\n"
 	cases := map[string]string{
+		"symbols":  "base: a\n\tsymbols:" + block,
+		"rows":     "base: a\n\tsymbols:\n\t\t~~~\n\t\tABCD\n\t\tEFGH\n\t\t~~~\n",
+		"tail":     "base: a\n\tsymbols: ab\n\ttail:" + block,
 		"aliases":  "base: a\n\tsymbols: ab\n\taliases:" + block,
 		"negative": "base: a\n\tsymbols: ab\n\tnegative:" + block,
 		"two-line": "base: a\n\tsymbols: ab\n\tnegative:\n\t\t~~~\n\t\tx\n\t\ty\n\t\t~~~\n",
