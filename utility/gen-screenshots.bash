@@ -56,7 +56,9 @@ fi
 [[ -x "${BIN}" ]] || { echo "gen-screenshots: build the binary first (make -C lib local)" >&2; exit 1; }
 
 command -v magick >/dev/null 2>&1 || { echo "gen-screenshots: ImageMagick 'magick' not found" >&2; exit 1; }
-magick -list format 2>/dev/null | grep -qi pango || { echo "gen-screenshots: ImageMagick lacks the pango delegate" >&2; exit 1; }
+## grep -q quits at the match, so a long list piped in would kill magick with SIGPIPE.
+magickFormats="$(magick -list format 2>/dev/null || true)"
+grep -qi pango <<<"${magickFormats}" || { echo "gen-screenshots: ImageMagick lacks the pango delegate" >&2; exit 1; }
 
 LARGE="${REPO}/assets/screenshots/large"
 SMALL="${REPO}/assets/screenshots"

@@ -34,7 +34,7 @@ readme="${root}/README.md"
 fFail(){ echo "release check FAILED: $*" >&2; exit 1; }
 
 ## 1. Version must be set.
-ver="$(sed -n 's/^var version = "\(v[0-9][^"]*\)".*/\1/p' "${main_go}")"
+ver="$(sed -n 's/^var version = "\(v[0-9][^"]*\)".*/\1/p' "${main_go}" 2>/dev/null || true)"
 [[ -n "${ver}" ]] || fFail "no 'var version' in ${main_go}"
 
 ## 2. Its tag must not exist yet (bumped since the last release).
@@ -45,7 +45,7 @@ fi
 ## 3. Must sort strictly after the newest existing release tag. Map '-' to '~'
 ## so a pre-release sorts before its final, the way sort -V (and dpkg/rpm) read it.
 cand="${ver//-/\~}"
-newest="$(git -C "${root}" tag --list 'v[0-9]*' | sed 's/-/~/g' | sort -V | tail -1)"
+newest="$(git -C "${root}" tag --list 'v[0-9]*' | sed 's/-/~/g' | sort -V | tail -1)" || fFail "could not list the tags in ${root}"
 if [[ -n "${newest}" ]]; then
 	top="$(printf '%s\n%s\n' "${newest}" "${cand}" | sort -V | tail -1)"
 	[[ "${top}" == "${cand}" && "${cand}" != "${newest}" ]] \
@@ -59,7 +59,9 @@ case "${ver,,}" in
 	*rc*)    want="RC"    ;;
 	*)       want="Stable" ;;
 esac
-have="$(grep -oE 'Lifecycle-[A-Za-z]+-' "${readme}" | head -1 | sed -E 's/^Lifecycle-(.*)-$/\1/')"
+## A README with no badge must reach the message below, not exit at the grep.
+have="$(grep -m1 -oE 'Lifecycle-[A-Za-z]+-' "${readme}" 2>/dev/null || true)"
+have="${have%%$'\n'*}"; have="${have#Lifecycle-}"; have="${have%-}"
 [[ -n "${have}" ]] || fFail "no Lifecycle badge found in README.md"
 [[ "${have,,}" == "${want,,}" ]] \
 	|| fFail "README Lifecycle badge is '${have}' but version ${ver} is '${want}' - update the badge"
@@ -72,3 +74,4 @@ fi
 
 ##	History:
 ##		- 2026-07-12: Created. Version-bump + Lifecycle-badge guard for the release path.
+##		- 2026-10-04: A failed lookup prints its message instead of exiting silently.

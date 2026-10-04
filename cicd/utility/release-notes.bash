@@ -47,7 +47,9 @@ esac; done
 ## The changelog section for this version, as written. The heading is matched
 ## up to its " - DATE", so v3.1.0 does not also take a v3.1.0-beta1 section.
 
-section="$(awk -v ver="${VERSION}" '
+## ENVIRON, since awk -v would read backslashes in the version as escapes.
+section="$(VER="${VERSION}" awk '
+	BEGIN { ver = ENVIRON["VER"] }
 	$0 == "## " ver || index($0, "## " ver " ") == 1 { on = 1; next }
 	/^## / { on = 0 }
 	on { print }

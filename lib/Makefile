@@ -16,6 +16,10 @@ LDFLAGS_DEBUG := $(STAMP)
 LDFLAGS_WEB   := -s -w
 
 DIST := dist
+## package.bash and clean empty $(DIST) only when it has this mark, so a target
+## that makes the dir marks it too. A dir that was already there is left as is.
+DIST_MARK := .convert-base-v2-dist
+MKDIST = [ -d '$(DIST)' ] || { mkdir -p '$(DIST)' && echo 'Made by make, and cleared by make release or make clean.' >'$(DIST)/$(DIST_MARK)'; }
 
 # Cap parallelism at 50% of cores (go build -p and go test both default to all
 # cores). cicd exports its own GOMAXPROCS, which ?= leaves untouched.
@@ -49,14 +53,14 @@ release:
 # The whole command, for any WASI runtime. Streams through real stdin/stdout,
 # so it behaves like the native binary rather than like a cut-down build.
 wasm:
-	mkdir -p $(DIST)
+	$(MKDIST)
 	GOOS=wasip1 GOARCH=wasm go build -trimpath -ldflags '$(LDFLAGS)' -o $(DIST)/$(BINARY).wasm ./cmd/$(BINARY)
 
 # The reactor library module: any host runtime loads it and calls exported
 # functions directly (ABI in reactor/README.md). Needs a Go 1.24+ toolchain;
 # the go.mod floor stays put, only the machine building this artifact cares.
 reactor:
-	mkdir -p $(DIST)
+	$(MKDIST)
 	GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -ldflags '$(LDFLAGS_WEB)' -o $(DIST)/convert-base-reactor.wasm ./reactor
 
 # The browser module plus the loader Go requires, staged into the demo page.
@@ -75,4 +79,5 @@ fmt:
 	gofmt -w .
 
 clean:
-	rm -rf $(BINARY) $(DIST)
+	rm -rf $(BINARY)
+	if [ -f '$(DIST)/$(DIST_MARK)' ]; then rm -rf '$(DIST)'; elif [ -d '$(DIST)' ]; then rmdir '$(DIST)' 2>/dev/null || { echo '$(DIST) has files in it and no sign a build made them; left alone' >&2; exit 1; }; fi

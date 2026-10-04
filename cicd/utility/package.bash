@@ -28,6 +28,8 @@
 ##		- A file name with a character GitHub would change on upload, such as
 ##		  the ~ in a prerelease .deb or .rpm, is renamed to what GitHub serves
 ##		  before checksums.txt is written.
+##		- The output dir is cleared first, but only when a build made it. A dir
+##		  holding anything else is refused.
 ##	History: At bottom.
 
 ##	Copyright (c) 2026 Bubbles
@@ -113,7 +115,16 @@ platforms=(
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 
-rm -rf "${OUT}"; mkdir -p "${OUT}"
+## Only a dir with the mark is cleared, so --out can't empty someone's folder.
+## An empty dir is taken over. lib/Makefile writes the same mark.
+distMark=".convert-base-v2-dist"
+if [[ -f "${OUT}/${distMark}" ]]; then
+	rm -rf "${OUT}"
+elif [[ -e "${OUT}" ]]; then
+	rmdir "${OUT}" 2>/dev/null || { echo "${OUT} has files in it and no sign a build made them; empty it or pick another --out" >&2; exit 1; }
+fi
+mkdir -p "${OUT}"
+echo "Made by package.bash, and cleared on every run." >"${OUT}/${distMark}"
 
 fEcho "packaging ${PKG} ${VERSION} -> ${OUT}"
 for p in "${platforms[@]}"; do
@@ -259,10 +270,10 @@ done
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Checksums over everything produced.
 
-( cd "${OUT}" && find . -maxdepth 1 -type f ! -name checksums.txt -printf '%P\n' | sort \
+( cd "${OUT}" && find . -maxdepth 1 -type f ! -name checksums.txt ! -name "${distMark}" -printf '%P\n' | sort \
 	| xargs -r sha256sum > checksums.txt )
 
-fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt | wc -l) artifacts in ${OUT}"
+fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt ! -name "${distMark}" | wc -l) artifacts in ${OUT}"
 
 
 ##	History:
@@ -270,3 +281,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt | wc -l) 
 ##		- 2026-10-03: macOS universal binary alongside the per-arch darwin builds.
 ##		- 2026-10-04: Build number from the commit's time (--build-epoch). The WASI build ships too.
 ##		- 2026-10-04: Archives, packages and installers rebuild to the same bytes. Names GitHub would change are changed first.
+##		- 2026-10-04: --out is cleared only when a build made it.

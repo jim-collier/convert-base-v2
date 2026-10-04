@@ -41,8 +41,12 @@ fPin govulncheck   "${GOVULNCHECK_VERSION}"   golang.org/x/vuln/cmd/govulncheck 
 ## the version baked into the binary's module info instead of its output.
 fPinModule(){
 	local exe="$1" want="$2" module="$3"
-	local have=""
-	command -v "${exe}" >/dev/null 2>&1 && have="$(go version -m "$(command -v "${exe}")" 2>/dev/null | awk '$1=="mod"{print $3; exit}')"
+	local have="" modInfo=""
+	## awk quits at the first match, so go writes to a variable rather than a pipe.
+	if command -v "${exe}" >/dev/null 2>&1; then
+		modInfo="$(go version -m "$(command -v "${exe}")" 2>/dev/null || true)"
+		have="$(awk '$1=="mod"{print $3; exit}' <<<"${modInfo}")"
+	fi
 	[[ "${have}" == "${want}" ]] && return 0
 	changed=1
 	echo "[ pin: installing ${exe} ${want} ... ]"
