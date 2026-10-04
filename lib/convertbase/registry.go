@@ -335,28 +335,6 @@ func (b *Base) Finalize() error {
 		}
 	}
 
-	// Native binary tail repertoire lookup, if this base defines one.
-	if len(b.TailSymbols) > 0 {
-		b.tailValue = make(map[string]int, len(b.TailSymbols))
-		for i, s := range b.TailSymbols {
-			if s == "" {
-				return fmt.Errorf("base %q: empty tail symbol at index %d", b.Name(), i)
-			}
-			if _, dup := b.tailValue[s]; dup {
-				return fmt.Errorf("base %q: duplicate tail symbol %q", b.Name(), s)
-			}
-			// Decode looks a symbol up in the primary repertoire first, so a tail
-			// symbol that is also a digit could never be reached as a tail.
-			if _, isDigit := b.value[s]; isDigit {
-				return fmt.Errorf("base %q: tail symbol %q is also a digit", b.Name(), s)
-			}
-			b.tailValue[s] = i
-		}
-		if err := b.checkTailWidth(); err != nil {
-			return err
-		}
-	}
-
 	// Rune lookup for the wide streaming path. Checking b.value rather than
 	// b.Symbols covers the decode aliases too, so the streaming decoder accepts
 	// exactly what the buffered one does or the base doesn't qualify at all.
@@ -377,6 +355,63 @@ func (b *Base) Finalize() error {
 		b.runeValue = nil
 	}
 
+	// Native binary tail repertoire lookup, if this base defines one.
+	if len(b.TailSymbols) > 0 {
+		b.tailValue = make(map[string]int, len(b.TailSymbols))
+		for i, s := range b.TailSymbols {
+			if s == "" {
+				return fmt.Errorf("base %q: empty tail symbol at index %d", b.Name(), i)
+			}
+			if _, dup := b.tailValue[s]; dup {
+				return fmt.Errorf("base %q: duplicate tail symbol %q", b.Name(), s)
+			}
+			// Decode looks a symbol up in the primary repertoire first, so a tail
+			// symbol that is also a digit could never be reached as a tail.
+			if _, isDigit := b.value[s]; isDigit {
+				return fmt.Errorf("base %q: tail symbol %q is also a digit", b.Name(), s)
+			}
+			b.tailValue[s] = i
+		}
+		if err := b.checkTailWidth(); err != nil {
+			return err
+		}
+		if err := b.checkTailDigitsOneChar(); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// checkTailDigitsOneChar refuses a tail on a base whose digits or tail symbols
+// are longer than one character. Binary decode of a tail base reads one
+// character per digit, buffered and streaming alike, so such a base would encode
+// bytes it could not read back. Tokenizing it instead would have to tell a tail
+// symbol from the start of a longer digit at the very end of the input.
+func (b *Base) checkTailDigitsOneChar() error {
+	if !b.allOneRune {
+		bad := ""
+		for _, s := range b.Symbols {
+			if utf8.RuneCountInString(s) != 1 {
+				bad = s
+				break
+			}
+		}
+		if bad == "" {
+			for s := range b.value {
+				if utf8.RuneCountInString(s) != 1 {
+					bad = s
+					break
+				}
+			}
+		}
+		return fmt.Errorf("base %q: a tail needs every digit to be a single character, and digit %q is not", b.Name(), bad)
+	}
+	for _, s := range b.TailSymbols {
+		if utf8.RuneCountInString(s) != 1 {
+			return fmt.Errorf("base %q: tail symbol %q must be a single character", b.Name(), s)
+		}
+	}
 	return nil
 }
 

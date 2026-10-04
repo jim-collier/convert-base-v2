@@ -60,6 +60,34 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `ErlzPLg` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
 	- Acceptance signoff: open, since it changes how the program writes a file in the home directory.
 
+- A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
+	- ID: 2026100413480003
+	- Type: Bug
+	- Status: Waiting on signoff
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- Define a 2048-symbol base with two-character digits, an 8-symbol tail and the qntm scheme, then encode bytes to it and decode them back.
+	- Incorrect behavior: the encode works, and the decode fails with `symbol "..." is not in the base`.
+	- Expected behavior: the base is refused when it is defined, or it round trips.
+	- Reproduced: 20261004, by the review, with a throwaway test in package `convertbase`. A config `tail:` field or `--to-tail` reaches it.
+	- Possible cause: `Finalize` accepts the tail, and the buffered big-base decoder reads one character at a time. The streaming path already demands one-character digits.
+	- Origin: `convert.go:1773` and `registry.go` Finalize, from 2757bd5 "Big-base binary interop" on 2026-07-06. Not seen by an earlier round. Confirmed.
+	- Related IDs: 2026100413480020
+	- Note: also reproduced 20261004 on the command. Five bytes encoded through `--to-symbols` and `--to-tail`, and decoding them failed both piped and as an argument.
+	- Actual cause: both binary decoders of a tail base read one character per digit. The streaming one is kept off such a base by its one-character gate, but the buffered one is not, and `Finalize` accepted the tail.
+	- Decisions:
+		- A tail now needs every digit and every tail symbol to be one character, checked in `Finalize`. That is the rule the streaming path already had, and a tail's whole point is that the base streams.
+		- Supporting longer digits was passed over. The tokenizer would have to tell a tail symbol from the start of a longer digit at the end of the input, for a case no built-in base has.
+	- Actual fix: `Finalize` refuses such a tail with an error naming the base and the offending digit or tail symbol. The config comments and the wide-symbols design doc say so. README and design.md don't describe tails.
+	- Verified: every built-in base and the default config still load. Every built-in tail base round trips. `go vet`, `golangci-lint`, `go test ./...` and the harness Binary/streaming section pass.
+	- Swept: every way a tail is set goes through `Finalize`: the built-ins, the config `tail:` field, `--from-tail`/`--to-tail` through `ApplyOptions`, and library callers. The browser and reactor modules take no tail. `decodeBigBaseNative` has no other caller.
+	- Branch: bigbase-tail
+	- Commit: 44ed0be
+	- Test case: `Erm5wwf` TestTailNeedsOneCharDigits, `Erm5wxB` "tail on two-character digits rejected" and `Erm5wxg` "config tail on two-character digits rejected". All three fail before the fix and pass after.
+
 - A failed write of the result still exits 0. (Code review 20261004 item 1)
 	- ID: 2026100413480001
 	- Type: Bug
@@ -133,23 +161,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 22452c9
 	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
 	- Verified: 20261004, on an Intel Mac with macOS 15.8.1. The universal binary, the per-arch x86_64 one and the one from the universal `.tgz` all print the same version and build line. A hex to base-62 conversion and a bytes to base-64 one match the Linux build. Gatekeeper rejects the universal and per-arch builds the same way, unsigned, with and without the quarantine flag.
-
-- A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
-	- ID: 2026100413480003
-	- Type: Bug
-	- Status: Queued
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Steps to reproduce:
-		- Define a 2048-symbol base with two-character digits, an 8-symbol tail and the qntm scheme, then encode bytes to it and decode them back.
-	- Incorrect behavior: the encode works, and the decode fails with `symbol "..." is not in the base`.
-	- Expected behavior: the base is refused when it is defined, or it round trips.
-	- Reproduced: 20261004, by the review, with a throwaway test in package `convertbase`. A config `tail:` field or `--to-tail` reaches it.
-	- Possible cause: `Finalize` accepts the tail, and the buffered big-base decoder reads one character at a time. The streaming path already demands one-character digits.
-	- Origin: `convert.go:1773` and `registry.go` Finalize, from 2757bd5 "Big-base binary interop" on 2026-07-06. Not seen by an earlier round. Confirmed.
-	- Related IDs: 2026100413480020
 
 - Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
 	- ID: 2026100413480017
@@ -248,18 +259,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: this leaves the divide and conquer design alone.
 	- Origin: `convert.go:148` from a6c8612 on 2026-08-02, and `Tokenize`. Not seen by an earlier round. Confirmed by benchmark.
 
-- The buffered big-base decoder allocates for every character. (Code review 20261004 item 20)
-	- ID: 2026100413480020
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: it makes a string per character and looks that up, though the streaming decoder's per-character table is there. Using it took a 1 MiB `65536qntm` decode from 37 ms and 524k allocations to 15 ms and 3. This path serves typed input, the browser page and the reactor.
-	- Origin: `convert.go:1773`, from 2757bd5 on 2026-07-06. Not seen by an earlier round. Confirmed by benchmark.
-	- Prereq IDs: 2026100413480003
-
 - The demo gif generator holds every frame uncompressed in memory. (Code review 20261004 item 21)
 	- ID: 2026100413480021
 	- Type: Enhancement
@@ -356,6 +355,20 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Expected behavior: a failed filter leaves the clipboard alone, and headers describe their own file.
 	- Reproduced: the clipboard mechanism with a failing filter in a scratch script, and the `.gitignore` miss with `git check-ignore`.
 	- Origin: b3e719f and de93848, 2026-05-06 to 05-08. Not seen by an earlier round. Confirmed except the ODS writer.
+
+- A library caller can set a tail scheme on a base with no tail, and decoding then fails.
+	- ID: 2026100416041479
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-160414
+	- Opened by: found while working 2026100413480003
+	- Target OS: Any
+	- Steps to reproduce:
+		- In Go, build a `Base` with `BinaryScheme` set to a tail scheme and no tail, then decode bytes from it.
+	- Incorrect behavior: fails with `symbol "..." is not in the base`, which doesn't say what is wrong.
+	- Expected behavior: `Finalize` refuses a tail scheme without a tail, naming the base.
+	- Reproduced: no. Seen while reading; binary mode picks the tail decoder from `BinaryScheme`, not from whether a tail is set. The command and config can't reach it.
 
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
@@ -564,6 +577,26 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next beta. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
+
+- The buffered big-base decoder allocates for every character. (Code review 20261004 item 20)
+	- ID: 2026100413480020
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: it makes a string per character and looks that up, though the streaming decoder's per-character table is there. Using it took a 1 MiB `65536qntm` decode from 37 ms and 524k allocations to 15 ms and 3. This path serves typed input, the browser page and the reactor.
+	- Origin: `convert.go:1773`, from 2757bd5 on 2026-07-06. Not seen by an earlier round. Confirmed by benchmark.
+	- Prereq IDs: 2026100413480003
+	- Done: the decoder walks the input by rune and looks each one up in the rune table, which 2026100413480003 now guarantees for every tail base. The output buffer is sized up front.
+	- Verified: a 1 MiB `65536qntm` decode went from 33 to 37 ms and 524k allocations to 19 to 22 ms and 2. `2048qntm` went from 46 ms and 763k allocations to 25 ms and 2. `go vet`, `golangci-lint`, `go test ./...` and the harness Binary/streaming, fuzz round-trip, interop, reactor, browser and parity sections pass.
+	- Swept: `streamDecodeWide` already used the rune table. `decodeBigBaseNative` is the only other per-character lookup for a tail base.
+	- Branch: bigbase-tail
+	- Commit: 7a8f56f
+	- Test case: `Erm5wyD` TestBigBaseDecodeAllocs, which allows at most 8 allocations to decode 64 KiB through five tail bases. It counted 32k to 58k before and 2 after. `BenchmarkDecode65536` and `BenchmarkDecode2048` give the timings.
+	- Acceptance signoff: Self-closed: the change does what the item asked and its test passes.
+	- Closed: 20261004-160327
 
 - `--version` also shows the build number: Linux epoch seconds, in lower-case Crockford base 32.
 	- ID: 2026100408500169

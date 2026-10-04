@@ -76,7 +76,9 @@
 #
 # A tail must hold a power of 2 symbols, at least two, at least 2^(bits-8) of
 # them (four for a 1024 symbol base, eight for 2048), no more than 256, and none
-# of them may also be a digit. Anything else is an error where it is written.
+# of them may also be a digit. Every digit and every tail symbol must be a single
+# character, since a byte stream is decoded one character per digit. Anything
+# else is an error where it is written.
 
 
 # Base 10 in emoji, hand picked to carry a wide range of expressions. It lives

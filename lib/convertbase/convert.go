@@ -1751,13 +1751,15 @@ func encodeBigBaseNative(data string, big *Base) string {
 // Each character is looked up in the primary or the tail repertoire; a tail
 // character is only legal as the last one. qntm bases verify the trailing pad
 // is all-ones; the Rust base reconstructs the exact bit count from position.
+// Digits are looked up by rune, which Finalize guarantees for a tail base.
 func decodeBigBaseNative(input string, big *Base) (string, error) {
 	kPrimary := PowerOfTwoBits(len(big.Symbols))
 	kTail := PowerOfTwoBits(len(big.TailSymbols))
-	runes := []rune(stripLineBreaks(input))
+	input = stripLineBreaks(input)
+	runeCount := utf8.RuneCountInString(input)
 	rust := big.BinaryScheme == "rust2048"
 
-	var out []byte
+	out := make([]byte, 0, runeCount*kPrimary/8+1)
 	var acc uint64
 	var accBits int
 	flush := func() {
@@ -1768,14 +1770,15 @@ func decodeBigBaseNative(input string, big *Base) (string, error) {
 		}
 	}
 
-	for i, r := range runes {
-		last := i == len(runes)-1
-		s := string(r)
+	i := 0
+	for _, r := range input {
+		i++
+		last := i == runeCount
 
-		if idx, ok := big.value[s]; ok {
+		if idx, ok := big.runeValue[r]; ok {
 			bits := kPrimary
 			if rust && last {
-				bits = rustFinalBits(len(runes), kPrimary) // 4..kPrimary
+				bits = rustFinalBits(runeCount, kPrimary) // 4..kPrimary
 			}
 			if big.BinaryScheme == "qntm65536" {
 				idx = swap16(idx)
@@ -1789,6 +1792,7 @@ func decodeBigBaseNative(input string, big *Base) (string, error) {
 			continue
 		}
 
+		s := string(r)
 		idx, ok := big.tailValue[s]
 		if !ok {
 			return "", fmt.Errorf("cannot decode from %s: symbol %q is not in the base", big.Name(), s)

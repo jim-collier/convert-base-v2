@@ -789,6 +789,66 @@ func TestTailValidation(t *testing.T) {
 	}
 }
 
+// Binary decode of a tail base reads one character per digit, on both the
+// buffered and streaming paths, so a tail on a base with longer digits used to
+// encode bytes it could not decode. It is refused where it is declared, and
+// every base that does take a tail has to round trip.
+// Test ID: Erm5wwf
+func TestTailNeedsOneCharDigits(t *testing.T) {
+	twoChar := make([]string, 2048)
+	for i := range twoChar {
+		twoChar[i] = string(rune('A'+i/64)) + string(rune(0x4E00+i%64))
+	}
+	cases := []struct {
+		name    string
+		symbols []string
+		tail    []string
+		want    string
+	}{
+		{"two-character digits", twoChar, tailSymbols(8), `digit "A一"`},
+		{"two-character tail symbol", cjkSymbols(512), []string{"⸐", "⸑⸑"}, `tail symbol "⸑⸑"`},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			b := &Base{Aliases: []string{"wide2048"}, Symbols: tc.symbols, TailSymbols: tc.tail, BinaryScheme: "qntm"}
+			err := b.Finalize()
+			if err == nil {
+				t.Fatal("accepted a tail on a base it cannot decode")
+			}
+			for _, want := range []string{`"wide2048"`, "single character", tc.want} {
+				if !strings.Contains(err.Error(), want) {
+					t.Errorf("error %q does not mention %q", err, want)
+				}
+			}
+		})
+	}
+
+	// Every built-in tail base still loads, and still round trips buffered.
+	reg := newReg(t)
+	bytesB := base(t, reg, "bytes")
+	blob := string([]byte{0, 1, 2, 0xfe, 0xff, 0x80, 0x7f})
+	seen := 0
+	for _, b := range reg.OrderedBases() {
+		if len(b.TailSymbols) == 0 {
+			continue
+		}
+		seen++
+		for n := 0; n <= len(blob); n++ {
+			enc, err := Convert(blob[:n], bytesB, b, 0)
+			if err != nil {
+				t.Fatalf("%s encode %d bytes: %v", b.Name(), n, err)
+			}
+			got, err := Convert(enc, b, bytesB, 0)
+			if err != nil || got != blob[:n] {
+				t.Fatalf("%s round trip of %d bytes: err=%v", b.Name(), n, err)
+			}
+		}
+	}
+	if seen == 0 {
+		t.Fatal("no built-in base has a tail")
+	}
+}
+
 // The crown-jewel test: the streaming and buffered binary paths must produce
 // identical output, for both encode and decode, across power-of-2 bases and many
 // lengths (the two are otherwise only ever tested against themselves).
