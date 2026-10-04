@@ -274,6 +274,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: a 1 MiB `65536qntm` decode went from 33 to 37 ms and 524k allocations to 19 to 22 ms and 2. `2048qntm` went from 46 ms and 763k allocations to 25 ms and 2. `go vet`, `golangci-lint`, `go test ./...` and the harness Binary/streaming, fuzz round-trip, interop, reactor, browser and parity sections pass.
 	- Swept: `streamDecodeWide` already used the rune table. `decodeBigBaseNative` is the only other per-character lookup for a tail base.
 	- Branch: bigbase-tail
+	- Commit: 7a8f56f
 	- Test case: `Erm5wyD` TestBigBaseDecodeAllocs, which allows at most 8 allocations to decode 64 KiB through five tail bases. It counted 32k to 58k before and 2 after. `BenchmarkDecode65536` and `BenchmarkDecode2048` give the timings.
 	- Acceptance signoff: Self-closed: the change does what the item asked and its test passes.
 	- Closed: 20261004-160327
