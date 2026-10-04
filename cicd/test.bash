@@ -28,6 +28,7 @@
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
 ##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
 ##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, -q, and the dogfood copy.
+##			- The harness itself: a run against a program that refuses everything, with Go off the PATH, counts each failure and reaches its summary.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
 ##			- CICDTEST_EXE ..........: path to the binary under test (default: ../lib/bin/convert-base-v2).
@@ -35,6 +36,7 @@
 ##			- CICDTEST_DO_PERF ......: 1 to run the performance section. cicd.bash sets it unless --quick.
 ##			- CICDTEST_QUICK ........: 1 to skip the packaging rebuild check. cicd.bash sets it under --quick.
 ##			- CICDTEST_FUZZ_ITERS ...: override the fuzz iteration count.
+##			- CICDTEST_SELFCHECK ....: 1 in the run the harness makes of itself, which skips that self-check.
 ##	History: At bottom of script.
 
 ##	Copyright © 2023-2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]
@@ -75,12 +77,18 @@ trap cleanup EXIT
 ## warm-up run does the creating, so no later check sees the one-time note.
 export XDG_CONFIG_HOME="${CBT_TMP}/xdg"
 "${TIMEOUT[@]}" "${EXE}" --get-index-count >/dev/null 2>&1 || true
-trap 'rc=$?; printf "\n%sHARNESS ABORTED (exit %s) at line %s: %s%s\n" "${red}" "$rc" "$LINENO" "$BASH_COMMAND" "${rst}" >&2; exit $rc' ERR
+## Inside $( ) or <( ) a non-zero status is often the answer: cmp and diff on a
+## difference, a conversion that was refused. Ending the subshell there only cut
+## the output short, so the status is left to whatever reads it.
+trap 'rc=$?; ((BASH_SUBSHELL)) || { printf "\n%sHARNESS ABORTED (exit %s) at line %s: %s%s\n" "${red}" "$rc" "$LINENO" "$BASH_COMMAND" "${rst}" >&2; exit $rc; }' ERR
 
 section(){ printf '\n%s>>> %s%s\n' "${b}" "$*" "${rst}"; }
 
 ## _run ARGS...           : run EXE with ARGS (argv, never a shell string), capture _out/_err/_rc.
 ## _run_in FILE ARGS...   : same, but feed FILE on stdin.
+## A bare x="$(...)" that runs the program ends the whole run when a conversion
+## is refused. A single run goes through these instead, and a pipeline ends in
+## "|| true". Either way the check after it judges what came out.
 _run(){    _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@"        >"${CBT_OUT}" 2>"${CBT_ERR}" || _rc=$?; _out="$(cat "${CBT_OUT}")"; _err="$(cat "${CBT_ERR}")"; }
 _run_in(){ local f="$1"; shift; _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@" <"$f" >"${CBT_OUT}" 2>"${CBT_ERR}" || _rc=$?; _out="$(cat "${CBT_OUT}")"; _err="$(cat "${CBT_ERR}")"; }
 
@@ -191,15 +199,15 @@ _run --list
 _run --list
 { ((_rc == 0)) && [[ "$_out" == *INDEX* ]]; } && _pass EjeBOHQ "--list has an INDEX column" || _fail EjeBOHQ "--list has an INDEX column" "rc=$_rc"
 ## awk consumes the whole stream (NR==2 is the first data row) to avoid a SIGPIPE.
-list_idx0="$("${EXE}" --list 2>/dev/null | awk 'NR==2{print $2}')"
-byidx0="$("${EXE}" --get-base-name --by-index=0 2>/dev/null)"
+list_idx0="$("${EXE}" --list 2>/dev/null | awk 'NR==2{print $2}' || true)"
+_run --get-base-name --by-index=0; byidx0="$_out"
 [[ "$list_idx0" == "$byidx0" && -n "$byidx0" ]] && _pass EjeBOHR "--list INDEX 0 matches --by-index=0" || _fail EjeBOHR "--list INDEX 0 matches --by-index=0" "list=[$list_idx0] byidx=[$byidx0]"
 ## --list-compat shows only the v1/v1b compatibility bases, --list only the rest,
 ## and the two together cover every index exactly once. A compat base must still
 ## be reachable by name, it just isn't advertised in the everyday listing.
-list_n="$("${EXE}" --list 2>/dev/null | awk '$1 ~ /^[0-9]+$/' | wc -l)"
-compat_n="$("${EXE}" --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/' | wc -l)"
-total_n="$("${EXE}" --get-index-count 2>/dev/null)"
+list_n="$("${EXE}" --list 2>/dev/null | awk '$1 ~ /^[0-9]+$/' | wc -l || true)"
+compat_n="$("${EXE}" --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/' | wc -l || true)"
+_run --get-index-count; total_n="$_out"
 (( compat_n > 0 )) && _pass ElG9gVM "--list-compat lists compatibility bases (${compat_n})" || _fail ElG9gVM "--list-compat lists compatibility bases" "got ${compat_n}"
 (( list_n + compat_n == total_n )) && _pass ElG9gVN "--list plus --list-compat covers every index" || _fail ElG9gVN "--list plus --list-compat covers every index" "list=${list_n} compat=${compat_n} total=${total_n}"
 _run --list
@@ -210,7 +218,7 @@ oldnames=""
 for oldname in binary bin raw; do "${EXE}" --get-base-name "$oldname" >/dev/null 2>&1 && oldnames+=" $oldname"; done
 [[ -z "$oldnames" ]] && _pass ErkSf4p "retired byte-base names do not resolve" || _fail ErkSf4p "retired byte-base names do not resolve" "still resolve:${oldnames}"
 ## The ALIASES column lists the other names only. Columns: INDEX NAME SIZE NEG DEC RAW ALIASES
-aliasdup="$("${EXE}" --list --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/ { for (i = 7; i <= NF; i++) { a = $i; sub(/,$/, "", a); if (a == $2) print $2 } }')"
+aliasdup="$("${EXE}" --list --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/ { for (i = 7; i <= NF; i++) { a = $i; sub(/,$/, "", a); if (a == $2) print $2 } }' || true)"
 [[ -z "$aliasdup" ]] && _pass ErkSf4s "--list ALIASES never repeats the NAME" || _fail ErkSf4s "--list ALIASES never repeats the NAME" "repeated on: ${aliasdup}"
 ## A dash digit can't double as the negative marker, so those bases use "~" or
 ## none. Every base is checked.
@@ -366,7 +374,7 @@ check EjeFbjG eq  "spec escaped-space digit"   2        -- --from-symbols 'a\ b'
 check EjeFbjH err "spec marker-in-digit"       -        -- --from-symbols "a b a.b" --to 10 -- a.b
 ## 85ps carries a literal comma and backslash as their own digits; its alphabet
 ## must stay exactly 85 symbols (regression pin for the escape/comma-split bug).
-sym85=$("${EXE}" --show-symbols-0 85ps 2>/dev/null | tr '\0' '\n' | grep -c .)
+sym85=$("${EXE}" --show-symbols-0 85ps 2>/dev/null | tr '\0' '\n' | grep -c . || true)
 [[ "$sym85" == 85 ]] && _pass EjeFbjI "85ps has exactly 85 symbols" || _fail EjeFbjI "85ps has exactly 85 symbols" "got=$sym85"
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -394,7 +402,7 @@ check ElHp3yV errmsg "config empty marker disables" 'no decimal marker' -- --con
 ## Both list spellings: stacked one per line, and inline with a symbol that
 ## carries a space of its own.
 check ElHp3yW eq  "config stacked list"      '🍊🍋'    -- --config "$cfg" --from 10 --to fruit4 6
-spacesym=$("${EXE}" --config "$cfg" --show-symbols-0 spacey 2>/dev/null | tr '\0' '|')
+spacesym=$("${EXE}" --config "$cfg" --show-symbols-0 spacey 2>/dev/null | tr '\0' '|' || true)
 [[ "$spacesym" == 'a b|c|d|e' ]] && _pass ElHp3yX "config symbol with a space" || _fail ElHp3yX "config symbol with a space" "got='$spacesym'"
 ## A typo has to fail loudly: silently dropping a field means the wrong alphabet.
 printf 'base: x\n\tsybmols: abc\n' >"${CBT_TMP}/typo.shcl"
@@ -417,7 +425,7 @@ check ElHp3yZ errmsg "config bad line rejected" 'line 3'          -- --config "$
 ## Both files name the current format, since one without it is read the old
 ## way (see the migration section).
 printf 'base: bs\n\tsymbols: a\\ b c\n##    Format   3\n' >"${CBT_TMP}/bslash.shcl"
-bssym=$("${EXE}" --config "${CBT_TMP}/bslash.shcl" --show-symbols-0 bs 2>/dev/null | tr '\0' '|')
+bssym=$("${EXE}" --config "${CBT_TMP}/bslash.shcl" --show-symbols-0 bs 2>/dev/null | tr '\0' '|' || true)
 [[ "$bssym" == 'a b|c' ]] && _pass Erg0gYy "config bare backslash escape" || _fail Erg0gYy "config bare backslash escape" "got='$bssym'"
 printf 'base: bs\n\tsymbols: "a\\ b c"\n##    Format   3\n' >"${CBT_TMP}/bslashq.shcl"
 check Erg0gYz errmsg "config bad escape rejected" 'line 2'     -- --config "${CBT_TMP}/bslashq.shcl" 255 16
@@ -698,7 +706,7 @@ cvec(){ # ID LABEL BASE INPUT_HEX EXPECTED_TEXT
 	local id="$1" label="$2" base="$3" hex="$4" want="$5" src got
 	src="${CBT_TMP}/cv_src"
 	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
-	got=$("${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" --no-newline <"$src" 2>"${CBT_ERR}")
+	_run_in "$src" --from bytes --to "$base" --no-newline; got="$_out"
 	[[ "$got" == "$want" ]] && _pass "$id" "codec vector ${label}" || _fail "$id" "codec vector ${label}" "want=[$want] got=[$got]"
 }
 cvec EjK8KIk "base45 AB"       45   4142             "BB8"
@@ -721,7 +729,7 @@ nvec(){ # ID LABEL BASE INPUT_HEX EXPECTED_CODEPOINTS(space-separated hex)
 	src="${CBT_TMP}/nv_src"
 	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
 	for cp in $cps; do exp+=$(printf "\\U$(printf '%08x' "0x${cp}")"); done
-	got=$("${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" <"$src" 2>"${CBT_ERR}")
+	_run_in "$src" --from bytes --to "$base"; got="$_out"
 	[[ "$got" == "$exp" ]] && _pass "$id" "native vector ${label}" \
 		|| _fail "$id" "native vector ${label}" "want=[$cps] got=[$(printf '%s' "$got" | od -An -tx1 | tr -d '\n')]"
 }
@@ -746,7 +754,7 @@ nvec EjGTP6b "rust tail three"   2048llfourn    010203     "00C5 0140 0F10"
 ## lenient: padded or unpadded input both accepted.
 pipecheck(){ # ID LABEL FROM TO INPUT EXPECTED
 	local id="$1" label="$2" f="$3" t="$4" in="$5" want="$6" got
-	got=$(printf '%s' "$in" | "${TIMEOUT[@]}" "${EXE}" --from "$f" --to "$t" 2>"${CBT_ERR}")
+	_run_in <(printf '%s' "$in") --from "$f" --to "$t"; got="$_out"
 	[[ "$got" == "$want" ]] && _pass "$id" "$label" || _fail "$id" "$label" "in='$in' want='$want' got='$got'"
 }
 pipecheck EjGXlOS "rfc64 pad f"        bytes 64  "f"        "Zg=="
@@ -768,11 +776,11 @@ pipecheck EjeCdXo "base64url number unpadded" 10 64u "255" "D_"
 ## Custom (user-defined) bases can opt into the same padding with --to-pad.
 ## This custom alphabet mirrors RFC 4648 base32, so its padded output must match.
 B32C="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
-padgot=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" --to-pad "=" 2>"${CBT_ERR}")
+_run_in <(printf 'A') --from bytes --to-symbols "$B32C" --to-pad "="; padgot="$_out"
 [[ "$padgot" == "IE======" ]] && _pass EjGkfrU "custom base32 emits pad" || _fail EjGkfrU "custom base32 emits pad" "got='$padgot'"
-padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" --to-pad "=" 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}")
+padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" --to-pad "=" 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}" || true)
 [[ "$padrt" == "A" ]] && _pass EjGkfrV "custom pad round-trips" || _fail EjGkfrV "custom pad round-trips" "got='$padrt'"
-padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}")
+_run_in <(printf 'IE') --from-symbols "$B32C" --from-pad "=" --to bytes; padun="$_out"
 [[ "$padun" == "A" ]] && _pass EjGkfrW "custom pad decode takes unpadded" || _fail EjGkfrW "custom pad decode takes unpadded" "got='$padun'"
 check EjGkfrX errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF" --from-pad "A" --to 10 5
 ## Padding is a trailing run and nothing else. Both routes must say so the same
@@ -791,12 +799,12 @@ check El51s2E errmsg "pad on non-2^N rejected" 'at most 256 symbols' -- --from b
 ## one the packing writes a leading length, which can't be known while streaming.
 SYM512=""; for ((cp=0x4E00; cp<0x5000; cp++)); do SYM512+=$(printf "\\U$(printf '%08x' "$cp")")" "; done
 tailrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑" -n 2>/dev/null \
-	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --from-tail "⸐ ⸑" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1)
+	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --from-tail "⸐ ⸑" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1 || true)
 tailwant=$(head -c 37 /bin/cat | md5sum | cut -d' ' -f1)
 [[ "$tailrt" == "$tailwant" ]] && _pass El5mcJk "custom tail round-trips" || _fail El5mcJk "custom tail round-trips" "got='$tailrt'"
 ## The same base with no tail still round-trips, on the length-prefixed layout.
 ntrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$SYM512" -n 2>/dev/null \
-	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1)
+	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1 || true)
 [[ "$ntrt" == "$tailwant" ]] && _pass El5mcJl "custom no-tail round-trips" || _fail El5mcJl "custom no-tail round-trips" "got='$ntrt'"
 ## A tail that could never be used is rejected where it is declared.
 check El5mcJm errmsg "tail below 8 bits rejected" 'above 256 symbols' -- --from bytes --to 64 --to-tail "⸐ ⸑" 5
@@ -814,7 +822,7 @@ check Erm5wxg errmsg "config tail on two-character digits rejected" '"wide2048":
 tailcfg="${CBT_TMP}/tail.shcl"
 printf -- 'base: cfgtail\n\tsymbols: "%s"\n\ttail: "⸐ ⸑"\n' "$SYM512" >"$tailcfg"
 cfgrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from bytes --to cfgtail -n 2>/dev/null \
-	| "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from cfgtail --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1)
+	| "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from cfgtail --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1 || true)
 [[ "$cfgrt" == "$tailwant" ]] && _pass El5mcJq "config tail round-trips" || _fail El5mcJq "config tail round-trips" "got='$cfgrt'"
 
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
@@ -830,25 +838,25 @@ check EizUJEC errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --
 section "--binary byte mode"
 
 ## Known vector: the four bytes 0xDE 0xAD 0xBE 0xEF as base64.
-bm=$("${TIMEOUT[@]}" "${EXE}" --binary --from 16 --to 64 deadbeef 2>/dev/null)
+_run --binary --from 16 --to 64 deadbeef; bm="$_out"
 [[ "$bm" == "3q2+7w==" ]] && _pass EjU6h0i "--binary hex->64 (argv)" || _fail EjU6h0i "--binary hex->64 (argv)" "got='$bm'"
 
 ## Streaming (stdin) must match the argv result.
-bms=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --binary --from 16 --to 64 2>/dev/null)
+_run_in <(printf 'deadbeef') --binary --from 16 --to 64; bms="$_out"
 [[ "$bms" == "3q2+7w==" ]] && _pass EjU6h0j "--binary hex->64 (stream)" || _fail EjU6h0j "--binary hex->64 (stream)" "got='$bms'"
 
 ## --binary must equal the explicit two-stage route through the bytes base.
-bmp=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --from 16 --to bytes 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from bytes --to 32 2>/dev/null)
-bm32=$("${TIMEOUT[@]}" "${EXE}" --binary --from 16 --to 32 deadbeef 2>/dev/null)
+bmp=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --from 16 --to bytes 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from bytes --to 32 2>/dev/null || true)
+_run --binary --from 16 --to 32 deadbeef; bm32="$_out"
 [[ "$bm32" == "$bmp" ]] && _pass EjU6h0k "--binary == pipe-through-bytes (hex->32)" || _fail EjU6h0k "--binary == pipe-through-bytes" "flag='$bm32' pipe='$bmp'"
 
 ## Aliases -b and --bin behave the same.
-bmb=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" -b --from 16 --to 64 2>/dev/null)
-bmbin=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --bin --from 16 --to 64 2>/dev/null)
+_run_in <(printf 'deadbeef') -b --from 16 --to 64; bmb="$_out"
+_run_in <(printf 'deadbeef') --bin --from 16 --to 64; bmbin="$_out"
 { [[ "$bmb" == "3q2+7w==" ]] && [[ "$bmbin" == "3q2+7w==" ]]; } && _pass EjU6h0l "--binary aliases -b/--bin" || _fail EjU6h0l "--binary aliases -b/--bin" "b='$bmb' bin='$bmbin'"
 
 ## Round-trip through byte mode restores the bytes (case normalizes to base-16 canonical).
-bmrt=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" -b --from 16 --to 64 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" -b --from 64 --to 16 2>/dev/null)
+bmrt=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" -b --from 16 --to 64 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" -b --from 64 --to 16 2>/dev/null || true)
 [[ "$bmrt" == "DEADBEEF" ]] && _pass EjU6h0m "--binary round-trip 16<->64" || _fail EjU6h0m "--binary round-trip 16<->64" "got='$bmrt'"
 
 ## A non-power-of-2 base has no byte encoding: --binary must error.
@@ -973,7 +981,8 @@ done
 iters="${CICDTEST_FUZZ_ITERS:-60}"; ((doLong)) && iters="${CICDTEST_FUZZ_ITERS:-800}"
 maxlen=48; ((doLong)) && maxlen=160
 fuzz_fail=0
-for ((i=0; i<iters; i++)); do
+## An empty scrape has already failed above, and a modulo by its size would end the run.
+for ((i=0; i<iters && ${#FUZZ_BASES[@]} > 0; i++)); do
 	idx=$(( $(od -An -N2 -tu2 /dev/urandom) % ${#FUZZ_BASES[@]} ))
 	base="${FUZZ_BASES[idx]}"
 	val="$(_rand_int "$maxlen")"
@@ -994,9 +1003,9 @@ done
 ## symbol is kept off the zero digit so the source string is already canonical and
 ## a clean string compare is a valid round-trip check. The bytes base (raw bytes)
 ## is the one left out; it is covered bit-perfectly in its own section above.
-n_bases="$("${EXE}" --get-index-count)"
+_run --get-index-count; n_bases="$_out"
 declare -a IDX_NAME=()
-for ((i=0; i<n_bases; i++)); do IDX_NAME[i]="$("${EXE}" --get-base-name --by-index="$i")"; done
+for ((i=0; i<n_bases; i++)); do _run --get-base-name --by-index="$i"; IDX_NAME[i]="$_out"; done
 declare -a ELIGIBLE=()
 for ((i=0; i<n_bases; i++)); do
 	case "${IDX_NAME[i]}" in bytes|98keyboard) continue ;; esac
@@ -1029,7 +1038,7 @@ _rand_symbols(){
 }
 
 symfuzz_fail=0; symfuzz_n=0
-for ((i = 0; i < iters; i++)); do
+for ((i = 0; i < iters && ${#ELIGIBLE[@]} > 0; i++)); do
 	src_idx="${ELIGIBLE[$(( $(_rand16) % ${#ELIGIBLE[@]} ))]}"
 	tgt_idx="${ELIGIBLE[$(( $(_rand16) % ${#ELIGIBLE[@]} ))]}"
 	_load_syms "$src_idx"
@@ -1321,7 +1330,7 @@ fi
 section "Reactor module"
 REACTOR_HOST_DIR="${meDir}/utility/reactor-host"
 REACTOR_WASM="${CBT_TMP}/convert-base-reactor.wasm"
-goMinor="$(go env GOVERSION 2>/dev/null | sed -E 's/^go1\.([0-9]+).*$/\1/')"
+goMinor="$(go env GOVERSION 2>/dev/null | sed -E 's/^go1\.([0-9]+).*$/\1/' || true)"
 if [[ ! "${goMinor}" =~ ^[0-9]+$ ]] || ((goMinor < 24)); then
 	_warn Elmd2Y4 "reactor module skipped: needs a Go 1.24+ toolchain (have $(go env GOVERSION 2>/dev/null || echo none))"
 elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "${REACTOR_WASM}" ./reactor) >"${CBT_ERR}" 2>&1; then
@@ -1341,8 +1350,9 @@ fi
 ## Go's wasm runner hands node the whole environment, and node refuses one
 ## over about 8K. So the tests get a short one. Each prints its own line and ID.
 section "Browser module"
-wasmExec="$(go env GOROOT 2>/dev/null)/lib/wasm/go_js_wasm_exec"
-[[ -x "$wasmExec" ]] || wasmExec="$(go env GOROOT 2>/dev/null)/misc/wasm/go_js_wasm_exec"
+goRoot="$(go env GOROOT 2>/dev/null || true)"
+wasmExec="${goRoot}/lib/wasm/go_js_wasm_exec"
+[[ -x "$wasmExec" ]] || wasmExec="${goRoot}/misc/wasm/go_js_wasm_exec"
 if ! command -v node >/dev/null 2>&1 || [[ ! -x "$wasmExec" ]]; then
 	_warn "ErkSf4j ErkSf4h ErkSf4i" "browser module tests skipped: needs node and Go's go_js_wasm_exec"
 else
@@ -1784,6 +1794,38 @@ CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Harness self-check. This whole run again, against a program that refuses
+## everything, with Go off the PATH and the perf section on. Nearly every check
+## fails, and each failure has to be counted and the run carried on to the
+## summary. A fake go stands in for a missing one, since go can share a dir
+## with tools the run needs.
+if [[ "${CICDTEST_SELFCHECK:-0}" != "1" ]]; then
+	section "Harness self-check"
+	hsDir="${CBT_TMP}/hs"; mkdir -p "${hsDir}/bin" "${hsDir}/tmp"
+	printf '%s\n' '#!/bin/sh' 'echo "refused" >&2' 'exit 1' >"${hsDir}/refuse"
+	printf '%s\n' '#!/bin/sh' 'echo "go: command not found" >&2' 'exit 127' >"${hsDir}/bin/go"
+	chmod +x "${hsDir}/refuse" "${hsDir}/bin/go"
+	hsrc=0
+	CICDTEST_SELFCHECK=1 CICDTEST_EXE="${hsDir}/refuse" CICDTEST_DO_LONGTEST=0 CICDTEST_DO_PERF=1 CICDTEST_QUICK=1 CICDTEST_FUZZ_ITERS=2 \
+		TMPDIR="${hsDir}/tmp" PATH="${hsDir}/bin:${PATH}" bash "${meDir}/test.bash" </dev/null >"${hsDir}/out" 2>&1 || hsrc=$?
+	hsSummary="$(grep -E 'FAIL +[0-9]+ of [0-9]+ checks failed' "${hsDir}/out" || true)"
+	hsAbort="$(grep -F 'HARNESS ABORTED' "${hsDir}/out" | head -3 || true)"
+	{ ((hsrc == 1)) && [[ -n "${hsSummary}" && -z "${hsAbort}" ]]; } && _pass ErmGPkH "every check failing still reaches the summary" \
+		|| _fail ErmGPkH "every check failing still reaches the summary" "rc=${hsrc} aborts=[${hsAbort}] tail=[$(tail -3 "${hsDir}/out" | tr '\n' ' ')]"
+	grep -qF 'reactor module skipped: needs a Go 1.24+ toolchain' "${hsDir}/out" && _pass ErmGPkf "reactor section skips with Go off the PATH" \
+		|| _fail ErmGPkf "reactor section skips with Go off the PATH" "no skip line for the reactor section"
+	## A failed interop check names the first sample that differs.
+	if command -v node >/dev/null 2>&1 && [[ -d "${meDir}/utility/interop/thirdparty" ]]; then
+		hsDiff="$(grep -m1 -A1 -F 'interop encode == qntm base2048' "${hsDir}/out" | tail -1 || true)"
+		[[ "${hsDiff}" =~ ^\ +sample\ [0-9]+\ of\ [0-9]+/[0-9]+:\  ]] && _pass ErmGPl4 "failed interop check keeps its detail" \
+			|| _fail ErmGPl4 "failed interop check keeps its detail" "detail=[${hsDiff}]"
+	else
+		_warn ErmGPl4 "interop detail not checked: needs node and the vendored references"
+	fi
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Performance: streaming throughput of the binary path (long test only)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## A repeatable throughput baseline for the streaming binary<->text path, with
@@ -1796,8 +1838,8 @@ if ((doPerf)); then
 	head -c "$((perf_mib * 1024 * 1024))" /dev/urandom >"$perfsrc"
 	for base in 16 64u; do
 		t0=$(date +%s.%N)
-		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" <"$perfsrc" >"$perfmid" 2>/dev/null
-		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes <"$perfmid" >"$perfout" 2>/dev/null
+		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" <"$perfsrc" >"$perfmid" 2>/dev/null || true
+		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes <"$perfmid" >"$perfout" 2>/dev/null || true
 		t1=$(date +%s.%N)
 		if cmp -s "$perfsrc" "$perfout"; then
 			mbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$perf_mib/d; else print \"inf\"}")
@@ -1856,8 +1898,8 @@ if ((doPerf)); then
 	cx_mib=1; ((doLong)) && cx_mib=4
 	head -c "$((cx_mib * 1024 * 1024))" /dev/urandom >"$cxsrc"
 	t0=$(date +%s.%N)
-	"${TIMEOUT[@]}" "${EXE}" --from bytes --to 91hk --no-newline <"$cxsrc" >"$cxmid" 2>/dev/null
-	"${TIMEOUT[@]}" "${EXE}" --from 91hk --to bytes --no-newline <"$cxmid" >"$cxout" 2>/dev/null
+	"${TIMEOUT[@]}" "${EXE}" --from bytes --to 91hk --no-newline <"$cxsrc" >"$cxmid" 2>/dev/null || true
+	"${TIMEOUT[@]}" "${EXE}" --from 91hk --to bytes --no-newline <"$cxmid" >"$cxout" 2>/dev/null || true
 	t1=$(date +%s.%N)
 	if cmp -s "$cxsrc" "$cxout"; then
 		cxbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$cx_mib/d; else print \"inf\"}")

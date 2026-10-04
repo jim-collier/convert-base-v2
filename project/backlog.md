@@ -223,7 +223,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - One failing check can abort the test harness or lose its failure detail. (Code review 20261004 item 8)
 	- ID: 2026100413480008
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Severity: Avg
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -236,6 +236,17 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Reproduced: 20261004, by the review, with scratch copies of each pattern.
 	- Origin: several commits from 4ff92e8 on 2026-07-10 to 36d7ccc on 2026-08-02. Not seen by an earlier round. Confirmed.
 	- Sweep: every command substitution in `cicd/test.bash` that runs the program, `cmp`, `diff`, `grep` or `go`. The review listed lines 155, 176, 364, 392, 415, 679, 702, 727, 749-823, 969-971, 1190, 1256, 1296, 1316, 1360, 1389 and 1395.
+	- Reproduced: 20261004, against a program that refuses everything. The run ended at the first capture in the CLI surface section.
+	- Actual cause: the harness runs under errexit, with an ERR trap that also fires inside `$( )` and `<( )`. A plain capture of a refused conversion ended the run. Inside a substitution the trap cut the output short wherever a non-zero status is the normal answer, as with `cmp` in `fFirstDiff`.
+	- Actual fix: the trap no longer ends a subshell, so the status goes to whatever reads it. A single run of the program is captured through `_run` or `_run_in`, which keep the status. A pipeline capture ends in `|| true`, and so do the `go env` lookups and the perf section's bare runs. The two fuzz loops skip an empty base list, since a modulo by its size ended the run.
+	- Note: a helper run through `$( )` no longer stops at its first failed command. Each one feeds a check that fails on a wrong result.
+	- Note: the self-check adds about 9 seconds to a run.
+	- Verified: a full harness run passed 569 of 569. The run against a program that refuses everything, with Go off the PATH, reached its summary with no abort. shellcheck shows no new warnings, and `test-ids.py check` passes.
+	- Swept: every capture in `cicd/test.bash` that runs the program, `cmp`, `diff`, `grep` or `go`. That is the CLI surface lists and counts, the `85ps` and config symbol reads, `cvec`, `nvec`, `pipecheck`, the pad, tail and `--binary` captures, the fuzz base count and names, and the reactor and browser `go env` lookups. The trap change covers `fFirstDiff`, the parity `diff` messages, the interop verify message and every `<( )` base listing. The perf section's bare runs were guarded too. A grep for assignments from `$( )` that name those tools and have no `||` or `&&` after leaves only `fFirstDiff` and helpers that make dirs or random input.
+	- Branch: harness-abort
+	- Test case: `ErmGPkH` "every check failing still reaches the summary", `ErmGPkf` "reactor section skips with Go off the PATH" and `ErmGPl4` "failed interop check keeps its detail". They run the harness against a program that refuses everything. All three fail before the fix and pass after. Putting back the old trap, the reactor lookup or one capture alone turns at least two of them red.
+	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
+	- Closed: 20261004-165412
 
 - `ParseSymbolSpec` splits every token on commas before checking for one, and rebuilds a replacer per token. (Code review 20261004 item 18)
 	- ID: 2026100413480018
