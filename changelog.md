@@ -32,6 +32,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A universal macOS build, `convert-base-v2-darwin-universal`, that runs on both Intel and Apple silicon Macs. The separate Intel and ARM builds are still there.
 
+- Releases include the WASI build of the command, `convert-base-v2.wasm`, for any WebAssembly runtime.
+
+- Release notes list the downloads in a table, with the OS in rows and the CPU in columns, and end with the version line the release's build prints, build number included.
+
 - Library: `UpgradeConfig` converts the text of a config file written for an older SHCL format, so it loads to the same bases. `LoadConfig` uses it. The library is now v0.2.0.
 
 ### Changed

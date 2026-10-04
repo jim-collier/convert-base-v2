@@ -3,7 +3,8 @@
 # tag already exists), if it sorts behind the newest tag, or if the README
 # Lifecycle badge does not match the version stage, the workflow FAILS - main
 # is release-only, so an un-bumped merge is a mistake, not a no-op. On success
-# it tags, builds every platform + package, and publishes them.
+# it builds every platform + package and writes the notes, and only then tags
+# and publishes, so a failed build leaves no tag behind.
 name: release
 
 on:
@@ -40,14 +41,15 @@ jobs:
           go install "github.com/goreleaser/nfpm/v2/cmd/nfpm@$(sed -n 's/^NFPM_VERSION=//p' cicd/tool-versions.env)"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
+      # Every binary is stamped with this commit's time as its build number,
+      # which package.bash reads from git, so a rebuild matches the checksums.
+      - name: package
+        run: bash cicd/utility/package.bash --version "${{ steps.ver.outputs.ver }}" --out lib/dist
+
+      # The changelog section, a downloads table made from what package wrote,
+      # and the version line the linux-x86_64 build prints, build number included.
       - name: release notes
-        run: |
-          awk -v ver="${{ steps.ver.outputs.ver }}" '
-            index($0, "## " ver) == 1 { on = 1; next }
-            /^## / { on = 0 }
-            on { print }
-          ' changelog.md > "$RUNNER_TEMP/notes.md"
-          [ -s "$RUNNER_TEMP/notes.md" ] || echo "See changelog.md." > "$RUNNER_TEMP/notes.md"
+        run: bash cicd/utility/release-notes.bash --version "${{ steps.ver.outputs.ver }}" --dist lib/dist > "$RUNNER_TEMP/notes.md"
 
       - name: tag
         run: |
@@ -68,9 +70,6 @@ jobs:
             git tag "lib/${mod}"
             git push origin "refs/tags/lib/${mod}"
           fi
-
-      - name: package
-        run: bash cicd/utility/package.bash --version "${{ steps.ver.outputs.ver }}" --out lib/dist
 
       - name: publish
         env:

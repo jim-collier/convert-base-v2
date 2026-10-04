@@ -10,6 +10,7 @@
 ##		    - the bare binary itself, per platform/arch (grab-and-run)
 ##		    - a macOS universal binary (amd64 + arm64), as tarball and bare,
 ##		      when both darwin builds were made
+##		    - the WASI build of the command, one .wasm for every CPU
 ##		    - .deb and .rpm per Linux arch (nfpm - cross-arch, no native tooling)
 ##		    - single-file Windows installer .exe per arch (makensis / NSIS)
 ##		    - checksums.txt
@@ -131,6 +132,14 @@ fi
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## The whole command for any WASI runtime. Same build as `make wasm`.
+
+( cd "${src}" && CGO_ENABLED=0 GOOS=wasip1 GOARCH=wasm \
+	go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.buildEpoch=${BUILD_EPOCH}" -o "${OUT}/${PKG}.wasm" ./cmd/convert-base-v2 )
+fEcho "built wasip1/wasm"
+
+
+#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Linux packages: .deb and .rpm per arch, via nfpm (cross-arch, no native
 ## tooling). nfpm maps the one arch value to each format (deb: amd64/arm64,
 ## rpm: x86_64/aarch64) and turns 1.1.0-beta7 into 1.1.0~beta7 itself.
@@ -211,4 +220,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt | wc -l) 
 ##	History:
 ##		- 2026-07-12: Created. Self-contained cross-build + deb/rpm/NSIS packaging, replacing goreleaser.
 ##		- 2026-10-03: macOS universal binary alongside the per-arch darwin builds.
-##		- 2026-10-04: Build number from the commit's time (--build-epoch).
+##		- 2026-10-04: Build number from the commit's time (--build-epoch). The WASI build ships too.

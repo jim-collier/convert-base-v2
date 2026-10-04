@@ -122,7 +122,9 @@ Grab a build for your platform from the [Releases page](https://github.com/jim-c
 
 - **FreeBSD**: a `.tgz` tarball.
 
-Each release includes a `checksums.txt` so you can verify what you downloaded.
+- **WebAssembly**: `convert-base-v2.wasm`, the whole command for any WASI runtime. One file for every CPU.
+
+The release notes list them all in one table, by OS and CPU. Each release includes a `checksums.txt` so you can verify what you downloaded.
 
 ### One-line install script
 
@@ -276,7 +278,7 @@ This build talks to JavaScript through the browser, so a page is the only place 
 
 ### WebAssembly, anywhere else
 
-The command also builds as a WASI module, which runs under Wasmtime, Wazero, Node, and the WebAssembly edge platforms. WASI hands it real argv, standard input, and standard output, so streaming works exactly as it does natively, and one file runs on every architecture.
+The command also builds as a WASI module, which runs under Wasmtime, Wazero, Node, and the WebAssembly edge platforms. WASI hands it real argv, standard input, and standard output, so streaming works exactly as it does natively, and one file runs on every architecture. Each release includes it, or `make wasm` builds it.
 
 ```sh
 wasmtime run dist/convert-base-v2.wasm -- --from hex --to 10 ff
