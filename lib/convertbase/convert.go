@@ -369,13 +369,13 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 			fracPart = rest
 		}
 	}
+	// Checked before the zero fill below, or "." and "-." read as 0.
+	if intPart == "" && fracPart == "" {
+		return "", errors.New("no digits in input")
+	}
 	if intPart == "" {
 		// Treat ".5" as "0.5" by using the first digit symbol as zero.
 		intPart = from.Symbols[0]
-	}
-
-	if s == "" {
-		return "", errors.New("no digits in input")
 	}
 
 	// Tokenize the two parts separately.

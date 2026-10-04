@@ -541,6 +541,8 @@ check Ejlud56 errmsg "precision bad word"   'non-negative integer or'           
 check EizUJE3 errmsg "empty input"          'empty input'                        -- "" 16
 check EizUJE4 err   "multiple decimals"     -                                     -- --from 10 1.2.3 16
 check EizUJE5 err   "double negative"       -                                     -- -- --5 16
+## A decimal marker with no digits on either side is not zero.
+for nd in . -.; do check ErlzAd6 errmsg "no digits: '${nd}'" 'no digits in input' -- --from 10 --to 16 -- "$nd"; done
 
 ## Conflicting base selectors: still convert, but emit a stderr note (BxZNl-17).
 _run --to 16 255 8
@@ -578,6 +580,21 @@ fi
 printf '\xff\xfe\x00\x9c' >"${CBT_TMP}/badutf8"
 _run_in "${CBT_TMP}/badutf8" --from 2048qntm -
 ((_rc != 0 && _rc != 124)) && _pass EizUJEB "invalid UTF-8 stdin errors gracefully" || _fail EizUJEB "invalid UTF-8 stdin errors gracefully" "rc=$_rc"
+
+## Every way of printing a result fails the run when stdout can't take it.
+## Each case is INPUT:ARGS, where INPUT is null, a number, or raw bytes.
+if [[ -w /dev/full ]]; then
+	printf '255' >"${CBT_TMP}/full_num"; printf 'ab' >"${CBT_TMP}/full_raw"; : >"${CBT_TMP}/full_null"
+	for fcase in "null:255 16" "null:-n 255 16" "null:--version" "null:--help" "null:--list" "null:--list --list-compat" \
+		"null:--get-index-count" "null:--get-base-name hex" "null:--show-symbols hex" "null:--show-symbols-0 hex" \
+		"num:- 16" "raw:--from bytes --to hex -" "raw:-n --from bytes --to hex -"; do
+		read -ra fargs <<<"${fcase#*:}"; frc=0
+		"${TIMEOUT[@]}" "${EXE}" "${fargs[@]}" <"${CBT_TMP}/full_${fcase%%:*}" >/dev/full 2>"${CBT_ERR}" || frc=$?
+		{ ((frc != 0 && frc != 124)) && grep -qF 'no space left' "${CBT_ERR}"; } && _pass Erm02E7 "full stdout fails: ${fargs[*]}" || _fail Erm02E7 "full stdout fails: ${fargs[*]}" "rc=$frc err=[$(cat "${CBT_ERR}")]"
+	done
+else
+	_warn Erm02E7 "write-failure checks skipped: no /dev/full"
+fi
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1385,6 +1402,8 @@ else
 		fi
 		parity_case 10 "$pname" 8 "-255.755"
 	done
+	parity_case 10 16 -1 "."
+	parity_case 10 16 -1 "-."
 	if "${MODDRV}" <"$preq" >"$pout" 2>"${CBT_ERR}"; then
 		cmp -s "$pcli" "$pout" && _pass EloQXv6 "module answers match the command (${pn} cases)" || _fail EloQXv6 "module answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
 	else

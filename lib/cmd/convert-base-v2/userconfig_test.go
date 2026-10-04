@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"syscall"
 	"testing"
 	"time"
@@ -68,6 +70,45 @@ func TestUserConfigIsStamped(t *testing.T) {
 	}
 	if ensureUserConfig(path) {
 		t.Fatal("ensureUserConfig rewrote an existing file")
+	}
+}
+
+// First runs started together: one of them creates the file, the rest leave
+// it be, and what is there is the whole default with no temp files beside it.
+// A plain write let several create it, each truncating the others.
+// Test ID: ErlzPLg
+func TestUserConfigFirstRunsRace(t *testing.T) {
+	want := userConfigText()
+	for trial := 0; trial < 20; trial++ {
+		dir := t.TempDir()
+		path := filepath.Join(dir, "convert-base-v2.shcl")
+		var created atomic.Int32
+		var ready, done sync.WaitGroup
+		start := make(chan struct{})
+		for runner := 0; runner < 16; runner++ {
+			ready.Add(1)
+			done.Add(1)
+			go func() {
+				defer done.Done()
+				ready.Done()
+				<-start
+				if ensureUserConfig(path) {
+					created.Add(1)
+				}
+			}()
+		}
+		ready.Wait()
+		close(start)
+		done.Wait()
+		if n := created.Load(); n != 1 {
+			t.Fatalf("trial %d: %d runs created the file, want 1", trial, n)
+		}
+		if got := fileText(t, path); got != want {
+			t.Fatalf("trial %d: file is %d bytes, want the %d-byte default", trial, len(got), len(want))
+		}
+		if names := dirNames(t, dir); len(names) != 1 {
+			t.Fatalf("trial %d: files %q", trial, names)
+		}
 	}
 }
 

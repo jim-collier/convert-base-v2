@@ -48,7 +48,9 @@ func ensureUserConfig(path string) bool {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return false
 	}
-	return os.WriteFile(path, []byte(userConfigText()), 0o644) == nil
+	// Through a temp file, so a crash can't leave half a config, and published
+	// with a link, so of two first runs at once only one creates it.
+	return shcl.WriteFileAtomic(path, userConfigText()) == nil
 }
 
 // legacyConfigPath is the pre-SHCL name of a config file. Nothing reads one any

@@ -70,7 +70,17 @@ func hintErr(err error) error {
 	return err
 }
 
-func run() error {
+func run() (err error) {
+	// Everything but the streams writes stdout through this one writer. It
+	// keeps the first write error, and the flush hands it back, so a full disk
+	// or a closed pipe fails the run instead of exiting 0 with nothing written.
+	stdout := bufio.NewWriter(os.Stdout)
+	defer func() {
+		if ferr := stdout.Flush(); err == nil {
+			err = ferr
+		}
+	}()
+
 	var (
 		fromName      = flag.String("from", "", "input base name/alias (e.g. 10, hex, 64url); default 10")
 		toName        = flag.String("to", "", "output base name/alias; default 10; also accepted as a positional arg")
@@ -140,7 +150,7 @@ func run() error {
 		asked.drop("version")
 	}
 	if len(asked) > 0 && !asked.has("help") {
-		return printInfo(os.Stdout, asked, nil)
+		return printInfo(stdout, asked, nil)
 	}
 
 	// Build registry and layer on config files (lowest to highest precedence):
@@ -213,7 +223,7 @@ func run() error {
 	// --help (with or without accompanying flags). Explicitly requested, so it
 	// goes to stdout (pipeable); the no-args error path below keeps stderr.
 	if len(asked) > 0 {
-		return printInfo(os.Stdout, asked, func(w io.Writer) {
+		return printInfo(stdout, asked, func(w io.Writer) {
 			printHelp(w, reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
 		})
 	}
@@ -222,13 +232,13 @@ func run() error {
 	// ones. Both together print both tables, everyday first.
 	if *list || *listCompat {
 		if *list {
-			reg.Print(os.Stdout, false)
+			reg.Print(stdout, false)
 		}
 		if *listCompat {
 			if *list {
-				fmt.Println()
+				fmt.Fprintln(stdout)
 			}
-			reg.Print(os.Stdout, true)
+			reg.Print(stdout, true)
 		}
 		return nil
 	}
@@ -237,7 +247,7 @@ func run() error {
 	// --list. They let scripts enumerate bases (count, name-by-index, symbols)
 	// without parsing the human-readable --list table.
 	if *getIndexCount {
-		fmt.Println(len(reg.OrderedBases()))
+		fmt.Fprintln(stdout, len(reg.OrderedBases()))
 		return nil
 	}
 	if *getBaseName || *showSymbols || *showSymbols0 {
@@ -250,30 +260,29 @@ func run() error {
 			return err
 		}
 		if *getBaseName {
-			fmt.Println(b.Name())
+			fmt.Fprintln(stdout, b.Name())
 			return nil
 		}
 		// --show-symbols: all symbols concatenated, no delimiters, one trailing
 		// newline. --show-symbols-0 NUL-separates them so scripts can still split
-		// multi-char symbols. Buffered for the big bases (up to 65536).
-		w := bufio.NewWriter(os.Stdout)
+		// multi-char symbols.
 		if *showSymbols0 {
 			for i, s := range b.Symbols {
 				if i > 0 {
-					fmt.Fprint(w, "\x00")
+					stdout.WriteString("\x00")
 				}
-				fmt.Fprint(w, s)
+				stdout.WriteString(s)
 			}
 		} else {
 			for _, s := range b.Symbols {
 				if *escapeCtrl {
 					s = convertbase.EscapeControls(s, b)
 				}
-				fmt.Fprint(w, s)
+				stdout.WriteString(s)
 			}
-			fmt.Fprintln(w)
+			stdout.WriteString("\n")
 		}
-		return w.Flush()
+		return nil
 	}
 
 	// --by-index only selects a base for the query flags above. Reaching here with
@@ -447,7 +456,9 @@ func run() error {
 
 	// Streaming fast path: for the bit-packed conversions, pipe stdin straight to
 	// stdout with no whole-file buffering. --lower/--upper would need per-chunk
-	// rewriting, so they fall through to the buffered path.
+	// rewriting, so they fall through to the buffered path. The streams write
+	// os.Stdout themselves and return their own write errors; nothing is in the
+	// stdout buffer yet, so the order holds.
 	if fromStdin && !*lower && !*upper {
 		var handled bool
 		var serr error
@@ -463,7 +474,7 @@ func run() error {
 			// Text output normally ends in a newline (as the buffered path's
 			// Println does); no-newline and binary output stay byte-exact.
 			if !to.Binary && !*noNewline && !*nFlag {
-				fmt.Println()
+				fmt.Fprintln(stdout)
 			}
 			return nil
 		}
@@ -502,11 +513,10 @@ func run() error {
 		result = convertbase.EscapeControls(result, to)
 	}
 
-	if *noNewline || *nFlag || to.Binary {
-		_, err := os.Stdout.WriteString(result)
-		return err
+	stdout.WriteString(result)
+	if !*noNewline && !*nFlag && !to.Binary {
+		stdout.WriteString("\n")
 	}
-	fmt.Println(result)
 	return nil
 }
 
