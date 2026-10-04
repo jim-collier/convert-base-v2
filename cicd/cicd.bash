@@ -33,7 +33,7 @@
 ##	- Syntax:
 ##	  cicd/cicd.bash [options]
 ##	  Options:
-##	   -q, --quiet         quiet + unattended (no prompt); the publish step runs quiet too
+##	   -q, --quiet         unattended, and no plan or progress lines; stage headers, results and errors still print
 ##	   -y, --yes           unattended (no prompt) but not quiet
 ##	   -m, --message MSG   publish hands-off with this commit message (no editor)
 ##	       --msg MSG       alias for --message
@@ -46,7 +46,8 @@
 ##	   --no-demogif        skip regenerating the demo gif
 ##	   --no-publish        skip the git backup + publish stage
 ##	   --long              exhaustive test run (sets CICDTEST_DO_LONGTEST=1)
-##	   --quick             skip the slow stages (cross-compile, profiler, screenshots, demo gif) and shorten fuzz
+##	   --quick             skip the slow stages (cross-compile, profiler, screenshots, demo gif), shorten fuzz,
+##	                       and skip the harness perf section and packaging rebuild check
 ##	   -h, --help          show this help
 ##	- If neither -q/-y nor -m is given, the run prompts once for a commit message
 ##	  (blank = git editor; Ctrl+C aborts the whole run), then finishes unattended.
@@ -83,7 +84,7 @@ export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the En
 ## Parse options.
 assume_yes=0; quiet=0; quick=0; do_long=0; cli_message=""
 while (($#)); do case "$1" in
-	-q|--quiet)               quiet=1; assume_yes=1; shift ;;   ## quiet + unattended; publish runs quiet too
+	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
 	--no-fmt)                 FMT_CMD=(); shift ;;
 	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); shift ;;
@@ -118,11 +119,13 @@ fi
 ## fEcho "msg" -> "[ msg ]" status line; fEcho_Clean "msg" -> plain line, and a
 ## bare call collapses repeated blanks. fSection draws the leading-blank + rule
 ## letterbox before a major stage header; fDie prints a fatal line and exits.
+## fEcho_Chat is fEcho_Clean for the plan and progress lines that -q drops.
 declare -i _wasLastEchoBlank=0
 fEcho_ResetBlankCounter(){ _wasLastEchoBlank=0; }
 fEcho_Clean(){ if [[ -n "${1:-}" ]]; then echo -e "$*"; _wasLastEchoBlank=0; elif [[ $_wasLastEchoBlank -eq 0 ]] && echo; then _wasLastEchoBlank=1; fi; }
 fEcho(){       if [[ -n "$*"     ]]; then fEcho_Clean "[ $* ]"; else fEcho_Clean ""; fi; }
 fEcho_Force(){ fEcho_ResetBlankCounter; fEcho "$*"; }
+fEcho_Chat(){  if ((quiet)); then return 0; fi; fEcho_Clean "$@"; }
 _letterbox="••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"
 fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fEcho "$*"; [[ "${stage_pause:-0}" == 0 ]] || sleep "${stage_pause}"; }
 fDie(){ { fEcho_Force "FAILED: $*"; } >&2; exit 1; }
@@ -134,57 +137,57 @@ trap 'rc=$?; printf "\n[ CICD ABORTED (exit %s) at line %s: %s ]\n" "$rc" "$LINE
 profile_dir="$(cd "${root}" && mkdir -p "${PROFILE_OUT_DIR}" 2>/dev/null; cd "${PROFILE_OUT_DIR}" 2>/dev/null && pwd || echo "${root}/${PROFILE_OUT_DIR}")"
 fixed_dest=""; for d in "${DOGFOOD_FIXED_DESTS[@]:-}"; do [[ -d "$d" && -w "$d" ]] && { fixed_dest="$d"; break; }; done
 
-fEcho_Clean
-fEcho_Clean "${APP_NAME} local CI/CD"
-fEcho_Clean
-fEcho_Clean "Repo root ...........: ${root}"
-fEcho_Clean "Vendor pins .........: ${VENDOR_CHECK_CMD[*]:-(skipped)}"
-fEcho_Clean "Interop pins ........: ${INTEROP_CHECK_CMD[*]:-(skipped)}"
-fEcho_Clean "Format ..............: ${FMT_CMD[*]:-(skipped)}"
-fEcho_Clean "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debug)"
+fEcho_Chat
+fEcho_Chat "${APP_NAME} local CI/CD"
+fEcho_Chat
+fEcho_Chat "Repo root ...........: ${root}"
+fEcho_Chat "Vendor pins .........: ${VENDOR_CHECK_CMD[*]:-(skipped)}"
+fEcho_Chat "Interop pins ........: ${INTEROP_CHECK_CMD[*]:-(skipped)}"
+fEcho_Chat "Format ..............: ${FMT_CMD[*]:-(skipped)}"
+fEcho_Chat "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debug)"
 ((${#RELEASE_BUILD_CMD[@]})) && \
-fEcho_Clean "                       ${RELEASE_BUILD_CMD[*]} -> ${STAGED_RELEASE_BIN} (release, dogfooded)"
+fEcho_Chat "                       ${RELEASE_BUILD_CMD[*]} -> ${STAGED_RELEASE_BIN} (release, dogfooded)"
 if ((${#VET_CMD[@]})); then
-	fEcho_Clean "Lint ................: ${VET_CMD[*]}  (+ golangci-lint, staticcheck if installed)"
+	fEcho_Chat "Lint ................: ${VET_CMD[*]}  (+ golangci-lint, staticcheck if installed)"
 else
-	fEcho_Clean "Lint ................: (skipped)"
+	fEcho_Chat "Lint ................: (skipped)"
 fi
-fEcho_Clean "Tests ...............: ${UNIT_TEST_CMD[*]} + ${TEST_CMD[*]}$( ((do_long)) && echo '  (long)')"
+fEcho_Chat "Tests ...............: ${UNIT_TEST_CMD[*]} + ${TEST_CMD[*]}$( ((do_long)) && echo '  (long)')"
 if ((FUZZ_ENABLE)); then
-	fEcho_Clean "Fuzz ................: ${FUZZ_TIME}/target, ${FUZZ_MINIMIZE_TIME}/find$( ((quick)) && echo " (quick: ${FUZZ_TIME_QUICK}, ${FUZZ_MINIMIZE_TIME_QUICK})")"
+	fEcho_Chat "Fuzz ................: ${FUZZ_TIME}/target, ${FUZZ_MINIMIZE_TIME}/find$( ((quick)) && echo " (quick: ${FUZZ_TIME_QUICK}, ${FUZZ_MINIMIZE_TIME_QUICK})")"
 else
-	fEcho_Clean "Fuzz ................: (disabled)"
+	fEcho_Chat "Fuzz ................: (disabled)"
 fi
-fEcho_Clean "Security ............: ${VULN_CMD[*]}  (if installed)"
+fEcho_Chat "Security ............: ${VULN_CMD[*]}  (if installed)"
 if ((PROFILE_ENABLE)); then
-	fEcho_Clean "Profiler ............: bench ${PROFILE_BENCH} ${PROFILE_TIME} -> flamegraph SVG"
-	fEcho_Clean "  output dir ........: ${profile_dir}"
+	fEcho_Chat "Profiler ............: bench ${PROFILE_BENCH} ${PROFILE_TIME} -> flamegraph SVG"
+	fEcho_Chat "  output dir ........: ${profile_dir}"
 else
-	fEcho_Clean "Profiler ............: (skipped)"
+	fEcho_Chat "Profiler ............: (skipped)"
 fi
 if ((BUILD_CROSS)); then
-	fEcho_Clean "Cross + package .....: ${RELEASE_CMD[*]} -> ${RELEASE_ARTIFACT_DIR}/ (tgz/zip, deb/rpm, installers)"
+	fEcho_Chat "Cross + package .....: ${RELEASE_CMD[*]} -> ${RELEASE_ARTIFACT_DIR}/ (tgz/zip, deb/rpm, installers)"
 else
-	fEcho_Clean "Cross + package .....: (skipped)"
+	fEcho_Chat "Cross + package .....: (skipped)"
 fi
 if ((${#DOGFOOD_FIXED_DESTS[@]})); then
-	if [[ -n "$fixed_dest" ]]; then fEcho_Clean "Dogfood, fixed name .: overwrite ${fixed_dest}/${EXE_NAME}"
-	else fEcho_Clean "Dogfood, fixed name .: <none of: ${DOGFOOD_FIXED_DESTS[*]} exists - will skip>"; fi
+	if [[ -n "$fixed_dest" ]]; then fEcho_Chat "Dogfood, fixed name .: overwrite ${fixed_dest}/${EXE_NAME}"
+	else fEcho_Chat "Dogfood, fixed name .: <none of: ${DOGFOOD_FIXED_DESTS[*]} exists - will skip>"; fi
 else
-	fEcho_Clean "Dogfood, fixed name .: (disabled)"
+	fEcho_Chat "Dogfood, fixed name .: (disabled)"
 fi
-fEcho_Clean "Screenshots .........: $( ((DO_SCREENSHOTS)) && echo "${SCREENSHOT_CMD[*]}" || echo '(skipped)')"
-fEcho_Clean "Demo gif ............: $( ((DO_DEMOGIF)) && echo "${DEMOGIF_CMD[*]}" || echo '(skipped)')"
+fEcho_Chat "Screenshots .........: $( ((DO_SCREENSHOTS)) && echo "${SCREENSHOT_CMD[*]}" || echo '(skipped)')"
+fEcho_Chat "Demo gif ............: $( ((DO_DEMOGIF)) && echo "${DEMOGIF_CMD[*]}" || echo '(skipped)')"
 if ((${#GIT_PUBLISH[@]} == 0)); then
-	fEcho_Clean "Publish (last) ......: (disabled)"
+	fEcho_Chat "Publish (last) ......: (disabled)"
 elif [[ -n "$publish_msg" ]]; then
-	fEcho_Clean "Publish (last) ......: ${GIT_PUBLISH[*]} (hands-off: \"${publish_msg}\")"
+	fEcho_Chat "Publish (last) ......: ${GIT_PUBLISH[*]} (hands-off: \"${publish_msg}\")"
 else
-	fEcho_Clean "Publish (last) ......: ${GIT_PUBLISH[*]} (will prompt for message; blank = editor)"
+	fEcho_Chat "Publish (last) ......: ${GIT_PUBLISH[*]} (will prompt for message; blank = editor)"
 fi
-fEcho_Clean
-fEcho_Clean "Fail-fast: any error aborts before the next stage."
-fEcho_Clean
+fEcho_Chat
+fEcho_Chat "Fail-fast: any error aborts before the next stage."
+fEcho_Chat
 
 if ((! assume_yes)); then
 	## Capture the commit message up front so the run can finish unattended. This
@@ -229,7 +232,7 @@ fi
 ## Stage 1: format.
 fSection "1/8  Format"
 if ((${#FMT_CMD[@]} == 0)); then
-	fEcho_Clean "format skipped"
+	fEcho_Chat "format skipped"
 else
 	"${FMT_CMD[@]}"
 	fEcho "OK: formatted (${FMT_CMD[*]})"
@@ -256,7 +259,7 @@ fi
 ## (a failed probe skips that one with a warning). All output lands in the run log.
 fSection "3/8  Lint"
 if ((${#VET_CMD[@]} == 0)); then
-	fEcho_Clean "lint skipped"
+	fEcho_Chat "lint skipped"
 else
 	in_src "${VET_CMD[@]}"
 	fEcho "OK: go vet clean"
@@ -288,7 +291,9 @@ else
 	in_src "${UNIT_TEST_CMD[@]}"
 fi
 fEcho "OK: unit tests"
-CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" "${TEST_CMD[@]}"
+## The harness runs its perf section and packaging rebuild check unless --quick.
+do_perf=1; ((quick)) && do_perf=0
+CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" CICDTEST_DO_PERF="${do_perf}" CICDTEST_QUICK="${quick}" "${TEST_CMD[@]}"
 fEcho "OK: integration harness"
 
 ## 4b: fuzz each discovered target for a bounded time (shorter under --quick).
@@ -299,11 +304,10 @@ if ((FUZZ_ENABLE)); then
 	if ((${#fuzz_targets[@]})); then
 		fuzz_log="$(mktemp -t cicd-fuzz.XXXXXX)"
 		for t in "${fuzz_targets[@]}"; do
-			fEcho_Clean "fuzz ${t} (${ft}) ..."
-			set +e
-			in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}"
-			fuzz_rc=${PIPESTATUS[0]}
-			set -e
+			fEcho_Chat "fuzz ${t} (${ft}) ..."
+			## Only || keeps the ERR trap off a failed run; set +e does not.
+			fuzz_rc=0
+			in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}" || fuzz_rc=$?
 			fuzz_id="-------"
 			((${#TEST_ID_CMD[@]})) && fuzz_id="$(cd "${root}" && "${TEST_ID_CMD[@]}" lookup "${SRC_DIR}/${GO_TEST_PKG:-.}" "${t}" || true)"
 			if ((fuzz_rc)); then
@@ -324,7 +328,7 @@ if ((FUZZ_ENABLE)); then
 		rm -f "${fuzz_log}"
 		fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"
 	else
-		fEcho_Clean "no Fuzz* targets found; skipping fuzz"
+		fEcho_Chat "no Fuzz* targets found; skipping fuzz"
 	fi
 fi
 
@@ -340,7 +344,7 @@ fEcho "OK: tests passed"
 
 ## Stage 5: profiler (non-gating artifact; failures classified below).
 run_profiler(){
-	((PROFILE_ENABLE)) || { fEcho_Clean "profiler disabled"; return 0; }
+	((PROFILE_ENABLE)) || { fEcho_Chat "profiler disabled"; return 0; }
 
 	## Mundane/environmental reasons -> skip with a warning (not the app's fault),
 	## unless PROFILE_STRICT. Genuine run failures below still abort.
@@ -357,7 +361,7 @@ run_profiler(){
 	## Born canonical (role "frequent"); the rotation retags the newest as "latest".
 	local out="${profile_dir}/flame_${stamp}_frequent.svg"
 
-	fEcho_Clean "sampling bench ${PROFILE_BENCH} for ${PROFILE_TIME} ..."
+	fEcho_Chat "sampling bench ${PROFILE_BENCH} for ${PROFILE_TIME} ..."
 	if ! in_src go test -run '^$' -bench "^${PROFILE_BENCH}$" -benchtime "${PROFILE_TIME}" \
 		-cpuprofile "${prof}" -o /dev/null "${GO_TEST_PKG:-.}"; then
 		((PROFILE_STRICT)) && fDie "profiler benchmark failed (app problem)"
@@ -398,7 +402,7 @@ if ((BUILD_CROSS)); then
 	((count > 0)) || fDie "cross + package produced no artifacts in ${RELEASE_ARTIFACT_DIR}/"
 	fEcho "OK: release artifacts: ${count} in ${RELEASE_ARTIFACT_DIR}/"
 else
-	fEcho_Clean "cross + package skipped"
+	fEcho_Chat "cross + package skipped"
 fi
 
 ## Stage 7: dogfood (fixed name) + screenshots. Dogfood the optimized release
@@ -408,15 +412,20 @@ dogfood_bin="${STAGED_BIN}"
 [[ -n "${STAGED_RELEASE_BIN:-}" && -f "${STAGED_RELEASE_BIN}" ]] && dogfood_bin="${STAGED_RELEASE_BIN}"
 if ((${#DOGFOOD_FIXED_DESTS[@]})); then
 	if [[ -n "$fixed_dest" ]]; then
-		if ! cp -f "${dogfood_bin}" "${fixed_dest}/${EXE_NAME}" && [[ "${fixed_dest}" != "${HOME}/"* ]]; then
-			sudo cp -f "${dogfood_bin}" "${fixed_dest}/${EXE_NAME}"
+		## sudo -n never prompts, so it can't hang a run, and an unattended run
+		## doesn't try it at all.
+		dogfood_to="${fixed_dest}/${EXE_NAME}"; dogfood_how=""
+		if cp -f "${dogfood_bin}" "${dogfood_to}"; then :
+		elif [[ "${fixed_dest}" == "${HOME}/"* ]] || ((assume_yes)); then fDie "could not install ${dogfood_to}"
+		elif sudo -n cp -f "${dogfood_bin}" "${dogfood_to}"; then dogfood_how=" (sudo)"
+		else fDie "could not install ${dogfood_to}, even with sudo -n"
 		fi
-		fEcho "OK: installed -> ${fixed_dest}/${EXE_NAME}"
+		fEcho "OK: installed${dogfood_how} -> ${dogfood_to}"
 	else
 		fEcho "WARNING: no dogfood dest exists (${DOGFOOD_FIXED_DESTS[*]}); skipping"
 	fi
 else
-	fEcho_Clean "dogfood disabled"
+	fEcho_Chat "dogfood disabled"
 fi
 
 ## Screenshots: off by default (retired, so the skip is silent); a failure is a
@@ -435,7 +444,7 @@ fi
 ## tested binary, renders the animated loop. A failure is a warning, never a stop.
 demogif_util="${root}/${DEMOGIF_CMD[0]}"
 if ((! DO_DEMOGIF)); then
-	fEcho_Clean "demo gif skipped"
+	fEcho_Chat "demo gif skipped"
 elif [[ -f "${demogif_util}" ]]; then
 	demogif_out="${root}/${DEMOGIF_OUT}"
 	demogif_tmp="${demogif_out}.new"
@@ -465,18 +474,18 @@ fSection "8/8  Backup + publish"
 ## in the repo). Run it if present + executable; a missing dir/file is skipped,
 ## not an error. Non-zero exit aborts before anything is published.
 if [[ -n "${PREPUBLISH_HOOK:-}" && -x "${PREPUBLISH_HOOK}" ]]; then
-	fEcho_Clean "pre-publish hook: ${PREPUBLISH_HOOK}"
+	fEcho_Chat "pre-publish hook: ${PREPUBLISH_HOOK}"
 	"${PREPUBLISH_HOOK}" "${root}" || fDie "pre-publish hook rejected the tree"
 fi
 ## Always run the publisher quiet: cicd already gave the initial prompt, so skip
 ## its redundant continue-prompt. With no message it still lets git open the editor.
 pub_flags=(--quiet)
 if ((${#GIT_PUBLISH[@]} == 0)); then
-	fEcho_Clean "publish disabled"
+	fEcho_Chat "publish disabled"
 elif [[ -n "$publish_msg" ]]; then
 	## Hands-off: the publisher fills the empty commit message from -m so `git
 	## commit` won't open an editor.
-	fEcho_Clean "hands-off publish (commit message: \"${publish_msg}\")"
+	fEcho_Chat "hands-off publish (commit message: \"${publish_msg}\")"
 	"${GIT_PUBLISH[@]}" "${pub_flags[@]}" -m "${publish_msg}"
 	fEcho "OK: published"
 else
