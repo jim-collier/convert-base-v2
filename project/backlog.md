@@ -34,68 +34,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- `checksums.txt` names a prerelease `.deb` or `.rpm` with a `~`, but GitHub serves the file with a `.` there.
-	- ID: 2026100412472515
-	- Type: Bug
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its new release packaging section was run, 3 of 3.
-	- Needs external testing: The next beta on GitHub. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
-	- Severity: Avg
-	- Opened: 20261004-124725
-	- Opened by: found while working 2026100409572736
-	- Target OS: Linux
-	- Steps to reproduce:
-		- `make release` on a prerelease version such as v3.1.0-beta1, upload, then `sha256sum -c checksums.txt` beside the downloaded packages.
-	- Incorrect behavior: nfpm names the packages `3.1.0~beta1`, `checksums.txt` lists that name, and GitHub serves `3.1.0.beta1`, so the check can't find the files.
-	- Expected behavior: the names in `checksums.txt` match the names served.
-	- Reproduced: not yet. Read only; no prerelease has shipped packages so far. The next release is a beta.
-		- 20261004: packaging v9.9.9-beta1 put four `~` names in `checksums.txt`. With the files under the names GitHub would serve, `sha256sum -c` could not find those four.
-	- Possible cause: packaging hashes before GitHub's rename. Rename before hashing.
-	- Actual cause: nfpm names the file after the package version, which has a `~` for a prerelease, and nothing changed that name before the checksums were taken.
-	- Actual fix: packaging renames any file GitHub would rename to the name GitHub serves, before it writes `checksums.txt`. Two files that would end up with one name stop the run. The version inside the package keeps the `~`.
-	- Sweep: everything that builds or reads an asset name.
-	- Swept: `release-notes.bash` already links the served name, and now finds the renamed packages with no warning. `install.bash` fetches only the bare binary and `checksums.txt`, and neither name has a `~`. The release workflow uploads `lib/dist/*` as written. `cicd.bash` counts the files by extension. The installer shows the version but its file name has none.
-	- Verified: a v9.9.9-beta1 package run names all four packages with a `.`, and `sha256sum -c checksums.txt` passes beside them. `dpkg-deb` and `rpm` read `9.9.9~beta1` from inside them, and dpkg sorts that below 9.9.9. `ErlP6Bg` fails with dev's packaging and passes with the fix. `ErlP6CE` passes on both, and fails when the package version is given a `.` in place of the `~`. Nothing was tagged or published.
-	- Branch: pkg-repro
-	- Commit: cdd002f
-	- Test case: `ErlP6Bg` "prerelease packages named as GitHub serves them" and `ErlP6CE` "prerelease package version keeps its ~" in the harness.
-
-
-- `--version` also shows the build number: Linux epoch seconds, in lower-case Crockford base 32.
-	- ID: 2026100408500169
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its CLI surface section was run, 36 of 36.
-	- Priority: Avg
-	- Opened: 20261004-085001
-	- Opened by: JC
-	- Target OS: Any
-	- Note: release builds are rebuilt to their published checksums, so the seconds should come from the commit date, not the clock.
-	- Note: `--version` alone prints one bare line today, and scripts may read it.
-	- Progress log:
-		- Done: `--version` prints `v3.0.0 build dbrk8` when the build was stamped, and the version alone when not. `--about` and the help open with the same line.
-		- Done: `make local`, `make debug`, `make wasm` and `make release` stamp the commit's time. `package.bash` takes `--build-epoch`, and defaults to HEAD's commit time, so the release workflow's build is stamped with no change there.
-		- Fixed: `install.bash` compared the whole `--version` line to the release tag, so with a build number on it every run would have reinstalled. It compares the version part now.
-		- Note: `lib/wasm` and `lib/reactor` are unchanged. They report `convertbase.Version`, the library's own number, which names a package surface rather than a build.
-		- Note: the parity and interop harnesses compare conversion answers only, never the version line, so they are unaffected.
-	- Decisions:
-		- Match sister projects gitsby and shcl, not the epoch seconds in the title: minutes from 2000-01-01 00:00 UTC to the commit's time, in lower-case Crockford base32, five characters until 2063.
-		- Taken from the commit date, never the clock, so release builds still rebuild to their published checksums.
-		- Same line, like the sisters: `v3.0.0 build dbrk8`. A build with no stamp, such as `go install`, prints the version alone, as before.
-		- It stays a `var` patched by `-X`, beside `version`.
-		- `--version` alone stays one line, per 2026100313304797. `--about` still covers it.
-	- Swept: every `-X main.version` in the tree (Makefile, `package.bash`), every reader of `--version` (`install.bash`, `cicd.bash` log lines, the harness), the three hosted workflows (`release.yml` builds through `package.bash`, `ci.yml` builds unstamped, `pages.yml` builds only the browser module), and the docs that describe the version output.
-	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The four new Go tests and the two new harness checks fail with the version on two lines, `buildEpoch` as a const, or the Makefile without the stamp, and pass with the change. A plain `go build` prints `v3.0.0` alone. `make release` twice a minute apart gives the same checksums for every bare binary. `test-ids.py check` passes. Shellcheck finds nothing new beyond the harness's usual `A && B || C` notes.
-	- Branch: build-num
-	- Commit: d8ac98d
-	- Test case: `ErlL5bp` TestCrockfordBase32, `ErlL5cK` TestBuildNumber, `ErlL5cs` TestVersionText and `ErlL5dO` TestBuildEpochIsPatchable; `ErlL5dx` "--version is one line, version then build number" and `ErlL5eT` "make stamps every command build with the commit's time" in the harness.
-
-
 - Release notes group the downloads in a table, with CPU architecture in columns and target OS in rows.
 	- ID: 2026100409572736
 	- Type: Feature
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its new release notes section was run, 3 of 3.
+	- Status: Waiting on signoff
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 489 of 489 on dev after the merge, and CI passed.
 	- Needs external testing: The next release on GitHub. Check that the table renders, that every link downloads, and that the notes end with the build line.
 	- Priority: Avg
 	- Opened: 20261004-095727
@@ -120,42 +63,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: build-num
 	- Commit: 947757f
 	- Test case: `ErlN8Nk` "release notes: changelog, downloads table, build line", `ErlN8OJ` "release notes warn of a file they can't place" and `ErlN8Oq` "release notes: only filled columns, no build line for another version" in the harness. The workflow itself only runs on a merge to main.
-
-
-- The release archives and packages don't rebuild to the same bytes.
-	- ID: 2026100412472615
-	- Type: Bug
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its new release packaging section was run, 3 of 3.
-	- Needs external testing: After the next release, rebuild its tag with the Go, nfpm and NSIS versions the workflow used, and compare with its `checksums.txt`. NSIS comes from the runner's apt, so its version has to be read from the workflow log.
-	- Severity: Low
-	- Opened: 20261004-124726
-	- Opened by: found while working 2026100409572736
-	- Target OS: Any
-	- Steps to reproduce:
-		- `make release` twice, a minute apart, on the same commit.
-	- Incorrect behavior: every bare binary and the `.wasm` match, but the `.tgz`, `.zip`, `.deb`, `.rpm` and installer checksums differ.
-	- Expected behavior: a rebuild of one commit matches the published checksums for every asset.
-	- Reproduced: 20261004.
-		- 20261004: again on dev. Two v9.9.9-beta1 runs a few seconds apart differed in 15 of 25 files, every archive, package and installer.
-	- Possible cause: file times and archive headers taken from the clock. Probably fixed by setting them from the commit's time.
-	- Actual cause: each binary went into its archive or installer with the time it was built and a mode from the umask. nfpm stamped the packages with the clock and the rpm with the host name, and took the license file's checkout time and mode. The zip kept local time and owner fields. The Go builds also took a VCS stamp, so a dirty tree or a source tarball built other bytes.
-	- Actual fix: every file that goes into an asset gets the commit's time and a fixed mode. The tarballs have fixed owners and no gzip time, the zip is made in UTC without the extra fields, and nfpm takes the commit's time, a fixed build host and a fixed license mode. The Go builds have no VCS stamp or build ID. `checksums.txt` is sorted the same in any locale.
-	- Sweep: every file package.bash writes.
-	- Swept: all 25 files of a full run, the macOS universal build and the `.wasm` included. `make release` runs package.bash, and no other path builds a release asset.
-	- Verified: two package runs a few seconds apart, the second with another umask and time zone, gave the same checksums for all 25 files. So did a run from a dirty tree against one from a clean export of the commit at another path. `ErlP6B8` fails with dev's packaging, naming the 15 files, and passes with the fix. It also fails when the zip loses its fixed time zone. The macho-fat tests pass and the universal build still has both slices.
-	- Note: no part was left open. The installer rebuilt the same once its input had a fixed time.
-	- Note: matching a published checksum needs the same tool versions. Go and nfpm are pinned. NSIS, tar, gzip and zip come from the OS, and NSIS is the one most likely to differ between a runner and a local box.
-	- Branch: pkg-repro
-	- Commit: cdd002f
-	- Test case: `ErlP6B8` "release assets rebuild to the same bytes" in the harness.
+	- Question: releases now ship `convert-base-v2.wasm`, the WASI build of the command, so the WebAssembly row has something in it. Keep it? Dropping it is one block in `package.bash`, and the row then goes away by itself.
+	- Acceptance signoff: waits on the Universal column, the WebAssembly row and the question above, which were best guesses.
 
 
 - macOS gets a universal binary for both amd64 and ARM.
 	- ID: 2026100313304792
 	- Type: Enhancement
 	- Status: Waiting for testing
-	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Intel Mac and on an Apple silicon Mac. Check `--version` and one conversion on each, and that Gatekeeper treats it the same as the per-arch build.
+	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Apple silicon Mac. The Intel half passed on b26. Check `--version` and one conversion, and that Gatekeeper treats it the same as the per-arch build.
 	- Opened: 20261003-133047
 	- Opened by: JC
 	- Target OS: macOS
@@ -171,6 +87,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: mac-universal
 	- Commit: 22452c9
 	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
+	- Verified: 20261004, on an Intel Mac with macOS 15.8.1. The universal binary, the per-arch x86_64 one and the one from the universal `.tgz` all print the same version and build line. A hex to base-62 conversion and a bytes to base-64 one match the Linux build. Gatekeeper rejects the universal and per-arch builds the same way, unsigned, with and without the quarantine flag.
 
 
 - A field written under another field in a config file is ignored without a word.
@@ -204,6 +121,68 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261003-150028
 
+
+- `checksums.txt` names a prerelease `.deb` or `.rpm` with a `~`, but GitHub serves the file with a `.` there.
+	- ID: 2026100412472515
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 489 of 489 on dev after the merge, and CI passed.
+	- Severity: Avg
+	- Opened: 20261004-124725
+	- Opened by: found while working 2026100409572736
+	- Target OS: Linux
+	- Steps to reproduce:
+		- `make release` on a prerelease version such as v3.1.0-beta1, upload, then `sha256sum -c checksums.txt` beside the downloaded packages.
+	- Incorrect behavior: nfpm names the packages `3.1.0~beta1`, `checksums.txt` lists that name, and GitHub serves `3.1.0.beta1`, so the check can't find the files.
+	- Expected behavior: the names in `checksums.txt` match the names served.
+	- Reproduced: not yet. Read only; no prerelease has shipped packages so far. The next release is a beta.
+		- 20261004: packaging v9.9.9-beta1 put four `~` names in `checksums.txt`. With the files under the names GitHub would serve, `sha256sum -c` could not find those four.
+	- Possible cause: packaging hashes before GitHub's rename. Rename before hashing.
+	- Actual cause: nfpm names the file after the package version, which has a `~` for a prerelease, and nothing changed that name before the checksums were taken.
+	- Actual fix: packaging renames any file GitHub would rename to the name GitHub serves, before it writes `checksums.txt`. Two files that would end up with one name stop the run. The version inside the package keeps the `~`.
+	- Sweep: everything that builds or reads an asset name.
+	- Swept: `release-notes.bash` already links the served name, and now finds the renamed packages with no warning. `install.bash` fetches only the bare binary and `checksums.txt`, and neither name has a `~`. The release workflow uploads `lib/dist/*` as written. `cicd.bash` counts the files by extension. The installer shows the version but its file name has none.
+	- Verified: a v9.9.9-beta1 package run names all four packages with a `.`, and `sha256sum -c checksums.txt` passes beside them. `dpkg-deb` and `rpm` read `9.9.9~beta1` from inside them, and dpkg sorts that below 9.9.9. `ErlP6Bg` fails with dev's packaging and passes with the fix. `ErlP6CE` passes on both, and fails when the package version is given a `.` in place of the `~`. Nothing was tagged or published.
+	- Branch: pkg-repro
+	- Commit: cdd002f
+	- Test case: `ErlP6Bg` "prerelease packages named as GitHub serves them" and `ErlP6CE` "prerelease package version keeps its ~" in the harness.
+	- Note: check again at the next beta. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
+	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
+	- Closed: 20261004-131952
+
+
+- `--version` also shows the build number: Linux epoch seconds, in lower-case Crockford base 32.
+	- ID: 2026100408500169
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 489 of 489 on dev after the merge, and CI passed.
+	- Priority: Avg
+	- Opened: 20261004-085001
+	- Opened by: JC
+	- Target OS: Any
+	- Note: release builds are rebuilt to their published checksums, so the seconds should come from the commit date, not the clock.
+	- Note: `--version` alone prints one bare line today, and scripts may read it.
+	- Progress log:
+		- Done: `--version` prints `v3.0.0 build dbrk8` when the build was stamped, and the version alone when not. `--about` and the help open with the same line.
+		- Done: `make local`, `make debug`, `make wasm` and `make release` stamp the commit's time. `package.bash` takes `--build-epoch`, and defaults to HEAD's commit time, so the release workflow's build is stamped with no change there.
+		- Fixed: `install.bash` compared the whole `--version` line to the release tag, so with a build number on it every run would have reinstalled. It compares the version part now.
+		- Note: `lib/wasm` and `lib/reactor` are unchanged. They report `convertbase.Version`, the library's own number, which names a package surface rather than a build.
+		- Note: the parity and interop harnesses compare conversion answers only, never the version line, so they are unaffected.
+	- Decisions:
+		- Match sister projects gitsby and shcl, not the epoch seconds in the title: minutes from 2000-01-01 00:00 UTC to the commit's time, in lower-case Crockford base32, five characters until 2063.
+		- Taken from the commit date, never the clock, so release builds still rebuild to their published checksums.
+		- Same line, like the sisters: `v3.0.0 build dbrk8`. A build with no stamp, such as `go install`, prints the version alone, as before.
+		- It stays a `var` patched by `-X`, beside `version`.
+		- `--version` alone stays one line, per 2026100313304797. `--about` still covers it.
+	- Swept: every `-X main.version` in the tree (Makefile, `package.bash`), every reader of `--version` (`install.bash`, `cicd.bash` log lines, the harness), the three hosted workflows (`release.yml` builds through `package.bash`, `ci.yml` builds unstamped, `pages.yml` builds only the browser module), and the docs that describe the version output.
+	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The four new Go tests and the two new harness checks fail with the version on two lines, `buildEpoch` as a const, or the Makefile without the stamp, and pass with the change. A plain `go build` prints `v3.0.0` alone. `make release` twice a minute apart gives the same checksums for every bare binary. `test-ids.py check` passes. Shellcheck finds nothing new beyond the harness's usual `A && B || C` notes.
+	- Branch: build-num
+	- Commit: d8ac98d
+	- Test case: `ErlL5bp` TestCrockfordBase32, `ErlL5cK` TestBuildNumber, `ErlL5cs` TestVersionText and `ErlL5dO` TestBuildEpochIsPatchable; `ErlL5dx` "--version is one line, version then build number" and `ErlL5eT` "make stamps every command build with the commit's time" in the harness.
+	- Acceptance signoff: Self-closed: the format and placement were the ones asked for, its tests pass, and the full suite passed.
+	- Closed: 20261004-131952
+
+
 - A raw block as a config field value is dropped or misreported.
 	- ID: 2026100315002873
 	- Type: Bug
@@ -235,6 +214,37 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Erg6SWX` TestConfigRejectsRawBlockValue and the "raw marker" and "raw name" cases in `Em2MFrs` TestConfigErrorsCiteLines; `ErgbjuS` "config raw block symbols rejected" and `Erg6SWW` "config raw block alias rejected" in the harness. TestConfigRawBlockSymbols went when blocks under symbols were refused.
 	- Acceptance signoff: Signed off 20261003.
 	- Closed: 20261003-180637
+
+
+- The release archives and packages don't rebuild to the same bytes.
+	- ID: 2026100412472615
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 489 of 489 on dev after the merge, and CI passed.
+	- Severity: Low
+	- Opened: 20261004-124726
+	- Opened by: found while working 2026100409572736
+	- Target OS: Any
+	- Steps to reproduce:
+		- `make release` twice, a minute apart, on the same commit.
+	- Incorrect behavior: every bare binary and the `.wasm` match, but the `.tgz`, `.zip`, `.deb`, `.rpm` and installer checksums differ.
+	- Expected behavior: a rebuild of one commit matches the published checksums for every asset.
+	- Reproduced: 20261004.
+		- 20261004: again on dev. Two v9.9.9-beta1 runs a few seconds apart differed in 15 of 25 files, every archive, package and installer.
+	- Possible cause: file times and archive headers taken from the clock. Probably fixed by setting them from the commit's time.
+	- Actual cause: each binary went into its archive or installer with the time it was built and a mode from the umask. nfpm stamped the packages with the clock and the rpm with the host name, and took the license file's checkout time and mode. The zip kept local time and owner fields. The Go builds also took a VCS stamp, so a dirty tree or a source tarball built other bytes.
+	- Actual fix: every file that goes into an asset gets the commit's time and a fixed mode. The tarballs have fixed owners and no gzip time, the zip is made in UTC without the extra fields, and nfpm takes the commit's time, a fixed build host and a fixed license mode. The Go builds have no VCS stamp or build ID. `checksums.txt` is sorted the same in any locale.
+	- Sweep: every file package.bash writes.
+	- Swept: all 25 files of a full run, the macOS universal build and the `.wasm` included. `make release` runs package.bash, and no other path builds a release asset.
+	- Verified: two package runs a few seconds apart, the second with another umask and time zone, gave the same checksums for all 25 files. So did a run from a dirty tree against one from a clean export of the commit at another path. `ErlP6B8` fails with dev's packaging, naming the 15 files, and passes with the fix. It also fails when the zip loses its fixed time zone. The macho-fat tests pass and the universal build still has both slices.
+	- Note: no part was left open. The installer rebuilt the same once its input had a fixed time.
+	- Note: matching a published checksum needs the same tool versions. Go and nfpm are pinned. NSIS, tar, gzip and zip come from the OS, and NSIS is the one most likely to differ between a runner and a local box.
+	- Branch: pkg-repro
+	- Commit: cdd002f
+	- Test case: `ErlP6B8` "release assets rebuild to the same bytes" in the harness.
+	- Note: check again after the next release. Rebuild its tag with the Go, nfpm and NSIS versions the workflow used, and compare with its `checksums.txt`. NSIS comes from the runner's apt, so its version has to be read from the workflow log.
+	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
+	- Closed: 20261004-131952
 
 
 - Support `--help`, `--about` and `--donate`, in a similar way as sister project shcl.
