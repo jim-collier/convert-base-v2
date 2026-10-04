@@ -1490,6 +1490,43 @@ rnWant="$(printf '%s\n' 'See changelog.md.' '' '### Downloads' '' '| OS | x86_64
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Release packaging, as a prerelease, twice. The second run has another umask
+## and time zone and comes seconds later, so anything taken from the clock or
+## the host shows up as a changed checksum.
+section "Release packaging"
+pkDir="${CBT_TMP}/pk"; pkrc=0
+pkArgs=(--version v9.9.9-beta1 --build-epoch 1700000000)
+bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/a" >/dev/null 2>"${CBT_ERR}" || pkrc=$?
+( umask 077; TZ=Pacific/Kiritimati bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/b" >/dev/null 2>>"${CBT_ERR}" ) || pkrc=$?
+pkSums="${pkDir}/a/checksums.txt"
+if ((pkrc != 0)) || [[ ! -s "${pkSums}" ]]; then
+	_fail ErlP6B8 "release assets rebuild to the same bytes" "package.bash exit ${pkrc}: $(tail -5 "${CBT_ERR}")"
+else
+	pkDiff="$(diff "${pkSums}" "${pkDir}/b/checksums.txt" | sed -n 's/^> [0-9a-f]* *//p' | tr '\n' ' ' || true)"
+	[[ -z "${pkDiff}" ]] && _pass ErlP6B8 "release assets rebuild to the same bytes" || _fail ErlP6B8 "release assets rebuild to the same bytes" "differ: ${pkDiff}"
+fi
+if ! command -v nfpm >/dev/null 2>&1; then
+	_warn "ErlP6Bg ErlP6CE" "prerelease package checks skipped: nfpm not installed"
+elif [[ -s "${pkSums}" ]]; then
+	## GitHub turns any character outside [A-Za-z0-9._-] into a dot on upload.
+	pkBad="$(awk '{ sub(/^\*/, "", $2); if ($2 !~ /^[A-Za-z0-9._-]+$/) printf "%s ", $2 }' "${pkSums}")"
+	pkCheck="$(cd "${pkDir}/a" && sha256sum -c --quiet checksums.txt 2>&1 || true)"
+	pkDebs="$(find "${pkDir}/a" -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' \) | wc -l)"
+	{ [[ -z "${pkBad}" && -z "${pkCheck}" ]] && ((pkDebs == 4)); } && _pass ErlP6Bg "prerelease packages named as GitHub serves them" \
+		|| _fail ErlP6Bg "prerelease packages named as GitHub serves them" "renamed on upload: [${pkBad}] check: [${pkCheck}] packages: ${pkDebs}"
+	## The version inside keeps the ~, so a beta sorts below its final.
+	pkVers=""
+	command -v dpkg-deb >/dev/null 2>&1 && pkVers+="$(dpkg-deb -f "${pkDir}"/a/*_amd64.deb Version 2>&1 || true) "
+	command -v rpm >/dev/null 2>&1 && pkVers+="$(rpm -qp --qf '%{VERSION}' "${pkDir}"/a/*.x86_64.rpm 2>/dev/null || true) "
+	if [[ -z "${pkVers}" ]]; then
+		_warn ErlP6CE "package version check skipped: neither dpkg-deb nor rpm installed"
+	else
+		[[ "${pkVers}" =~ ^(9\.9\.9~beta1 )+$ ]] && _pass ErlP6CE "prerelease package version keeps its ~" || _fail ErlP6CE "prerelease package version keeps its ~" "got [${pkVers}]"
+	fi
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Performance: streaming throughput of the binary path (long test only)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## A repeatable throughput baseline for the streaming binary<->text path, with

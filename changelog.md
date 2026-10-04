@@ -50,6 +50,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A config file without a Format line, which is every one written before this version, is read the way the older SHCL rules read it, so its bases stay the same. The user and system config files are converted once, and the original is kept beside them as `convert-base-v2_backup_YYYYmmDD-HHMMSS_format-v1.shcl`. A file named with `--config` is never rewritten. A file that can't be carried over exactly is refused, naming the line, and left as it is.
 
+- Every release file, archives, packages and installers included, rebuilds from its commit to the same bytes, not just the bare binaries.
+
+- A prerelease `.deb` or `.rpm` is named with a `.` where its version has a `~`, such as `convert-base-v2_3.1.0.beta1_amd64.deb`. That is the name GitHub serves it under, so it matches `checksums.txt`. The version inside the package keeps the `~`, so a beta still sorts below its final release.
+
 ### Fixed
 
 - A config field indented under another field, such as `decimal:` under `negative:`, was never read, and an empty field above it still switched its marker off. The base was built wrong with no error. It is refused now, naming the base, the field and the line.

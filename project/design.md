@@ -180,9 +180,13 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 	- macOS also gets a universal binary, both darwin builds joined into one file. Packaging runs on Linux with no lipo, so `cicd/utility/macho-fat` does the join, and checks each slice against its input. The per-arch macOS assets stay, since the install script fetches those and they are half the size. A `--no-arm` run makes no universal binary.
 
+	- Every asset rebuilds to the same bytes from the same commit. File times come from the commit, owners and modes are fixed, and the Go builds carry no VCS stamp or build ID. The same tool versions are needed for that: Go and nfpm are pinned, but NSIS, tar, gzip and zip come from the OS.
+
+	- nfpm writes a prerelease package version with a `~`, such as `3.1.0~beta1`, so it sorts below the final. GitHub would serve that file name with a `.` in place of the `~`, so packaging renames it before writing the checksums. The version inside the package keeps the `~`.
+
 - Releases are automatic on a merge to `main`. The version var in `lib/cmd/convert-base-v2/main.go` is the source of truth. A guard runs first and fails the workflow if the version was not bumped, if it sorts behind the newest tag, or if the README Lifecycle badge does not match the version stage. On success the workflow packages and writes the notes, then tags and publishes, so a failed build leaves no tag.
 
-- The release notes come from `cicd/utility/release-notes.bash`: the version's changelog section, a downloads table with the OS in rows and the CPU in columns, then the version line read back from the built binary, so the notes and the download agree on the build number. The table is made from the files packaging wrote, and links each by the name GitHub serves it under, which turns a `~` into a `.`.
+- The release notes come from `cicd/utility/release-notes.bash`: the version's changelog section, a downloads table with the OS in rows and the CPU in columns, then the version line read back from the built binary, so the notes and the download agree on the build number. The table is made from the files packaging wrote, and links each by the name GitHub serves it under.
 
 - Release prep on `dev`: rename the changelog's next-version heading to the version and date, bump the version var, and set the Lifecycle badge to match the stage.
 

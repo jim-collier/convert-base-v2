@@ -23,6 +23,11 @@
 ##		  workflow, so what ships is what was built and tested here.
 ##		- Every binary carries a build number, taken from the commit's time
 ##		  (--build-epoch, default HEAD's), so a rebuild matches the checksums.
+##		  The archives, packages and installers take their file times from it
+##		  too, with fixed owners and modes, so they rebuild to the same bytes.
+##		- A file name with a character GitHub would change on upload, such as
+##		  the ~ in a prerelease .deb or .rpm, is renamed to what GitHub serves
+##		  before checksums.txt is written.
 ##	History: At bottom.
 
 ##	Copyright (c) 2026 Bubbles
@@ -30,6 +35,8 @@
 ##	SPDX-License-Identifier: GPL-2.0-or-later
 
 set -Eeuo pipefail
+## Byte order for checksums.txt and the name rewrite, whatever the host's locale.
+export LC_ALL=C
 
 ## Locations. This script lives in cicd/utility; the repo root is two up.
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -72,9 +79,23 @@ esac; done
 ## the source dir, so their `--out dist` lands at lib/dist as before).
 [[ "${OUT}" = /* ]] || OUT="${PWD}/${OUT}"
 
+## nfpm reads this for every time it writes. Without a commit there is no
+## stable time to use, so such a build takes the clock and won't repeat.
+[[ -z "${BUILD_EPOCH}" ]] || export SOURCE_DATE_EPOCH="${BUILD_EPOCH}"
+
+## What goes into an archive or installer gets the commit's time and a mode
+## that doesn't depend on the umask.
+fStamp(){ chmod 0755 "$@"; [[ -z "${BUILD_EPOCH}" ]] || touch -d "@${BUILD_EPOCH}" "$@"; }
+
+## gzip -n leaves the clock out of the gzip header.
+fTgz(){
+	local dir="$1" file="$2" out="$3"
+	tar -C "${dir}" --format=ustar --sort=name --owner=0 --group=0 --numeric-owner -cf - "${file}" | gzip -n >"${out}"
+}
+
 ## Package version: strip the leading v. nfpm turns 1.1.0-beta7 into 1.1.0~beta7
 ## itself (Debian/RPM read '~' as "sorts before the final"); the NSIS installer
-## just displays it.
+## just displays it. Only the file name loses the ~, at the end.
 plainver="${VERSION#v}"
 
 
@@ -102,13 +123,17 @@ for p in "${platforms[@]}"; do
 	bindir="${work}/${os}-${arch}"; mkdir -p "${bindir}"
 	binpath="${bindir}/${EXE}${ext}"
 
+	## No VCS stamp or build ID, so a dirty tree or a source tarball of the
+	## same commit builds the same bytes.
 	( cd "${src}" && CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" \
-		go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.buildEpoch=${BUILD_EPOCH}" -o "${binpath}" ./cmd/convert-base-v2 )
+		go build -trimpath -buildvcs=false -ldflags "-s -w -buildid= -X main.version=${VERSION} -X main.buildEpoch=${BUILD_EPOCH}" -o "${binpath}" ./cmd/convert-base-v2 )
+	fStamp "${binpath}"
 
 	if [[ "${os}" == windows ]]; then
-		( cd "${bindir}" && zip -qr "${OUT}/${PKG}-${os}-${label}.zip" "${EXE}${ext}" )
+		## -X drops the owner and unix time fields. The DOS time is local time.
+		( cd "${bindir}" && TZ=UTC zip -qX "${OUT}/${PKG}-${os}-${label}.zip" "${EXE}${ext}" )
 	else
-		tar -C "${bindir}" -czf "${OUT}/${PKG}-${os}-${label}.tgz" "${EXE}${ext}"
+		fTgz "${bindir}" "${EXE}${ext}" "${OUT}/${PKG}-${os}-${label}.tgz"
 	fi
 	# Also ship the bare binary alongside the archive (grab-and-run; unix
 	# loses the exec bit on browser download, hence the archives stay too).
@@ -125,17 +150,19 @@ done
 if [[ -f "${work}/darwin-amd64/${EXE}" && -f "${work}/darwin-arm64/${EXE}" ]]; then
 	unidir="${work}/darwin-universal"; mkdir -p "${unidir}"
 	( cd "${here}/macho-fat" && go run . -o "${unidir}/${EXE}" "${work}/darwin-amd64/${EXE}" "${work}/darwin-arm64/${EXE}" )
-	tar -C "${unidir}" -czf "${OUT}/${PKG}-darwin-universal.tgz" "${EXE}"
+	fStamp "${unidir}/${EXE}"
+	fTgz "${unidir}" "${EXE}" "${OUT}/${PKG}-darwin-universal.tgz"
 	cp "${unidir}/${EXE}" "${OUT}/${PKG}-darwin-universal"
 	fEcho "built darwin/universal"
 fi
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## The whole command for any WASI runtime. Same build as `make wasm`.
+## The whole command for any WASI runtime. Same build as `make wasm`, less the
+## VCS stamp.
 
 ( cd "${src}" && CGO_ENABLED=0 GOOS=wasip1 GOARCH=wasm \
-	go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.buildEpoch=${BUILD_EPOCH}" -o "${OUT}/${PKG}.wasm" ./cmd/convert-base-v2 )
+	go build -trimpath -buildvcs=false -ldflags "-s -w -buildid= -X main.version=${VERSION} -X main.buildEpoch=${BUILD_EPOCH}" -o "${OUT}/${PKG}.wasm" ./cmd/convert-base-v2 )
 fEcho "built wasip1/wasm"
 
 
@@ -160,6 +187,8 @@ fBuildNfpm(){
 		license: GPL-2.0-or-later
 		section: utils
 		priority: optional
+		rpm:
+		  buildhost: localhost
 		contents:
 		  - src: ${bin}
 		    dst: /usr/bin/${EXE}
@@ -168,9 +197,13 @@ fBuildNfpm(){
 		  - src: ${root}/license.md
 		    dst: /usr/share/doc/${PKG}/copyright
 		    packager: deb
+		    file_info:
+		      mode: 0644
 		  - src: ${root}/license.md
 		    dst: /usr/share/licenses/${PKG}/license.md
 		    packager: rpm
+		    file_info:
+		      mode: 0644
 	EOF
 	local fmt
 	for fmt in deb rpm; do
@@ -209,6 +242,20 @@ done
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## GitHub serves an uploaded file with every character outside [A-Za-z0-9._-]
+## turned into a dot, so 3.1.0~beta1 downloads as 3.1.0.beta1. Use that name
+## here, or checksums.txt names a file nobody can download.
+
+for path in "${OUT}"/*; do
+	name="${path##*/}"; served="${name//[!A-Za-z0-9._-]/.}"
+	if [[ "${name}" != "${served}" ]]; then
+		[[ ! -e "${OUT}/${served}" ]] || { echo "both ${name} and ${served} would download as ${served}" >&2; exit 1; }
+		mv "${path}" "${OUT}/${served}"
+	fi
+done
+
+
+#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Checksums over everything produced.
 
 ( cd "${OUT}" && find . -maxdepth 1 -type f ! -name checksums.txt -printf '%P\n' | sort \
@@ -221,3 +268,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt | wc -l) 
 ##		- 2026-07-12: Created. Self-contained cross-build + deb/rpm/NSIS packaging, replacing goreleaser.
 ##		- 2026-10-03: macOS universal binary alongside the per-arch darwin builds.
 ##		- 2026-10-04: Build number from the commit's time (--build-epoch). The WASI build ships too.
+##		- 2026-10-04: Archives, packages and installers rebuild to the same bytes. Names GitHub would change are changed first.
