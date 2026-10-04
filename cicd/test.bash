@@ -26,7 +26,7 @@
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
-##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors.
+##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
 ##			- CICDTEST_EXE ..........: path to the binary under test (default: ../lib/bin/convert-base-v2).
@@ -1661,6 +1661,31 @@ chmod +x "${feDir}/bin/curl"
 ferc=0; FAKE_TGZ="${feDir}/pkg.tgz" PATH="${feDir}/bin:${PATH}" bash "${feDir}/fetch.bash" --refresh >/dev/null 2>"${CBT_ERR}" || ferc=$?
 { ((ferc != 0)) && [[ -f "${feDir}/thirdparty/keep/file" ]] && grep -qF "not a plain directory name" "${CBT_ERR}"; } && _pass Erm3T2q "interop refresh refuses a pin name that is not a plain name" \
 	|| _fail Erm3T2q "interop refresh refuses a pin name that is not a plain name" "rc=${ferc} left: [$(fNames "${feDir}/thirdparty")] err=[$(cat "${CBT_ERR}")]"
+
+## The benchmark times only runs that worked. A 1 MiB blob and one run keep
+## each of these to about a second.
+bnFail="${CBT_TMP}/bn-fail"; printf '%s\n' '#!/bin/sh' 'echo "unknown base" >&2' 'exit 1' >"${bnFail}"; chmod +x "${bnFail}"
+bnrc=0; BENCH_SIZE_MIB=1 BENCH_RUNS=1 bash "${meDir}/../utility/bench-encoders.bash" "${bnFail}" >/dev/null 2>"${CBT_ERR}" || bnrc=$?
+{ ((bnrc != 0)) && grep -qF "bench-encoders: failed:" "${CBT_ERR}"; } && _pass ErmCp2M "bench-encoders stops on a failed conversion" \
+	|| _fail ErmCp2M "bench-encoders stops on a failed conversion" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
+bnrc=0; BENCH_SIZE_MIB=1 BENCH_RUNS=1 bash "${meDir}/../utility/bench-encoders.bash" "${EXE}" >"${CBT_OUT}" 2>"${CBT_ERR}" || bnrc=$?
+{ ((bnrc == 0)) && ! grep -qF "failed:" "${CBT_ERR}" && (($(grep -cF "| convert-base-v2 |" "${CBT_OUT}" || true) == 3)); } && _pass ErmCp2N "bench-encoders runs every convert-base-v2 row" \
+	|| _fail ErmCp2N "bench-encoders runs every convert-base-v2 row" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
+
+## The screenshot script against the real binary, with a magick that draws
+## nothing and notes each picture it was asked for.
+ssDir="${CBT_TMP}/ss"; mkdir -p "${ssDir}/bin" "${ssDir}/repo/lib"
+printf '%s\n' '#!/bin/sh' '[ "$1" = -list ] && { echo "PANGO* PANGO r-- Pango Markup Language"; exit 0; }' 'echo draw >>"$SS_DRAWN"' >"${ssDir}/bin/magick"
+printf '%s\n' '#!/bin/sh' 'exit 0' >"${ssDir}/bin/fc-match"
+chmod +x "${ssDir}/bin/magick" "${ssDir}/bin/fc-match"
+ssrc=0; SS_DRAWN="${ssDir}/drawn" PATH="${ssDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${ssDir}/repo" "${EXE}" >/dev/null 2>"${CBT_ERR}" || ssrc=$?
+{ ((ssrc == 0)) && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErmCp2O "gen-screenshots: every command in every scene works" \
+	|| _fail ErmCp2O "gen-screenshots: every command in every scene works" "rc=${ssrc} err=[$(head -3 "${CBT_ERR}")]"
+: >"${ssDir}/drawn"
+ssrc=0; SS_DRAWN="${ssDir}/drawn" PATH="${ssDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${ssDir}/repo" "${bnFail}" >/dev/null 2>"${CBT_ERR}" || ssrc=$?
+{ ((ssrc != 0)) && [[ ! -s "${ssDir}/drawn" ]]; } && _pass ErmCp2P "gen-screenshots draws nothing after a failed command" \
+	|| _fail ErmCp2P "gen-screenshots draws nothing after a failed command" "rc=${ssrc} drawn: $(wc -l <"${ssDir}/drawn")"
+
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
