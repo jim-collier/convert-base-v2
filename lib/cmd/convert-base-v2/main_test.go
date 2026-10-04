@@ -9,6 +9,8 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"os/exec"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
@@ -34,6 +36,7 @@ func parseInfo(t *testing.T, args ...string) infoAsks {
 	return asked
 }
 
+// Test ID: Erfqe2I
 func TestInfoFlagOrder(t *testing.T) {
 	cases := []struct {
 		args []string
@@ -57,6 +60,7 @@ func TestInfoFlagOrder(t *testing.T) {
 	}
 }
 
+// Test ID: Erfqe2J
 func TestPrintInfoLoneIsUnchanged(t *testing.T) {
 	var got, want strings.Builder
 	if err := printInfo(&got, parseInfo(t, "--version"), nil); err != nil {
@@ -78,6 +82,7 @@ func TestPrintInfoLoneIsUnchanged(t *testing.T) {
 
 // One blank line between outputs, whether or not the first one already ends
 // in a blank line (the help does, the others do not).
+// Test ID: Erfqe2K
 func TestPrintInfoSeparation(t *testing.T) {
 	help := func(w io.Writer) { fmt.Fprint(w, "HELP\n\n") }
 
@@ -96,6 +101,7 @@ func TestPrintInfoSeparation(t *testing.T) {
 	}
 }
 
+// Test ID: Erfqe2L
 func TestAboutAndDonateContent(t *testing.T) {
 	var about, donate strings.Builder
 	printAbout(&about)
@@ -109,5 +115,27 @@ func TestAboutAndDonateContent(t *testing.T) {
 		if !strings.Contains(donate.String(), s) {
 			t.Errorf("--donate is missing %q", s)
 		}
+	}
+}
+
+// Release builds stamp the version with -X main.version, and the linker can
+// only patch a variable. A const once made the stamp a silent no-op.
+// Test ID: ErkSf4g
+func TestVersionIsPatchable(t *testing.T) {
+	gobin, err := exec.LookPath("go")
+	if err != nil {
+		t.Skip("no go tool on PATH")
+	}
+	exe := filepath.Join(t.TempDir(), "convert-base-v2")
+	build := exec.Command(gobin, "build", "-ldflags", "-X main.version=v9.8.7-stamped", "-o", exe, ".")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("build: %v\n%s", err, out)
+	}
+	out, err := exec.Command(exe, "--version").Output()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.TrimSpace(string(out)); got != "v9.8.7-stamped" {
+		t.Errorf("--version = %q, want the stamped v9.8.7-stamped", got)
 	}
 }

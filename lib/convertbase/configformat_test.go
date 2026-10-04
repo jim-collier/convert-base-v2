@@ -27,6 +27,7 @@ func symbolsOf(t *testing.T, r *Registry, name string) string {
 // the bases it did then. Each want is what v3.0.0, the last release on SHCL
 // 1.x, gave for that file. The first nine read differently under the current
 // rules as written.
+// Test ID: ErgDzUX
 func TestUpgradeConfigKeepsOldMeaning(t *testing.T) {
 	uEscape := `"` + `\` + `u00e9 x"` // in pieces to keep the escape out of the source text
 	cases := []struct {
@@ -90,6 +91,7 @@ func TestUpgradeConfigKeepsOldMeaning(t *testing.T) {
 	}
 }
 
+// Test ID: ErgDzUY
 func TestUpgradeConfigCurrentIsLeftAlone(t *testing.T) {
 	for name, text := range map[string]string{
 		"format line":   "base: x\n\tsymbols: ab\n" + shcl.FormatLine + "\n",
@@ -105,6 +107,7 @@ func TestUpgradeConfigCurrentIsLeftAlone(t *testing.T) {
 // Each of these failed to load under the old rules too, or cannot be carried
 // over without changing what it says. None may come out of the conversion as
 // a file that loads.
+// Test ID: ErgDzUZ
 func TestUpgradeConfigRefuses(t *testing.T) {
 	cases := []struct {
 		name string

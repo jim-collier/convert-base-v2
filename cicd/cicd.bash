@@ -279,7 +279,14 @@ fi
 ## Stage 4: tests. Unit (Go), integration harness (against the staged binary),
 ## fuzz (one target per invocation), and govulncheck security (module + deps).
 fSection "4/8  Tests"
-in_src "${UNIT_TEST_CMD[@]}"
+## Every test has its own ID, so a failure, a backlog item and a commit can all
+## name the same one. Each prints with its ID.
+if ((${#TEST_ID_CMD[@]})); then
+	(cd "${root}" && "${TEST_ID_CMD[@]}" check) || fDie "a test has no ID, a bad one, or shares one"
+	in_src "${UNIT_TEST_CMD[@]}" 2>&1 | (cd "${root}" && "${TEST_ID_CMD[@]}" report) || fDie "unit tests failed"
+else
+	in_src "${UNIT_TEST_CMD[@]}"
+fi
 fEcho "OK: unit tests"
 CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" "${TEST_CMD[@]}"
 fEcho "OK: integration harness"
@@ -297,6 +304,8 @@ if ((FUZZ_ENABLE)); then
 			in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}"
 			fuzz_rc=${PIPESTATUS[0]}
 			set -e
+			fuzz_id="-------"
+			((${#TEST_ID_CMD[@]})) && fuzz_id="$(cd "${root}" && "${TEST_ID_CMD[@]}" lookup "${SRC_DIR}/${GO_TEST_PKG:-.}" "${t}" || true)"
 			if ((fuzz_rc)); then
 				## A bare "context deadline exceeded" with no crasher is the
 				## -fuzztime boundary, not a find: the coordinator reads the
@@ -305,10 +314,12 @@ if ((FUZZ_ENABLE)); then
 				## the failing input file.
 				if grep -q 'Failing input written to' "${fuzz_log}" \
 				|| ! grep -q 'context deadline exceeded' "${fuzz_log}"; then
+					printf ' FAIL %s  %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
 					rm -f "${fuzz_log}"; fDie "fuzz ${t} found a failure"
 				fi
 				fEcho "NOTE: fuzz ${t} reported the -fuzztime deadline; no failing input recorded"
 			fi
+			printf '  ok  %s  %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
 		done
 		rm -f "${fuzz_log}"
 		fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"

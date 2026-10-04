@@ -95,7 +95,12 @@ STATICCHECK_CMD=(staticcheck ./cmd/convert-base-v2 ./convertbase)
 
 ## Stage 4a: unit tests (Go, run inside SRC_DIR) plus the integration harness
 ## (cicd/test.bash, run from root against the staged binary via CICDTEST_EXE).
-UNIT_TEST_CMD=(go test ./...)
+UNIT_TEST_CMD=(go test -json ./...)
+
+## Test IDs: checked before the tests run, and used to print one line per Go
+## test and fuzz target. Run from root. Empty it to skip both, and then
+## UNIT_TEST_CMD should drop -json.
+TEST_ID_CMD=(python3 cicd/utility/test-ids.py)
 TEST_CMD=(cicd/test.bash)
 
 ## The package holding the Fuzz* targets and the profiler benchmark. Both flags

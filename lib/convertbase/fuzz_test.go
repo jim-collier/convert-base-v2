@@ -18,6 +18,7 @@ import (
 
 // FuzzParseSymbolSpec: the custom-alphabet parser must never panic, whatever the
 // input. An error return is fine; a crash is not.
+// Test ID: EjXtZxw
 func FuzzParseSymbolSpec(f *testing.F) {
 	f.Add("ABCD")
 	f.Add("aeiouy.-_0")
@@ -43,6 +44,7 @@ const (
 // FuzzConvert: Convert must never panic on arbitrary input in a fixed base pair.
 // Most fuzz inputs are not valid base-10 numbers, so an error is the norm; the
 // point is that malformed input is rejected cleanly, not with a crash.
+// Test ID: EjXtZxx
 func FuzzConvert(f *testing.F) {
 	reg, err := NewRegistry()
 	if err != nil {
@@ -72,6 +74,7 @@ func FuzzConvert(f *testing.F) {
 // arbitrary lengths and byte values, across one base per streaming shape: the
 // tuned byte path, wide symbols under and over 8 bits per digit, and each of the
 // tail schemes. Odd lengths are where chunk edges and tails go wrong.
+// Test ID: EjXtZxy
 func FuzzStreamRoundTrip(f *testing.F) {
 	reg, err := NewRegistry()
 	if err != nil {

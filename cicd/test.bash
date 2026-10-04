@@ -15,7 +15,7 @@
 
 ##	Purpose:
 ##		- Exhaustive, CI-friendly test harness for convert-base-v2. Exits non-zero if any check fails.
-##		- Table-driven so cases are cheap to add: a check is one line (mode, label, expected, then the argv).
+##		- Table-driven so cases are cheap to add: a check is one line (ID, mode, label, expected, then the argv).
 ##		- Coverage:
 ##			- CLI surface (version, help, examples, list).
 ##			- Deterministic conversions, base-name aliases, negatives, fractionals, precision, lower, raw.
@@ -79,30 +79,39 @@ section(){ printf '\n%s>>> %s%s\n' "${b}" "$*" "${rst}"; }
 _run(){    _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@"        >"${CBT_OUT}" 2>"${CBT_ERR}" || _rc=$?; _out="$(cat "${CBT_OUT}")"; _err="$(cat "${CBT_ERR}")"; }
 _run_in(){ local f="$1"; shift; _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@" <"$f" >"${CBT_OUT}" 2>"${CBT_ERR}" || _rc=$?; _out="$(cat "${CBT_OUT}")"; _err="$(cat "${CBT_ERR}")"; }
 
-_pass(){ PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); printf '%s  ok  %s%s\n' "${dim}" "$1" "${rst}"; }
-_fail(){ FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); printf '%s FAIL %s%s\n       %s\n' "${red}" "$1" "${rst}" "$2"; FAILURES+=("$1 :: $2"); }
+## Every check has an ID, the first argument here: when the test was written,
+## as milliseconds since 2000-01-01 UTC in base 62. `utility/test-ids.py new`
+## makes one, and `test-ids.py check` refuses a check without one or two tests
+## sharing one. Loops share their site's ID, and the label tells the runs apart.
+## A bad ID fails the check, so a function handed an empty one shows up.
+_pass(){
+	[[ "$1" =~ ^[0-9A-Za-z]{7}$ ]] || { _fail "$1" "$2" "bad test ID"; return; }
+	PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); printf '%s  ok  %s  %s%s\n' "${dim}" "$1" "$2" "${rst}"
+}
+_fail(){ FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); printf '%s FAIL %-7s  %s%s\n       %s\n' "${red}" "$1" "$2" "${rst}" "$3"; FAILURES+=("$1 $2 :: $3"); }
 ## A suite that did not run at all. Not a failure, but it must not read as one
-## more quiet line either, so the summary repeats every one of these.
-_warn(){ printf '%s SKIP %s%s\n' "${ylw}" "$1" "${rst}"; WARNINGS+=("$1"); }
+## more quiet line either, so the summary repeats every one of these. IDS is a
+## space-separated list of the checks that were skipped, one line each.
+_warn(){ local wid; for wid in $1; do printf '%s SKIP %s  %s%s\n' "${ylw}" "$wid" "$2" "${rst}"; done; WARNINGS+=("$2 ($1)"); }
 
 ## Assert against the last _run/_run_in result.
-##   _assert MODE LABEL EXPECTED
+##   _assert ID MODE LABEL EXPECTED
 ##   MODE: eq | ne | ok | err | errmsg  (errmsg checks stderr contains EXPECTED)
 _assert(){
-	local mode="$1" label="$2" expected="${3:-}"
-	if ((_rc == 124)); then _fail "$label" "timed out"; return; fi
+	local id="$1" mode="$2" label="$3" expected="${4:-}"
+	if ((_rc == 124)); then _fail "$id" "$label" "timed out"; return; fi
 	case "$mode" in
-		eq)     { ((_rc == 0)) && [[ "$_out" == "$expected" ]]; } && _pass "$label" || _fail "$label" "rc=$_rc out=[$_out] want=[$expected] err=[$_err]" ;;
-		ne)     { ((_rc == 0)) && [[ "$_out" != "$expected" ]]; } && _pass "$label" || _fail "$label" "rc=$_rc out=[$_out] should-differ-from=[$expected]" ;;
-		ok)     ((_rc == 0)) && _pass "$label" || _fail "$label" "expected success, rc=$_rc err=[$_err]" ;;
-		err)    ((_rc != 0)) && _pass "$label" || _fail "$label" "expected failure, got rc=0 out=[$_out]" ;;
-		errmsg) { ((_rc != 0)) && [[ "$_err" == *"$expected"* ]]; } && _pass "$label" || _fail "$label" "rc=$_rc err=[$_err] want-substr=[$expected]" ;;
-		*)      _fail "$label" "unknown assert mode '$mode'" ;;
+		eq)     { ((_rc == 0)) && [[ "$_out" == "$expected" ]]; } && _pass "$id" "$label" || _fail "$id" "$label" "rc=$_rc out=[$_out] want=[$expected] err=[$_err]" ;;
+		ne)     { ((_rc == 0)) && [[ "$_out" != "$expected" ]]; } && _pass "$id" "$label" || _fail "$id" "$label" "rc=$_rc out=[$_out] should-differ-from=[$expected]" ;;
+		ok)     ((_rc == 0)) && _pass "$id" "$label" || _fail "$id" "$label" "expected success, rc=$_rc err=[$_err]" ;;
+		err)    ((_rc != 0)) && _pass "$id" "$label" || _fail "$id" "$label" "expected failure, got rc=0 out=[$_out]" ;;
+		errmsg) { ((_rc != 0)) && [[ "$_err" == *"$expected"* ]]; } && _pass "$id" "$label" || _fail "$id" "$label" "rc=$_rc err=[$_err] want-substr=[$expected]" ;;
+		*)      _fail "$id" "$label" "unknown assert mode '$mode'" ;;
 	esac
 }
 
-## check MODE LABEL EXPECTED -- ARGS...   (ARGS go straight to the binary as argv)
-check(){ local mode="$1" label="$2" expected="$3"; shift 3; [[ "${1:-}" == "--" ]] && shift; _run "$@"; _assert "$mode" "$label" "$expected"; }
+## check ID MODE LABEL EXPECTED -- ARGS...   (ARGS go straight to the binary as argv)
+check(){ local id="$1" mode="$2" label="$3" expected="$4"; shift 4; [[ "${1:-}" == "--" ]] && shift; _run "$@"; _assert "$id" "$mode" "$label" "$expected"; }
 
 ## Random base-10 integer, 1..maxlen digits, no leading zeros.
 _rand_int(){
@@ -124,57 +133,77 @@ _rand16(){ od -An -N2 -tu2 /dev/urandom | tr -d ' '; }
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "CLI surface"
 _run --version
-{ ((_rc == 0)) && [[ "$_out" == v* ]]; } && _pass "--version prints a version" || _fail "--version prints a version" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == v* ]]; } && _pass EizUJDc "--version prints a version" || _fail EizUJDc "--version prints a version" "rc=$_rc out=[$_out]"
 for _vflag in -v -V; do
 	_run "$_vflag"
-	{ ((_rc == 0)) && [[ "$_out" == v* ]]; } && _pass "$_vflag prints a version" || _fail "$_vflag prints a version" "rc=$_rc out=[$_out]"
+	{ ((_rc == 0)) && [[ "$_out" == v* ]]; } && _pass ErgVwO8 "$_vflag prints a version" || _fail ErgVwO8 "$_vflag prints a version" "rc=$_rc out=[$_out]"
 done
-check ok  "--help exits 0"          -   --help
-check ok  "-h exits 0"              -   -h
-check ok  "--examples exits 0"      -   --examples
+## The library's lib/vX.Y.Z tags sit on the command's release commits, and a
+## build from a clone once stamped the library's version on the command.
+_run --version
+{ ((_rc == 0)) && [[ "$_out" == v[1-9]* ]]; } && _pass ErkSf4k "--version is the command's tag, not the library's" || _fail ErkSf4k "--version is the command's tag, not the library's" "out=[$_out]"
+check EizUJDd ok  "--help exits 0"          -   --help
+check EizUJDe ok  "-h exits 0"              -   -h
+check EizUJDf ok  "--examples exits 0"      -   --examples
 ## Explicit --help/--examples go to stdout so they can be piped (BxZNl-18).
 _run --help
-{ ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Usage* ]]; } && _pass "--help writes to stdout" || _fail "--help writes to stdout" "rc=$_rc outlen=${#_out}"
+{ ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Usage* ]]; } && _pass Eje9ui0 "--help writes to stdout" || _fail Eje9ui0 "--help writes to stdout" "rc=$_rc outlen=${#_out}"
 _run --examples
-{ ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Examples* ]]; } && _pass "--examples writes to stdout" || _fail "--examples writes to stdout" "rc=$_rc outlen=${#_out}"
+{ ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Examples* ]]; } && _pass Eje9ui1 "--examples writes to stdout" || _fail Eje9ui1 "--examples writes to stdout" "rc=$_rc outlen=${#_out}"
 _run --version; cbVer="$_out"
 _run --about
-{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 ${cbVer}"$'\n'* ]] && [[ "$_out" == *"Copyright ©"* ]] && [[ "$_out" == *GPL-2.0-or-later* ]] && [[ "$_out" == *"https://github.com/jim-collier/convert-base-v2"* ]]; } && _pass "--about names version, copyright, license, home" || _fail "--about names version, copyright, license, home" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 ${cbVer}"$'\n'* ]] && [[ "$_out" == *"Copyright ©"* ]] && [[ "$_out" == *GPL-2.0-or-later* ]] && [[ "$_out" == *"https://github.com/jim-collier/convert-base-v2"* ]]; } && _pass Erfqe2C "--about names version, copyright, license, home" || _fail Erfqe2C "--about names version, copyright, license, home" "rc=$_rc out=[$_out]"
 _run --donate
-{ ((_rc == 0)) && [[ "$_out" == *"https://github.com/sponsors/jim-collier"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]]; } && _pass "--donate lists both support links" || _fail "--donate lists both support links" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == *"https://github.com/sponsors/jim-collier"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]]; } && _pass Erfqe2D "--donate lists both support links" || _fail Erfqe2D "--donate lists both support links" "rc=$_rc out=[$_out]"
 ## Several informational flags each print once, in the order given.
 _run --donate --version
-{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 is free"* ]] && [[ "$_out" == *$'\n\n'"${cbVer}" ]]; } && _pass "--donate --version prints both, in order" || _fail "--donate --version prints both, in order" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 is free"* ]] && [[ "$_out" == *$'\n\n'"${cbVer}" ]]; } && _pass Erfqe2E "--donate --version prints both, in order" || _fail Erfqe2E "--donate --version prints both, in order" "rc=$_rc out=[$_out]"
 _run --version --donate
-{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n\n'"convert-base-v2 is free"* ]]; } && _pass "--version --donate prints both, in order" || _fail "--version --donate prints both, in order" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n\n'"convert-base-v2 is free"* ]]; } && _pass Erfqe2F "--version --donate prints both, in order" || _fail Erfqe2F "--version --donate prints both, in order" "rc=$_rc out=[$_out]"
 _run --help --donate --help
-{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 ${cbVer}"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]] && (($(grep -c '^Usage:' <<<"$_out") == 1)); } && _pass "--help --donate --help prints help once, then donate" || _fail "--help --donate --help prints help once, then donate" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 ${cbVer}"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]] && (($(grep -c '^Usage:' <<<"$_out") == 1)); } && _pass Erfqe2G "--help --donate --help prints help once, then donate" || _fail Erfqe2G "--help --donate --help prints help once, then donate" "rc=$_rc out=[$_out]"
 ## --about opens with the version line, so --version adds nothing to it.
 _run --about --version
-{ ((_rc == 0)) && ! grep -qxF -- "${cbVer}" <<<"$_out"; } && _pass "--about covers --version" || _fail "--about covers --version" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && ! grep -qxF -- "${cbVer}" <<<"$_out"; } && _pass Erfqe2H "--about covers --version" || _fail Erfqe2H "--about covers --version" "rc=$_rc out=[$_out]"
 ## No-args error path keeps help on stderr, exit 2, stdout empty.
 _run
-{ ((_rc == 2)) && [[ -z "$_out" ]] && [[ -n "$_err" ]]; } && _pass "no-args help stays on stderr" || _fail "no-args help stays on stderr" "rc=$_rc outlen=${#_out} errlen=${#_err}"
+{ ((_rc == 2)) && [[ -z "$_out" ]] && [[ -n "$_err" ]]; } && _pass Eje9ui2 "no-args help stays on stderr" || _fail Eje9ui2 "no-args help stays on stderr" "rc=$_rc outlen=${#_out} errlen=${#_err}"
 _run --list
-{ ((_rc == 0)) && [[ "$_out" == *NAME* ]]; } && _pass "--list lists bases" || _fail "--list lists bases" "rc=$_rc"
+{ ((_rc == 0)) && [[ "$_out" == *NAME* ]]; } && _pass EizUJDg "--list lists bases" || _fail EizUJDg "--list lists bases" "rc=$_rc"
 ## --list has an INDEX column, and row 0's name matches --by-index=0 (BxZNl-19).
 _run --list
-{ ((_rc == 0)) && [[ "$_out" == *INDEX* ]]; } && _pass "--list has an INDEX column" || _fail "--list has an INDEX column" "rc=$_rc"
+{ ((_rc == 0)) && [[ "$_out" == *INDEX* ]]; } && _pass EjeBOHQ "--list has an INDEX column" || _fail EjeBOHQ "--list has an INDEX column" "rc=$_rc"
 ## awk consumes the whole stream (NR==2 is the first data row) to avoid a SIGPIPE.
 list_idx0="$("${EXE}" --list 2>/dev/null | awk 'NR==2{print $2}')"
 byidx0="$("${EXE}" --get-base-name --by-index=0 2>/dev/null)"
-[[ "$list_idx0" == "$byidx0" && -n "$byidx0" ]] && _pass "--list INDEX 0 matches --by-index=0" || _fail "--list INDEX 0 matches --by-index=0" "list=[$list_idx0] byidx=[$byidx0]"
+[[ "$list_idx0" == "$byidx0" && -n "$byidx0" ]] && _pass EjeBOHR "--list INDEX 0 matches --by-index=0" || _fail EjeBOHR "--list INDEX 0 matches --by-index=0" "list=[$list_idx0] byidx=[$byidx0]"
 ## --list-compat shows only the v1/v1b compatibility bases, --list only the rest,
 ## and the two together cover every index exactly once. A compat base must still
 ## be reachable by name, it just isn't advertised in the everyday listing.
 list_n="$("${EXE}" --list 2>/dev/null | awk '$1 ~ /^[0-9]+$/' | wc -l)"
 compat_n="$("${EXE}" --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/' | wc -l)"
 total_n="$("${EXE}" --get-index-count 2>/dev/null)"
-(( compat_n > 0 )) && _pass "--list-compat lists compatibility bases (${compat_n})" || _fail "--list-compat lists compatibility bases" "got ${compat_n}"
-(( list_n + compat_n == total_n )) && _pass "--list plus --list-compat covers every index" || _fail "--list plus --list-compat covers every index" "list=${list_n} compat=${compat_n} total=${total_n}"
+(( compat_n > 0 )) && _pass ElG9gVM "--list-compat lists compatibility bases (${compat_n})" || _fail ElG9gVM "--list-compat lists compatibility bases" "got ${compat_n}"
+(( list_n + compat_n == total_n )) && _pass ElG9gVN "--list plus --list-compat covers every index" || _fail ElG9gVN "--list plus --list-compat covers every index" "list=${list_n} compat=${compat_n} total=${total_n}"
 _run --list
-{ ((_rc == 0)) && [[ "$_out" != *_compat_* ]]; } && _pass "--list hides compatibility bases" || _fail "--list hides compatibility bases" "rc=$_rc"
-check eq  "compat base still resolves" 128_compat_v1 -- --get-base-name 128v1compat
+{ ((_rc == 0)) && [[ "$_out" != *_compat_* ]]; } && _pass ElG9gVO "--list hides compatibility bases" || _fail ElG9gVO "--list hides compatibility bases" "rc=$_rc"
+check ElG9gVP eq  "compat base still resolves" 128_compat_v1 -- --get-base-name 128v1compat
+## The byte base gave up these names to the --binary flag.
+oldnames=""
+for oldname in binary bin raw; do "${EXE}" --get-base-name "$oldname" >/dev/null 2>&1 && oldnames+=" $oldname"; done
+[[ -z "$oldnames" ]] && _pass ErkSf4p "retired byte-base names do not resolve" || _fail ErkSf4p "retired byte-base names do not resolve" "still resolve:${oldnames}"
+## The ALIASES column lists the other names only. Columns: INDEX NAME SIZE NEG DEC RAW ALIASES
+aliasdup="$("${EXE}" --list --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/ { for (i = 7; i <= NF; i++) { a = $i; sub(/,$/, "", a); if (a == $2) print $2 } }')"
+[[ -z "$aliasdup" ]] && _pass ErkSf4s "--list ALIASES never repeats the NAME" || _fail ErkSf4s "--list ALIASES never repeats the NAME" "repeated on: ${aliasdup}"
+## A dash digit can't double as the negative marker, so those bases use "~" or
+## none. Every base is checked.
+dashneg=""
+while read -r dnidx dnname _ dnneg _; do
+	[[ "$dnidx" =~ ^[0-9]+$ ]] || continue
+	"${EXE}" --show-symbols-0 "$dnname" 2>/dev/null | tr '\0' '\n' | grep -qxF -e '-' || continue
+	[[ "$dnneg" == "~" || "$dnneg" == "(off)" ]] || dashneg+=" ${dnname}=${dnneg}"
+done < <("${EXE}" --list --list-compat 2>/dev/null)
+[[ -z "$dashneg" ]] && _pass ErkSf4r "a dash digit is never the negative marker" || _fail ErkSf4r "a dash digit is never the negative marker" "bases:${dashneg}"
 ## The README bases table is generated from the binary, so a renamed base leaves
 ## it pointing at a name that no longer exists. Nothing else notices that.
 README_MD="${meDir}/../README.md"
@@ -185,138 +214,143 @@ if [[ -r "${README_MD}" ]]; then
 		"${TIMEOUT[@]}" "${EXE}" --get-base-name "$rname" >/dev/null 2>&1 || readme_stale+=" ${rname}"
 	done < <(grep -oP '^\| *[0-9]+ \| *\K[^ |]+' "${README_MD}" | sort -u)
 	{ (( readme_n >= 20 )) && [[ -z "$readme_stale" ]]; } \
-		&& _pass "README bases table resolves (${readme_n} names)" \
-		|| _fail "README bases table resolves" "scraped=${readme_n} stale:${readme_stale:- none}"
+		&& _pass ElWMN5U "README bases table resolves (${readme_n} names)" \
+		|| _fail ElWMN5U "README bases table resolves" "scraped=${readme_n} stale:${readme_stale:- none}"
 else
-	_warn "README bases table not checked: no readable file at ${README_MD}"
+	_warn ElWMN5U "README bases table not checked: no readable file at ${README_MD}"
 fi
 ## --by-index outside a query mode is ignored, with a stderr note.
 _run --by-index 3 255 16
-{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"--by-index is ignored"* ]]; } && _pass "--by-index note in conversion mode" || _fail "--by-index note in conversion mode" "rc=$_rc out=[$_out] err=[$_err]"
+{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"--by-index is ignored"* ]]; } && _pass EjeBOHS "--by-index note in conversion mode" || _fail EjeBOHS "--by-index note in conversion mode" "rc=$_rc out=[$_out] err=[$_err]"
 
 ## Base-introspection query flags (used by the full-coverage fuzz below).
 _run --get-index-count
-{ ((_rc == 0)) && [[ "$_out" =~ ^[0-9]+$ ]] && ((_out > 0)); } && _pass "--get-index-count prints a count" || _fail "--get-index-count prints a count" "rc=$_rc out=[$_out]"
-check eq     "--get-base-name --by-index=0" 2               -- --get-base-name --by-index=0
-check eq     "--get-base-name alias hex"    16              -- --get-base-name hex
-check errmsg "--by-index out of range"      'out of range'  -- --get-base-name --by-index=999999
-check errmsg "query needs a selector"       'select a base' -- --get-base-name
+{ ((_rc == 0)) && [[ "$_out" =~ ^[0-9]+$ ]] && ((_out > 0)); } && _pass Ej1HnoG "--get-index-count prints a count" || _fail Ej1HnoG "--get-index-count prints a count" "rc=$_rc out=[$_out]"
+check Ej1HnoH eq     "--get-base-name --by-index=0" 2               -- --get-base-name --by-index=0
+check Ej1HnoI eq     "--get-base-name alias hex"    16              -- --get-base-name hex
+check Ej1HnoJ errmsg "--by-index out of range"      'out of range'  -- --get-base-name --by-index=999999
+check Ej1HnoK errmsg "query needs a selector"       'select a base' -- --get-base-name
 _run --show-symbols 16
-{ ((_rc == 0)) && [[ "$_out" == "0123456789ABCDEF" ]]; } && _pass "--show-symbols 16 concatenates 16 symbols" || _fail "--show-symbols 16 concatenates 16 symbols" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "0123456789ABCDEF" ]]; } && _pass EjUH4Lo "--show-symbols 16 concatenates 16 symbols" || _fail EjUH4Lo "--show-symbols 16 concatenates 16 symbols" "rc=$_rc out=[$_out]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Basic conversions and aliases
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Basic conversions and aliases"
-check eq  "255 -> 16"               FF        -- 255 16
-check eq  "255 -> 8"                377       -- 255 8
-check eq  "255 -> 2"                11111111  -- 255 2
-check eq  "hex FF -> 10"            255       -- --from 16 FF
-check eq  "bin 11111111 -> 10"     255       -- --from 2 11111111
-check eq  "alias hex -> 10"         255       -- --from hex FF
-check eq  "alias octal out"         377       -- 255 octal
-check eq  "alias decimal in"        2A        -- --from decimal 42 16
-check eq  "leading zeros ignored"   FF        -- 000255 16
-check eq  "--to flag beats posn"    FF        -- --to 16 255 10
+check EizUJDh eq  "255 -> 16"               FF        -- 255 16
+check EizUJDi eq  "255 -> 8"                377       -- 255 8
+check EizUJDj eq  "255 -> 2"                11111111  -- 255 2
+check EizUJDk eq  "hex FF -> 10"            255       -- --from 16 FF
+check EizUJDl eq  "bin 11111111 -> 10"     255       -- --from 2 11111111
+check EizUJDm eq  "alias hex -> 10"         255       -- --from hex FF
+check EizUJDn eq  "alias octal out"         377       -- 255 octal
+check EizUJDo eq  "alias decimal in"        2A        -- --from decimal 42 16
+check EizUJDp eq  "leading zeros ignored"   FF        -- 000255 16
+check EizUJDq eq  "--to flag beats posn"    FF        -- --to 16 255 10
 ## "base"/"base-"/"base_"/"base " prefix on any name or alias.
-check eq  "base16 prefix"           FF        -- 255 base16
-check eq  "base-16 prefix"          FF        -- 255 base-16
-check eq  "base_16 prefix"          FF        -- 255 base_16
-check eq  "base hex prefix"         FF        -- 255 "base hex"
-check eq  "base-hex prefix in"      255       -- --from base-hex FF
-check eq  "base_ prefix on alias"   255       -- --from base_hex FF
+check EjUSzQO eq  "base16 prefix"           FF        -- 255 base16
+check EjUSzQP eq  "base-16 prefix"          FF        -- 255 base-16
+check EjUSzQQ eq  "base_16 prefix"          FF        -- 255 base_16
+check EjUSzQR eq  "base hex prefix"         FF        -- 255 "base hex"
+check EjUSzQS eq  "base-hex prefix in"      255       -- --from base-hex FF
+check EjUSzQT eq  "base_ prefix on alias"   255       -- --from base_hex FF
 ## Crockford base32 is asymmetric: reads O as 0, I/L as 1 (case-insensitive),
 ## but never emits them. O1=1, I1=L1=33, LO=32; output for 24 stays R (no O/I/L).
-check eq  "32c decode O->0"          1         -- --from 32c --to 10 -- O1
-check eq  "32c decode o->0"          1         -- --from 32c --to 10 -- o1
-check eq  "32c decode I->1"          33        -- --from 32c --to 10 -- I1
-check eq  "32c decode L->1"          33        -- --from 32c --to 10 -- L1
-check eq  "32c decode l->1"          33        -- --from 32c --to 10 -- l1
-check eq  "32c encode stays strict"  r         -- --from 10 --to 32c -- 24
+check Eje5hGK eq  "32c decode O->0"          1         -- --from 32c --to 10 -- O1
+check Eje5hGL eq  "32c decode o->0"          1         -- --from 32c --to 10 -- o1
+check Eje5hGM eq  "32c decode I->1"          33        -- --from 32c --to 10 -- I1
+check Eje5hGN eq  "32c decode L->1"          33        -- --from 32c --to 10 -- L1
+check Eje5hGO eq  "32c decode l->1"          33        -- --from 32c --to 10 -- l1
+check Eje5hGP eq  "32c encode stays strict"  r         -- --from 10 --to 32c -- 24
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Negatives, fractionals, precision, lower, raw
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Negatives, fractionals, precision, lower, raw"
-check eq  "negative -- guard"       -1E240    -- -- -123456 16
-check eq  "fractional 1.5 -> 16"    1.8       -- 1.5 16
+check EizUJDr eq  "negative -- guard"       -1E240    -- -- -123456 16
+check EizUJDs eq  "fractional 1.5 -> 16"    1.8       -- 1.5 16
 ## 1.5 -> base3 is 1.1111...; at precision 2 it rounds half-up (0.111.. -> "12"3), not truncates.
-check eq  "fractional rounding"     1.12      -- --precision 2 1.5 3
+check EjYV8Gm eq  "fractional rounding"     1.12      -- --precision 2 1.5 3
 ## More fixed fractional pins (fuzz only does integers, so the frac path needs
 ## its own coverage): signed fractions, a clean power-of-two fraction, and the
 ## imprecise 0.1 tail rounded to precision.
-check eq  "fraction 0.5 -> 16"       0.8       -- --number 0.5 16
-check eq  "neg fraction -0.5 -> 2"   -0.1      -- --number --precision 6 -- -0.5 2
-check eq  "neg mixed -255.5 -> 16"   -FF.8     -- --number -- -255.5 16
-check eq  "fraction 255.5 -> 16"     FF.8      -- --number 255.5 16
-check eq  "fraction 0.1 -> 16 p6"     0.19999A -- --number --precision 6 0.1 16
+check EjeFbj6 eq  "fraction 0.5 -> 16"       0.8       -- --number 0.5 16
+check EjeFbj7 eq  "neg fraction -0.5 -> 2"   -0.1      -- --number --precision 6 -- -0.5 2
+check EjeFbj8 eq  "neg mixed -255.5 -> 16"   -FF.8     -- --number -- -255.5 16
+check EjeFbj9 eq  "fraction 255.5 -> 16"     FF.8      -- --number 255.5 16
+check EjeFbjA eq  "fraction 0.1 -> 16 p6"     0.19999A -- --number --precision 6 0.1 16
 ## Auto precision (the default): output frac length tracks the input's scaled by
 ## base size, so a short decimal input does not grow an invented tail. Weird
 ## corners: widening (dec->bin), narrowing (hex->dec), an odd base ratio, a
 ## terminating value that trims, and a big base down to a small one.
-check eq  "auto 0.1 -> 16"            0.1A      -- --number 0.1 16
-check eq  "auto 0.1 -> 2"             0.00011   -- --number 0.1 2
-check eq  "auto 0.1 -> 3"             0.0022    -- --number 0.1 3
-check eq  "auto FF.8 -> 10"           255.5     -- --from 16 --to 10 FF.8
-check eq  "auto 0.5 -> 2 (trims)"     0.1       -- --number 0.5 2
-check eq  "auto 0.9 -> 2 (round up)"  0.11101   -- --number 0.9 2
-check eq  "auto 288 -> 10"            0.0035    -- --from 288j1 --to 10 0.1
-check eq  "auto tiny 0.000001 -> 16"  0.000011  -- --number 0.000001 16
+check Ejlud4y eq  "auto 0.1 -> 16"            0.1A      -- --number 0.1 16
+check Ejlud4z eq  "auto 0.1 -> 2"             0.00011   -- --number 0.1 2
+check Ejlud50 eq  "auto 0.1 -> 3"             0.0022    -- --number 0.1 3
+check Ejlud51 eq  "auto FF.8 -> 10"           255.5     -- --from 16 --to 10 FF.8
+check Ejlud52 eq  "auto 0.5 -> 2 (trims)"     0.1       -- --number 0.5 2
+check Ejlud53 eq  "auto 0.9 -> 2 (round up)"  0.11101   -- --number 0.9 2
+check Ejlud54 eq  "auto 288 -> 10"            0.0035    -- --from 288j1 --to 10 0.1
+check Ejlud55 eq  "auto tiny 0.000001 -> 16"  0.000011  -- --number 0.000001 16
 ## Independent (non-round-trip) known-value pins for bases that otherwise only
 ## get self-round-trip fuzz, so a bug mirrored in encode+decode can't hide.
-check eq  "pin 1000000 -> 60tc"      4cmf      -- --number 1000000 60tc
-check eq  "pin 65535 -> 60tc"        JCF       -- --number 65535 60tc
-check eq  "pin 1000000 -> 62"        4C92      -- --number 1000000 62
-check eq  "pin 1000000 -> 36"        LFLS      -- --number 1000000 36
-check eq  "pin 1000000 -> 85ipv6"    1rYy      -- --number 1000000 85ipv6
-check eq  "pin 65535 -> 62"          H31       -- --number 65535 62
-check eq  "--lower on hex"          ff        -- --lower 255 16
-check errmsg "--lower on mixed-case" "--lower is invalid for mixed-case" -- --lower 9 62
+check ElG9gVQ eq  "pin 1000000 -> 60tc"      4cmf      -- --number 1000000 60tc
+check ElG9gVR eq  "pin 65535 -> 60tc"        JCF       -- --number 65535 60tc
+check EjeFbjB eq  "pin 1000000 -> 62"        4C92      -- --number 1000000 62
+check EjeFbjC eq  "pin 1000000 -> 36"        LFLS      -- --number 1000000 36
+check EjeFbjD eq  "pin 1000000 -> 85ipv6"    1rYy      -- --number 1000000 85ipv6
+check EjeFbjE eq  "pin 65535 -> 62"          H31       -- --number 65535 62
+check EizUJDt eq  "--lower on hex"          ff        -- --lower 255 16
+check EizUJDu errmsg "--lower on mixed-case" "--lower is invalid for mixed-case" -- --lower 9 62
+check ErkSf4m eq  "--upper on 32c"          R         -- --upper --to 32c 24
+check ErkSf4n errmsg "--upper on mixed-case" "--upper is invalid for mixed-case" -- --upper 255 62
+check ErkSf4o errmsg "--upper with --lower"  'not both' -- --upper --lower 255 16
 ## The case flags apply to digits only. A marker is not a digit, so recasing it
 ## yields a value the same base cannot read back - and no output would show it.
-check eq  "--lower keeps neg marker" "Nff"    -- --lower --to 16 --to-neg N -- -255
-check eq  "--upper keeps dec marker" "FF.8"   -- --upper --to 16 --to-dec . -- 255.5
-check eq  "--lower keeps both"       "Nff.8"  -- --lower --to 16 --to-neg N -- -255.5
+check Em1DQ5Y eq  "--lower keeps neg marker" "Nff"    -- --lower --to 16 --to-neg N -- -255
+check Em1DQ5Z eq  "--upper keeps dec marker" "FF.8"   -- --upper --to 16 --to-dec . -- 255.5
+check Em1DQ5a eq  "--lower keeps both"       "Nff.8"  -- --lower --to 16 --to-neg N -- -255.5
 ## Precision is bounded, the same way the browser and reactor builds bound it:
 ## the scale factor is one power of the output base, so a mistyped value asks
 ## for gigabytes before it asks for anything else.
-check errmsg "precision upper bound" 'at most' -- --precision 100000000 0.1 16
-check ok  "precision at the bound"   -         -- --precision 100000 0.1 16
+check Em1DQ5b errmsg "precision upper bound" 'at most' -- --precision 100000000 0.1 16
+check Em1DQ5c ok  "precision at the bound"   -         -- --precision 100000 0.1 16
 ## --no-newline: exact bytes, no trailing newline.
 _run --no-newline 255 16
-{ ((_rc == 0)) && [[ "$(wc -c <"${CBT_OUT}")" == "2" ]]; } && _pass "--no-newline has no trailing newline" || _fail "--no-newline has no trailing newline" "bytes=$(wc -c <"${CBT_OUT}")"
+{ ((_rc == 0)) && [[ "$(wc -c <"${CBT_OUT}")" == "2" ]]; } && _pass EjTpGMi "--no-newline has no trailing newline" || _fail EjTpGMi "--no-newline has no trailing newline" "bytes=$(wc -c <"${CBT_OUT}")"
+## --raw was this flag's old name, and it overlapped the raw-byte base.
+check ErkSf4q errmsg "--raw is not a flag"   'unknown flag' -- --raw 255 16
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Custom symbol specs
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Custom symbol specs"
-check eq  "custom in, fractional"   148.25    -- --from-symbols ABCD --to 10 CBBA.B
-check eq  "custom out, neg+dec"     -9FCC.8M6 -- --from-symbols "aeiouy.-_0" --from-neg "~" --from-dec "/" --to 20ws "~y0-._/ooo"
+check EizUJDv eq  "custom in, fractional"   148.25    -- --from-symbols ABCD --to 10 CBBA.B
+check EizUJDw eq  "custom out, neg+dec"     -9FCC.8M6 -- --from-symbols "aeiouy.-_0" --from-neg "~" --from-dec "/" --to 20ws "~y0-._/ooo"
 ## Markers are separate from the symbols. The retired in-string tokens must be an
 ## error, never silently absorbed as a digit.
-check errmsg "retired neg= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 neg=~" --to 10 5
-check errmsg "retired dec= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 dec=," --to 10 5
-check errmsg "retired pad= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 pad==" --to 10 5
+check El4bQKu errmsg "retired neg= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 neg=~" --to 10 5
+check El4bQKv errmsg "retired dec= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 dec=," --to 10 5
+check El4bQKw errmsg "retired pad= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 pad==" --to 10 5
 ## Markers apply to named bases too, not just custom alphabets.
-check eq  "marker on named base"    -255      -- --from 16 --from-neg "~" --to 10 "~ff"
-check eq  "marker on output base"   "~FF"     -- --from 10 --to 16 --to-neg "~" -- -255
-check errmsg "marker collides"      'is also a digit' -- --from 16 --from-neg "a" --to 10 ff
-check errmsg "markers vs bytes"     'carries raw bytes' -- --from bytes --from-neg "~" --to 16 5
-check ok  "custom both sides"       -         -- --from-symbols ABCD --to-symbols 0123 CBBA
-check errmsg "one-symbol spec fails" 'at least 2 symbols' -- --from-symbols A 5 16
+check El4bQKx eq  "marker on named base"    -255      -- --from 16 --from-neg "~" --to 10 "~ff"
+check El4bQKy eq  "marker on output base"   "~FF"     -- --from 10 --to 16 --to-neg "~" -- -255
+check El4bQKz errmsg "marker collides"      'is also a digit' -- --from 16 --from-neg "a" --to 10 ff
+check El4bQL0 errmsg "markers vs bytes"     'carries raw bytes' -- --from bytes --from-neg "~" --to 16 5
+check EizUJDx ok  "custom both sides"       -         -- --from-symbols ABCD --to-symbols 0123 CBBA
+check EizUJDy errmsg "one-symbol spec fails" 'at least 2 symbols' -- --from-symbols A 5 16
 ## Spec parser edge cases: multi-token comma split makes a base-4 alphabet
 ## (decimal 3 stays a single digit "3"; the old bug made it base-3); escaped
 ## space is a literal-space digit; a digit that contains a marker is rejected.
-check eq  "spec comma-split -> base4"  3        -- --number --from 10 --to-symbols "0,1 2 3" 3
-check eq  "spec escaped-space digit"   2        -- --from-symbols 'a\ b' --to 10 -- b
-check err "spec marker-in-digit"       -        -- --from-symbols "a b a.b" --to 10 -- a.b
+check EjeFbjF eq  "spec comma-split -> base4"  3        -- --number --from 10 --to-symbols "0,1 2 3" 3
+check EjeFbjG eq  "spec escaped-space digit"   2        -- --from-symbols 'a\ b' --to 10 -- b
+check EjeFbjH err "spec marker-in-digit"       -        -- --from-symbols "a b a.b" --to 10 -- a.b
 ## 85ps carries a literal comma and backslash as their own digits; its alphabet
 ## must stay exactly 85 symbols (regression pin for the escape/comma-split bug).
 sym85=$("${EXE}" --show-symbols-0 85ps 2>/dev/null | tr '\0' '\n' | grep -c .)
-[[ "$sym85" == 85 ]] && _pass "85ps has exactly 85 symbols" || _fail "85ps has exactly 85 symbols" "got=$sym85"
+[[ "$sym85" == 85 ]] && _pass EjeFbjI "85ps has exactly 85 symbols" || _fail EjeFbjI "85ps has exactly 85 symbols" "got=$sym85"
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Config file loading (a user-defined base via --config)
@@ -331,59 +365,59 @@ cfg="${CBT_TMP}/bases.shcl"
 	printf 'base: spacey\n\tsymbols: "a b", c, d, e\n'
 } >"$cfg"
 ## The custom 4-symbol base "myb" resolves only when the config is loaded.
-check eq  "config base loads"        yx        -- --config "$cfg" --from 10 --to myb 6
-check errmsg "config base absent otherwise" 'unknown base' -- --from 10 --to myb 6
-check errmsg "explicit missing config errors" 'no such file' -- --config "${CBT_TMP}/nope.shcl" 255 16
+check EjeFbjJ eq  "config base loads"        yx        -- --config "$cfg" --from 10 --to myb 6
+check EjeFbjK errmsg "config base absent otherwise" 'unknown base' -- --from 10 --to myb 6
+check EjeFbjL errmsg "explicit missing config errors" 'no such file' -- --config "${CBT_TMP}/nope.shcl" 255 16
 ## Extra names from the aliases field; the "base:" line stays canonical.
-check eq  "config alias resolves"    yx        -- --config "$cfg" --from 10 --to mb 6
-check eq  "config canonical name"    myb       -- --config "$cfg" --get-base-name mybase
+check ElHp3yS eq  "config alias resolves"    yx        -- --config "$cfg" --from 10 --to mb 6
+check ElHp3yT eq  "config canonical name"    myb       -- --config "$cfg" --get-base-name mybase
 ## A marker set, and a marker switched off on purpose by leaving it empty.
-check eq  "config negative marker"   N11       -- --config "$cfg" --from 10 --to u12 -- -13
-check errmsg "config empty marker disables" 'no decimal marker' -- --config "$cfg" --from 10 --to nodec 12.5
+check ElHp3yU eq  "config negative marker"   N11       -- --config "$cfg" --from 10 --to u12 -- -13
+check ElHp3yV errmsg "config empty marker disables" 'no decimal marker' -- --config "$cfg" --from 10 --to nodec 12.5
 ## Both list spellings: stacked one per line, and inline with a symbol that
 ## carries a space of its own.
-check eq  "config stacked list"      '🍊🍋'    -- --config "$cfg" --from 10 --to fruit4 6
+check ElHp3yW eq  "config stacked list"      '🍊🍋'    -- --config "$cfg" --from 10 --to fruit4 6
 spacesym=$("${EXE}" --config "$cfg" --show-symbols-0 spacey 2>/dev/null | tr '\0' '|')
-[[ "$spacesym" == 'a b|c|d|e' ]] && _pass "config symbol with a space" || _fail "config symbol with a space" "got='$spacesym'"
+[[ "$spacesym" == 'a b|c|d|e' ]] && _pass ElHp3yX "config symbol with a space" || _fail ElHp3yX "config symbol with a space" "got='$spacesym'"
 ## A typo has to fail loudly: silently dropping a field means the wrong alphabet.
 printf 'base: x\n\tsybmols: abc\n' >"${CBT_TMP}/typo.shcl"
-check errmsg "config typo rejected"  'unknown field' -- --config "${CBT_TMP}/typo.shcl" 255 16
+check ElHp3yY errmsg "config typo rejected"  'unknown field' -- --config "${CBT_TMP}/typo.shcl" 255 16
 ## A quoted name is a typo too, and it used to slip past the check unseen.
 printf 'base: x\n\tsymbols: abc\n\t"weird.field": 1\n' >"${CBT_TMP}/quoted.shcl"
-check errmsg "config quoted typo rejected" 'unknown field' -- --config "${CBT_TMP}/quoted.shcl" 255 16
+check Em1008u errmsg "config quoted typo rejected" 'unknown field' -- --config "${CBT_TMP}/quoted.shcl" 255 16
 ## A field written twice reads back as nothing, so the base would quietly get a
 ## default instead of what the file says.
 printf 'base: x\n\tsymbols: abc\n\tnegative: A\n\tnegative: B\n' >"${CBT_TMP}/twice.shcl"
-check errmsg "config repeated field rejected" 'more than once' -- --config "${CBT_TMP}/twice.shcl" 255 16
+check Em1008v errmsg "config repeated field rejected" 'more than once' -- --config "${CBT_TMP}/twice.shcl" 255 16
 ## A field indented under another one was never read, and the empty field above
 ## it switched its marker off.
 printf 'base: x\n\tsymbols: abc\n\tnegative:\n\t\tdecimal: X\n' >"${CBT_TMP}/nested.shcl"
-check errmsg "config nested field rejected" 'line 4: base "x": "decimal" is nested under negative' -- --config "${CBT_TMP}/nested.shcl" 255 16
+check Erg4X7I errmsg "config nested field rejected" 'line 4: base "x": "decimal" is nested under negative' -- --config "${CBT_TMP}/nested.shcl" 255 16
 printf 'base: x\n\tsymbols: abc\n  bogus indent\n' >"${CBT_TMP}/bad.shcl"
-check errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
+check ElHp3yZ errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
 ## SHCL leaves a bare backslash alone, so the symbol spec's own escape still
 ## puts a space inside a digit. In double quotes an unknown escape is refused.
 ## Both files name the current format, since one without it is read the old
 ## way (see the migration section).
 printf 'base: bs\n\tsymbols: a\\ b c\n##    Format   3\n' >"${CBT_TMP}/bslash.shcl"
 bssym=$("${EXE}" --config "${CBT_TMP}/bslash.shcl" --show-symbols-0 bs 2>/dev/null | tr '\0' '|')
-[[ "$bssym" == 'a b|c' ]] && _pass "config bare backslash escape" || _fail "config bare backslash escape" "got='$bssym'"
+[[ "$bssym" == 'a b|c' ]] && _pass Erg0gYy "config bare backslash escape" || _fail Erg0gYy "config bare backslash escape" "got='$bssym'"
 printf 'base: bs\n\tsymbols: "a\\ b c"\n##    Format   3\n' >"${CBT_TMP}/bslashq.shcl"
-check errmsg "config bad escape rejected" 'line 2'     -- --config "${CBT_TMP}/bslashq.shcl" 255 16
+check Erg0gYz errmsg "config bad escape rejected" 'line 2'     -- --config "${CBT_TMP}/bslashq.shcl" 255 16
 ## A raw block under symbols used to be reported as missing symbols, and under
 ## most other fields it was dropped. Rows of digits are ambiguous, so it's refused.
 printf 'base: rb\n\tsymbols:\n\t\t~~~\n\t\tABCD\n\t\tEFGH\n\t\t~~~\n' >"${CBT_TMP}/rawsym.shcl"
-check errmsg "config raw block symbols rejected" 'line 2: base "rb": symbols takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawsym.shcl" 255 16
+check ErgbjuS errmsg "config raw block symbols rejected" 'line 2: base "rb": symbols takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawsym.shcl" 255 16
 printf 'base: rb\n\tsymbols: 01\n\taliases:\n\t\t~~~\n\t\trbx\n\t\t~~~\n' >"${CBT_TMP}/rawalias.shcl"
-check errmsg "config raw block alias rejected" 'line 3: base "rb": aliases takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawalias.shcl" 255 16
+check Erg6SWW errmsg "config raw block alias rejected" 'line 3: base "rb": aliases takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawalias.shcl" 255 16
 ## First run writes the default config, and 10emoji comes from it rather than
 ## from the built-in set. XDG_CONFIG_HOME was sandboxed at the top of the run.
 usercfg="${XDG_CONFIG_HOME}/convert-base-v2/convert-base-v2.shcl"
-[[ -s "$usercfg" ]] && _pass "first run creates the user config" || _fail "first run creates the user config" "missing $usercfg"
+[[ -s "$usercfg" ]] && _pass ElHp3ya "first run creates the user config" || _fail ElHp3ya "first run creates the user config" "missing $usercfg"
 ## It names its SHCL format, so a later version can tell it from an older file.
-grep -Eq '^##    Format   [0-9]+$' "$usercfg" && _pass "user config names its format" || _fail "user config names its format" "no Format line in $usercfg"
-check eq  "10emoji comes from config"  '😑😔😘😜' -- --from 10 --to 10emoji 1234
-check eq  "10emoji keeps its old name" '😑😔😘😜' -- --from 10 --to emoji10 1234
+grep -Eq '^##    Format   [0-9]+$' "$usercfg" && _pass Erg0gZ0 "user config names its format" || _fail Erg0gZ0 "user config names its format" "no Format line in $usercfg"
+check ElczR2W eq  "10emoji comes from config"  '😑😔😘😜' -- --from 10 --to 10emoji 1234
+check ElczR2X eq  "10emoji keeps its old name" '😑😔😘😜' -- --from 10 --to emoji10 1234
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -406,43 +440,43 @@ fBackups(){ local -a found=("$1"/convert-base-v2/convert-base-v2_backup_[0-9]*-[
 
 migdir="$(fMigDir mig1 "$oldcfg")"; migcfg="${migdir}/convert-base-v2/convert-base-v2.shcl"
 XDG_CONFIG_HOME="$migdir" _run --from 10 --to oldtab 6
-_assert eq "old config converts and reads the old way" '12'
-[[ "$_err" == *"note: converted ${migcfg}"*"_format-v1.shcl"* ]] && _pass "conversion note names the backup" || _fail "conversion note names the backup" "err=[$_err]"
+_assert ErgDzU8 eq "old config converts and reads the old way" '12'
+[[ "$_err" == *"note: converted ${migcfg}"*"_format-v1.shcl"* ]] && _pass ErgDzU9 "conversion note names the backup" || _fail ErgDzU9 "conversion note names the backup" "err=[$_err]"
 nbak="$(fBackups "$migdir")"
 if [[ "$nbak" == "1" ]]; then
 	bak=("${migdir}"/convert-base-v2/convert-base-v2_backup_*_format-v1.shcl)
-	cmp -s "${bak[0]}" "$oldcfg" && _pass "backup holds the original bytes" || _fail "backup holds the original bytes" "${bak[0]} differs"
+	cmp -s "${bak[0]}" "$oldcfg" && _pass ErgDzUA "backup holds the original bytes" || _fail ErgDzUA "backup holds the original bytes" "${bak[0]} differs"
 else
-	_fail "backup holds the original bytes" "found ${nbak} backups"
+	_fail ErgDzUA "backup holds the original bytes" "found ${nbak} backups"
 fi
-grep -q '^##    Format   3$' "$migcfg" && _pass "converted config names format 3" || _fail "converted config names format 3" "no Format line in $migcfg"
-grep -q '^# my bases$' "$migcfg" && _pass "converted config keeps its comments" || _fail "converted config keeps its comments" "comment gone from $migcfg"
+grep -q '^##    Format   3$' "$migcfg" && _pass ErgDzUB "converted config names format 3" || _fail ErgDzUB "converted config names format 3" "no Format line in $migcfg"
+grep -q '^# my bases$' "$migcfg" && _pass ErgDzUC "converted config keeps its comments" || _fail ErgDzUC "converted config keeps its comments" "comment gone from $migcfg"
 migsym=$(XDG_CONFIG_HOME="$migdir" "${EXE}" --show-symbols-0 oldtab 2>/dev/null | tr '\0' '|' || true)
-[[ "$migsym" == '0|1|2|3' ]] && _pass "converted config resolves the same alphabet" || _fail "converted config resolves the same alphabet" "got='$migsym'"
-XDG_CONFIG_HOME="$migdir" check eq "converted config keeps the old marker" '\#ba' -- --from 10 --to oq -- -6
+[[ "$migsym" == '0|1|2|3' ]] && _pass ErgDzUD "converted config resolves the same alphabet" || _fail ErgDzUD "converted config resolves the same alphabet" "got='$migsym'"
+XDG_CONFIG_HOME="$migdir" check ErgDzUE eq "converted config keeps the old marker" '\#ba' -- --from 10 --to oq -- -6
 cp "$migcfg" "${CBT_TMP}/mig1-after.shcl"
 XDG_CONFIG_HOME="$migdir" _run --from 10 --to oldtab 6
 { ((_rc == 0)) && [[ -z "$_err" ]] && [[ "$(fBackups "$migdir")" == "1" ]] && cmp -s "$migcfg" "${CBT_TMP}/mig1-after.shcl"; } \
-	&& _pass "second run changes nothing" || _fail "second run changes nothing" "rc=$_rc err=[$_err] backups=$(fBackups "$migdir")"
+	&& _pass ErgDzUF "second run changes nothing" || _fail ErgDzUF "second run changes nothing" "rc=$_rc err=[$_err] backups=$(fBackups "$migdir")"
 
 ## The same file under the old rules, from v3.0.0, the last release on SHCL 1.x.
 ## It is built from the tag, so it needs the git history.
 repoTop="$(git -C "${meDir}" rev-parse --show-toplevel 2>/dev/null || true)"
 oldExe="${CBT_TMP}/convert-base-v2-v3.0.0"
 if [[ -z "$repoTop" ]] || ! command -v go >/dev/null 2>&1 || ! git -C "$repoTop" rev-parse -q --verify 'v3.0.0^{commit}' >/dev/null 2>&1; then
-	_warn "config migration vs v3.0.0 (needs go and the v3.0.0 tag)"
+	_warn "ErgDzUG ErgDzUH" "config migration vs v3.0.0 (needs go and the v3.0.0 tag)"
 elif ! { mkdir -p "${CBT_TMP}/v3src" && git -C "$repoTop" archive v3.0.0 lib | tar -x -C "${CBT_TMP}/v3src" \
 	&& (cd "${CBT_TMP}/v3src/lib" && go build -o "$oldExe" ./cmd/convert-base-v2); } >"${CBT_ERR}" 2>&1; then
-	_fail "build v3.0.0 for the migration check" "$(head -c 400 "${CBT_ERR}")"
+	_fail ErgDzUG "build v3.0.0 for the migration check" "$(head -c 400 "${CBT_ERR}")"
 else
 	for mb in oldtab oldq; do
 		want=$(XDG_CONFIG_HOME="${CBT_TMP}/xdg" "$oldExe" --config "$oldcfg" --show-symbols-0 "$mb" 2>&1 | tr '\0' '|' || true)
 		got=$("${EXE}" --config "${CBT_TMP}/mig1-after.shcl" --show-symbols-0 "$mb" 2>&1 | tr '\0' '|' || true)
-		[[ -n "$want" && "$got" == "$want" ]] && _pass "converted $mb matches v3.0.0 on the original" || _fail "converted $mb matches v3.0.0 on the original" "v3.0.0='$want' now='$got'"
+		[[ -n "$want" && "$got" == "$want" ]] && _pass ErgDzUG "converted $mb matches v3.0.0 on the original" || _fail ErgDzUG "converted $mb matches v3.0.0 on the original" "v3.0.0='$want' now='$got'"
 	done
 	want=$(XDG_CONFIG_HOME="${CBT_TMP}/xdg" "$oldExe" --config "$oldcfg" --from 10 --to oq -- -6 2>&1 || true)
 	got=$("${EXE}" --config "${CBT_TMP}/mig1-after.shcl" --from 10 --to oq -- -6 2>&1 || true)
-	[[ "$got" == "$want" ]] && _pass "converted marker matches v3.0.0" || _fail "converted marker matches v3.0.0" "v3.0.0='$want' now='$got'"
+	[[ "$got" == "$want" ]] && _pass ErgDzUH "converted marker matches v3.0.0" || _fail ErgDzUH "converted marker matches v3.0.0" "v3.0.0='$want' now='$got'"
 fi
 
 ## The old rules read [ab] with an error, and the conversion would turn it into
@@ -450,66 +484,72 @@ fi
 printf 'base: x\n\tsymbols: [ab]\n' >"${CBT_TMP}/oldbad.shcl"
 migdir="$(fMigDir mig2 "${CBT_TMP}/oldbad.shcl")"
 XDG_CONFIG_HOME="$migdir" _run 255 16
-_assert errmsg "unconvertible old config refused" 'cannot be converted'
+_assert ErgDzUI errmsg "unconvertible old config refused" 'cannot be converted'
 { cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "${CBT_TMP}/oldbad.shcl" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
-	&& _pass "unconvertible old config left alone" || _fail "unconvertible old config left alone" "changed, or backups=$(fBackups "$migdir")"
+	&& _pass ErgDzUJ "unconvertible old config left alone" || _fail ErgDzUJ "unconvertible old config left alone" "changed, or backups=$(fBackups "$migdir")"
 
 ## A directory that cannot be written loses nothing, and the run goes on.
 if [[ "$(id -u)" == "0" ]]; then
-	_warn "config migration in a read-only dir (root writes through it)"
+	_warn "ErgDzUK ErgDzUL ErgDzUM" "config migration in a read-only dir (root writes through it)"
 else
 	migdir="$(fMigDir mig3 "$oldcfg")"
 	chmod 555 "${migdir}/convert-base-v2"
 	XDG_CONFIG_HOME="$migdir" _run --from 10 --to oldtab 6
-	_assert eq "read-only config dir still reads the old way" '12'
-	[[ "$_err" == *"could not be converted"* ]] && _pass "read-only config dir says so" || _fail "read-only config dir says so" "err=[$_err]"
+	_assert ErgDzUK eq "read-only config dir still reads the old way" '12'
+	[[ "$_err" == *"could not be converted"* ]] && _pass ErgDzUL "read-only config dir says so" || _fail ErgDzUL "read-only config dir says so" "err=[$_err]"
 	{ cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "$oldcfg" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
-		&& _pass "read-only config dir loses nothing" || _fail "read-only config dir loses nothing" "changed, or backups=$(fBackups "$migdir")"
+		&& _pass ErgDzUM "read-only config dir loses nothing" || _fail ErgDzUM "read-only config dir loses nothing" "changed, or backups=$(fBackups "$migdir")"
 	chmod 755 "${migdir}/convert-base-v2"
 fi
 
 ## A file named with --config is never rewritten. It is read the old way.
 migdir="$(fMigDir mig4 "$oldcfg")"
 _run --config "${migdir}/convert-base-v2/convert-base-v2.shcl" --from 10 --to oldtab 6
-_assert eq "explicit old config reads the old way" '12'
-[[ "$_err" == *"shcl migrate --write"* ]] && _pass "explicit old config says how to convert it" || _fail "explicit old config says how to convert it" "err=[$_err]"
+_assert ErgDzUN eq "explicit old config reads the old way" '12'
+[[ "$_err" == *"shcl migrate --write"* ]] && _pass ErgDzUO "explicit old config says how to convert it" || _fail ErgDzUO "explicit old config says how to convert it" "err=[$_err]"
 { cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "$oldcfg" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
-	&& _pass "explicit old config left alone" || _fail "explicit old config left alone" "changed, or backups=$(fBackups "$migdir")"
+	&& _pass ErgDzUP "explicit old config left alone" || _fail ErgDzUP "explicit old config left alone" "changed, or backups=$(fBackups "$migdir")"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Errors and robustness (security by construction: input is argv, never eval'd)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Errors and robustness"
-check errmsg "unknown base"         'unknown base'                       -- 10 nope
+check EizUJDz errmsg "unknown base"         'unknown base'                       -- 10 nope
 ## Friendlier stumble messages (BxZNl-16).
-check errmsg "unknown base near-match" 'did you mean "hex"'              -- 255 hexx
-check errmsg "unknown base to --list"  'see --list'                      -- 255 nope
-check errmsg "flags after number"      'flags must come before'          -- 255 16 --lower
-check errmsg "neg number without --"   'a "--" separator'                -- -123 16
-check errmsg "unknown flag hint"       'unknown flag'                    -- --lowr 255 16
-check errmsg "bad digit for base"   'not in base'                        -- --from 2 9
-check errmsg "extra positional"     'unexpected extra positional'        -- 1 2 3
-check errmsg "precision < 0"        'non-negative integer or'            -- --precision -1 1
-check errmsg "precision bad word"   'non-negative integer or'            -- --precision foo 1 16
-check errmsg "empty input"          'empty input'                        -- "" 16
-check err   "multiple decimals"     -                                     -- --from 10 1.2.3 16
-check err   "double negative"       -                                     -- -- --5 16
+check Eje7f0i errmsg "unknown base near-match" 'did you mean "hex"'              -- 255 hexx
+check Eje7f0j errmsg "unknown base to --list"  'see --list'                      -- 255 nope
+check Eje7f0k errmsg "flags after number"      'flags must come before'          -- 255 16 --lower
+check Eje7f0l errmsg "neg number without --"   'a "--" separator'                -- -123 16
+check Eje7f0m errmsg "unknown flag hint"       'unknown flag'                    -- --lowr 255 16
+check EizUJE0 errmsg "bad digit for base"   'not in base'                        -- --from 2 9
+check EizUJE1 errmsg "extra positional"     'unexpected extra positional'        -- 1 2 3
+check EizUJE2 errmsg "precision < 0"        'non-negative integer or'            -- --precision -1 1
+check Ejlud56 errmsg "precision bad word"   'non-negative integer or'            -- --precision foo 1 16
+check EizUJE3 errmsg "empty input"          'empty input'                        -- "" 16
+check EizUJE4 err   "multiple decimals"     -                                     -- --from 10 1.2.3 16
+check EizUJE5 err   "double negative"       -                                     -- -- --5 16
 
 ## Conflicting base selectors: still convert, but emit a stderr note (BxZNl-17).
 _run --to 16 255 8
-{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"overrides positional output base"* ]]; } && _pass "conflict note: --to over positional" || _fail "conflict note: --to over positional" "rc=$_rc out=[$_out] err=[$_err]"
+{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"overrides positional output base"* ]]; } && _pass Eje8sS8 "conflict note: --to over positional" || _fail Eje8sS8 "conflict note: --to over positional" "rc=$_rc out=[$_out] err=[$_err]"
 _run --from 16 --from-symbols 01 10 10
-{ ((_rc == 0)) && [[ "$_out" == 2 ]] && [[ "$_err" == *"--from-symbols overrides --from"* ]]; } && _pass "conflict note: --from-symbols over --from" || _fail "conflict note: --from-symbols over --from" "rc=$_rc out=[$_out] err=[$_err]"
+{ ((_rc == 0)) && [[ "$_out" == 2 ]] && [[ "$_err" == *"--from-symbols overrides --from"* ]]; } && _pass Eje8sS9 "conflict note: --from-symbols over --from" || _fail Eje8sS9 "conflict note: --from-symbols over --from" "rc=$_rc out=[$_out] err=[$_err]"
 _run --to 16 255 hex
-{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ -z "$_err" ]]; } && _pass "no conflict note when --to and positional agree" || _fail "no conflict note when --to and positional agree" "rc=$_rc out=[$_out] err=[$_err]"
+{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ -z "$_err" ]]; } && _pass Eje8sSA "no conflict note when --to and positional agree" || _fail Eje8sSA "no conflict note when --to and positional agree" "rc=$_rc out=[$_out] err=[$_err]"
+## `echo 255 | prog 16` reads 16 as the NUMBER and leaves the pipe alone. With
+## a base name as the only argument and a pipe on stdin, a note says to use -.
+pnout="$(printf '255' | "${TIMEOUT[@]}" "${EXE}" 16 2>"${CBT_ERR}")" || true
+{ [[ "$pnout" == 16 ]] && grep -qF 'stdin (piped) was ignored' "${CBT_ERR}"; } && _pass ErkSf4l "piped stdin with a base name for NUMBER gets a note" || _fail ErkSf4l "piped stdin with a base name for NUMBER gets a note" "out=[$pnout] err=[$(cat "${CBT_ERR}")]"
+pnout="$(printf '255' | "${TIMEOUT[@]}" "${EXE}" 255 16 2>"${CBT_ERR}")" || true
+{ [[ "$pnout" == FF ]] && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErkSf4t "no pipe note when NUMBER and base are both given" || _fail ErkSf4t "no pipe note when NUMBER and base are both given" "out=[$pnout] err=[$(cat "${CBT_ERR}")]"
 
 ## Shell-metachar / injection strings are just invalid digits: must error, never execute.
 sentinel="${CBT_TMP}/PWNED"
-check err "injection: command sub"  -   -- '$(touch '"${sentinel}"')' 16
-check err "injection: backticks"    -   -- '`touch '"${sentinel}"'`' 16
-check err "injection: semicolon"    -   -- 'touch '"${sentinel}"'; echo' 16
-[[ ! -e "$sentinel" ]] && _pass "injection created no file" || _fail "injection created no file" "sentinel exists: $sentinel"
+check EizUJE6 err "injection: command sub"  -   -- '$(touch '"${sentinel}"')' 16
+check EizUJE7 err "injection: backticks"    -   -- '`touch '"${sentinel}"'`' 16
+check EizUJE8 err "injection: semicolon"    -   -- 'touch '"${sentinel}"'; echo' 16
+[[ ! -e "$sentinel" ]] && _pass EizUJE9 "injection created no file" || _fail EizUJE9 "injection created no file" "sentinel exists: $sentinel"
 
 ## Oversized input stays bounded and correct (round-trips, does not hang or crash).
 biglen=2000; ((doLong)) && biglen=8000
@@ -517,15 +557,15 @@ big="$(_rand_int "$biglen")"
 _run --from 10 --to 62 -- "$big"; enc="$_out"
 if ((_rc == 0)); then
 	_run --from 62 --to 10 -- "$enc"
-	{ ((_rc == 0)) && [[ "$_out" == "$big" ]]; } && _pass "oversized input round-trips (${#big} digits)" || _fail "oversized input round-trips" "mismatch or rc=$_rc"
+	{ ((_rc == 0)) && [[ "$_out" == "$big" ]]; } && _pass EizUJEA "oversized input round-trips (${#big} digits)" || _fail EizUJEA "oversized input round-trips" "mismatch or rc=$_rc"
 else
-	_fail "oversized input round-trips" "encode rc=$_rc err=[$_err]"
+	_fail EizUJEA "oversized input round-trips" "encode rc=$_rc err=[$_err]"
 fi
 
 ## Invalid UTF-8 on stdin must fail gracefully (no hang, no crash).
 printf '\xff\xfe\x00\x9c' >"${CBT_TMP}/badutf8"
 _run_in "${CBT_TMP}/badutf8" --from 2048qntm -
-((_rc != 0 && _rc != 124)) && _pass "invalid UTF-8 stdin errors gracefully" || _fail "invalid UTF-8 stdin errors gracefully" "rc=$_rc"
+((_rc != 0 && _rc != 124)) && _pass EizUJEB "invalid UTF-8 stdin errors gracefully" || _fail EizUJEB "invalid UTF-8 stdin errors gracefully" "rc=$_rc"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -547,8 +587,8 @@ while read -r idx bname bsize _ _ rawcol _; do
 done < <("${EXE}" --list --list-compat 2>/dev/null)
 ## Guard the scrapes themselves: if the --list format ever shifts and these parse
 ## nothing, every loop below passes vacuously. Assert a floor on each.
-(( ${#RAW_BASES[@]} >= 8 ))   && _pass "raw-base scrape found bases (${#RAW_BASES[@]})"          || _fail "raw-base scrape found bases" "only ${#RAW_BASES[@]} scraped (--list format changed?)"
-(( ${#POW2_BASES[@]} >= 20 )) && _pass "power-of-2 scrape found bases (${#POW2_BASES[@]})" || _fail "power-of-2 scrape found bases" "only ${#POW2_BASES[@]} scraped (--list format changed?)"
+(( ${#RAW_BASES[@]} >= 8 ))   && _pass EjeFbjM "raw-base scrape found bases (${#RAW_BASES[@]})"          || _fail EjeFbjM "raw-base scrape found bases" "only ${#RAW_BASES[@]} scraped (--list format changed?)"
+(( ${#POW2_BASES[@]} >= 20 )) && _pass ElWMN5V "power-of-2 scrape found bases (${#POW2_BASES[@]})" || _fail ElWMN5V "power-of-2 scrape found bases" "only ${#POW2_BASES[@]} scraped (--list format changed?)"
 
 ## Every power-of-2 base round-trips raw bytes at every input length: the small
 ## ones through the bit-packed path, the ones above 8 bits per digit through
@@ -564,7 +604,7 @@ for base in "${POW2_BASES[@]}"; do
 		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
 		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { p2fail=$((p2fail+1)); p2detail="n=${n} rc1=${rc1} rc2=${rc2} err=[$(cat "${CBT_ERR}")]"; }
 	done
-	((p2fail == 0)) && _pass "binary round-trip via ${base} (all lengths, bit-perfect)" || _fail "binary round-trip via ${base}" "${p2fail} lengths mismatched, last: ${p2detail}"
+	((p2fail == 0)) && _pass ElWMN5W "binary round-trip via ${base} (all lengths, bit-perfect)" || _fail ElWMN5W "binary round-trip via ${base}" "${p2fail} lengths mismatched, last: ${p2detail}"
 done
 ## Raw binary round-trips through every base the tool advertises as a codec (the
 ## RAW column of --list): power-of-2 bases via bit-packing, plus base45, ascii85,
@@ -583,10 +623,10 @@ for base in "${RAW_BASES[@]}"; do
 		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" --no-newline <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
 		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes --no-newline <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
 		raw_all_n=$((raw_all_n + 1))
-		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail "raw round-trip ${base} n=${len}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"; }
+		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail EjK8KIi "raw round-trip ${base} n=${len}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"; }
 	done
 done
-((raw_all_fail == 0)) && _pass "raw round-trip, all codec bases (${#RAW_BASES[@]} bases, ${raw_all_n} blobs)" || printf '  %s%d raw round-trip failures above%s\n' "${red}" "$raw_all_fail" "${rst}"
+((raw_all_fail == 0)) && _pass EjK8KIi "raw round-trip, all codec bases (${#RAW_BASES[@]} bases, ${raw_all_n} blobs)" || printf '  %s%d raw round-trip failures above%s\n' "${red}" "$raw_all_fail" "${rst}"
 
 ## Wrapped output must decode back, on both the piped and the argv path, at wrap
 ## widths that land inside a multi-byte digit. Line breaks have to be dropped
@@ -606,7 +646,7 @@ for base in "${RAW_BASES[@]}"; do
 		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes -- "$(fold -w "$width" <"$enc")" >"$out" 2>"${CBT_ERR}" || wrapfail=$((wrapfail+1))
 		cmp -s "$src" "$out" || wrapfail=$((wrapfail+1))
 	done
-	((wrapfail == 0)) && _pass "wrapped input decodes via ${base}" || _fail "wrapped input decodes via ${base}" "${wrapfail} failures"
+	((wrapfail == 0)) && _pass El5P4dk "wrapped input decodes via ${base}" || _fail El5P4dk "wrapped input decodes via ${base}" "${wrapfail} failures"
 done
 
 ## A base the tool does NOT advertise as a codec (RAW column "-") must refuse raw
@@ -614,99 +654,104 @@ done
 ## whole-value base-N encoding (base85-RFC1924) that deliberately doesn't stream.
 for base in 10 62 keyboard 60tc 85ipv6 26 36; do
 	rc=0; printf 'hi' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" >/dev/null 2>"${CBT_ERR}" || rc=$?
-	((rc != 0)) && _pass "non-codec base ${base} refuses raw binary" || _fail "non-codec base ${base} refuses raw binary" "expected error, got rc=0"
+	((rc != 0)) && _pass EjK8KIj "non-codec base ${base} refuses raw binary" || _fail EjK8KIj "non-codec base ${base} refuses raw binary" "expected error, got rc=0"
 done
 
 ## Fixed vectors for the binary-to-text codecs, straight from each official spec
 ## (RFC 9285, Adobe Ascii85, ZeroMQ RFC 32, basE91). Exact bytes -> exact text,
 ## so a codec regression is caught precisely, not just as a round-trip drift.
-cvec(){ # LABEL BASE INPUT_HEX EXPECTED_TEXT
-	local label="$1" base="$2" hex="$3" want="$4" src got
+cvec(){ # ID LABEL BASE INPUT_HEX EXPECTED_TEXT
+	local id="$1" label="$2" base="$3" hex="$4" want="$5" src got
 	src="${CBT_TMP}/cv_src"
 	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
 	got=$("${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" --no-newline <"$src" 2>"${CBT_ERR}")
-	[[ "$got" == "$want" ]] && _pass "codec vector ${label}" || _fail "codec vector ${label}" "want=[$want] got=[$got]"
+	[[ "$got" == "$want" ]] && _pass "$id" "codec vector ${label}" || _fail "$id" "codec vector ${label}" "want=[$want] got=[$got]"
 }
-cvec "base45 AB"       45   4142             "BB8"
-cvec "base45 ietf!"    45   6965746621       "QED8WEX0"
-cvec "ascii85 sure."   85ps 737572652e       "F*2M7/c"
-cvec "ascii85 zeros"   85ps 00000000         "z"
-cvec "z85 helloworld"  85z  864fd26fb559f75b "HelloWorld"
-cvec "base91 test"     91hk 74657374         "fPNKd"
+cvec EjK8KIk "base45 AB"       45   4142             "BB8"
+cvec EjK8KIl "base45 ietf!"    45   6965746621       "QED8WEX0"
+cvec EjK8KIm "ascii85 sure."   85ps 737572652e       "F*2M7/c"
+cvec EjK8KIn "ascii85 zeros"   85ps 00000000         "z"
+cvec EjK8KIo "z85 helloworld"  85z  864fd26fb559f75b "HelloWorld"
+cvec EjK8KIp "base91 test"     91hk 74657374         "fPNKd"
+## basE91's reference decoder skips junk. Here it is refused, the same way from
+## a pipe as from an argument.
+b91pipe="$(printf 'fPN-Kd' | "${TIMEOUT[@]}" "${EXE}" --from 91hk --to bytes 2>&1)" && b91pipe="rc=0 [$b91pipe]"
+_run --from 91hk --to bytes -- 'fPN-Kd'
+{ ((_rc != 0)) && [[ "$_err" == *"not a base-91 symbol"* ]] && [[ "$b91pipe" == *"not a base-91 symbol"* ]]; } && _pass ErkSf4e "base91 refuses junk, argv and pipe" || _fail ErkSf4e "base91 refuses junk, argv and pipe" "argv rc=$_rc err=[$_err] pipe=[$b91pipe]"
 ## The four big bases match the published third-party layouts byte-for-byte.
 ## These fixed vectors (input bytes -> exact output code points) guard that
 ## interop; they come straight from the reference implementations. Each pins the
 ## tail/secondary-block handling, and for 65536 the little-endian byte order.
-nvec(){ # LABEL BASE INPUT_HEX EXPECTED_CODEPOINTS(space-separated hex)
-	local label="$1" base="$2" hex="$3" cps="$4" src exp="" got cp
+nvec(){ # ID LABEL BASE INPUT_HEX EXPECTED_CODEPOINTS(space-separated hex)
+	local id="$1" label="$2" base="$3" hex="$4" cps="$5" src exp="" got cp
 	src="${CBT_TMP}/nv_src"
 	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
 	for cp in $cps; do exp+=$(printf "\\U$(printf '%08x' "0x${cp}")"); done
 	got=$("${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" <"$src" 2>"${CBT_ERR}")
-	[[ "$got" == "$exp" ]] && _pass "native vector ${label}" \
-		|| _fail "native vector ${label}" "want=[$cps] got=[$(printf '%s' "$got" | od -An -tx1 | tr -d '\n')]"
+	[[ "$got" == "$exp" ]] && _pass "$id" "native vector ${label}" \
+		|| _fail "$id" "native vector ${label}" "want=[$cps] got=[$(printf '%s' "$got" | od -An -tx1 | tr -d '\n')]"
 }
-nvec "65536 lone byte"   65536qntm   00         1500
-nvec "65536 byte order"  65536qntm   0102       3601
-nvec "65536 pair+tail"   65536qntm   010203     "3601 1503"
-nvec "65536 high block"  65536qntm   ffff       285FF
-nvec "65536 Hello"       65536qntm   48656c6c6f "9A48 A36C 156F"
-nvec "32768 one byte"    32768qntm   00         06BF
-nvec "32768 two bytes"   32768qntm   0000       "04A0 025F"
-nvec "32768 short tail"  32768qntm   000000000000 "04A0 04A0 04A0 018F"
-nvec "2048 one byte"     2048qntm 00         0046
-nvec "2048 two bytes"    2048qntm 0000       "0038 0110"
-nvec "2048 three-bit tail" 2048qntm 010203   "0047 01B7 0037"
-nvec "rust one byte"     2048llfourn    00         00D8
-nvec "rust tail zero"    2048llfourn    000000     "00D8 00D8 0F0D"
-nvec "rust tail three"   2048llfourn    010203     "00C5 0140 0F10"
+nvec EjGTP6O "65536 lone byte"   65536qntm   00         1500
+nvec EjGTP6P "65536 byte order"  65536qntm   0102       3601
+nvec EjGTP6Q "65536 pair+tail"   65536qntm   010203     "3601 1503"
+nvec EjGTP6R "65536 high block"  65536qntm   ffff       285FF
+nvec EjGTP6S "65536 Hello"       65536qntm   48656c6c6f "9A48 A36C 156F"
+nvec EjGTP6T "32768 one byte"    32768qntm   00         06BF
+nvec EjGTP6U "32768 two bytes"   32768qntm   0000       "04A0 025F"
+nvec EjGTP6V "32768 short tail"  32768qntm   000000000000 "04A0 04A0 04A0 018F"
+nvec EjGTP6W "2048 one byte"     2048qntm 00         0046
+nvec EjGTP6X "2048 two bytes"    2048qntm 0000       "0038 0110"
+nvec EjGTP6Y "2048 three-bit tail" 2048qntm 010203   "0047 01B7 0037"
+nvec EjGTP6Z "rust one byte"     2048llfourn    00         00D8
+nvec EjGTP6a "rust tail zero"    2048llfourn    000000     "00D8 00D8 0F0D"
+nvec EjGTP6b "rust tail three"   2048llfourn    010203     "00C5 0140 0F10"
 
 ## RFC 4648 padding: every RFC variant (base64 s4, base32 s6, and the URL/hex
 ## variants 64u/64h/32h) emits '=' padding to the group boundary in codec mode
 ## (vectors from RFC 4648 s10). Number-mode output is never padded. Decode is
 ## lenient: padded or unpadded input both accepted.
-pipecheck(){ # LABEL FROM TO INPUT EXPECTED
-	local label="$1" f="$2" t="$3" in="$4" want="$5" got
+pipecheck(){ # ID LABEL FROM TO INPUT EXPECTED
+	local id="$1" label="$2" f="$3" t="$4" in="$5" want="$6" got
 	got=$(printf '%s' "$in" | "${TIMEOUT[@]}" "${EXE}" --from "$f" --to "$t" 2>"${CBT_ERR}")
-	[[ "$got" == "$want" ]] && _pass "$label" || _fail "$label" "in='$in' want='$want' got='$got'"
+	[[ "$got" == "$want" ]] && _pass "$id" "$label" || _fail "$id" "$label" "in='$in' want='$want' got='$got'"
 }
-pipecheck "rfc64 pad f"        bytes 64  "f"        "Zg=="
-pipecheck "rfc64 pad fo"       bytes 64  "fo"       "Zm8="
-pipecheck "rfc64 pad foobar"   bytes 64  "foobar"   "Zm9vYmFy"
-pipecheck "rfc32 pad f"        bytes 32  "f"        "MY======"
-pipecheck "rfc32 pad foob"     bytes 32  "foob"     "MZXW6YQ="
-pipecheck "rfc32 pad foobar"   bytes 32  "foobar"   "MZXW6YTBOI======"
-pipecheck "base64url pad foob" bytes 64u "foob"     "Zm9vYg=="
-pipecheck "base64hex pad foob" bytes 64h "foob"     "PczlOW=="
-pipecheck "base32hex pad f"    bytes 32h "f"        "CO======"
-pipecheck "base64 strips pad"  64  bytes "Zm9vYmFy" "foobar"
-pipecheck "base64url takes pad" 64u bytes "Zm9vYg==" "foob"
+pipecheck EjGXlOS "rfc64 pad f"        bytes 64  "f"        "Zg=="
+pipecheck EjGXlOT "rfc64 pad fo"       bytes 64  "fo"       "Zm8="
+pipecheck EjGXlOU "rfc64 pad foobar"   bytes 64  "foobar"   "Zm9vYmFy"
+pipecheck EjGXlOV "rfc32 pad f"        bytes 32  "f"        "MY======"
+pipecheck EjGXlOW "rfc32 pad foob"     bytes 32  "foob"     "MZXW6YQ="
+pipecheck EjGXlOX "rfc32 pad foobar"   bytes 32  "foobar"   "MZXW6YTBOI======"
+pipecheck EjeCdXk "base64url pad foob" bytes 64u "foob"     "Zm9vYg=="
+pipecheck EjeCdXl "base64hex pad foob" bytes 64h "foob"     "PczlOW=="
+pipecheck EjeCdXm "base32hex pad f"    bytes 32h "f"        "CO======"
+pipecheck EjGXlOY "base64 strips pad"  64  bytes "Zm9vYmFy" "foobar"
+pipecheck EjGXlOZ "base64url takes pad" 64u bytes "Zm9vYg==" "foob"
 ## Decode still accepts UNPADDED input on the now-padded variants.
-pipecheck "base64url takes unpadded" 64u bytes "Zm9vYg" "foob"
+pipecheck EjeCdXn "base64url takes unpadded" 64u bytes "Zm9vYg" "foob"
 ## Number-mode output is never padded, even for the RFC variants.
-pipecheck "base64url number unpadded" 10 64u "255" "D_"
+pipecheck EjeCdXo "base64url number unpadded" 10 64u "255" "D_"
 
 ## Custom (user-defined) bases can opt into the same padding with --to-pad.
 ## This custom alphabet mirrors RFC 4648 base32, so its padded output must match.
 B32C="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 padgot=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" --to-pad "=" 2>"${CBT_ERR}")
-[[ "$padgot" == "IE======" ]] && _pass "custom base32 emits pad" || _fail "custom base32 emits pad" "got='$padgot'"
+[[ "$padgot" == "IE======" ]] && _pass EjGkfrU "custom base32 emits pad" || _fail EjGkfrU "custom base32 emits pad" "got='$padgot'"
 padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" --to-pad "=" 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}")
-[[ "$padrt" == "A" ]] && _pass "custom pad round-trips" || _fail "custom pad round-trips" "got='$padrt'"
+[[ "$padrt" == "A" ]] && _pass EjGkfrV "custom pad round-trips" || _fail EjGkfrV "custom pad round-trips" "got='$padrt'"
 padun=$(printf 'IE' | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}")
-[[ "$padun" == "A" ]] && _pass "custom pad decode takes unpadded" || _fail "custom pad decode takes unpadded" "got='$padun'"
-check errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF" --from-pad "A" --to 10 5
+[[ "$padun" == "A" ]] && _pass EjGkfrW "custom pad decode takes unpadded" || _fail EjGkfrW "custom pad decode takes unpadded" "got='$padun'"
+check EjGkfrX errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF" --from-pad "A" --to 10 5
 ## Padding is a trailing run and nothing else. Both routes must say so the same
 ## way: the argv one used to name the character instead of the mistake.
-check errmsg "interior pad, argv" 'data after padding' -- --binary --from 64rfc --to bytes "A=BC"
+check Em1DQ5d errmsg "interior pad, argv" 'data after padding' -- --binary --from 64rfc --to bytes "A=BC"
 printf 'A=BC' >"${CBT_TMP}/interior-pad"
 _run_in "${CBT_TMP}/interior-pad" --binary --from 64rfc --to bytes
-_assert errmsg "interior pad, pipe" 'data after padding'
+_assert Em1DQ5e errmsg "interior pad, pipe" 'data after padding'
 ## A pad is only ever applied on the bit-packed path, one character at a time.
 ## Definitions that could never take effect are rejected where they are written.
-check errmsg "multi-char pad rejected" 'must be a single character' -- --from bytes --to 64 --to-pad "==" 5
-check errmsg "pad above 8 bits rejected" 'at most 256 symbols' -- --from bytes --to 512tt --to-pad "=" 5
-check errmsg "pad on non-2^N rejected" 'at most 256 symbols' -- --from bytes --to 45 --to-pad "=" 5
+check El51s2C errmsg "multi-char pad rejected" 'must be a single character' -- --from bytes --to 64 --to-pad "==" 5
+check El51s2D errmsg "pad above 8 bits rejected" 'at most 256 symbols' -- --from bytes --to 512tt --to-pad "=" 5
+check El51s2E errmsg "pad on non-2^N rejected" 'at most 256 symbols' -- --from bytes --to 45 --to-pad "=" 5
 
 ## A user-defined base above 8 bits streams only once it declares a tail. Without
 ## one the packing writes a leading length, which can't be known while streaming.
@@ -714,26 +759,26 @@ SYM512=""; for ((cp=0x4E00; cp<0x5000; cp++)); do SYM512+=$(printf "\\U$(printf 
 tailrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑" -n 2>/dev/null \
 	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --from-tail "⸐ ⸑" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1)
 tailwant=$(head -c 37 /bin/cat | md5sum | cut -d' ' -f1)
-[[ "$tailrt" == "$tailwant" ]] && _pass "custom tail round-trips" || _fail "custom tail round-trips" "got='$tailrt'"
+[[ "$tailrt" == "$tailwant" ]] && _pass El5mcJk "custom tail round-trips" || _fail El5mcJk "custom tail round-trips" "got='$tailrt'"
 ## The same base with no tail still round-trips, on the length-prefixed layout.
 ntrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$SYM512" -n 2>/dev/null \
 	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1)
-[[ "$ntrt" == "$tailwant" ]] && _pass "custom no-tail round-trips" || _fail "custom no-tail round-trips" "got='$ntrt'"
+[[ "$ntrt" == "$tailwant" ]] && _pass El5mcJl "custom no-tail round-trips" || _fail El5mcJl "custom no-tail round-trips" "got='$ntrt'"
 ## A tail that could never be used is rejected where it is declared.
-check errmsg "tail below 8 bits rejected" 'above 256 symbols' -- --from bytes --to 64 --to-tail "⸐ ⸑" 5
-check errmsg "tail not power of 2 rejected" 'power of 2' -- --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑ ⸒" 5
-check errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 1024tz --to-tail "⸐ ⸑" 5
-check errmsg "tail on bytes rejected" 'do not apply' -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
+check El5mcJm errmsg "tail below 8 bits rejected" 'above 256 symbols' -- --from bytes --to 64 --to-tail "⸐ ⸑" 5
+check El5mcJn errmsg "tail not power of 2 rejected" 'power of 2' -- --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑ ⸒" 5
+check El5mcJo errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 1024tz --to-tail "⸐ ⸑" 5
+check El5mcJp errmsg "tail on bytes rejected" 'do not apply' -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
 
 ## Same tail declared in a config file rather than on the command line.
 tailcfg="${CBT_TMP}/tail.shcl"
 printf -- 'base: cfgtail\n\tsymbols: "%s"\n\ttail: "⸐ ⸑"\n' "$SYM512" >"$tailcfg"
 cfgrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from bytes --to cfgtail -n 2>/dev/null \
 	| "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from cfgtail --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1)
-[[ "$cfgrt" == "$tailwant" ]] && _pass "config tail round-trips" || _fail "config tail round-trips" "got='$cfgrt'"
+[[ "$cfgrt" == "$tailwant" ]] && _pass El5mcJq "config tail round-trips" || _fail El5mcJq "config tail round-trips" "got='$cfgrt'"
 
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
-check errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to bytes ABC
+check EizUJEC errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to bytes ABC
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -746,48 +791,48 @@ section "--binary byte mode"
 
 ## Known vector: the four bytes 0xDE 0xAD 0xBE 0xEF as base64.
 bm=$("${TIMEOUT[@]}" "${EXE}" --binary --from 16 --to 64 deadbeef 2>/dev/null)
-[[ "$bm" == "3q2+7w==" ]] && _pass "--binary hex->64 (argv)" || _fail "--binary hex->64 (argv)" "got='$bm'"
+[[ "$bm" == "3q2+7w==" ]] && _pass EjU6h0i "--binary hex->64 (argv)" || _fail EjU6h0i "--binary hex->64 (argv)" "got='$bm'"
 
 ## Streaming (stdin) must match the argv result.
 bms=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --binary --from 16 --to 64 2>/dev/null)
-[[ "$bms" == "3q2+7w==" ]] && _pass "--binary hex->64 (stream)" || _fail "--binary hex->64 (stream)" "got='$bms'"
+[[ "$bms" == "3q2+7w==" ]] && _pass EjU6h0j "--binary hex->64 (stream)" || _fail EjU6h0j "--binary hex->64 (stream)" "got='$bms'"
 
 ## --binary must equal the explicit two-stage route through the bytes base.
 bmp=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --from 16 --to bytes 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from bytes --to 32 2>/dev/null)
 bm32=$("${TIMEOUT[@]}" "${EXE}" --binary --from 16 --to 32 deadbeef 2>/dev/null)
-[[ "$bm32" == "$bmp" ]] && _pass "--binary == pipe-through-bytes (hex->32)" || _fail "--binary == pipe-through-bytes" "flag='$bm32' pipe='$bmp'"
+[[ "$bm32" == "$bmp" ]] && _pass EjU6h0k "--binary == pipe-through-bytes (hex->32)" || _fail EjU6h0k "--binary == pipe-through-bytes" "flag='$bm32' pipe='$bmp'"
 
 ## Aliases -b and --bin behave the same.
 bmb=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" -b --from 16 --to 64 2>/dev/null)
 bmbin=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --bin --from 16 --to 64 2>/dev/null)
-{ [[ "$bmb" == "3q2+7w==" ]] && [[ "$bmbin" == "3q2+7w==" ]]; } && _pass "--binary aliases -b/--bin" || _fail "--binary aliases -b/--bin" "b='$bmb' bin='$bmbin'"
+{ [[ "$bmb" == "3q2+7w==" ]] && [[ "$bmbin" == "3q2+7w==" ]]; } && _pass EjU6h0l "--binary aliases -b/--bin" || _fail EjU6h0l "--binary aliases -b/--bin" "b='$bmb' bin='$bmbin'"
 
 ## Round-trip through byte mode restores the bytes (case normalizes to base-16 canonical).
 bmrt=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" -b --from 16 --to 64 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" -b --from 64 --to 16 2>/dev/null)
-[[ "$bmrt" == "DEADBEEF" ]] && _pass "--binary round-trip 16<->64" || _fail "--binary round-trip 16<->64" "got='$bmrt'"
+[[ "$bmrt" == "DEADBEEF" ]] && _pass EjU6h0m "--binary round-trip 16<->64" || _fail EjU6h0m "--binary round-trip 16<->64" "got='$bmrt'"
 
 ## A non-power-of-2 base has no byte encoding: --binary must error.
-check errmsg "--binary rejects non-pow2" 'byte mode requires a power-of-2' -- --binary --from 10 --to 64 255
+check EjU6h0n errmsg "--binary rejects non-pow2" 'byte mode requires a power-of-2' -- --binary --from 10 --to 64 255
 
 ## --binary and --number are mutually exclusive.
-check errmsg "--binary + --number conflict" 'not both' -- --binary --number --from 16 --to 64 dead
+check EjU6h0o errmsg "--binary + --number conflict" 'not both' -- --binary --number --from 16 --to 64 dead
 
 ## The ambiguity note: fires on pow2->pow2 with no mode flag, on stderr only, and
 ## stdout still carries the numeric result.
 _run --from 16 --to 64 deadbeef
-{ ((_rc == 0)) && [[ "$_out" == "Derb7v" ]] && [[ "$_err" == *"--binary"* ]]; } && _pass "pow2->pow2 note on stderr" || _fail "pow2->pow2 note on stderr" "out='$_out' err='$_err'"
+{ ((_rc == 0)) && [[ "$_out" == "Derb7v" ]] && [[ "$_err" == *"--binary"* ]]; } && _pass EjU6h0p "pow2->pow2 note on stderr" || _fail EjU6h0p "pow2->pow2 note on stderr" "out='$_out' err='$_err'"
 
 ## --number asserts numeric intent and silences the note.
 _run --number --from 16 --to 64 deadbeef
-{ ((_rc == 0)) && [[ "$_out" == "Derb7v" ]] && [[ -z "$_err" ]]; } && _pass "--number silences note" || _fail "--number silences note" "out='$_out' err='$_err'"
+{ ((_rc == 0)) && [[ "$_out" == "Derb7v" ]] && [[ -z "$_err" ]]; } && _pass EjU6h0q "--number silences note" || _fail EjU6h0q "--number silences note" "out='$_out' err='$_err'"
 
 ## -N alias silences too.
 _run -N --from 16 --to 64 deadbeef
-[[ -z "$_err" ]] && _pass "-N alias silences note" || _fail "-N alias silences note" "err='$_err'"
+[[ -z "$_err" ]] && _pass EjU6h0r "-N alias silences note" || _fail EjU6h0r "-N alias silences note" "err='$_err'"
 
 ## No note when a non-power-of-2 base is involved (no byte ambiguity).
 _run --from 10 --to 16 255
-[[ -z "$_err" ]] && _pass "no note for non-pow2 conversion" || _fail "no note for non-pow2 conversion" "err='$_err'"
+[[ -z "$_err" ]] && _pass EjU6h0s "no note for non-pow2 conversion" || _fail EjU6h0s "no note for non-pow2 conversion" "err='$_err'"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -807,7 +852,7 @@ for tb in 16 10; do
 		&& "${TIMEOUT[@]}" "${EXE}" --from "$tb" --to keyboard --no-newline <"$kmid" >"$kout" 2>"${CBT_ERR}" \
 		&& cmp -s "$ksrc" "$kout"; then :; else kfail=$((kfail+1)); fi
 done
-((kfail == 0)) && _pass "keyboard sample round-trips (base 16 and 10)" || _fail "keyboard sample round-trips" "${kfail} of 2 failed"
+((kfail == 0)) && _pass EjGqhx2 "keyboard sample round-trips (base 16 and 10)" || _fail EjGqhx2 "keyboard sample round-trips" "${kfail} of 2 failed"
 ## Random text blobs of only valid keyboard bytes, forced to start on a non-tab
 ## byte so no leading digit is lost.
 krand_fail=0
@@ -817,7 +862,7 @@ for len in 1 2 5 33 200 1500; do
 		&& "${TIMEOUT[@]}" "${EXE}" --from 16 --to keyboard --no-newline <"$kmid" >"$kout" 2>"${CBT_ERR}" \
 		&& cmp -s "$ksrc" "$kout"; then :; else krand_fail=$((krand_fail+1)); fi
 done
-((krand_fail == 0)) && _pass "keyboard random text round-trips (6 blobs)" || _fail "keyboard random text round-trips" "${krand_fail} lengths mismatched"
+((krand_fail == 0)) && _pass EjGqhx3 "keyboard random text round-trips (6 blobs)" || _fail EjGqhx3 "keyboard random text round-trips" "${krand_fail} lengths mismatched"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -829,29 +874,29 @@ done
 ## to either direction shows up here rather than cancelling itself out.
 section "Control-character escapes"
 kesc_lf=$'A\nB'
-check eq "escape LF reads as the raw character"   "102225" -- --from keyboard --to 10 -n 'A⊳LFB'
-check eq "raw LF reads the same"                  "102225" -- --from keyboard --to 10 -n "$kesc_lf"
-check eq "lowercase name"                         "102225" -- --from keyboard --to 10 -n 'A⊳lfB'
-check eq "NEWLINE alias"                          "102225" -- --from keyboard --to 10 -n 'A⊳NEWLINEB'
-check eq "hex form"                               "102225" -- --from keyboard --to 10 -n 'A⊳x0AB'
-check eq "escaped output"                         'A⊳LFB'  -- --from 10 --to keyboard --escape-controls -n 102225
-check eq "output stays raw without the flag"      "$kesc_lf" -- --from 10 --to keyboard -n 102225
+check Elotfai eq "escape LF reads as the raw character"   "102225" -- --from keyboard --to 10 -n 'A⊳LFB'
+check Elotfaj eq "raw LF reads the same"                  "102225" -- --from keyboard --to 10 -n "$kesc_lf"
+check Elotfak eq "lowercase name"                         "102225" -- --from keyboard --to 10 -n 'A⊳lfB'
+check Elotfal eq "NEWLINE alias"                          "102225" -- --from keyboard --to 10 -n 'A⊳NEWLINEB'
+check Elotfam eq "hex form"                               "102225" -- --from keyboard --to 10 -n 'A⊳x0AB'
+check Elotfan eq "escaped output"                         'A⊳LFB'  -- --from 10 --to keyboard --escape-controls -n 102225
+check Elotfao eq "output stays raw without the flag"      "$kesc_lf" -- --from 10 --to keyboard -n 102225
 ## Raw and escaped in one value, and the same value written the other way.
-check eq "raw and escaped mixed"      "52830726402316" -- --from keyboard --to 10 -n 'x⊳HTy⊳CRz⊳LFw'
-check eq "all three escaped on output" 'x⊳HTy⊳CRz⊳LFw' -- --from 10 --to keyboard --escape-controls -n 52830726402316
+check Elotfap eq "raw and escaped mixed"      "52830726402316" -- --from keyboard --to 10 -n 'x⊳HTy⊳CRz⊳LFw'
+check Elotfaq eq "all three escaped on output" 'x⊳HTy⊳CRz⊳LFw' -- --from 10 --to keyboard --escape-controls -n 52830726402316
 ## A base with no control digits never grows an escape.
-check eq "no escapes where there are no controls" '!4' -- --from 10 --to keyboard --escape-controls -n 6472
+check Elotfar eq "no escapes where there are no controls" '!4' -- --from 10 --to keyboard --escape-controls -n 6472
 ## --show-symbols is where the alphabet is actually legible.
 _run --show-symbols --escape-controls keyboard
 { ((_rc == 0)) && [[ "$_out" == *'⊳HT⊳LF⊳CR'* ]]; } \
-	&& _pass "--show-symbols escapes the control digits" \
-	|| _fail "--show-symbols escapes the control digits" "rc=$_rc out=[$_out]"
+	&& _pass Elotfas "--show-symbols escapes the control digits" \
+	|| _fail Elotfas "--show-symbols escapes the control digits" "rc=$_rc out=[$_out]"
 ## Guards.
-check errmsg "unrecognized escape is an error"    "unrecognized escape" -- --from keyboard --to 10 -n 'A⊳ZZZB'
-check errmsg "escape the base cannot carry"       "not in base"         -- --from 16 --to 10 -n '⊳LF'
-check errmsg "escaping is refused in byte mode"   "number conversions only" -- --from 10 --to 16 --binary --escape-controls -n 65
+check Elotfat errmsg "unrecognized escape is an error"    "unrecognized escape" -- --from keyboard --to 10 -n 'A⊳ZZZB'
+check Elotfau errmsg "escape the base cannot carry"       "not in base"         -- --from 16 --to 10 -n '⊳LF'
+check Elotfav errmsg "escaping is refused in byte mode"   "number conversions only" -- --from 10 --to 16 --binary --escape-controls -n 65
 ## The marker is not a digit of any built-in base, so it is never mistaken for one.
-check err "a bare marker is not a digit"          "" -- --from keyboard --to 10 -n 'A⊳'
+check Elotfaw err "a bare marker is not a digit"          "" -- --from keyboard --to 10 -n 'A⊳'
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -862,7 +907,7 @@ section "Fuzz round-trips (all bases)"
 ## bases get fuzzed too; the index filter drops the header rows.
 mapfile -t BASE_NAMES < <("${EXE}" --list --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/ {print $2}')
 ## Floor check so a --list format change can't silently empty the fuzz set.
-(( ${#BASE_NAMES[@]} >= 50 )) && _pass "base-name scrape found bases (${#BASE_NAMES[@]})" || _fail "base-name scrape found bases" "only ${#BASE_NAMES[@]} scraped (--list format changed?)"
+(( ${#BASE_NAMES[@]} >= 50 )) && _pass EjeFbjN "base-name scrape found bases (${#BASE_NAMES[@]})" || _fail EjeFbjN "base-name scrape found bases" "only ${#BASE_NAMES[@]} scraped (--list format changed?)"
 declare -a FUZZ_BASES=()
 ## bytes and keyboard both carry newline as a digit, so their output can't
 ## survive $(...) capture (it strips trailing newlines). Both get their own
@@ -882,7 +927,7 @@ for base in "${FUZZ_BASES[@]}"; do
 		{ ((_rc == 0)) && [[ "$_out" == "$val" ]]; } || matrix_fail=$((matrix_fail+1))
 	done
 done
-((matrix_fail == 0)) && _pass "all-base matrix round-trip (${matrix_n} conversions)" || _fail "all-base matrix round-trip" "${matrix_fail} of ${matrix_n} failed"
+((matrix_fail == 0)) && _pass EizUJED "all-base matrix round-trip (${matrix_n} conversions)" || _fail EizUJED "all-base matrix round-trip" "${matrix_fail} of ${matrix_n} failed"
 
 ## Randomized fuzz: random base, random large value.
 iters="${CICDTEST_FUZZ_ITERS:-60}"; ((doLong)) && iters="${CICDTEST_FUZZ_ITERS:-800}"
@@ -892,14 +937,14 @@ for ((i=0; i<iters; i++)); do
 	idx=$(( $(od -An -N2 -tu2 /dev/urandom) % ${#FUZZ_BASES[@]} ))
 	base="${FUZZ_BASES[idx]}"
 	val="$(_rand_int "$maxlen")"
-	_run --from 10 --to "$base" -- "$val"; enc="$_out"; ((_rc == 0)) || { fuzz_fail=$((fuzz_fail+1)); _fail "fuzz enc base=$base val-len=${#val}" "rc=$_rc err=[$_err]"; continue; }
+	_run --from 10 --to "$base" -- "$val"; enc="$_out"; ((_rc == 0)) || { fuzz_fail=$((fuzz_fail+1)); _fail EizUJEE "fuzz enc base=$base val-len=${#val}" "rc=$_rc err=[$_err]"; continue; }
 	## A lone "-" output (a base whose single digit is "-", e.g. hostname value 36)
 	## is the read-stdin sentinel as a positional, so it can't round-trip via argv.
 	[[ "$enc" == "-" ]] && continue
 	_run --from "$base" --to 10 -- "$enc"
-	{ ((_rc == 0)) && [[ "$_out" == "$val" ]]; } || { fuzz_fail=$((fuzz_fail+1)); _fail "fuzz round-trip base=$base" "val=[$val] enc=[$enc] got=[$_out] rc=$_rc"; }
+	{ ((_rc == 0)) && [[ "$_out" == "$val" ]]; } || { fuzz_fail=$((fuzz_fail+1)); _fail EizUJEE "fuzz round-trip base=$base" "val=[$val] enc=[$enc] got=[$_out] rc=$_rc"; }
 done
-((fuzz_fail == 0)) && _pass "randomized fuzz round-trip (${iters} iterations, maxlen ${maxlen})" || printf '  %s%d fuzz failures above%s\n' "${red}" "$fuzz_fail" "${rst}"
+((fuzz_fail == 0)) && _pass EizUJEE "randomized fuzz round-trip (${iters} iterations, maxlen ${maxlen})" || printf '  %s%d fuzz failures above%s\n' "${red}" "$fuzz_fail" "${rst}"
 
 ## Full-coverage symbol round-trip: for every base (not just a handful), build a
 ## random-length string from its own randomly chosen symbols, carry it through a
@@ -955,12 +1000,12 @@ for ((i = 0; i < iters; i++)); do
 	## pass the single-digit "-" through argv. Skip just that one string on either
 	## side; any longer value that merely contains "-" is unambiguous and fine.
 	[[ "$src_str" == "-" ]] && continue
-	_run --from "$src_name" --to "$tgt_name" -- "$src_str"; encoded="$_out"; ((_rc == 0)) || { symfuzz_fail=$((symfuzz_fail+1)); _fail "symbol fuzz enc $src_name->$tgt_name" "src=[$src_str] rc=$_rc err=[$_err]"; continue; }
+	_run --from "$src_name" --to "$tgt_name" -- "$src_str"; encoded="$_out"; ((_rc == 0)) || { symfuzz_fail=$((symfuzz_fail+1)); _fail Ej1HnoL "symbol fuzz enc $src_name->$tgt_name" "src=[$src_str] rc=$_rc err=[$_err]"; continue; }
 	[[ "$encoded" == "-" ]] && continue
 	_run --from "$tgt_name" --to "$src_name" -- "$encoded"; symfuzz_n=$((symfuzz_n + 1))
-	{ ((_rc == 0)) && [[ "$_out" == "$src_str" ]]; } || { symfuzz_fail=$((symfuzz_fail+1)); _fail "symbol fuzz round-trip $src_name<->$tgt_name" "src=[$src_str] enc=[$encoded] got=[$_out] rc=$_rc"; }
+	{ ((_rc == 0)) && [[ "$_out" == "$src_str" ]]; } || { symfuzz_fail=$((symfuzz_fail+1)); _fail Ej1HnoL "symbol fuzz round-trip $src_name<->$tgt_name" "src=[$src_str] enc=[$encoded] got=[$_out] rc=$_rc"; }
 done
-((symfuzz_fail == 0)) && _pass "full-coverage symbol round-trip (${symfuzz_n} iterations, ${#ELIGIBLE[@]} bases, maxlen ${maxlen})" || printf '  %s%d symbol-fuzz failures above%s\n' "${red}" "$symfuzz_fail" "${rst}"
+((symfuzz_fail == 0)) && _pass Ej1HnoL "full-coverage symbol round-trip (${symfuzz_n} iterations, ${#ELIGIBLE[@]} bases, maxlen ${maxlen})" || printf '  %s%d symbol-fuzz failures above%s\n' "${red}" "$symfuzz_fail" "${rst}"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1018,11 +1063,11 @@ V1B_EXCUSED=()
 ## 32c encodes with --upper: v2 emits Crockford's alphabet in lower case for
 ## legibility, and both legacy tools emit upper case. Same digits, same order.
 
-## fCheckCoverage LABEL MAPVAR ALLVAR EXCUSEDVAR
+## fCheckCoverage ID LABEL MAPVAR ALLVAR EXCUSEDVAR
 ## A legacy base that no map reaches is a silent hole, and a map entry naming a
 ## base the tool doesn't have is a stale entry, so both directions are checked.
 fCheckCoverage(){
-	local label="$1"; local -n _map="$2" _all="$3" _excused="$4"
+	local id="$1" label="$2"; local -n _map="$3" _all="$4" _excused="$5"
 	local pair tok missing="" stale=""
 	local -A covered=()
 	for pair in "${_map[@]}"; do tok="${pair#*:}"; covered["${tok%%:*}"]=1; done
@@ -1037,13 +1082,13 @@ fCheckCoverage(){
 	## part of the coverage, not something to go hunting through comments for.
 	local note="none"; ((${#_excused[@]})) && note="${_excused[*]}"
 	{ [[ -z "$missing" ]] && [[ -z "$stale" ]]; } \
-		&& _pass "${label} base coverage (${#_all[@]} bases, excused: ${note})" \
-		|| _fail "${label} base coverage" "unmapped:${missing:- none} stale:${stale:- none}"
+		&& _pass "$id" "${label} base coverage (${#_all[@]} bases, excused: ${note})" \
+		|| _fail "$id" "${label} base coverage" "unmapped:${missing:- none} stale:${stale:- none}"
 }
 
-## fCheckLegacy BINARY LABEL MAP...
+## fCheckLegacy ENCODE_ID ROUNDTRIP_ID BINARY LABEL MAP...
 fCheckLegacy(){
-	local exe="$1" label="$2"; shift 2
+	local encid="$1" rtid="$2" exe="$3" label="$4"; shift 4
 	local pair v2n lgn extra enc_fail rt_fail detail val o2 o1 back r
 	local reps=3; ((doLong)) && reps=20
 	for pair in "$@"; do
@@ -1052,7 +1097,7 @@ fCheckLegacy(){
 		## A renamed v2 base would otherwise read as a byte mismatch on every
 		## single value, which says nothing about what actually went wrong.
 		if ! "${TIMEOUT[@]}" "${EXE}" --get-base-name "$v2n" >/dev/null 2>&1; then
-			_fail "v2 base ${v2n} exists (mapped to ${label} ${lgn})" "unknown base - renamed or removed?"
+			_fail "$encid" "v2 base ${v2n} exists (mapped to ${label} ${lgn})" "unknown base - renamed or removed?"
 			continue
 		fi
 		enc_fail=0; rt_fail=0; detail=""
@@ -1069,8 +1114,8 @@ fCheckLegacy(){
 			back="$("${EXE}" --from "$v2n" --to 10 -- "$o1" 2>/dev/null || true)"
 			[[ -n "$o1" && "$back" == "$val" ]] || { rt_fail=1; detail="val=[$val] ${label}enc=[$o1] v2dec=[$back]"; }
 		done
-		((enc_fail == 0)) && _pass "v2==${label} encode: ${v2n} (== ${label} ${lgn})" || _fail "v2==${label} encode: ${v2n} (== ${label} ${lgn})" "$detail"
-		((rt_fail == 0))  && _pass "${label}->v2 round-trip: ${v2n} (from ${label} ${lgn})" || _fail "${label}->v2 round-trip: ${v2n} (from ${label} ${lgn})" "$detail"
+		((enc_fail == 0)) && _pass "$encid" "v2==${label} encode: ${v2n} (== ${label} ${lgn})" || _fail "$encid" "v2==${label} encode: ${v2n} (== ${label} ${lgn})" "$detail"
+		((rt_fail == 0))  && _pass "$rtid" "${label}->v2 round-trip: ${v2n} (from ${label} ${lgn})" || _fail "$rtid" "${label}->v2 round-trip: ${v2n} (from ${label} ${lgn})" "$detail"
 	done
 }
 
@@ -1078,18 +1123,18 @@ fCheckLegacy(){
 ## not run, which is easy to mistake for "passed". The summary repeats it.
 section "Back-compat vs v1 (byte-for-byte + round-trip)"
 if [[ -x "${EXE_V1}" ]]; then
-	fCheckCoverage v1 V1_MAP V1_BASES V1_EXCUSED
-	fCheckLegacy "${EXE_V1}" v1 "${V1_MAP[@]}"
+	fCheckCoverage ElWMN5X v1 V1_MAP V1_BASES V1_EXCUSED
+	fCheckLegacy ElG9gVS ElG9gVT "${EXE_V1}" v1 "${V1_MAP[@]}"
 else
-	_warn "v1 back-compat skipped: script not found at ${EXE_V1}"
+	_warn "ElWMN5X ElG9gVS ElG9gVT" "v1 back-compat skipped: script not found at ${EXE_V1}"
 fi
 
 section "Back-compat vs v1b (byte-for-byte + round-trip)"
 if [[ -x "${EXE_V1B}" ]]; then
-	fCheckCoverage v1b V1B_MAP V1B_BASES V1B_EXCUSED
-	fCheckLegacy "${EXE_V1B}" v1b "${V1B_MAP[@]}"
+	fCheckCoverage ElWMN5Y v1b V1B_MAP V1B_BASES V1B_EXCUSED
+	fCheckLegacy Ej0q2ga Ej0q2gb "${EXE_V1B}" v1b "${V1B_MAP[@]}"
 else
-	_warn "v1b back-compat skipped: script not found at ${EXE_V1B}"
+	_warn "ElWMN5Y Ej0q2ga Ej0q2gb" "v1b back-compat skipped: script not found at ${EXE_V1B}"
 fi
 
 
@@ -1147,7 +1192,7 @@ fCheckInterop(){
 
 	fInteropSamples "$samples" "$nSamples"
 	if ! "$@" encode <"$samples" >"$theirs" 2>"${CBT_ERR}"; then
-		_fail "interop ${label}" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
+		_fail EleGcFU "interop ${label}" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
 		return
 	fi
 
@@ -1157,8 +1202,8 @@ fCheckInterop(){
 		echo
 	done <"$samples" >"$ours"
 	cmp -s "$ours" "$theirs" \
-		&& _pass "interop encode == ${label} (${nSamples} samples)" \
-		|| _fail "interop encode == ${label}" "$(fFirstDiff "$ours" "$theirs")"
+		&& _pass EleGcFU "interop encode == ${label} (${nSamples} samples)" \
+		|| _fail EleGcFU "interop encode == ${label}" "$(fFirstDiff "$ours" "$theirs")"
 
 	while IFS= read -r enc; do
 		printf '%s' "$enc" >"$bin"
@@ -1166,21 +1211,21 @@ fCheckInterop(){
 		echo
 	done <"$theirs" >"$ourdec"
 	cmp -s "$ourdec" "$samples" \
-		&& _pass "interop decode of ${label} output (${nSamples} samples)" \
-		|| _fail "interop decode of ${label} output" "$(fFirstDiff "$ourdec" "$samples")"
+		&& _pass EleGcFV "interop decode of ${label} output (${nSamples} samples)" \
+		|| _fail EleGcFV "interop decode of ${label} output" "$(fFirstDiff "$ourdec" "$samples")"
 
 	if ! "$@" decode <"$ours" >"$theirdec" 2>"${CBT_ERR}"; then
-		_fail "interop ${label} reads our output" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
+		_fail EleGcFW "interop ${label} reads our output" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
 		return
 	fi
 	cmp -s "$theirdec" "$samples" \
-		&& _pass "interop ${label} reads our output (${nSamples} samples)" \
-		|| _fail "interop ${label} reads our output" "$(fFirstDiff "$theirdec" "$samples")"
+		&& _pass EleGcFW "interop ${label} reads our output (${nSamples} samples)" \
+		|| _fail EleGcFW "interop ${label} reads our output" "$(fFirstDiff "$theirdec" "$samples")"
 }
 
 section "Interop vs the published reference implementations"
 if [[ ! -d "${INTEROP_DIR}/thirdparty" ]]; then
-	_warn "interop skipped: no vendored references at ${INTEROP_DIR}/thirdparty (utility/interop/fetch.bash --refresh)"
+	_warn "EleGcFX EleGcFU EleGcFV EleGcFW" "interop skipped: no vendored references at ${INTEROP_DIR}/thirdparty (utility/interop/fetch.bash --refresh)"
 else
 	## Pinned versions, so a pass line says which release we agree with.
 	declare -A INTEROP_VER=()
@@ -1194,9 +1239,9 @@ else
 	## An edited reference is worse than no reference: every check would still
 	## pass, against something nobody published. So this one fails, never skips.
 	if "${INTEROP_DIR}/fetch.bash" --verify >/dev/null 2>&1; then
-		_pass "interop references verbatim (${#INTEROP_PINS[@]} pinned packages)"
+		_pass EleGcFX "interop references verbatim (${#INTEROP_PINS[@]} pinned packages)"
 	else
-		_fail "interop references verbatim" "$("${INTEROP_DIR}/fetch.bash" --verify 2>&1 | tail -2)"
+		_fail EleGcFX "interop references verbatim" "$("${INTEROP_DIR}/fetch.bash" --verify 2>&1 | tail -2)"
 	fi
 
 	if command -v node >/dev/null 2>&1; then
@@ -1204,7 +1249,7 @@ else
 		fCheckInterop 32768qntm "qntm base32768 ${INTEROP_VER[base32768-qntm]}" node "${INTEROP_QNTM}" 32768
 		fCheckInterop 65536qntm "qntm base65536 ${INTEROP_VER[base65536-qntm]}" node "${INTEROP_QNTM}" 65536
 	else
-		_warn "interop vs qntm base2048/base32768/base65536 skipped: node not installed"
+		_warn "EleGcFU EleGcFV EleGcFW" "interop vs qntm base2048/base32768/base65536 skipped: node not installed"
 	fi
 
 	## The crate is a library, so the adapter around it has to be compiled. It
@@ -1217,7 +1262,7 @@ else
 	if [[ -x "${INTEROP_RSBIN}" ]]; then
 		fCheckInterop 2048llfourn "llfourn base2048 ${INTEROP_VER[base2048-llfourn]}" "${INTEROP_RSBIN}"
 	else
-		_warn "interop vs llfourn base2048 skipped: no adapter binary and cargo could not build one"
+		_warn "EleGcFU EleGcFV EleGcFW" "interop vs llfourn base2048 skipped: no adapter binary and cargo could not build one"
 	fi
 fi
 
@@ -1238,15 +1283,33 @@ REACTOR_HOST_DIR="${meDir}/utility/reactor-host"
 REACTOR_WASM="${CBT_TMP}/convert-base-reactor.wasm"
 goMinor="$(go env GOVERSION 2>/dev/null | sed -E 's/^go1\.([0-9]+).*$/\1/')"
 if [[ ! "${goMinor}" =~ ^[0-9]+$ ]] || ((goMinor < 24)); then
-	_warn "reactor module skipped: needs a Go 1.24+ toolchain (have $(go env GOVERSION 2>/dev/null || echo none))"
+	_warn Elmd2Y4 "reactor module skipped: needs a Go 1.24+ toolchain (have $(go env GOVERSION 2>/dev/null || echo none))"
 elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "${REACTOR_WASM}" ./reactor) >"${CBT_ERR}" 2>&1; then
-	_fail "reactor module build" "$(tail -2 "${CBT_ERR}")"
+	_fail Elmd2Y4 "reactor module build" "$(tail -2 "${CBT_ERR}")"
 elif ! (cd "${REACTOR_HOST_DIR}" && go build -o "${CBT_TMP}/reactor-host" .) >"${CBT_ERR}" 2>&1; then
-	_warn "reactor ABI skipped: host harness would not build (wazero not cached and offline?)"
+	_warn Elmd2Y4 "reactor ABI skipped: host harness would not build (wazero not cached and offline?)"
 elif "${CBT_TMP}/reactor-host" "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; then
-	_pass "reactor ABI (exports, conversions, metadata, streams, errors, leak loops)"
+	_pass Elmd2Y4 "reactor ABI (exports, conversions, metadata, streams, errors, leak loops)"
 else
-	_fail "reactor ABI" "$(tail -1 "${CBT_ERR}")"
+	_fail Elmd2Y4 "reactor ABI" "$(tail -1 "${CBT_ERR}")"
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Browser module: the js/wasm build's own tests, run under node
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Go's wasm runner hands node the whole environment, and node refuses one
+## over about 8K. So the tests get a short one. Each prints its own line and ID.
+section "Browser module"
+wasmExec="$(go env GOROOT 2>/dev/null)/lib/wasm/go_js_wasm_exec"
+[[ -x "$wasmExec" ]] || wasmExec="$(go env GOROOT 2>/dev/null)/misc/wasm/go_js_wasm_exec"
+if ! command -v node >/dev/null 2>&1 || [[ ! -x "$wasmExec" ]]; then
+	_warn "ErkSf4j ErkSf4h ErkSf4i" "browser module tests skipped: needs node and Go's go_js_wasm_exec"
+else
+	bwrc=0
+	(cd "${meDir}/../lib" && env -i PATH="$PATH" HOME="$HOME" GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)" \
+		GOOS=js GOARCH=wasm go test -json -count=1 -exec "$wasmExec" ./wasm) 2>&1 | python3 "${meDir}/utility/test-ids.py" report || bwrc=$?
+	((bwrc == 0)) && _pass ErkSf4j "browser module tests" || _fail ErkSf4j "browser module tests" "exit ${bwrc}, see the lines above"
 fi
 
 
@@ -1267,7 +1330,7 @@ MODDRV_DIR="${meDir}/utility/module-driver"
 MODDRV="${CBT_TMP}/module-driver"
 RHOST="${CBT_TMP}/reactor-host"
 if ! (cd "${MODDRV_DIR}" && go build -o "${MODDRV}" .) >"${CBT_ERR}" 2>&1; then
-	_fail "module driver build" "$(tail -2 "${CBT_ERR}")"
+	_fail EloQXv6 "module driver build" "$(tail -2 "${CBT_ERR}")"
 else
 	preq="${CBT_TMP}/parity_req"; pcli="${CBT_TMP}/parity_cli"; pout="${CBT_TMP}/parity_out"
 	: >"$preq"; : >"$pcli"
@@ -1301,7 +1364,7 @@ else
 		[[ "$pname" == "bytes" ]] && continue
 		PARITY_BASES+=("$pname")
 	done < <("${EXE}" --config /dev/null --list --list-compat 2>/dev/null)
-	(( ${#PARITY_BASES[@]} >= 30 )) && _pass "parity scrape found bases (${#PARITY_BASES[@]})" || _fail "parity scrape found bases" "only ${#PARITY_BASES[@]} scraped (--list format changed?)"
+	(( ${#PARITY_BASES[@]} >= 30 )) && _pass EloQXv7 "parity scrape found bases (${#PARITY_BASES[@]})" || _fail EloQXv7 "parity scrape found bases" "only ${#PARITY_BASES[@]} scraped (--list format changed?)"
 	for pname in "${PARITY_BASES[@]}"; do
 		parity_case 10 "$pname" -1 "12345678901234567890"
 		if [[ "$(tail -1 "$pcli")" == ok* ]]; then
@@ -1311,15 +1374,15 @@ else
 		parity_case 10 "$pname" 8 "-255.755"
 	done
 	if "${MODDRV}" <"$preq" >"$pout" 2>"${CBT_ERR}"; then
-		cmp -s "$pcli" "$pout" && _pass "module answers match the command (${pn} cases)" || _fail "module answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
+		cmp -s "$pcli" "$pout" && _pass EloQXv6 "module answers match the command (${pn} cases)" || _fail EloQXv6 "module answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
 	else
-		_fail "module driver run" "$(tail -1 "${CBT_ERR}")"
+		_fail EloQXv6 "module driver run" "$(tail -1 "${CBT_ERR}")"
 	fi
 	if [[ -x "$RHOST" && -s "$REACTOR_WASM" ]]; then
 		if "$RHOST" --batch "$REACTOR_WASM" <"$preq" >"$pout" 2>"${CBT_ERR}"; then
-			cmp -s "$pcli" "$pout" && _pass "reactor answers match the command (${pn} cases)" || _fail "reactor answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
+			cmp -s "$pcli" "$pout" && _pass EloQXv8 "reactor answers match the command (${pn} cases)" || _fail EloQXv8 "reactor answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
 		else
-			_fail "reactor batch run" "$(tail -1 "${CBT_ERR}")"
+			_fail EloQXv8 "reactor batch run" "$(tail -1 "${CBT_ERR}")"
 		fi
 		## Stream parity: one raw payload through the command's pipe and the
 		## reactor's push streams, both directions, over every raw-capable
@@ -1339,10 +1402,10 @@ else
 			else
 				sfail="encode rc=${rc1}/${rc2}"
 			fi
-			[[ -z "$sfail" ]] && _pass "stream parity via ${pname}" || _fail "stream parity via ${pname}" "$sfail"
+			[[ -z "$sfail" ]] && _pass EloQXv9 "stream parity via ${pname}" || _fail EloQXv9 "stream parity via ${pname}" "$sfail"
 		done
 	else
-		_warn "reactor parity skipped: reactor module or host not built"
+		_warn "EloQXv8 EloQXv9" "reactor parity skipped: reactor module or host not built"
 	fi
 fi
 
@@ -1352,11 +1415,10 @@ fi
 ## to run it on. Its tests check the fat layout against hand-made slices and
 ## against the real command cross-built for both Macs.
 section "macOS universal binary"
-if (cd "${meDir}/utility/macho-fat" && go test -count=1 .) >"${CBT_ERR}" 2>&1; then
-	_pass "macho-fat tests"
-else
-	_fail "macho-fat tests" "$(grep -E -- '--- FAIL|main_test.go|macho-fat' "${CBT_ERR}" | head -4 || true)"
-fi
+## Each Go test there prints its own line and ID. This check is the suite.
+mfrc=0
+(cd "${meDir}/utility/macho-fat" && go test -json -count=1 .) 2>&1 | python3 "${meDir}/utility/test-ids.py" report || mfrc=$?
+((mfrc == 0)) && _pass ErftBA8 "macho-fat tests" || _fail ErftBA8 "macho-fat tests" "exit ${mfrc}, see the lines above"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1377,9 +1439,9 @@ if ((doPerf)); then
 		t1=$(date +%s.%N)
 		if cmp -s "$perfsrc" "$perfout"; then
 			mbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$perf_mib/d; else print \"inf\"}")
-			_pass "perf ${base}: ${perf_mib} MiB round-trip (~${mbps} MiB/s)"
+			_pass EjGnHfk "perf ${base}: ${perf_mib} MiB round-trip (~${mbps} MiB/s)"
 		else
-			_fail "perf ${base} round-trip" "output mismatch"
+			_fail EjGnHfk "perf ${base} round-trip" "output mismatch"
 		fi
 	done
 	if command -v base64 >/dev/null 2>&1; then
@@ -1418,9 +1480,9 @@ if ((doPerf)); then
 			decpeak=$(tail -1 "$memprof")
 			if [[ "$encpeak" =~ ^[0-9]+$ && "$decpeak" =~ ^[0-9]+$ ]] \
 				&& ((encpeak < mem_ceiling && decpeak < mem_ceiling)); then
-				_pass "constant memory via ${base} (${mem_mib} MiB in, peak ${encpeak}/${decpeak} KiB)"
+				_pass El5P4dl "constant memory via ${base} (${mem_mib} MiB in, peak ${encpeak}/${decpeak} KiB)"
 			else
-				_fail "constant memory via ${base}" "peak enc=${encpeak} dec=${decpeak} KiB, ceiling ${mem_ceiling}"
+				_fail El5P4dl "constant memory via ${base}" "peak enc=${encpeak} dec=${decpeak} KiB, ceiling ${mem_ceiling}"
 			fi
 		done
 	fi
@@ -1437,9 +1499,9 @@ if ((doPerf)); then
 	t1=$(date +%s.%N)
 	if cmp -s "$cxsrc" "$cxout"; then
 		cxbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$cx_mib/d; else print \"inf\"}")
-		_pass "codec profile: ${cx_mib} MiB base-91 round-trip (~${cxbps} MiB/s)"
+		_pass EjK8KIq "codec profile: ${cx_mib} MiB base-91 round-trip (~${cxbps} MiB/s)"
 	else
-		_fail "codec profile round-trip" "output mismatch"
+		_fail EjK8KIq "codec profile round-trip" "output mismatch"
 	fi
 fi
 

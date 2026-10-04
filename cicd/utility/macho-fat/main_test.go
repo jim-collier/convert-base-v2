@@ -50,6 +50,7 @@ func readHeader(t *testing.T, fat []byte) []fatEntry {
 	return entries
 }
 
+// Test ID: ErftBA9
 func TestLayout(t *testing.T) {
 	x86 := thinStub(macho.CpuAmd64, 5000, 0xaa)
 	arm := thinStub(macho.CpuArm64, 7000, 0xbb)
@@ -86,6 +87,7 @@ func TestLayout(t *testing.T) {
 }
 
 // A first slice big enough that the second needs real padding to reach 2^14.
+// Test ID: ErftBAA
 func TestSecondSliceAlignment(t *testing.T) {
 	fat, err := makeFat([][]byte{thinStub(macho.CpuAmd64, 0x5001, 1), thinStub(macho.CpuArm64, 64, 2)})
 	if err != nil {
@@ -96,6 +98,7 @@ func TestSecondSliceAlignment(t *testing.T) {
 	}
 }
 
+// Test ID: ErftBAB
 func TestRejects(t *testing.T) {
 	x86 := thinStub(macho.CpuAmd64, 64, 0)
 	cases := map[string][][]byte{
@@ -112,6 +115,7 @@ func TestRejects(t *testing.T) {
 	}
 }
 
+// Test ID: ErftBAC
 func TestVerifyCatchesChangedSlice(t *testing.T) {
 	x86, arm := thinStub(macho.CpuAmd64, 64, 1), thinStub(macho.CpuArm64, 64, 2)
 	fat := mustFat(t)
@@ -132,6 +136,7 @@ func mustFat(t *testing.T) []byte {
 
 // The real command, cross-built for both Macs. Go signs darwin/arm64 builds
 // itself, and that signature has to come through the join intact.
+// Test ID: ErftBAD
 func TestRealCommand(t *testing.T) {
 	if testing.Short() {
 		t.Skip("cross-builds the command")

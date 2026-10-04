@@ -23,6 +23,7 @@ func sliceBase(t *testing.T, name string) *Base {
 	return b
 }
 
+// Test ID: ElpbexU
 func TestSymbolSlice(t *testing.T) {
 	hex := sliceBase(t, "16")
 	tt := sliceBase(t, "128tt") // multi-byte digits: byte offsets would slice wrongly
@@ -76,6 +77,7 @@ func TestSymbolSlice(t *testing.T) {
 	}
 }
 
+// Test ID: ElpbexV
 func TestFit(t *testing.T) {
 	hex := sliceBase(t, "16")
 	w32 := sliceBase(t, "32w") // zero symbol is "2", not "0"
@@ -126,6 +128,7 @@ func TestFit(t *testing.T) {
 // A count near the integer maximum must clamp like any other over-long count.
 // Comparing against start+count instead of the remaining length overflows and
 // panics, which is the opposite of the documented clamp.
+// Test ID: ElprYuW
 func TestSymbolSliceHugeCount(t *testing.T) {
 	b := sliceBase(t, "16")
 	got, err := b.SymbolSlice("DEADBEEF", 2, math.MaxInt)

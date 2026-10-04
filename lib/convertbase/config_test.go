@@ -30,6 +30,7 @@ func loadConfigText(t *testing.T, text string) error {
 // A field written twice reads back as Multiple, and every accessor answers that
 // with a zero value - so the loader would quietly fall back to a default and
 // build a base the file does not describe. Each of these was silent before.
+// Test ID: Em1008w
 func TestConfigRejectsRepeatedField(t *testing.T) {
 	cases := map[string]string{
 		"symbols":  "base: a\n\tsymbols: ab\n\tsymbols: cd\n",
@@ -54,6 +55,7 @@ func TestConfigRejectsRepeatedField(t *testing.T) {
 
 // A name needing quotes was invisible to the path enumeration the check used to
 // walk, so a quoted typo slipped past the unknown-field guard entirely.
+// Test ID: Em1008x
 func TestConfigRejectsQuotedUnknownField(t *testing.T) {
 	cases := map[string]string{
 		"dotted":    "base: a\n\tsymbols: ab\n\t\"weird.field\": 1\n",
@@ -76,6 +78,7 @@ func TestConfigRejectsQuotedUnknownField(t *testing.T) {
 // No base field takes fields of its own, so anything indented under one is a
 // mistake. The field above it still reads, often as Empty, which disables a
 // marker on purpose - so the stray line used to cost a marker without a word.
+// Test ID: Erg4X7J
 func TestConfigRejectsNestedField(t *testing.T) {
 	cases := map[string]string{
 		"under empty":  "base: a\n\tsymbols: ab\n\tnegative:\n\t\tdecimal: X\n",
@@ -105,6 +108,7 @@ func TestConfigRejectsNestedField(t *testing.T) {
 // Every way a config file can be refused cites the line it went wrong on. The
 // repeat is the one that needs Lines() rather than Line(), since a path with two
 // bindings is exactly what the singular cannot place.
+// Test ID: Em2MFrs
 func TestConfigErrorsCiteLines(t *testing.T) {
 	cases := []struct {
 		name string
@@ -142,7 +146,38 @@ func TestConfigErrorsCiteLines(t *testing.T) {
 	}
 }
 
+// An empty pad: switches padding off, pad: X writes it, and pademit: false
+// keeps a pad that is read but never written.
+// Test ID: ErkSf4u
+func TestConfigPadFields(t *testing.T) {
+	const b32 = "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z 2 3 4 5 6 7"
+	cfg := "base: nopad\n\tsymbols: " + b32 + "\n\tpad:\n\n" +
+		"base: withpad\n\tsymbols: " + b32 + "\n\tpad: =\n\n" +
+		"base: readpad\n\tsymbols: " + b32 + "\n\tpad: =\n\tpademit: false\n"
+	path := filepath.Join(t.TempDir(), "convert-base-v2.shcl")
+	if err := os.WriteFile(path, []byte(cfg), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reg := newReg(t)
+	if err := reg.LoadConfig(path); err != nil {
+		t.Fatal(err)
+	}
+	bin := base(t, reg, "bytes")
+	for _, c := range []struct{ name, want string }{
+		{"nopad", "IE"}, {"withpad", "IE======"}, {"readpad", "IE"},
+	} {
+		got, err := Convert("A", bin, base(t, reg, c.name), 0)
+		if err != nil || got != c.want {
+			t.Errorf("%s: A -> %q, %v; want %q", c.name, got, err, c.want)
+		}
+	}
+	if got, err := Convert("IE======", base(t, reg, "readpad"), bin, 0); err != nil || got != "A" {
+		t.Errorf("readpad should still read a padded value: %q, %v", got, err)
+	}
+}
+
 // The shapes the file is meant to carry still load.
+// Test ID: Em1008y
 func TestConfigAcceptsValidShapes(t *testing.T) {
 	text := "base: myb\n\taliases: mybase, mb\n\tsymbols: \"z y x w\"\n\n" +
 		"base: nodec\n\tsymbols: 0123456789\n\tdecimal:\n\n" +
@@ -159,6 +194,7 @@ func TestConfigAcceptsValidShapes(t *testing.T) {
 // ParseSymbolSpec, which has escapes of its own. These pin which layer reads
 // which backslash, so a parser change that would quietly change an alphabet
 // fails here first.
+// Test ID: Erg0gZ2
 func TestConfigBackslashLayers(t *testing.T) {
 	uEscape := `"` + `\` + `u00e9 x"` // spelled in pieces to keep the escape out of the source text
 	cases := []struct {
@@ -224,6 +260,7 @@ func TestConfigBackslashLayers(t *testing.T) {
 // No field takes a raw block. One used to be dropped, as an alias or a tail was,
 // or read with its line breaks kept, as a marker was. Under symbols it could mean
 // two different alphabets, one digit per row or one per character.
+// Test ID: Erg6SWX
 func TestConfigRejectsRawBlockValue(t *testing.T) {
 	block := "\n\t\t~~~\n\t\tx\n\t\t~~~\n"
 	cases := map[string]string{
