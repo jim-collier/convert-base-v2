@@ -34,38 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- Python tools use three naming styles. Which one should they follow? (Code review 20261004 item 32)
-	- ID: 2026100413480032
-	- Type: Task
-	- Status: Waiting for answers
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Note: the cicd tools use `fCamelCase`, `gen-bases-table.py` uses camelCase, and `test-ids.py` and the research scripts use snake_case.
-	- Note: the directives point two ways. Code style says the language's case conventions win, which means PEP 8 snake_case. The Profiling section says to match silkterm's Python, which is `fCamelCase`.
-	- Question: snake_case everywhere, or `fCamelCase` as the house rule with ruff's N8xx rules turned off? Item 22 needs the answer for its ruff config.
-
-- Five project helper scripts are GPL, where helpers are usually MIT. (Code review 20261004 item 33)
-	- ID: 2026100413480033
-	- Type: Task
-	- Status: Waiting for answers
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Note: `check-release.bash`, `check-vendor.bash`, `package.bash`, `release-notes.bash` and `interop/fetch.bash` all carry the Bubbles copyright with GPL. The other cicd helpers are MIT.
-	- Question: keep them GPL since they only make sense in this project, or move them to MIT?
-
-- `filter_2_messy.py` ends with a block of requirements written as instructions for a code generator. (Code review 20261004 item 34)
-	- ID: 2026100413480034
-	- Type: Task
-	- Status: Waiting for answers
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Note: `utility/include/filter_2_messy.py:449-477`, a bare string after the main block, from de93848 on 2026-05-08. It is public on main and in three tags.
-	- Note: the text is the project's own. It is filed only because it reads as a prompt, which no word scrub can catch.
-	- Question: delete it, fold the real requirements into the Purpose header, or keep it as is? History stays untouched either way.
-
 - macOS gets a universal binary for both amd64 and ARM.
 	- ID: 2026100313304792
 	- Type: Enhancement
@@ -408,6 +376,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Probable fix: clear the notes, add `shellcheck -x` and ruff to the lint stage, and add a `pyproject.toml` with tab indent so existing files stay as they are.
 	- Origin: the lint stage from a8d50ce on 2026-07-09. Directive gap, filed against the 2026-10-04 directives.
 	- Prereq IDs: 2026100413480032
+	- Note: item 32 answered. ruff's naming rules stay on, with `flame-report.py` excluded since it came from silkterm.
 
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
@@ -446,6 +415,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: also unused `wpx` in pprof2flame and `prog` in gen-demo-gif, a private Pillow call, a `find(" ")` of -1 that skips the fast-typing start for a one-word command, and test-ids keying tests by directory basename.
 	- Origin: a8d50ce onward. Not seen by an earlier round. Confirmed by mypy and ruff.
 	- Prereq IDs: 2026100413480032
+	- Note: item 32 answered. `pprof2flame.py`, `gen-demo-gif.py` and `gen-bases-table.py` move to snake_case. `flame-report.py` keeps silkterm's names.
 
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
@@ -816,6 +786,59 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
 	- Closed: 20261003-180637
 
+
+- Python tools use three naming styles. Which one should they follow? (Code review 20261004 item 32)
+	- ID: 2026100413480032
+	- Type: Task
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Note: the cicd tools use `fCamelCase`, `gen-bases-table.py` uses camelCase, and `test-ids.py` and the research scripts use snake_case.
+	- Note: the directives point two ways. Code style says the language's case conventions win, which means PEP 8 snake_case. The Profiling section says to match silkterm's Python, which is `fCamelCase`.
+	- Question: snake_case everywhere, or `fCamelCase` as the house rule with ruff's N8xx rules turned off? Item 22 needs the answer for its ruff config.
+		- Answered: idiomatic Python for code written here. Code written by hand keeps its case, and so does a script copied in from elsewhere.
+	- Progress log:
+		- Done: the Code style directive now says PEP 8 names, with those two exceptions, and the profiling section no longer reads as asking for silkterm's names.
+		- Note: `flame-report.py` came from silkterm and keeps its names. `pprof2flame.py`, `gen-demo-gif.py` and `gen-bases-table.py` move to snake_case under item 25. `test-ids.py` and the research scripts already use it.
+	- Test case: none, a directive change.
+	- Closed: 20261004-140028
+
+- Five project helper scripts are GPL, where helpers are usually MIT. (Code review 20261004 item 33)
+	- ID: 2026100413480033
+	- Type: Task
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Note: `check-release.bash`, `check-vendor.bash`, `package.bash`, `release-notes.bash` and `interop/fetch.bash` all carry the Bubbles copyright with GPL. The other cicd helpers are MIT.
+	- Question: keep them GPL since they only make sense in this project, or move them to MIT?
+		- Answered: MIT.
+	- Progress log:
+		- Done: the five scripts are MIT, with the same header as the other helpers.
+		- Done: the two interop drivers, `qntm.mjs` and `llfourn2048/src/main.rs`, were also Bubbles and GPL, and were missed by the review. They are MIT now too.
+		- Note: eight Unicode research scripts under `utility/` are Bubbles and GPL as well. Left as they are, pending an answer.
+		- Note: the package license in `package.bash` stays GPL-2.0-or-later, since it is the command's.
+	- Test case: none, license headers only.
+	- Closed: 20261004-140028
+
+- `filter_2_messy.py` ends with a block of requirements written as instructions for a code generator. (Code review 20261004 item 34)
+	- ID: 2026100413480034
+	- Type: Task
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Note: `utility/include/filter_2_messy.py:449-477`, a bare string after the main block, from de93848 on 2026-05-08. It is public on main and in three tags.
+	- Note: the text is the project's own. It is filed only because it reads as a prompt, which no word scrub can catch.
+	- Question: delete it, fold the real requirements into the Purpose header, or keep it as is? History stays untouched either way.
+		- Answered: clean it up.
+	- Progress log:
+		- Done: the trailing block is gone. Its list of what gets filtered out moved into the Purpose header in its own words, without the lines aimed at whoever was writing the script. A spelling slip in the header was fixed.
+		- Note: the bitmap item lost its "can't fix" remark, since the script does filter box drawing, block elements and Braille by range.
+	- Verified: the same input gives the same output before and after.
+	- Test case: none, comments only, and the research scripts have no tests.
+	- Closed: 20261004-140028
 
 - The Unicode research pipeline repeats expensive work per chunk. (Code review 20261004 item 31)
 	- ID: 2026100413480031

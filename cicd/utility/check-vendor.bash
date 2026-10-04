@@ -18,8 +18,9 @@
 ##	History: At bottom.
 
 ##	Copyright (c) 2026 Bubbles
-##	Licensed under GNU GPL v2 <https://www.gnu.org/licenses/gpl-2.0.html>. No warranty.
-##	SPDX-License-Identifier: GPL-2.0-or-later
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
 
 set -Eeuo pipefail
 
