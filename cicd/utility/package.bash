@@ -10,6 +10,7 @@
 ##		    - the bare binary itself, per platform/arch (grab-and-run)
 ##		    - a macOS universal binary (amd64 + arm64), as tarball and bare,
 ##		      when both darwin builds were made
+##		    - the WASI build of the command, one .wasm for every CPU
 ##		    - .deb and .rpm per Linux arch (nfpm - cross-arch, no native tooling)
 ##		    - single-file Windows installer .exe per arch (makensis / NSIS)
 ##		    - checksums.txt
@@ -20,6 +21,8 @@
 ##		  missing, so a bare machine still gets the archives.
 ##		- Same script runs locally (via `make release` / cicd) and in the release
 ##		  workflow, so what ships is what was built and tested here.
+##		- Every binary carries a build number, taken from the commit's time
+##		  (--build-epoch, default HEAD's), so a rebuild matches the checksums.
 ##	History: At bottom.
 
 ##	Copyright (c) 2026 Bubbles
@@ -44,6 +47,8 @@ DESC_LONG="Convert numbers of arbitrary size to and from any base. Dozens of pre
 ## Defaults, overridable by flags. The lib/vX.Y.Z module tags are skipped: they land
 ## on the same commits as the command's tags, so describe would stamp the wrong one.
 VERSION="$(cd "${root}" && git describe --tags --always --dirty --exclude 'lib/*' 2>/dev/null || echo dev)"
+## Commit time, not the clock, so the same commit always builds the same bytes.
+BUILD_EPOCH="$(cd "${root}" && git log -1 --format=%ct 2>/dev/null || true)"
 OUT="${src}/dist"
 WANT_ARM=1
 
@@ -55,11 +60,13 @@ fUsage(){ sed -n '/^##	Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d;
 
 while (($#)); do case "$1" in
 	--version) VERSION="${2:?}"; shift 2 ;;
+	--build-epoch) BUILD_EPOCH="${2?}"; shift 2 ;;
 	--out)     OUT="${2:?}";     shift 2 ;;
 	--no-arm)  WANT_ARM=0;       shift ;;
 	-h|--help) fUsage; exit 0 ;;
 	*) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
 esac; done
+[[ -z "${BUILD_EPOCH}" || "${BUILD_EPOCH}" =~ ^[0-9]+$ ]] || { echo "--build-epoch takes unix seconds, not '${BUILD_EPOCH}'" >&2; exit 2; }
 
 ## A relative --out is resolved against the caller's CWD (make/cicd invoke from
 ## the source dir, so their `--out dist` lands at lib/dist as before).
@@ -96,7 +103,7 @@ for p in "${platforms[@]}"; do
 	binpath="${bindir}/${EXE}${ext}"
 
 	( cd "${src}" && CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" \
-		go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o "${binpath}" ./cmd/convert-base-v2 )
+		go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.buildEpoch=${BUILD_EPOCH}" -o "${binpath}" ./cmd/convert-base-v2 )
 
 	if [[ "${os}" == windows ]]; then
 		( cd "${bindir}" && zip -qr "${OUT}/${PKG}-${os}-${label}.zip" "${EXE}${ext}" )
@@ -122,6 +129,14 @@ if [[ -f "${work}/darwin-amd64/${EXE}" && -f "${work}/darwin-arm64/${EXE}" ]]; t
 	cp "${unidir}/${EXE}" "${OUT}/${PKG}-darwin-universal"
 	fEcho "built darwin/universal"
 fi
+
+
+#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## The whole command for any WASI runtime. Same build as `make wasm`.
+
+( cd "${src}" && CGO_ENABLED=0 GOOS=wasip1 GOARCH=wasm \
+	go build -trimpath -ldflags "-s -w -X main.version=${VERSION} -X main.buildEpoch=${BUILD_EPOCH}" -o "${OUT}/${PKG}.wasm" ./cmd/convert-base-v2 )
+fEcho "built wasip1/wasm"
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -205,3 +220,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt | wc -l) 
 ##	History:
 ##		- 2026-07-12: Created. Self-contained cross-build + deb/rpm/NSIS packaging, replacing goreleaser.
 ##		- 2026-10-03: macOS universal binary alongside the per-arch darwin builds.
+##		- 2026-10-04: Build number from the commit's time (--build-epoch). The WASI build ships too.

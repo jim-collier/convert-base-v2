@@ -89,7 +89,7 @@ Inside the package:
 
 - Query flags (`--list`, `--show-symbols`, and friends) each print one value and exit, so scripts can read the base set from the program itself.
 
-- The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` stays one bare line for scripts. Only the help reports on the config files, so the others print before any config is read.
+- The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` stays one bare line for scripts, such as `v3.1.0 build dbrk8`, or the version alone when the build was not stamped. Only the help reports on the config files, so the others print before any config is read.
 
 ## Key design decisions
 
@@ -153,6 +153,13 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 - **The version is a `var`, not a `const`.** The release build patches it through a linker flag, which only works on a var. The source value is the single source of truth for the released version.
 
+- **Every build has a build number, matching sister projects gitsby and shcl.** A version alone does not tell apart the many builds between two releases.
+	- It is the minutes from 2000-01-01 00:00 UTC to the commit's time, in lower-case Crockford base32. That is five characters until 2063, with no I, L, O or U to misread.
+	- It comes from the commit, never the clock. A clock stamp would change on every rebuild, so a published asset could never be rebuilt to its published checksum.
+	- The build passes the commit's unix seconds in through a second linker-patched var, `buildEpoch`, and the program does the encoding. A build with no stamp, such as `go install`, prints the version alone rather than make one up.
+	- It goes on the version line, not a line of its own, so `--version` stays one line.
+	- The browser and reactor modules report the library's own version, which names a package surface, not a build. They have no build number.
+
 - **Output stays deterministic and stable.** Given the same input and base, the output never changes across runs or platforms. Any future change that would alter output goes to a new version suffix so old scripts keep working.
 
 ## CI/CD and release flow
@@ -169,9 +176,13 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 	- Per platform: a tarball (zip on Windows) of the static binary, a `.deb` and `.rpm` for each Linux arch, a single-file Windows installer that adds the tool to PATH and can update an existing install, and a checksums file. macOS `.dmg` and a native FreeBSD `.pkg` are deferred; those platforms ship as tarballs for now.
 
+	- The WASI build of the command ships too, as one `.wasm` for every CPU.
+
 	- macOS also gets a universal binary, both darwin builds joined into one file. Packaging runs on Linux with no lipo, so `cicd/utility/macho-fat` does the join, and checks each slice against its input. The per-arch macOS assets stay, since the install script fetches those and they are half the size. A `--no-arm` run makes no universal binary.
 
-- Releases are automatic on a merge to `main`. The version var in `lib/cmd/convert-base-v2/main.go` is the source of truth. A guard runs first and fails the workflow if the version was not bumped, if it sorts behind the newest tag, or if the README Lifecycle badge does not match the version stage. On success the workflow tags, packages, and publishes.
+- Releases are automatic on a merge to `main`. The version var in `lib/cmd/convert-base-v2/main.go` is the source of truth. A guard runs first and fails the workflow if the version was not bumped, if it sorts behind the newest tag, or if the README Lifecycle badge does not match the version stage. On success the workflow packages and writes the notes, then tags and publishes, so a failed build leaves no tag.
+
+- The release notes come from `cicd/utility/release-notes.bash`: the version's changelog section, a downloads table with the OS in rows and the CPU in columns, then the version line read back from the built binary, so the notes and the download agree on the build number. The table is made from the files packaging wrote, and links each by the name GitHub serves it under, which turns a `~` into a `.`.
 
 - Release prep on `dev`: rename the changelog's next-version heading to the version and date, bump the version var, and set the Lifecycle badge to match the stage.
 

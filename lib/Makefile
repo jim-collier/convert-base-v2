@@ -2,12 +2,16 @@ BINARY := convert-base-v2
 ## Skip the lib/vX.Y.Z module tags - they sit on the same commits as the command's
 ## own tags, and describe would otherwise stamp the library's version on the binary.
 VERSION := $(shell git describe --tags --always --dirty --exclude 'lib/*' 2>/dev/null || echo dev)
+## The build number comes from the commit's time, never the clock, so a rebuild of
+## one commit gives the same bytes. Empty outside a clone: no build number then.
+BUILD_EPOCH := $(shell git log -1 --format=%ct 2>/dev/null)
+STAMP := -X main.version=$(VERSION) -X main.buildEpoch=$(BUILD_EPOCH)
 
 # Optimized (release/dogfood): stripped, no symbol/DWARF. Debug (test/profile):
 # keep symbols so delve works and flamegraphs read cleanly; still optimized so
 # the profile is representative.
-LDFLAGS       := -s -w -X main.version=$(VERSION)
-LDFLAGS_DEBUG := -X main.version=$(VERSION)
+LDFLAGS       := -s -w $(STAMP)
+LDFLAGS_DEBUG := $(STAMP)
 ## The browser module has no main.version var (it reports convertbase.Version).
 LDFLAGS_WEB   := -s -w
 
@@ -40,7 +44,7 @@ debug:
 # release pipeline (build, archive, deb/rpm, Windows installer, checksums)
 # lives in the self-contained packager so local runs and CI stay identical.
 release:
-	bash ../cicd/utility/package.bash --version '$(VERSION)' --out '$(DIST)'
+	bash ../cicd/utility/package.bash --version '$(VERSION)' --build-epoch '$(BUILD_EPOCH)' --out '$(DIST)'
 
 # The whole command, for any WASI runtime. Streams through real stdin/stdout,
 # so it behaves like the native binary rather than like a cut-down build.

@@ -142,6 +142,18 @@ done
 ## build from a clone once stamped the library's version on the command.
 _run --version
 { ((_rc == 0)) && [[ "$_out" == v[1-9]* ]]; } && _pass ErkSf4k "--version is the command's tag, not the library's" || _fail ErkSf4k "--version is the command's tag, not the library's" "out=[$_out]"
+## Still one line for scripts: the version, then the build number when the build
+## was stamped. Crockford base32, lower case, so no i, l, o or u.
+_run --version
+{ ((_rc == 0)) && [[ "$_out" =~ ^v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+)?$ ]]; } && _pass ErlL5dx "--version is one line, version then build number" || _fail ErlL5dx "--version is one line, version then build number" "out=[$_out]"
+## make stamps the commit's time, never the clock, so a release rebuilds to its checksums.
+cbEpoch="$(git -C "${meDir}" log -1 --format=%ct 2>/dev/null || true)"
+if [[ -z "${cbEpoch}" ]] || ! command -v make >/dev/null 2>&1; then
+	_warn ErlL5eT "make build stamp not checked (needs git and make)"
+else
+	cbMake="$(make -n -C "${meDir}/../lib" local debug wasm release 2>/dev/null || true)"
+	{ (($(grep -cF -- "-X main.buildEpoch=${cbEpoch}" <<<"$cbMake") == 3)) && grep -qF -- "--build-epoch '${cbEpoch}'" <<<"$cbMake"; } && _pass ErlL5eT "make stamps every command build with the commit's time" || _fail ErlL5eT "make stamps every command build with the commit's time" "want ${cbEpoch} in local, debug, wasm and release: [$cbMake]"
+fi
 check EizUJDd ok  "--help exits 0"          -   --help
 check EizUJDe ok  "-h exits 0"              -   -h
 check EizUJDf ok  "--examples exits 0"      -   --examples
@@ -1419,6 +1431,62 @@ section "macOS universal binary"
 mfrc=0
 (cd "${meDir}/utility/macho-fat" && go test -json -count=1 .) 2>&1 | python3 "${meDir}/utility/test-ids.py" report || mfrc=$?
 ((mfrc == 0)) && _pass ErftBA8 "macho-fat tests" || _fail ErftBA8 "macho-fat tests" "exit ${mfrc}, see the lines above"
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Release notes. The downloads table is built from the asset names package.bash
+## writes, so these fixtures use the same names. Every bare unix binary is a stub
+## that answers --version, so the build line is checked on any host.
+section "Release notes"
+rnDir="${CBT_TMP}/rn"; rnDist="${rnDir}/dist"; mkdir -p "${rnDist}"
+for rnName in checksums.txt convert-base-v2.wasm notes.txt \
+	convert-base-v2_9.9.9~beta1_amd64.deb convert-base-v2_9.9.9~beta1_arm64.deb \
+	convert-base-v2-9.9.9~beta1-1.x86_64.rpm convert-base-v2-9.9.9~beta1-1.aarch64.rpm \
+	convert-base-v2-{linux,darwin,freebsd}-{x86_64,arm64}{,.tgz} convert-base-v2-darwin-universal{,.tgz} \
+	convert-base-v2-windows-{x86_64,arm64}{.exe,.zip,-setup.exe}; do
+	if [[ "${rnName}" =~ ^convert-base-v2-(linux|darwin|freebsd)-[a-z0-9_]+$ ]]; then
+		printf '#!/bin/sh\necho "v9.9.9-beta1 build abcde"\n' >"${rnDist}/${rnName}"; chmod +x "${rnDist}/${rnName}"
+	else
+		: >"${rnDist}/${rnName}"
+	fi
+done
+printf '%s\n' '## vNEXT - DATE' '' '## v9.9.9-beta1 - 2026-10-04' '' '### Added' '' '- Something new.' '' '## v9.9.8 - 2026-10-01' '' '- Older.' >"${rnDir}/changelog.md"
+rnU="https://github.com/o/r/releases/download/v9.9.9-beta1"
+rnWant="$(cat <<EOF
+### Added
+
+- Something new.
+
+### Downloads
+
+| OS | x86_64 | arm64 | Universal
+| :--- | :--- | :--- | :---
+| Linux | [binary](${rnU}/convert-base-v2-linux-x86_64), [.tgz](${rnU}/convert-base-v2-linux-x86_64.tgz), [.deb](${rnU}/convert-base-v2_9.9.9.beta1_amd64.deb), [.rpm](${rnU}/convert-base-v2-9.9.9.beta1-1.x86_64.rpm) | [binary](${rnU}/convert-base-v2-linux-arm64), [.tgz](${rnU}/convert-base-v2-linux-arm64.tgz), [.deb](${rnU}/convert-base-v2_9.9.9.beta1_arm64.deb), [.rpm](${rnU}/convert-base-v2-9.9.9.beta1-1.aarch64.rpm) |
+| macOS | [binary](${rnU}/convert-base-v2-darwin-x86_64), [.tgz](${rnU}/convert-base-v2-darwin-x86_64.tgz) | [binary](${rnU}/convert-base-v2-darwin-arm64), [.tgz](${rnU}/convert-base-v2-darwin-arm64.tgz) | [binary](${rnU}/convert-base-v2-darwin-universal), [.tgz](${rnU}/convert-base-v2-darwin-universal.tgz)
+| Windows | [.exe](${rnU}/convert-base-v2-windows-x86_64.exe), [.zip](${rnU}/convert-base-v2-windows-x86_64.zip), [installer](${rnU}/convert-base-v2-windows-x86_64-setup.exe) | [.exe](${rnU}/convert-base-v2-windows-arm64.exe), [.zip](${rnU}/convert-base-v2-windows-arm64.zip), [installer](${rnU}/convert-base-v2-windows-arm64-setup.exe) |
+| FreeBSD | [binary](${rnU}/convert-base-v2-freebsd-x86_64), [.tgz](${rnU}/convert-base-v2-freebsd-x86_64.tgz) | [binary](${rnU}/convert-base-v2-freebsd-arm64), [.tgz](${rnU}/convert-base-v2-freebsd-arm64.tgz) |
+| WebAssembly (WASI) |  |  | [.wasm](${rnU}/convert-base-v2.wasm)
+
+Also: [notes.txt](${rnU}/notes.txt)
+
+Checksums for every file: [checksums.txt](${rnU}/checksums.txt)
+
+---
+
+convert-base-v2 v9.9.9-beta1 build abcde
+EOF
+)"
+rnrc=0; rnGot="$(bash "${meDir}/utility/release-notes.bash" --version v9.9.9-beta1 --dist "${rnDist}" --repo o/r --changelog "${rnDir}/changelog.md" 2>"${CBT_ERR}")" || rnrc=$?
+{ ((rnrc == 0)) && [[ "${rnGot}" == "${rnWant}" ]]; } && _pass ErlN8Nk "release notes: changelog, downloads table, build line" || _fail ErlN8Nk "release notes: changelog, downloads table, build line" "rc=${rnrc} diff: $(diff <(printf '%s\n' "${rnWant}") <(printf '%s\n' "${rnGot}") || true)"
+grep -qF "not a known asset, listed under the table: notes.txt" "${CBT_ERR}" && _pass ErlN8OJ "release notes warn of a file they can't place" || _fail ErlN8OJ "release notes warn of a file they can't place" "stderr=[$(cat "${CBT_ERR}")]"
+## A --no-arm run, and a build that says another version: only the column that
+## has something, and no build line rather than a wrong one.
+rnDist2="${rnDir}/dist2"; mkdir -p "${rnDist2}"
+cp -p "${rnDist}"/convert-base-v2-linux-x86_64{,.tgz} "${rnDist}"/convert-base-v2-windows-x86_64.zip "${rnDist2}/"
+rnGot="$(bash "${meDir}/utility/release-notes.bash" --version v9.9.9 --dist "${rnDist2}" --repo o/r --changelog "${rnDir}/changelog.md" 2>"${CBT_ERR}" || true)"
+rnU="https://github.com/o/r/releases/download/v9.9.9"
+rnWant="$(printf '%s\n' 'See changelog.md.' '' '### Downloads' '' '| OS | x86_64' '| :--- | :---' "| Linux | [binary](${rnU}/convert-base-v2-linux-x86_64), [.tgz](${rnU}/convert-base-v2-linux-x86_64.tgz)" "| Windows | [.zip](${rnU}/convert-base-v2-windows-x86_64.zip)")"
+{ [[ "${rnGot}" == "${rnWant}" ]] && grep -qF "so the notes name no build number" "${CBT_ERR}"; } && _pass ErlN8Oq "release notes: only filled columns, no build line for another version" || _fail ErlN8Oq "release notes: only filled columns, no build line for another version" "got=[${rnGot}] stderr=[$(cat "${CBT_ERR}")]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

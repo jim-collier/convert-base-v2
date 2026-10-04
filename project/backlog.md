@@ -59,24 +59,94 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `--version` also shows the build number: Linux epoch seconds, in lower-case Crockford base 32.
 	- ID: 2026100408500169
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its CLI surface section was run, 36 of 36.
 	- Priority: Avg
 	- Opened: 20261004-085001
 	- Opened by: JC
 	- Target OS: Any
 	- Note: release builds are rebuilt to their published checksums, so the seconds should come from the commit date, not the clock.
 	- Note: `--version` alone prints one bare line today, and scripts may read it.
+	- Progress log:
+		- Done: `--version` prints `v3.0.0 build dbrk8` when the build was stamped, and the version alone when not. `--about` and the help open with the same line.
+		- Done: `make local`, `make debug`, `make wasm` and `make release` stamp the commit's time. `package.bash` takes `--build-epoch`, and defaults to HEAD's commit time, so the release workflow's build is stamped with no change there.
+		- Fixed: `install.bash` compared the whole `--version` line to the release tag, so with a build number on it every run would have reinstalled. It compares the version part now.
+		- Note: `lib/wasm` and `lib/reactor` are unchanged. They report `convertbase.Version`, the library's own number, which names a package surface rather than a build.
+		- Note: the parity and interop harnesses compare conversion answers only, never the version line, so they are unaffected.
+	- Decisions:
+		- Match sister projects gitsby and shcl, not the epoch seconds in the title: minutes from 2000-01-01 00:00 UTC to the commit's time, in lower-case Crockford base32, five characters until 2063.
+		- Taken from the commit date, never the clock, so release builds still rebuild to their published checksums.
+		- Same line, like the sisters: `v3.0.0 build dbrk8`. A build with no stamp, such as `go install`, prints the version alone, as before.
+		- It stays a `var` patched by `-X`, beside `version`.
+		- `--version` alone stays one line, per 2026100313304797. `--about` still covers it.
+	- Swept: every `-X main.version` in the tree (Makefile, `package.bash`), every reader of `--version` (`install.bash`, `cicd.bash` log lines, the harness), the three hosted workflows (`release.yml` builds through `package.bash`, `ci.yml` builds unstamped, `pages.yml` builds only the browser module), and the docs that describe the version output.
+	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The four new Go tests and the two new harness checks fail with the version on two lines, `buildEpoch` as a const, or the Makefile without the stamp, and pass with the change. A plain `go build` prints `v3.0.0` alone. `make release` twice a minute apart gives the same checksums for every bare binary. `test-ids.py check` passes. Shellcheck finds nothing new beyond the harness's usual `A && B || C` notes.
+	- Branch: build-num
+	- Commit: d8ac98d
+	- Test case: `ErlL5bp` TestCrockfordBase32, `ErlL5cK` TestBuildNumber, `ErlL5cs` TestVersionText and `ErlL5dO` TestBuildEpochIsPatchable; `ErlL5dx` "--version is one line, version then build number" and `ErlL5eT` "make stamps every command build with the commit's time" in the harness.
 
 
 - Release notes group the downloads in a table, with CPU architecture in columns and target OS in rows.
 	- ID: 2026100409572736
 	- Type: Feature
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its new release notes section was run, 3 of 3.
+	- Needs external testing: The next release on GitHub. Check that the table renders, that every link downloads, and that the notes end with the build line.
 	- Priority: Avg
 	- Opened: 20261004-095727
 	- Opened by: JC
 	- Target OS: Any
 	- Note: the notes are written in `.github/workflows/release.yml`, in its "release notes" step.
+	- Progress log:
+		- Done: the notes come from the new `cicd/utility/release-notes.bash`: the changelog section, then a downloads table, then a checksums link, then the version line the linux-x86_64 build prints, build number included. It publishes nothing, so it runs by hand against `make release`.
+		- Done: the table is made from the files packaging wrote. A row or column with nothing in it is left out, so a `--no-arm` build has no arm64 column. A file it can't place is still linked under the table, with a warning.
+		- Done: links use the name GitHub serves an asset under, so a prerelease `.deb` named with `~` links to its `.` name.
+		- Done: packaging now also ships the WASI build of the command, `convert-base-v2.wasm`, so WebAssembly has something in its row.
+		- Done: the workflow packages and writes the notes before it tags, so a failed build leaves no tag behind.
+		- Fixed: the old notes step matched the changelog heading by prefix, so a v3.1.0 release would have taken a v3.1.0-beta1 section. It matches the whole version now.
+		- Note: found along the way, logged as 2026100412472515: `checksums.txt` names prerelease packages with `~`, which GitHub renames on upload.
+		- Note: found along the way, logged as 2026100412472615: the archives and packages don't rebuild to the same bytes. The binaries do.
+	- Decisions:
+		- Columns are x86_64, arm64 and Universal. Rows are Linux, macOS, Windows, FreeBSD and WebAssembly (WASI). Best guess, reversible.
+		- macOS gets the universal build in the Universal column, beside its per-arch builds.
+		- WebAssembly gets a row, with the WASI command in the Universal column, since one file runs on every CPU. The reactor module is not shipped. Best guess, reversible.
+		- The notes end with the build's version line, as gitsby's do.
+	- Verified: the table was made from a real `make release` output of 25 files and reads right. The three new harness checks fail with the old heading match, without the GitHub name rule, with `.wasm` unplaced, or without the warning, and pass with the change. `make release` twice a minute apart gives the same checksums for every bare binary and the `.wasm`. Shellcheck finds nothing in the new script, and nothing new elsewhere beyond the harness's usual `A && B || C` notes. `test-ids.py check` passes. Nothing was tagged or published.
+	- Branch: build-num
+	- Commit: 947757f
+	- Test case: `ErlN8Nk` "release notes: changelog, downloads table, build line", `ErlN8OJ` "release notes warn of a file they can't place" and `ErlN8Oq` "release notes: only filled columns, no build line for another version" in the harness. The workflow itself only runs on a merge to main.
+
+
+- `checksums.txt` names a prerelease `.deb` or `.rpm` with a `~`, but GitHub serves the file with a `.` there.
+	- ID: 2026100412472515
+	- Type: Bug
+	- Status: Queued
+	- Severity: Avg
+	- Opened: 20261004-124725
+	- Opened by: found while working 2026100409572736
+	- Target OS: Linux
+	- Steps to reproduce:
+		- `make release` on a prerelease version such as v3.1.0-beta1, upload, then `sha256sum -c checksums.txt` beside the downloaded packages.
+	- Incorrect behavior: nfpm names the packages `3.1.0~beta1`, `checksums.txt` lists that name, and GitHub serves `3.1.0.beta1`, so the check can't find the files.
+	- Expected behavior: the names in `checksums.txt` match the names served.
+	- Reproduced: not yet. Read only; no prerelease has shipped packages so far. The next release is a beta.
+	- Possible cause: packaging hashes before GitHub's rename. Rename before hashing.
+
+
+- The release archives and packages don't rebuild to the same bytes.
+	- ID: 2026100412472615
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-124726
+	- Opened by: found while working 2026100409572736
+	- Target OS: Any
+	- Steps to reproduce:
+		- `make release` twice, a minute apart, on the same commit.
+	- Incorrect behavior: every bare binary and the `.wasm` match, but the `.tgz`, `.zip`, `.deb`, `.rpm` and installer checksums differ.
+	- Expected behavior: a rebuild of one commit matches the published checksums for every asset.
+	- Reproduced: 20261004.
+	- Possible cause: file times and archive headers taken from the clock. Probably fixed by setting them from the commit's time.
 
 
 - A field written under another field in a config file is ignored without a word.
