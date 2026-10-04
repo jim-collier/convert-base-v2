@@ -34,26 +34,31 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- macOS gets a universal binary for both amd64 and ARM.
-	- ID: 2026100313304792
-	- Type: Enhancement
+- `checksums.txt` names a prerelease `.deb` or `.rpm` with a `~`, but GitHub serves the file with a `.` there.
+	- ID: 2026100412472515
+	- Type: Bug
 	- Status: Waiting for testing
-	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Intel Mac and on an Apple silicon Mac. Check `--version` and one conversion on each, and that Gatekeeper treats it the same as the per-arch build.
-	- Opened: 20261003-133047
-	- Opened by: JC
-	- Target OS: macOS
-	- Progress log:
-		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
-		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
-		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
-		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
-	- Decisions:
-		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
-		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
-	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
-	- Branch: mac-universal
-	- Commit: 22452c9
-	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
+	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its new release packaging section was run, 3 of 3.
+	- Needs external testing: The next beta on GitHub. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
+	- Severity: Avg
+	- Opened: 20261004-124725
+	- Opened by: found while working 2026100409572736
+	- Target OS: Linux
+	- Steps to reproduce:
+		- `make release` on a prerelease version such as v3.1.0-beta1, upload, then `sha256sum -c checksums.txt` beside the downloaded packages.
+	- Incorrect behavior: nfpm names the packages `3.1.0~beta1`, `checksums.txt` lists that name, and GitHub serves `3.1.0.beta1`, so the check can't find the files.
+	- Expected behavior: the names in `checksums.txt` match the names served.
+	- Reproduced: not yet. Read only; no prerelease has shipped packages so far. The next release is a beta.
+		- 20261004: packaging v9.9.9-beta1 put four `~` names in `checksums.txt`. With the files under the names GitHub would serve, `sha256sum -c` could not find those four.
+	- Possible cause: packaging hashes before GitHub's rename. Rename before hashing.
+	- Actual cause: nfpm names the file after the package version, which has a `~` for a prerelease, and nothing changed that name before the checksums were taken.
+	- Actual fix: packaging renames any file GitHub would rename to the name GitHub serves, before it writes `checksums.txt`. Two files that would end up with one name stop the run. The version inside the package keeps the `~`.
+	- Sweep: everything that builds or reads an asset name.
+	- Swept: `release-notes.bash` already links the served name, and now finds the renamed packages with no warning. `install.bash` fetches only the bare binary and `checksums.txt`, and neither name has a `~`. The release workflow uploads `lib/dist/*` as written. `cicd.bash` counts the files by extension. The installer shows the version but its file name has none.
+	- Verified: a v9.9.9-beta1 package run names all four packages with a `.`, and `sha256sum -c checksums.txt` passes beside them. `dpkg-deb` and `rpm` read `9.9.9~beta1` from inside them, and dpkg sorts that below 9.9.9. `ErlP6Bg` fails with dev's packaging and passes with the fix. `ErlP6CE` passes on both, and fails when the package version is given a `.` in place of the `~`. Nothing was tagged or published.
+	- Branch: pkg-repro
+	- Commit: cdd002f
+	- Test case: `ErlP6Bg` "prerelease packages named as GitHub serves them" and `ErlP6CE` "prerelease package version keeps its ~" in the harness.
 
 
 - `--version` also shows the build number: Linux epoch seconds, in lower-case Crockford base 32.
@@ -117,33 +122,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `ErlN8Nk` "release notes: changelog, downloads table, build line", `ErlN8OJ` "release notes warn of a file they can't place" and `ErlN8Oq` "release notes: only filled columns, no build line for another version" in the harness. The workflow itself only runs on a merge to main.
 
 
-- `checksums.txt` names a prerelease `.deb` or `.rpm` with a `~`, but GitHub serves the file with a `.` there.
-	- ID: 2026100412472515
-	- Type: Bug
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes, the full `cicd/test.bash`. Only its new release packaging section was run, 3 of 3.
-	- Needs external testing: The next beta on GitHub. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
-	- Severity: Avg
-	- Opened: 20261004-124725
-	- Opened by: found while working 2026100409572736
-	- Target OS: Linux
-	- Steps to reproduce:
-		- `make release` on a prerelease version such as v3.1.0-beta1, upload, then `sha256sum -c checksums.txt` beside the downloaded packages.
-	- Incorrect behavior: nfpm names the packages `3.1.0~beta1`, `checksums.txt` lists that name, and GitHub serves `3.1.0.beta1`, so the check can't find the files.
-	- Expected behavior: the names in `checksums.txt` match the names served.
-	- Reproduced: not yet. Read only; no prerelease has shipped packages so far. The next release is a beta.
-		- 20261004: packaging v9.9.9-beta1 put four `~` names in `checksums.txt`. With the files under the names GitHub would serve, `sha256sum -c` could not find those four.
-	- Possible cause: packaging hashes before GitHub's rename. Rename before hashing.
-	- Actual cause: nfpm names the file after the package version, which has a `~` for a prerelease, and nothing changed that name before the checksums were taken.
-	- Actual fix: packaging renames any file GitHub would rename to the name GitHub serves, before it writes `checksums.txt`. Two files that would end up with one name stop the run. The version inside the package keeps the `~`.
-	- Sweep: everything that builds or reads an asset name.
-	- Swept: `release-notes.bash` already links the served name, and now finds the renamed packages with no warning. `install.bash` fetches only the bare binary and `checksums.txt`, and neither name has a `~`. The release workflow uploads `lib/dist/*` as written. `cicd.bash` counts the files by extension. The installer shows the version but its file name has none.
-	- Verified: a v9.9.9-beta1 package run names all four packages with a `.`, and `sha256sum -c checksums.txt` passes beside them. `dpkg-deb` and `rpm` read `9.9.9~beta1` from inside them, and dpkg sorts that below 9.9.9. `ErlP6Bg` fails with dev's packaging and passes with the fix. `ErlP6CE` passes on both, and fails when the package version is given a `.` in place of the `~`. Nothing was tagged or published.
-	- Branch: pkg-repro
-	- Commit: cdd002f
-	- Test case: `ErlP6Bg` "prerelease packages named as GitHub serves them" and `ErlP6CE` "prerelease package version keeps its ~" in the harness.
-
-
 - The release archives and packages don't rebuild to the same bytes.
 	- ID: 2026100412472615
 	- Type: Bug
@@ -171,6 +149,28 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: pkg-repro
 	- Commit: cdd002f
 	- Test case: `ErlP6B8` "release assets rebuild to the same bytes" in the harness.
+
+
+- macOS gets a universal binary for both amd64 and ARM.
+	- ID: 2026100313304792
+	- Type: Enhancement
+	- Status: Waiting for testing
+	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Intel Mac and on an Apple silicon Mac. Check `--version` and one conversion on each, and that Gatekeeper treats it the same as the per-arch build.
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Target OS: macOS
+	- Progress log:
+		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
+		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
+		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
+		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
+	- Decisions:
+		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
+		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
+	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
+	- Branch: mac-universal
+	- Commit: 22452c9
+	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
 
 
 - A field written under another field in a config file is ignored without a word.
