@@ -8,6 +8,7 @@ package convertbase
 import (
 	"errors"
 	"strings"
+	"unicode/utf8"
 )
 
 // Internal placeholders standing in for whitespace characters that were escaped
@@ -19,6 +20,8 @@ const (
 	phTab     = '\uFFFF'
 	phNewline = '\uFDD0'
 )
+
+const placeholders = string(phSpace) + string(phTab) + string(phNewline)
 
 // ParseSymbolSpec parses a whitespace-delimited spec string into digit symbols.
 //
@@ -44,19 +47,18 @@ const (
 //	\n        -> newline
 //	\"        -> double quote
 func ParseSymbolSpec(s string) ([]string, error) {
-	if strings.ContainsAny(s, string([]rune{phSpace, phTab, phNewline})) {
+	if strings.ContainsAny(s, placeholders) {
 		return nil, errors.New("symbol spec contains a reserved noncharacter (U+FFFE/U+FFFF/U+FDD0)")
 	}
 	s = unescapeSpec(s)
 
-	var symbols []string
-	var digitTokens []string
-	for _, t := range strings.Fields(s) {
+	digitTokens := strings.Fields(s)
+	for i, t := range digitTokens {
 		t = restorePlaceholders(t)
 		if err := checkRetiredToken(t); err != nil {
 			return nil, err
 		}
-		digitTokens = append(digitTokens, t)
+		digitTokens[i] = t
 	}
 	if len(digitTokens) == 0 {
 		return nil, errors.New("symbol spec has no digit symbols")
@@ -64,24 +66,27 @@ func ParseSymbolSpec(s string) ([]string, error) {
 	if len(digitTokens) == 1 {
 		t := digitTokens[0]
 		if strings.Contains(t, ",") {
-			symbols = splitCommas(t)
-		} else {
-			for _, r := range t {
-				symbols = append(symbols, string(r))
-			}
+			return splitCommas(t), nil
 		}
-	} else {
-		// Multiple tokens: each is one symbol, but a token may still carry a
-		// comma-delimited group (the doc's "0,1 2 3" -> four digits). Only split
-		// when it yields two or more symbols, so a bare "," token stays the
-		// literal comma digit - some builtin alphabets (e.g. 85ps) rely on that.
-		for _, t := range digitTokens {
-			if parts := splitCommas(t); strings.Contains(t, ",") && len(parts) >= 2 {
+		symbols := make([]string, 0, utf8.RuneCountInString(t))
+		for _, r := range t {
+			symbols = append(symbols, string(r))
+		}
+		return symbols, nil
+	}
+	// Multiple tokens: each is one symbol, but a token may still carry a
+	// comma-delimited group (the doc's "0,1 2 3" -> four digits). Only split
+	// when it yields two or more symbols, so a bare "," token stays the
+	// literal comma digit - some builtin alphabets (e.g. 85ps) rely on that.
+	symbols := make([]string, 0, len(digitTokens))
+	for _, t := range digitTokens {
+		if strings.Contains(t, ",") {
+			if parts := splitCommas(t); len(parts) >= 2 {
 				symbols = append(symbols, parts...)
-			} else {
-				symbols = append(symbols, t)
+				continue
 			}
 		}
+		symbols = append(symbols, t)
 	}
 	return symbols, nil
 }
@@ -148,16 +153,17 @@ func unescapeSpec(s string) string {
 // unescapeSpec for escaped whitespace) back to the real characters, after the
 // whitespace split is done.
 func restorePlaceholders(s string) string {
-	if !strings.ContainsAny(s, string([]rune{phSpace, phTab, phNewline})) {
+	if !strings.ContainsAny(s, placeholders) {
 		return s
 	}
-	r := strings.NewReplacer(
-		string(phSpace), " ",
-		string(phTab), "\t",
-		string(phNewline), "\n",
-	)
-	return r.Replace(s)
+	return placeholderRestorer.Replace(s)
 }
+
+var placeholderRestorer = strings.NewReplacer(
+	string(phSpace), " ",
+	string(phTab), "\t",
+	string(phNewline), "\n",
+)
 
 func splitCommas(s string) []string {
 	parts := strings.Split(s, ",")
