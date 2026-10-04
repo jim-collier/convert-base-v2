@@ -60,6 +60,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A raw block as a config value was mishandled. Under `symbols` it was reported as missing symbols, and under `aliases` or `tail` it was dropped without a word. A marker took the block's text, line breaks and all. Every field now refuses one, naming the base, the field and the line, since rows of digits could mean one digit per row or one per character.
 
+- A failed write of the result, such as to a full disk, exited 0 with nothing written. A conversion, `--list`, `--get-index-count`, `--get-base-name` and piped input all report the error and exit 1 now, as `-n`, `--version` and streaming already did.
+
+- The config file written on the first run went straight to its path, so a crash could leave half of it, and two first runs at once could both write it. It is written to a temp file and moved into place now, and only one run creates it.
+
+- `.` and `-.` converted to `0`. They have no digits, so they get the same `no digits in input` error as an empty value. `.5` and `5.` still read as numbers.
+
 ## v3.0.0 - 2026-08-04
 
 ### Notes

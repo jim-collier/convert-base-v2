@@ -59,7 +59,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - A failed write of the result still exits 0. (Code review 20261004 item 1)
 	- ID: 2026100413480001
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes. The full `cicd/test.bash`. Its fuzz, back-compat and interop sections compare command output and were not run on this change.
 	- Severity: High
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -73,11 +74,18 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Probable fix: one buffered writer over stdout in `run()`, with the flush error returned.
 	- Origin: `main.go:509` and its siblings, from the first v1.0.0-rc1 commit ad488ce. Not seen by an earlier round. Confirmed.
 	- Sweep: every stdout write in `lib/cmd`, `lib/wasm` and `lib/reactor`.
+	- Actual cause: the result prints were unchecked, as the possible cause says. Only `-n` output, `--version`/`--help` and the streams checked their writes.
+	- Actual fix: one buffered writer over stdout in `run()`. It keeps the first write error, and the deferred flush returns it, so the run exits 1 with the error. The streams still write stdout directly and check their own writes. The errcheck exclusions in `.golangci.yml` add that writer's `WriteString`, and their comment now says where each kind of write is checked.
+	- Swept: every stdout write in `lib/cmd/convert-base-v2`, all in `main.go`: the info flags, `--list` and `--list-compat`, `--get-index-count`, `--get-base-name`, `--show-symbols` and `-0`, the newline after a stream, and the result. `lib/wasm` and `lib/reactor` write nothing to stdout, by `grep -n 'os.Stdout\|fmt.Print'`. The library's `Registry.Print` writes to the writer it is given, so its errors come out at the command's flush.
+	- Verified: 20261004, the harness sections from CLI surface through control-character escapes pass, 342 of 342, and so do the reactor, browser module and frontend parity sections. Output of 25 sample commands matched the dev build byte for byte, apart from the version stamp. go vet, golangci-lint, staticcheck and `go test ./...` clean.
+	- Branch: exit-fixes
+	- Commit: 7eb27c9
+	- Test case: harness check `Erm02E7`, 13 ways of writing a result to `/dev/full`. On dev 8 of them exit 0. With the fix all 13 fail with the write error.
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on signoff
 	- Severity: High
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -91,6 +99,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Possible cause: `userconfig.go:51` uses `os.WriteFile`. The migration path already writes atomically.
 	- Probable fix: `shcl.WriteFileAtomic`, which creates exclusively through a temp file and a link.
 	- Origin: `userconfig.go:51`, last touched by 51f59b6 on 2026-10-03; the in-place write is older. Not seen by an earlier round. Confirmed.
+	- Actual cause: `os.WriteFile` creates and truncates in place, so a half-written file is visible, and a second run that passed the existence check writes over the first.
+	- Actual fix: `shcl.WriteFileAtomic`. The text goes to a synced temp file, which is then linked into place. The link fails if anything turned up at the path, so only one run creates the file and the rest leave it be. The truncated-copy case has the same cause: now a whole file appears or none does.
+	- Note: a new file takes 0666 less the umask, like any newly created file, where it took 0644 less the umask. Under the usual 022 umask both are 0644. A crash mid-write can leave a `.convert-base-v2.shcl.tmp*` file beside the config instead of a broken config.
+	- Verified: 20261004, go vet, golangci-lint and `go test ./...` clean.
+	- Branch: exit-fixes
+	- Commit: e5892c9
+	- Test case: `ErlzPLg` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
+	- Acceptance signoff: open, since it changes how the program writes a file in the home directory.
 
 - A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
 	- ID: 2026100413480003
@@ -143,7 +159,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `.` and `-.` convert to `0` at exit 0. (Code review 20261004 item 6)
 	- ID: 2026100413480006
 	- Type: Bug
-	- Status: Queued
+	- Status: Done
 	- Severity: Avg
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -156,6 +172,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Possible cause: the empty integer part is set to the zero digit before the no-digits check runs, so the check never sees an empty value.
 	- Origin: `convert.go:372-379`, from the first v1.0.0-rc1 commit ad488ce. Not seen by an earlier round. Confirmed.
 	- Sweep: the same check in `lib/wasm` and `lib/reactor`, which call the same `Convert`.
+	- Actual cause: the empty integer part became the zero digit before the no-digits check, and that check only caught a fully empty value.
+	- Actual fix: the check runs first and fails when both sides of the decimal marker are empty. `.5` and `5.` still read as numbers.
+	- Swept: `lib/wasm` and `lib/reactor` have no check of their own. Both call the same `Convert`. The frontend parity section now sends `.` and `-.` through the command, the module and the reactor.
+	- Verified: 20261004, `.` and `-.` give `no digits in input` at exit 1. Parity passes over 209 cases on both the module and the reactor.
+	- Branch: exit-fixes
+	- Commit: 74cf4ea
+	- Test case: `Erlz3L2` TestMarkersWithoutDigits and harness check `ErlzAd6`. Both fail on dev and pass with the fix.
+	- Acceptance signoff: Self-closed: reproduced, its tests fail before the fix and pass after, and the sweep is answered.
+	- Closed: 20261004-152620
 
 - The constant-memory check never runs in a normal pipeline. (Code review 20261004 item 7)
 	- ID: 2026100413480007
