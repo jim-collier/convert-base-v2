@@ -68,6 +68,17 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: `--version` alone prints one bare line today, and scripts may read it.
 
 
+- Release notes group the downloads in a table, with CPU architecture in columns and target OS in rows.
+	- ID: 2026100409572736
+	- Type: Feature
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261004-095727
+	- Opened by: JC
+	- Target OS: Any
+	- Note: the notes are written in `.github/workflows/release.yml`, in its "release notes" step.
+
+
 - A field written under another field in a config file is ignored without a word.
 	- ID: 2026100314430255
 	- Type: Bug
