@@ -88,7 +88,8 @@ fClassify(){
 
 ## GitHub serves an uploaded asset under a name with every character outside
 ## [A-Za-z0-9._-] turned into a dot, so a "3.1.0~beta1" package downloads as
-## "3.1.0.beta1". Link the name it will have.
+## "3.1.0.beta1". package.bash already renames them, so this only matters for
+## a dist dir made some other way. Link the name it will have.
 baseUrl="https://github.com/${REPO}/releases/download/${VERSION}"
 entries=(); others=(); checksums=""
 for path in "${DIST}"/*; do
