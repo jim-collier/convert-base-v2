@@ -88,6 +88,9 @@ fRefresh(){
 		fDownloadPin "${archive}" "${url}" "${name}" "${version}" "${want}" \
 			|| fDie "could not download ${name} ${version} from ${url}"
 
+		## The name comes from pins.env. Empty, or with a slash, it would point
+		## the remove at thirdparty/ itself or outside it.
+		[[ "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fDie "pins.env name '${name}' is not a plain directory name"
 		## Both archive kinds wrap everything in one top directory whose name
 		## carries the version, so strip it and keep our own stable name.
 		dest="${here}/thirdparty/${name}"

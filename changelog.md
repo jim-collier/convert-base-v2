@@ -66,6 +66,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `.` and `-.` converted to `0`. They have no digits, so they get the same `no digits in input` error as an empty value. `.5` and `5.` still read as numbers.
 
+- `make release` and `make clean` emptied whatever directory `DIST` named. They now clear only a directory a build made, and refuse one that holds other files.
+
+- The install script stopped with no message when the release had no tag or `checksums.txt` had no line for the download. It now says which.
+
 ## v3.0.0 - 2026-08-04
 
 ### Notes

@@ -115,8 +115,9 @@ fi
 ## Fed from a here-string, not from a command in the pipeline. grep -m1 quits at
 ## the first match, and a writer still filling the pipe behind it dies of SIGPIPE,
 ## which pipefail turns into a silent exit 141 before anything has happened. The
-## release listing grew past the pipe buffer, so that is not hypothetical.
-tag="$(grep -m1 '"tag_name"' <<<"${releaseJson}" | sed 's/.*: *"//; s/".*//')"
+## release listing grew past the pipe buffer, so that is not hypothetical. The
+## || true lets a listing with no tag reach the message below.
+tag="$(grep -m1 '"tag_name"' <<<"${releaseJson}" | sed 's/.*: *"//; s/".*//' || true)"
 [[ -n "${tag}" ]] || fDie "could not determine the ${RELEASE} release tag"
 
 asset="${PKG}-${os}-${ARCH}"
@@ -164,7 +165,7 @@ curl -fsSL -o "${work}/checksums.txt" "https://github.com/${REPO}/releases/downl
 	|| fDie "download failed: checksums.txt for ${tag}"
 
 fEcho "Verifying checksum"
-want="$(grep -m1 -E " \*?${asset}\$" "${work}/checksums.txt" | cut -d' ' -f1)"
+want="$(grep -m1 -E " \*?${asset}\$" "${work}/checksums.txt" | cut -d' ' -f1 || true)"
 [[ -n "${want}" ]] || fDie "no checksum for ${asset} in checksums.txt"
 got="$(${shaCmd} "${work}/${asset}" | cut -d' ' -f1)"
 [[ "${got}" == "${want}" ]] || fDie "checksum mismatch (expected ${want}, got ${got})"

@@ -26,6 +26,7 @@
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
+##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
 ##			- CICDTEST_EXE ..........: path to the binary under test (default: ../lib/bin/convert-base-v2).
@@ -1513,6 +1514,30 @@ rnWant="$(printf '%s\n' 'See changelog.md.' '' '### Downloads' '' '| OS | x86_64
 ## and time zone and comes seconds later, so anything taken from the clock or
 ## the host shows up as a changed checksum.
 section "Release packaging"
+## --out is cleared only when a build made it. The go here always fails, so
+## each run stops right after the clearing and builds nothing.
+pgDir="${CBT_TMP}/pg"; pgBin="${pgDir}/bin"; pgMark=".convert-base-v2-dist"
+mkdir -p "${pgBin}" "${pgDir}/theirs" "${pgDir}/empty"
+printf '#!/bin/sh\nexit 1\n' >"${pgBin}/go"; chmod +x "${pgBin}/go"
+echo keep >"${pgDir}/theirs/notes.txt"
+## What a dir holds, for a failure message.
+fNames(){ find "$1" -mindepth 1 -maxdepth 1 -printf '%f ' 2>&1 || true; }
+fPgRun(){ PATH="${pgBin}:${PATH}" bash "${meDir}/utility/package.bash" --version v9.9.9 --build-epoch 1700000000 --out "$1" >/dev/null 2>"${CBT_ERR}"; }
+pgrc=0; fPgRun "${pgDir}/theirs" || pgrc=$?
+{ ((pgrc != 0)) && [[ -f "${pgDir}/theirs/notes.txt" ]] && grep -qF "no sign a build made them" "${CBT_ERR}"; } && _pass Erm3Sws "package.bash leaves alone an --out it did not make" \
+	|| _fail Erm3Sws "package.bash leaves alone an --out it did not make" "rc=${pgrc} left: [$(fNames "${pgDir}/theirs")] err=[$(cat "${CBT_ERR}")]"
+fPgRun "${pgDir}/ours" || true
+mkdir -p "${pgDir}/ours/sub"; echo old >"${pgDir}/ours/old.tgz"
+fPgRun "${pgDir}/ours" || true
+fPgRun "${pgDir}/empty" || true
+{ [[ -f "${pgDir}/ours/${pgMark}" && -f "${pgDir}/empty/${pgMark}" && ! -e "${pgDir}/ours/old.tgz" && ! -e "${pgDir}/ours/sub" ]]; } && _pass Erm3SxT "package.bash clears an --out it made, and takes an empty one" \
+	|| _fail Erm3SxT "package.bash clears an --out it made, and takes an empty one" "ours: [$(fNames "${pgDir}/ours")] empty: [$(fNames "${pgDir}/empty")]"
+## make clean takes the same rule. BINARY is pointed away from lib/'s own build.
+mkdir -p "${pgDir}/mc-theirs" "${pgDir}/mc-ours"; echo keep >"${pgDir}/mc-theirs/notes.txt"; : >"${pgDir}/mc-ours/${pgMark}"; : >"${pgDir}/mc-ours/old.tgz"
+mcrc=0; make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc-theirs" >/dev/null 2>&1 || mcrc=$?
+make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc-ours" >/dev/null 2>&1 || true
+{ ((mcrc != 0)) && [[ -f "${pgDir}/mc-theirs/notes.txt" && ! -e "${pgDir}/mc-ours" ]]; } && _pass Erm3Syv "make clean removes only a dist dir a build made" \
+	|| _fail Erm3Syv "make clean removes only a dist dir a build made" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
 pkDir="${CBT_TMP}/pk"; pkrc=0
 pkArgs=(--version v9.9.9-beta1 --build-epoch 1700000000)
 bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/a" >/dev/null 2>"${CBT_ERR}" || pkrc=$?
@@ -1524,6 +1549,9 @@ else
 	pkDiff="$(diff "${pkSums}" "${pkDir}/b/checksums.txt" | sed -n 's/^> [0-9a-f]* *//p' | tr '\n' ' ' || true)"
 	[[ -z "${pkDiff}" ]] && _pass ErlP6B8 "release assets rebuild to the same bytes" || _fail ErlP6B8 "release assets rebuild to the same bytes" "differ: ${pkDiff}"
 fi
+## The mark stays out of checksums.txt, which lists what gets uploaded.
+{ [[ -s "${pkSums}" && -f "${pkDir}/a/${pgMark}" ]] && ! grep -qF -- "${pgMark}" "${pkSums}"; } && _pass Erm3SyD "dist mark is not a release asset" \
+	|| _fail Erm3SyD "dist mark is not a release asset" "mark: $([[ -f "${pkDir}/a/${pgMark}" ]] && echo yes || echo no), sums: $(grep -cF -- "${pgMark}" "${pkSums}" 2>/dev/null || true)"
 if ! command -v nfpm >/dev/null 2>&1; then
 	_warn "ErlP6Bg ErlP6CE" "prerelease package checks skipped: nfpm not installed"
 elif [[ -s "${pkSums}" ]]; then
@@ -1543,6 +1571,90 @@ elif [[ -s "${pkSums}" ]]; then
 		[[ "${pkVers}" =~ ^(9\.9\.9~beta1 )+$ ]] && _pass ErlP6CE "prerelease package version keeps its ~" || _fail ErlP6CE "prerelease package version keeps its ~" "got [${pkVers}]"
 	fi
 fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Release and helper scripts. A failed lookup prints the script's own message
+## instead of ending it at exit 1, and a pipeline still works when the tool in
+## front writes more than a pipe holds. Fake tools stand in for the real ones.
+section "Release and helper scripts"
+crDir="${CBT_TMP}/cr"
+mkdir -p "${crDir}/repo/lib/cmd/convert-base-v2" "${crDir}/norepo/lib/cmd/convert-base-v2" "${crDir}/nofile"
+for crRoot in repo norepo; do
+	printf 'package main\n\nvar version = "v9.9.9"\n' >"${crDir}/${crRoot}/lib/cmd/convert-base-v2/main.go"
+	printf '# x\n\nNo badge here.\n' >"${crDir}/${crRoot}/README.md"
+done
+git -C "${crDir}/repo" init -q >/dev/null 2>&1 || true
+for crCase in "nofile|no 'var version'" "norepo|could not list the tags" "repo|no Lifecycle badge found"; do
+	crRoot="${crCase%%|*}"; crWant="${crCase#*|}"; crrc=0
+	bash "${meDir}/utility/check-release.bash" --repo "${crDir}/${crRoot}" >/dev/null 2>"${CBT_ERR}" || crrc=$?
+	{ ((crrc == 1)) && grep -qF -- "${crWant}" "${CBT_ERR}"; } && _pass Erm3Szg "check-release says why: ${crWant}" \
+		|| _fail Erm3Szg "check-release says why: ${crWant}" "rc=${crrc} err=[$(cat "${CBT_ERR}")]"
+done
+
+inDir="${CBT_TMP}/in"; mkdir -p "${inDir}/bin" "${inDir}/home"
+cat >"${inDir}/bin/curl" <<'EOF'
+#!/bin/sh
+out=""; url=""
+while [ $# -gt 0 ]; do case "$1" in -o) out="$2"; shift 2 ;; -*) shift ;; *) url="$1"; shift ;; esac; done
+case "$url" in
+	*api.github.com*) cat "$FAKE_RELEASE" ;;
+	*/checksums.txt) echo "0000  convert-base-v2-other" >"$out" ;;
+	*) echo bin >"$out" ;;
+esac
+EOF
+chmod +x "${inDir}/bin/curl"
+for inCase in '{"message": "Not Found"}|could not determine the stable release tag' '{"tag_name": "v9.9.9"}|no checksum for convert-base-v2-'; do
+	printf '%s\n' "${inCase%%|*}" >"${inDir}/release.json"; inWant="${inCase#*|}"; inrc=0
+	HOME="${inDir}/home" FAKE_RELEASE="${inDir}/release.json" PATH="${inDir}/bin:${PATH}" bash "${meDir}/../install.bash" -y --arch x86_64 </dev/null >/dev/null 2>"${CBT_ERR}" || inrc=$?
+	{ ((inrc == 1)) && grep -qF -- "${inWant}" "${CBT_ERR}"; } && _pass Erm3T0M "install.bash says why: ${inWant}" \
+		|| _fail Erm3T0M "install.bash says why: ${inWant}" "rc=${inrc} err=[$(cat "${CBT_ERR}")]"
+done
+
+## magick lists pango first, then more than a pipe holds. Any other call
+## exits 42, which shows the pango probe passed.
+gsDir="${CBT_TMP}/gs"; mkdir -p "${gsDir}/bin" "${gsDir}/repo/lib"
+printf '%s\n' '#!/bin/sh' '[ "$1" = -list ] || exit 42' 'echo "PANGO* PANGO r-- Pango Markup Language"' "head -c 1000000 /dev/zero | tr '\\0' x" >"${gsDir}/bin/magick"
+printf '%s\n' '#!/bin/sh' 'exit 0' >"${gsDir}/bin/fc-match"
+printf '%s\n' '#!/bin/sh' 'echo 0' >"${gsDir}/bin/cbv"
+chmod +x "${gsDir}/bin/magick" "${gsDir}/bin/fc-match" "${gsDir}/bin/cbv"
+gsrc=0; PATH="${gsDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${gsDir}/repo" "${gsDir}/bin/cbv" >/dev/null 2>"${CBT_ERR}" || gsrc=$?
+{ ((gsrc == 42)) && ! grep -qF "lacks the pango delegate" "${CBT_ERR}"; } && _pass Erm3T0v "gen-screenshots finds pango in a long format list" \
+	|| _fail Erm3T0v "gen-screenshots finds pango in a long format list" "rc=${gsrc} err=[$(tail -3 "${CBT_ERR}")]"
+
+## go version -m names the pinned nfpm, then writes more than a pipe holds.
+ptDir="${CBT_TMP}/pt"; mkdir -p "${ptDir}/bin" "${ptDir}/home"
+cat >"${ptDir}/bin/go" <<'EOF'
+#!/bin/sh
+[ "$1" = version ] || exit 0
+printf 'nfpm: go1.0\n\tpath\tx\n\tmod\tgithub.com/goreleaser/nfpm/v2\t%s\th1:x\n' "$FAKE_MOD"
+head -c 1000000 /dev/zero | tr '\0' x
+EOF
+printf '%s\n' '#!/bin/sh' >"${ptDir}/bin/nfpm"
+chmod +x "${ptDir}/bin/go" "${ptDir}/bin/nfpm"
+ptWant="$(sed -n 's/^NFPM_VERSION=//p' "${meDir}/tool-versions.env")"
+ptrc=0; ptOut="$(HOME="${ptDir}/home" FAKE_MOD="${ptWant}" PATH="${ptDir}/bin:${PATH}" bash "${meDir}/utility/pin-tools.bash" 2>&1)" || ptrc=$?
+{ ((ptrc == 0)) && [[ -n "${ptWant}" && "${ptOut}" != *"installing nfpm"* ]]; } && _pass Erm3T1Z "pin-tools reads nfpm's version from a long module list" \
+	|| _fail Erm3T1Z "pin-tools reads nfpm's version from a long module list" "rc=${ptrc} want=${ptWant} out=[${ptOut}]"
+
+## awk -v would read the backslash as an escape and miss the heading.
+rbDir="${CBT_TMP}/rb"; mkdir -p "${rbDir}/dist"; rbVer='v9.9.9-b\q'
+printf '%s\n' "## ${rbVer} - 2026-10-04" '' '- Backslash.' >"${rbDir}/changelog.md"
+rbGot="$(bash "${meDir}/utility/release-notes.bash" --version "${rbVer}" --dist "${rbDir}/dist" --repo o/r --changelog "${rbDir}/changelog.md" 2>/dev/null || true)"
+[[ "${rbGot%%$'\n'*}" == "- Backslash." ]] && _pass Erm3T2D "release notes find a version with a backslash" \
+	|| _fail Erm3T2D "release notes find a version with a backslash" "got=[${rbGot%%$'\n'*}]"
+
+## A pin with an empty name. Unchecked, that is a remove of all of thirdparty/.
+feDir="${CBT_TMP}/fe"; mkdir -p "${feDir}/bin" "${feDir}/src/pkg" "${feDir}/thirdparty/keep"
+echo keep >"${feDir}/thirdparty/keep/file"; echo x >"${feDir}/src/pkg/file"
+tar czf "${feDir}/pkg.tgz" -C "${feDir}/src" pkg || true
+cp "${meDir}/utility/interop/fetch.bash" "${feDir}/"
+printf 'INTEROP_PINS=("|1.0|https://example.invalid/pkg.tgz|%s|example.invalid/pkg")\n' "$(sha256sum "${feDir}/pkg.tgz" | cut -d' ' -f1)" >"${feDir}/pins.env"
+printf '%s\n' '#!/bin/sh' 'while [ $# -gt 0 ]; do [ "$1" = -o ] && { cp "$FAKE_TGZ" "$2"; exit 0; }; shift; done' 'exit 7' >"${feDir}/bin/curl"
+chmod +x "${feDir}/bin/curl"
+ferc=0; FAKE_TGZ="${feDir}/pkg.tgz" PATH="${feDir}/bin:${PATH}" bash "${feDir}/fetch.bash" --refresh >/dev/null 2>"${CBT_ERR}" || ferc=$?
+{ ((ferc != 0)) && [[ -f "${feDir}/thirdparty/keep/file" ]] && grep -qF "not a plain directory name" "${CBT_ERR}"; } && _pass Erm3T2q "interop refresh refuses a pin name that is not a plain name" \
+	|| _fail Erm3T2q "interop refresh refuses a pin name that is not a plain name" "rc=${ferc} left: [$(fNames "${feDir}/thirdparty")] err=[$(cat "${CBT_ERR}")]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
