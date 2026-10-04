@@ -217,16 +217,7 @@ That base is in the file as a working example to copy from. The format is [SHCL]
 
 A backslash in a value is plain text, except inside double quotes, where it starts an escape and has to be doubled. The symbol list has escapes of its own on top of that: `symbols: a\ b c` makes `a b` one digit, and in double quotes the same list is `"a\\ b c"`.
 
-A long alphabet can go in a raw block, the lines between two `~~~` fences. The block is taken as written, so a `#` or a quote in it is a digit, and it reads like the one-line form with each line break counting as a space. `tail` takes one too. No other field does, and a raw block under one is refused.
-
-~~~~text
-base: myhex
-	symbols:
-		~~~
-		0 1 2 3 4 5 6 7
-		8 9 a b c d e f
-		~~~
-~~~~
+Every value is one line, however long the alphabet. A raw block, the lines between two `~~~` fences, is refused under any field. Split over rows, an alphabet could mean one digit per row or one per character.
 
 The file the first run writes ends with a Format line, `##    Format   3`, which names the SHCL rules it follows. A config with no such line, which is every config written before this version, follows the older rules, where a backslash could start an escape outside quotes too. Such a file is read the way the older rules read it, so its bases stay the same.
 

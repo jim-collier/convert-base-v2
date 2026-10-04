@@ -42,8 +42,6 @@
 #	           backslash keeps a space inside a digit ("\ "), and "\t", "\n"
 #	           and "\\" are a tab, a newline and a backslash. Write those
 #	           without double quotes, or double each backslash.
-#	           A long alphabet can go in a raw block over several lines, where
-#	           a line break counts as a space. See the 512 symbol base below.
 #
 #	negative   Marker for a negative number. Defaults to "-".
 #	decimal    Marker for the fractional point. Defaults to ".".
@@ -117,15 +115,8 @@ base: 10emoji
 
 # A 512 symbol base with a tail, so binary mode streams both ways. Nine bits per
 # digit, so the tail needs 2^(9-8) = 2 symbols, and neither may be a digit. The
-# alphabet is left as a placeholder because 512 symbols is a lot of typing.
-#
-# The symbols are in a raw block: everything between the two "~~~" lines, taken
-# as written, so a "#" or a quote there is a digit. It reads the same as the one
-# string form, with line breaks counting as spaces. So put a space between the
-# digits, since a row written with none would be one long digit.
+# alphabet is left as a placeholder because 512 symbols is a long line. Every
+# value stays on one line, and a raw block over several is refused.
 #base: cjk512
-#	symbols:
-#		~~~
-#		<512 symbols, whitespace delimited, over as many lines as you like>
-#		~~~
+#	symbols: "<512 symbols, whitespace delimited>"
 #	tail: ⸐, ⸑
