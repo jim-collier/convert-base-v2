@@ -54,13 +54,18 @@ have()  { command -v "$1" >/dev/null 2>&1; }
 comma() { echo "$1" | sed ':a;s/\B[0-9]\{3\}\>/,&/;ta'; }
 
 # Mean MiB/s of `cmd < infile` (output discarded) over $RUNS runs, one warmup.
+# A failed run stops the benchmark, so an error exit is never timed as a result.
 bench() {
 	local infile="$1"; shift
-	"$@" <"$infile" >/dev/null 2>&1 || true
 	local total=0 r t0 t1
+	if ! "$@" <"$infile" >/dev/null 2>"${work}/err"; then
+		echo "bench-encoders: failed: $* ($(head -c 300 "${work}/err"))" >&2; return 1
+	fi
 	for ((r = 0; r < RUNS; r++)); do
 		t0=$(date +%s.%N)
-		"$@" <"$infile" >/dev/null 2>&1
+		if ! "$@" <"$infile" >/dev/null 2>"${work}/err"; then
+			echo "bench-encoders: failed: $* ($(head -c 300 "${work}/err"))" >&2; return 1
+		fi
 		t1=$(date +%s.%N)
 		total=$(awk -v a="$total" -v x="$t0" -v y="$t1" 'BEGIN{printf "%.6f", a + (y - x)}')
 	done
@@ -72,18 +77,18 @@ row() {
 	local name="$1" dec_in="$2" enc_cmd="$3" dec_cmd="$4"
 	local d e
 	# shellcheck disable=SC2086  # commands are trusted, word-splitting is intended
-	d=$(bench "$dec_in" $dec_cmd)
+	d=$(bench "$dec_in" $dec_cmd) || exit 1
 	# shellcheck disable=SC2086
-	e=$(bench "$blob" $enc_cmd)
+	e=$(bench "$blob" $enc_cmd) || exit 1
 	printf '| %s | %s | %s |\n' "$name" "$(comma "$d")" "$(comma "$e")"
 }
 
 # Canonical text per format (prefer the system tool's own output, so every
 # decoder in a group sees identical bytes).
 b64="${work}/b64"; b32="${work}/b32"; hex="${work}/hex"
-if have base64; then base64 <"$blob" >"$b64"; else "$EXE" --from binary --to 64 <"$blob" >"$b64"; fi
-if have base32; then base32 <"$blob" >"$b32"; else "$EXE" --from binary --to 32 <"$blob" >"$b32"; fi
-if have xxd;    then xxd -p  <"$blob" >"$hex"; else "$EXE" --from binary --to 16 <"$blob" >"$hex"; fi
+if have base64; then base64 <"$blob" >"$b64"; else "$EXE" --from bytes --to 64 <"$blob" >"$b64"; fi
+if have base32; then base32 <"$blob" >"$b32"; else "$EXE" --from bytes --to 32 <"$blob" >"$b32"; fi
+if have xxd;    then xxd -p  <"$blob" >"$hex"; else "$EXE" --from bytes --to 16 <"$blob" >"$hex"; fi
 
 # Header: what and where.
 cpu="$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1)"
@@ -95,17 +100,17 @@ printf 'CPU: %s (%s threads).  RAM: %s GiB.\n\n' "$cpu" "$(nproc)" "$memgib"
 table() { printf '\n%s\n\n| Program | text -> binary | binary -> text |\n| :-- | --: | --: |\n' "$1"; }
 
 table "Base-64"
-row "convert-base-v2" "$b64" "$EXE --from binary --to 64" "$EXE --from 64 --to binary --raw"
+row "convert-base-v2" "$b64" "$EXE --from bytes --to 64" "$EXE --from 64 --to bytes"
 if have base64;  then row "coreutils base64"  "$b64" "base64"          "base64 -d";          fi
 if have basenc;  then row "coreutils basenc"  "$b64" "basenc --base64" "basenc -d --base64"; fi
 if have openssl; then row "openssl base64"    "$b64" "openssl base64"  "openssl base64 -d";  fi
 
 table "Base-32"
-row "convert-base-v2" "$b32" "$EXE --from binary --to 32" "$EXE --from 32 --to binary --raw"
+row "convert-base-v2" "$b32" "$EXE --from bytes --to 32" "$EXE --from 32 --to bytes"
 if have base32;  then row "coreutils base32"  "$b32" "base32"          "base32 -d";          fi
 if have basenc;  then row "coreutils basenc"  "$b32" "basenc --base32" "basenc -d --base32"; fi
 
 table "Hex"
-row "convert-base-v2" "$hex" "$EXE --from binary --to 16" "$EXE --from 16 --to binary --raw"
+row "convert-base-v2" "$hex" "$EXE --from bytes --to 16" "$EXE --from 16 --to bytes"
 if have xxd;     then row "xxd"               "$hex" "xxd -p"          "xxd -p -r";          fi
 echo

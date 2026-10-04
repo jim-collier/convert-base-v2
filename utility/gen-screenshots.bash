@@ -104,6 +104,7 @@ blank(){ MARKUP+=$'\n'; }
 ## render NAME TITLE  : draw the accumulated MARKUP to a 1920x1080 PNG
 render(){
 	local name="$1" title="$2"
+	[[ ! -e "${WORK}/failed" ]] || { echo "gen-screenshots: a command failed, so ${name}.png was not drawn" >&2; exit 1; }
 	## Markup is passed inline: IM's default policy blocks reading text via @file.
 	## The pango composite must come before any -gravity North: an ambient North
 	## gravity leaks into the pango coder and renders the text rotated 180. So the
@@ -125,8 +126,10 @@ render(){
 	echo "  ${name}.png"
 }
 
-## run ARGS...  : run the binary, echo its stdout (trailing newline trimmed)
-run(){ "${BIN}" "$@"; }
+## run ARGS...  : run the binary, echo its stdout (trailing newline trimmed).
+## Most calls sit inside $( ) as an argument, where a failure can't stop the
+## script, so it leaves a flag that render checks.
+run(){ "${BIN}" "$@" || { : >"${WORK}/failed"; echo "gen-screenshots: failed: convert-base-v2 $*" >&2; return 1; }; }
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -168,8 +171,8 @@ blank
 p "convert-base-v2 --from-symbols ABCD --to 10 CBBA.B"
 o "$(run --from-symbols ABCD --to 10 CBBA.B)"
 blank
-p "convert-base-v2 --from-symbols \"aeiouy.-_0\" --from-neg '~' --from-dec '/' --to 20w \"~y0-._/ooo\""
-o "$(run --from-symbols "aeiouy.-_0" --from-neg '~' --from-dec '/' --to 20w "~y0-._/ooo")"
+p "convert-base-v2 --from-symbols \"aeiouy.-_0\" --from-neg '~' --from-dec '/' --to 20ws \"~y0-._/ooo\""
+o "$(run --from-symbols "aeiouy.-_0" --from-neg '~' --from-dec '/' --to 20ws "~y0-._/ooo")"
 blank
 p "convert-base-v2 --to-symbols \"🌑🌒🌓🌔🌕🌖🌗🌘\" 1234"
 o "$(run --to-symbols "🌑🌒🌓🌔🌕🌖🌗🌘" 1234)"
@@ -185,16 +188,16 @@ reset_markup
 src="${WORK}/archive.bin"; payload="convert-base-v2 sample archive payload 0123456789ABCDEF "
 data=""; while ((${#data} < 512)); do data+="${payload}"; done
 printf '%s' "${data:0:512}" >"${src}"
-b64="$(run --from binary --to 64u <"${src}")"
-run --from 64u --to binary <<<"${b64}" >"${WORK}/archive2.bin"
+b64="$(run --from bytes --to 64u <"${src}")"
+run --from 64u --to bytes <<<"${b64}" >"${WORK}/archive2.bin"
 cmpmsg="bit-perfect"; cmp -s "${src}" "${WORK}/archive2.bin" || cmpmsg="differ"
 snippet="${b64:0:64}..."
 c "# Stream any file to a power-of-2 base and back, bit-perfect"
 blank
-p "cat ~/data/archive.bin | convert-base-v2 --from binary --to 64u > archive.b64"
+p "cat ~/data/archive.bin | convert-base-v2 --from bytes --to 64u > archive.b64"
 p "head -c 64 archive.b64";  o "${snippet}"
 blank
-p "cat archive.b64 | convert-base-v2 --from 64u --to binary > archive2.bin"
+p "cat archive.b64 | convert-base-v2 --from 64u --to bytes > archive2.bin"
 p "cmp ~/data/archive.bin archive2.bin && echo ${cmpmsg}";  o "${cmpmsg}"
 render "04-binary" "convert-base-v2  -  binary streaming round-trip"
 
@@ -213,7 +216,8 @@ o "base: moon8"
 o "	symbols: \"🌑 🌒 🌓 🌔 🌕 🌖 🌗 🌘\""
 blank
 p "convert-base-v2 --list | head -10"
-while IFS= read -r line; do o "${line}"; done < <(run --list | head -10)
+listOut="$(run --list)"
+while IFS= read -r line; do o "${line}"; done < <(head -10 <<<"${listOut}")
 render "05-settings" "convert-base-v2  -  configuration and base list"
 
 

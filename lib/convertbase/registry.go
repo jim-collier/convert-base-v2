@@ -735,7 +735,7 @@ func (r *Registry) Print(w io.Writer, compatOnly bool) {
 		if dec == "" {
 			dec = "(off)"
 		}
-		// RAW: can this base carry a raw binary stream (--from/--to binary)?
+		// RAW: can this base carry a raw binary stream (--from/--to bytes)?
 		raw := "-"
 		if b.RawCodec() {
 			raw = "yes"

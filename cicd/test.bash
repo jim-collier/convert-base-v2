@@ -26,11 +26,14 @@
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
-##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors.
+##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
+##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, -q, and the dogfood copy.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
 ##			- CICDTEST_EXE ..........: path to the binary under test (default: ../lib/bin/convert-base-v2).
 ##			- CICDTEST_DO_LONGTEST ..: 1 for the exhaustive run (more fuzz iterations, larger inputs).
+##			- CICDTEST_DO_PERF ......: 1 to run the performance section. cicd.bash sets it unless --quick.
+##			- CICDTEST_QUICK ........: 1 to skip the packaging rebuild check. cicd.bash sets it under --quick.
 ##			- CICDTEST_FUZZ_ITERS ...: override the fuzz iteration count.
 ##	History: At bottom of script.
 
@@ -53,6 +56,7 @@ doLong=0; [[ "${CICDTEST_DO_LONGTEST:-0}" == "1" ]] && doLong=1
 ## Performance section runs on any long run, or whenever the engine asks for it
 ## (it does so unless --quick was passed). A long run always includes it.
 doPerf=0; { ((doLong)) || [[ "${CICDTEST_DO_PERF:-0}" == "1" ]]; } && doPerf=1
+doQuick=0; [[ "${CICDTEST_QUICK:-0}" == "1" ]] && doQuick=1
 
 ## Guard against hangs: a check that doesn't return quickly is a failure, not a wait.
 TIMEOUT=(); command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout 60)
@@ -1544,37 +1548,42 @@ mcrc=0; make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${p
 make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc-ours" >/dev/null 2>&1 || true
 { ((mcrc != 0)) && [[ -f "${pgDir}/mc-theirs/notes.txt" && ! -e "${pgDir}/mc-ours" ]]; } && _pass Erm3Syv "make clean removes only a dist dir a build made" \
 	|| _fail Erm3Syv "make clean removes only a dist dir a build made" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
-pkDir="${CBT_TMP}/pk"; pkrc=0
-pkArgs=(--version v9.9.9-beta1 --build-epoch 1700000000)
-bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/a" >/dev/null 2>"${CBT_ERR}" || pkrc=$?
-( umask 077; TZ=Pacific/Kiritimati bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/b" >/dev/null 2>>"${CBT_ERR}" ) || pkrc=$?
-pkSums="${pkDir}/a/checksums.txt"
-if ((pkrc != 0)) || [[ ! -s "${pkSums}" ]]; then
-	_fail ErlP6B8 "release assets rebuild to the same bytes" "package.bash exit ${pkrc}: $(tail -5 "${CBT_ERR}")"
+## The two full packaging runs take several seconds each, so --quick skips them.
+if ((doQuick)); then
+	_warn "ErlP6B8 Erm3SyD ErlP6Bg ErlP6CE" "packaging rebuild checks skipped: --quick"
 else
-	pkDiff="$(diff "${pkSums}" "${pkDir}/b/checksums.txt" | sed -n 's/^> [0-9a-f]* *//p' | tr '\n' ' ' || true)"
-	[[ -z "${pkDiff}" ]] && _pass ErlP6B8 "release assets rebuild to the same bytes" || _fail ErlP6B8 "release assets rebuild to the same bytes" "differ: ${pkDiff}"
-fi
-## The mark stays out of checksums.txt, which lists what gets uploaded.
-{ [[ -s "${pkSums}" && -f "${pkDir}/a/${pgMark}" ]] && ! grep -qF -- "${pgMark}" "${pkSums}"; } && _pass Erm3SyD "dist mark is not a release asset" \
-	|| _fail Erm3SyD "dist mark is not a release asset" "mark: $([[ -f "${pkDir}/a/${pgMark}" ]] && echo yes || echo no), sums: $(grep -cF -- "${pgMark}" "${pkSums}" 2>/dev/null || true)"
-if ! command -v nfpm >/dev/null 2>&1; then
-	_warn "ErlP6Bg ErlP6CE" "prerelease package checks skipped: nfpm not installed"
-elif [[ -s "${pkSums}" ]]; then
-	## GitHub turns any character outside [A-Za-z0-9._-] into a dot on upload.
-	pkBad="$(awk '{ sub(/^\*/, "", $2); if ($2 !~ /^[A-Za-z0-9._-]+$/) printf "%s ", $2 }' "${pkSums}")"
-	pkCheck="$(cd "${pkDir}/a" && sha256sum -c --quiet checksums.txt 2>&1 || true)"
-	pkDebs="$(find "${pkDir}/a" -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' \) | wc -l)"
-	{ [[ -z "${pkBad}" && -z "${pkCheck}" ]] && ((pkDebs == 4)); } && _pass ErlP6Bg "prerelease packages named as GitHub serves them" \
-		|| _fail ErlP6Bg "prerelease packages named as GitHub serves them" "renamed on upload: [${pkBad}] check: [${pkCheck}] packages: ${pkDebs}"
-	## The version inside keeps the ~, so a beta sorts below its final.
-	pkVers=""
-	command -v dpkg-deb >/dev/null 2>&1 && pkVers+="$(dpkg-deb -f "${pkDir}"/a/*_amd64.deb Version 2>&1 || true) "
-	command -v rpm >/dev/null 2>&1 && pkVers+="$(rpm -qp --qf '%{VERSION}' "${pkDir}"/a/*.x86_64.rpm 2>/dev/null || true) "
-	if [[ -z "${pkVers}" ]]; then
-		_warn ErlP6CE "package version check skipped: neither dpkg-deb nor rpm installed"
+	pkDir="${CBT_TMP}/pk"; pkrc=0
+	pkArgs=(--version v9.9.9-beta1 --build-epoch 1700000000)
+	bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/a" >/dev/null 2>"${CBT_ERR}" || pkrc=$?
+	( umask 077; TZ=Pacific/Kiritimati bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/b" >/dev/null 2>>"${CBT_ERR}" ) || pkrc=$?
+	pkSums="${pkDir}/a/checksums.txt"
+	if ((pkrc != 0)) || [[ ! -s "${pkSums}" ]]; then
+		_fail ErlP6B8 "release assets rebuild to the same bytes" "package.bash exit ${pkrc}: $(tail -5 "${CBT_ERR}")"
 	else
-		[[ "${pkVers}" =~ ^(9\.9\.9~beta1 )+$ ]] && _pass ErlP6CE "prerelease package version keeps its ~" || _fail ErlP6CE "prerelease package version keeps its ~" "got [${pkVers}]"
+		pkDiff="$(diff "${pkSums}" "${pkDir}/b/checksums.txt" | sed -n 's/^> [0-9a-f]* *//p' | tr '\n' ' ' || true)"
+		[[ -z "${pkDiff}" ]] && _pass ErlP6B8 "release assets rebuild to the same bytes" || _fail ErlP6B8 "release assets rebuild to the same bytes" "differ: ${pkDiff}"
+	fi
+	## The mark stays out of checksums.txt, which lists what gets uploaded.
+	{ [[ -s "${pkSums}" && -f "${pkDir}/a/${pgMark}" ]] && ! grep -qF -- "${pgMark}" "${pkSums}"; } && _pass Erm3SyD "dist mark is not a release asset" \
+		|| _fail Erm3SyD "dist mark is not a release asset" "mark: $([[ -f "${pkDir}/a/${pgMark}" ]] && echo yes || echo no), sums: $(grep -cF -- "${pgMark}" "${pkSums}" 2>/dev/null || true)"
+	if ! command -v nfpm >/dev/null 2>&1; then
+		_warn "ErlP6Bg ErlP6CE" "prerelease package checks skipped: nfpm not installed"
+	elif [[ -s "${pkSums}" ]]; then
+		## GitHub turns any character outside [A-Za-z0-9._-] into a dot on upload.
+		pkBad="$(awk '{ sub(/^\*/, "", $2); if ($2 !~ /^[A-Za-z0-9._-]+$/) printf "%s ", $2 }' "${pkSums}")"
+		pkCheck="$(cd "${pkDir}/a" && sha256sum -c --quiet checksums.txt 2>&1 || true)"
+		pkDebs="$(find "${pkDir}/a" -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' \) | wc -l)"
+		{ [[ -z "${pkBad}" && -z "${pkCheck}" ]] && ((pkDebs == 4)); } && _pass ErlP6Bg "prerelease packages named as GitHub serves them" \
+			|| _fail ErlP6Bg "prerelease packages named as GitHub serves them" "renamed on upload: [${pkBad}] check: [${pkCheck}] packages: ${pkDebs}"
+		## The version inside keeps the ~, so a beta sorts below its final.
+		pkVers=""
+		command -v dpkg-deb >/dev/null 2>&1 && pkVers+="$(dpkg-deb -f "${pkDir}"/a/*_amd64.deb Version 2>&1 || true) "
+		command -v rpm >/dev/null 2>&1 && pkVers+="$(rpm -qp --qf '%{VERSION}' "${pkDir}"/a/*.x86_64.rpm 2>/dev/null || true) "
+		if [[ -z "${pkVers}" ]]; then
+			_warn ErlP6CE "package version check skipped: neither dpkg-deb nor rpm installed"
+		else
+			[[ "${pkVers}" =~ ^(9\.9\.9~beta1 )+$ ]] && _pass ErlP6CE "prerelease package version keeps its ~" || _fail ErlP6CE "prerelease package version keeps its ~" "got [${pkVers}]"
+		fi
 	fi
 fi
 
@@ -1661,6 +1670,117 @@ chmod +x "${feDir}/bin/curl"
 ferc=0; FAKE_TGZ="${feDir}/pkg.tgz" PATH="${feDir}/bin:${PATH}" bash "${feDir}/fetch.bash" --refresh >/dev/null 2>"${CBT_ERR}" || ferc=$?
 { ((ferc != 0)) && [[ -f "${feDir}/thirdparty/keep/file" ]] && grep -qF "not a plain directory name" "${CBT_ERR}"; } && _pass Erm3T2q "interop refresh refuses a pin name that is not a plain name" \
 	|| _fail Erm3T2q "interop refresh refuses a pin name that is not a plain name" "rc=${ferc} left: [$(fNames "${feDir}/thirdparty")] err=[$(cat "${CBT_ERR}")]"
+
+## The benchmark times only runs that worked. A 1 MiB blob and one run keep
+## each of these to about a second.
+bnFail="${CBT_TMP}/bn-fail"; printf '%s\n' '#!/bin/sh' 'echo "unknown base" >&2' 'exit 1' >"${bnFail}"; chmod +x "${bnFail}"
+bnrc=0; BENCH_SIZE_MIB=1 BENCH_RUNS=1 bash "${meDir}/../utility/bench-encoders.bash" "${bnFail}" >/dev/null 2>"${CBT_ERR}" || bnrc=$?
+{ ((bnrc != 0)) && grep -qF "bench-encoders: failed:" "${CBT_ERR}"; } && _pass ErmCp2M "bench-encoders stops on a failed conversion" \
+	|| _fail ErmCp2M "bench-encoders stops on a failed conversion" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
+bnrc=0; BENCH_SIZE_MIB=1 BENCH_RUNS=1 bash "${meDir}/../utility/bench-encoders.bash" "${EXE}" >"${CBT_OUT}" 2>"${CBT_ERR}" || bnrc=$?
+{ ((bnrc == 0)) && ! grep -qF "failed:" "${CBT_ERR}" && (($(grep -cF "| convert-base-v2 |" "${CBT_OUT}" || true) == 3)); } && _pass ErmCp2N "bench-encoders runs every convert-base-v2 row" \
+	|| _fail ErmCp2N "bench-encoders runs every convert-base-v2 row" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
+
+## The screenshot script against the real binary, with a magick that draws
+## nothing and notes each picture it was asked for.
+ssDir="${CBT_TMP}/ss"; mkdir -p "${ssDir}/bin" "${ssDir}/repo/lib"
+printf '%s\n' '#!/bin/sh' '[ "$1" = -list ] && { echo "PANGO* PANGO r-- Pango Markup Language"; exit 0; }' 'echo draw >>"$SS_DRAWN"' >"${ssDir}/bin/magick"
+printf '%s\n' '#!/bin/sh' 'exit 0' >"${ssDir}/bin/fc-match"
+chmod +x "${ssDir}/bin/magick" "${ssDir}/bin/fc-match"
+ssrc=0; SS_DRAWN="${ssDir}/drawn" PATH="${ssDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${ssDir}/repo" "${EXE}" >/dev/null 2>"${CBT_ERR}" || ssrc=$?
+{ ((ssrc == 0)) && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErmCp2O "gen-screenshots: every command in every scene works" \
+	|| _fail ErmCp2O "gen-screenshots: every command in every scene works" "rc=${ssrc} err=[$(head -3 "${CBT_ERR}")]"
+: >"${ssDir}/drawn"
+ssrc=0; SS_DRAWN="${ssDir}/drawn" PATH="${ssDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${ssDir}/repo" "${bnFail}" >/dev/null 2>"${CBT_ERR}" || ssrc=$?
+{ ((ssrc != 0)) && [[ ! -s "${ssDir}/drawn" ]]; } && _pass ErmCp2P "gen-screenshots draws nothing after a failed command" \
+	|| _fail ErmCp2P "gen-screenshots draws nothing after a failed command" "rc=${ssrc} drawn: $(wc -l <"${ssDir}/drawn")"
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## CI engine. cicd.bash runs from a copy with a stub config, so every stage is
+## off or fake. The fake harness writes down the knobs it was handed, the fake
+## go fuzzes as FAKE_FUZZ says, and cp fails for anything under CE_CPFAIL.
+section "CI engine"
+ceDir="${CBT_TMP}/ce"; ceRepo="${ceDir}/repo"; ceBin="${ceDir}/bin"
+mkdir -p "${ceRepo}/cicd/utility/include" "${ceRepo}/lib" "${ceBin}" "${ceDir}/home/bin" "${ceDir}/sys" "${ceDir}/tmp"
+cp "${meDir}/cicd.bash" "${ceRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${ceRepo}/cicd/utility/include/"
+printf '%s\n' '#!/bin/sh' 'echo v0.0.0' >"${ceRepo}/lib/out"; chmod +x "${ceRepo}/lib/out"
+cat >"${ceRepo}/cicd/config.bash" <<'EOF'
+APP_NAME="cbv-test"; EXE_NAME="cbv-test"; SRC_DIR="lib"
+FMT_CMD=(); NATIVE_BUILD_CMD=(true); NATIVE_BUILD_OUT="lib/out"; STAGED_BIN="lib/bin/cbv-test"; RELEASE_BUILD_CMD=()
+PIN_TOOLS_CMD=(); VENDOR_CHECK_CMD=(); INTEROP_CHECK_CMD=(); VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=()
+UNIT_TEST_CMD=(true); TEST_ID_CMD=(); TEST_CMD=(sh -c 'env | grep "^CICDTEST_" | sort >"$CE_KNOBS"')
+GO_TEST_PKG="."; FUZZ_ENABLE=1; FUZZ_TIME="1s"; FUZZ_TIME_QUICK="1s"; FUZZ_MINIMIZE_TIME="1s"; FUZZ_MINIMIZE_TIME_QUICK="1s"
+VULN_CMD=(); PROFILE_ENABLE=0; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=0; RELEASE_CMD=(); RELEASE_ARTIFACT_DIR="dist"
+DOGFOOD_FIXED_DESTS=(${CE_DEST:+"${CE_DEST}"})
+DO_SCREENSHOTS=0; SCREENSHOT_CMD=(none); DO_DEMOGIF=0; DEMOGIF_CMD=(none); PREPUBLISH_HOOK=""; GIT_PUBLISH=(); PUBLISH_AUTO_MESSAGE=""
+EOF
+cat >"${ceBin}/go" <<'EOF'
+#!/bin/sh
+case "$*" in
+	*-list*) echo FuzzA ;;
+	*-fuzz*)
+		echo "--- FAIL: FuzzA"
+		case "${FAKE_FUZZ:-}" in
+			deadline) echo "    context deadline exceeded"; exit 1 ;;
+			find) echo "    Failing input written to testdata/fuzz/FuzzA/0123"; exit 1 ;;
+		esac ;;
+esac
+exit 0
+EOF
+printf '%s\n' '#!/bin/sh' 'for a; do last="$a"; done' \
+	'if [ -n "${CE_CPFAIL:-}" ]; then case "$last" in "$CE_CPFAIL"/*) echo "cp: fake failure" >&2; exit 1 ;; esac; fi' \
+	"exec $(command -v cp) \"\$@\"" >"${ceBin}/cp"
+printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$CE_SUDO_LOG"' 'exit 1' >"${ceBin}/sudo"
+chmod +x "${ceBin}/go" "${ceBin}/cp" "${ceBin}/sudo"
+## Knobs from whatever runs this harness must not leak into the copy.
+fCeRun(){
+	: >"${ceDir}/knobs"; : >"${ceDir}/sudo.log"; ceRc=0
+	( cd "${ceDir}" && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
+		HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${ceDir}/knobs" CE_SUDO_LOG="${ceDir}/sudo.log" \
+		bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
+	ceOut="$(cat "${CBT_OUT}")"; ceKnobs="$(cat "${ceDir}/knobs")"; ceSudo="$(cat "${ceDir}/sudo.log")"; ceTmp="$(ls -A "${ceDir}/tmp")"
+}
+fCeTail(){ printf 'rc=%s tmp=[%s] out=[%s]' "${ceRc}" "${ceTmp}" "$(tail -4 "${CBT_OUT}" | tr '\n' ' ')"; }
+
+## Go reports its own -fuzztime deadline as a failure (G18): that passes with a
+## note, and a real find fails the stage with its own message.
+FAKE_FUZZ=deadline fCeRun -y
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"NOTE: fuzz FuzzA reported the -fuzztime deadline"* && -z "${ceTmp}" ]]; } && _pass ErmCp2E "fuzz deadline passes with a note, and its log is removed" \
+	|| _fail ErmCp2E "fuzz deadline passes with a note, and its log is removed" "$(fCeTail)"
+FAKE_FUZZ="find" fCeRun -y
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"FAILED: fuzz FuzzA found a failure"* && "${ceOut}" != *"CICD ABORTED"* && -z "${ceTmp}" ]]; } && _pass ErmCp2F "fuzz find fails the stage with its own message" \
+	|| _fail ErmCp2F "fuzz find fails the stage with its own message" "$(fCeTail)"
+
+## The harness runs its perf section, and skips the packaging rebuilds, as
+## --quick says. A plain -y run also keeps its plan and progress lines; -q drops them.
+fCeRun -y; ceKnobsFull="${ceKnobs}"; ceOutFull="${ceOut}"
+fCeRun -y --quick; ceKnobsQuick="${ceKnobs}"
+for ceName in Full Quick; do
+	ceVar="ceKnobs${ceName}"; ceWant=1; [[ "${ceName}" == Quick ]] && ceWant=0
+	grep -qxF "CICDTEST_DO_PERF=${ceWant}" <<<"${!ceVar}" && _pass ErmCp2G "harness perf section asked for: ${ceName} run, ${ceWant}" \
+		|| _fail ErmCp2G "harness perf section asked for: ${ceName} run, ${ceWant}" "knobs=[${!ceVar}]"
+done
+{ grep -qxF "CICDTEST_QUICK=1" <<<"${ceKnobsQuick}" && grep -qxF "CICDTEST_QUICK=0" <<<"${ceKnobsFull}"; } && _pass ErmCp2H "--quick reaches the harness" \
+	|| _fail ErmCp2H "--quick reaches the harness" "full=[${ceKnobsFull}] quick=[${ceKnobsQuick}]"
+fCeRun -q
+{ ((ceRc == 0)) && [[ "${ceOutFull}" == *"Repo root ..."* && "${ceOutFull}" == *"format skipped"* && "${ceOut}" != *"Repo root ..."* && "${ceOut}" != *"format skipped"* \
+	&& "${ceOut}" == *"1/8  Format"* && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass ErmCp2I "-q drops the plan and progress lines, not the stage results" \
+	|| _fail ErmCp2I "-q drops the plan and progress lines, not the stage results" "$(fCeTail)"
+
+## Dogfood: a copy that fails is an error, and sudo is tried only as sudo -n,
+## and only when someone is there.
+CE_DEST="${ceDir}/home/bin" fCeRun -y
+ceOk=0; { ((ceRc == 0)) && [[ -f "${ceDir}/home/bin/cbv-test" && "${ceOut}" == *"OK: installed -> "* ]]; } && ceOk=1
+CE_DEST="${ceDir}/home/bin" CE_CPFAIL="${ceDir}/home/bin" fCeRun -y
+{ ((ceOk && ceRc == 1)) && [[ "${ceOut}" == *"could not install"* && "${ceOut}" != *"OK: installed"* && -z "${ceSudo}" ]]; } && _pass ErmCp2J "dogfood: a failed copy under HOME is an error" \
+	|| _fail ErmCp2J "dogfood: a failed copy under HOME is an error" "good copy ok=${ceOk}; sudo=[${ceSudo}] $(fCeTail)"
+CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun -y
+{ ((ceRc == 1)) && [[ -z "${ceSudo}" && "${ceOut}" != *"OK: installed"* ]]; } && _pass ErmCp2K "dogfood: an unattended run never calls sudo" \
+	|| _fail ErmCp2K "dogfood: an unattended run never calls sudo" "sudo=[${ceSudo}] $(fCeTail)"
+CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun
+{ ((ceRc == 1)) && [[ "${ceSudo}" == "-n cp -f "* && "${ceOut}" == *"even with sudo -n"* ]]; } && _pass ErmCp2L "dogfood: an attended run tries only sudo -n" \
+	|| _fail ErmCp2L "dogfood: an attended run tries only sudo -n" "sudo=[${ceSudo}] $(fCeTail)"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
