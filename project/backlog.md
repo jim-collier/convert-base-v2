@@ -159,6 +159,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: every built-in base and the default config still load. Every built-in tail base round trips. `go vet`, `golangci-lint`, `go test ./...` and the harness Binary/streaming section pass.
 	- Swept: every way a tail is set goes through `Finalize`: the built-ins, the config `tail:` field, `--from-tail`/`--to-tail` through `ApplyOptions`, and library callers. The browser and reactor modules take no tail. `decodeBigBaseNative` has no other caller.
 	- Branch: bigbase-tail
+	- Commit: 44ed0be
 	- Test case: `Erm5wwf` TestTailNeedsOneCharDigits, `Erm5wxB` "tail on two-character digits rejected" and `Erm5wxg` "config tail on two-character digits rejected". All three fail before the fix and pass after.
 
 - Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
@@ -261,7 +262,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The buffered big-base decoder allocates for every character. (Code review 20261004 item 20)
 	- ID: 2026100413480020
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority: Avg
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -269,6 +270,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: it makes a string per character and looks that up, though the streaming decoder's per-character table is there. Using it took a 1 MiB `65536qntm` decode from 37 ms and 524k allocations to 15 ms and 3. This path serves typed input, the browser page and the reactor.
 	- Origin: `convert.go:1773`, from 2757bd5 on 2026-07-06. Not seen by an earlier round. Confirmed by benchmark.
 	- Prereq IDs: 2026100413480003
+	- Done: the decoder walks the input by rune and looks each one up in the rune table, which 2026100413480003 now guarantees for every tail base. The output buffer is sized up front.
+	- Verified: a 1 MiB `65536qntm` decode went from 33 to 37 ms and 524k allocations to 19 to 22 ms and 2. `2048qntm` went from 46 ms and 763k allocations to 25 ms and 2. `go vet`, `golangci-lint`, `go test ./...` and the harness Binary/streaming, fuzz round-trip, interop, reactor, browser and parity sections pass.
+	- Swept: `streamDecodeWide` already used the rune table. `decodeBigBaseNative` is the only other per-character lookup for a tail base.
+	- Branch: bigbase-tail
+	- Test case: `Erm5wyD` TestBigBaseDecodeAllocs, which allows at most 8 allocations to decode 64 KiB through five tail bases. It counted 32k to 58k before and 2 after. `BenchmarkDecode65536` and `BenchmarkDecode2048` give the timings.
+	- Acceptance signoff: Self-closed: the change does what the item asked and its test passes.
+	- Closed: 20261004-160327
 
 - The demo gif generator holds every frame uncompressed in memory. (Code review 20261004 item 21)
 	- ID: 2026100413480021

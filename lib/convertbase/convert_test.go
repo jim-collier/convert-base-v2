@@ -122,6 +122,47 @@ func BenchmarkDecode64(b *testing.B) {
 // The big native base goes through a separate encoder (multi-byte symbols).
 func BenchmarkEncode65536(b *testing.B) { benchConvert(b, "bytes", "65536qntm", benchBytes()) }
 
+// Typed input, the browser page and the reactor all decode a big base buffered.
+func BenchmarkDecode65536(b *testing.B) {
+	reg, _ := NewRegistry()
+	from, _ := reg.Lookup("bytes")
+	to, _ := reg.Lookup("65536qntm")
+	enc, _ := Convert(benchBytes(), from, to, 0)
+	benchConvert(b, "65536qntm", "bytes", enc)
+}
+
+func BenchmarkDecode2048(b *testing.B) {
+	reg, _ := NewRegistry()
+	from, _ := reg.Lookup("bytes")
+	to, _ := reg.Lookup("2048qntm")
+	enc, _ := Convert(benchBytes(), from, to, 0)
+	benchConvert(b, "2048qntm", "bytes", enc)
+}
+
+// The buffered big-base decoder once made a string per character to look it
+// up, about one allocation per digit. Its cost must not grow with the input.
+// Test ID: Erm5wyD
+func TestBigBaseDecodeAllocs(t *testing.T) {
+	reg := newReg(t)
+	bytesB := base(t, reg, "bytes")
+	blob := benchBytes()[:1<<16]
+	for _, name := range []string{"65536qntm", "32768qntm", "2048qntm", "2048llfourn", "512tt"} {
+		big := base(t, reg, name)
+		enc, err := Convert(blob, bytesB, big, 0)
+		if err != nil {
+			t.Fatal(err)
+		}
+		allocs := testing.AllocsPerRun(5, func() {
+			if _, err := Convert(enc, big, bytesB, 0); err != nil {
+				t.Fatal(err)
+			}
+		})
+		if allocs > 8 {
+			t.Errorf("%s: decoding 64 KiB took %.0f allocations, want at most 8", name, allocs)
+		}
+	}
+}
+
 // Streaming benchmarks exercise the CLI's actual pipe path (StreamConvert) with
 // no real I/O: a bytes.Reader in, io.Discard out. This is what a `cat file | ...`
 // invocation runs.
