@@ -96,7 +96,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The Unicode research tools have small bugs and stale headers. (Code review 20261004 item 15)
 	- ID: 2026100413480015
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on signoff
 	- Severity: Low
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -109,7 +109,43 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- `filter_2_messy.py` builds a `kept` set it never reads, and tests membership in lists inside loops.
 	- Expected behavior: a failed filter leaves the clipboard alone, and headers describe their own file.
 	- Reproduced: the clipboard mechanism with a failing filter in a scratch script, and the `.gitignore` miss with `git check-ignore`.
-	- Origin: b3e719f and de93848, 2026-05-06 to 05-08. Not seen by an earlier round. Confirmed except the ODS writer.
+	- Origin: b3e719f and de93848, 2026-05-06 to 05-08. Not seen by an earlier round. Confirmed, the ODS writer included.
+	- Reproduced: 20261004, the ODS writer. Three different values written to a three-row repeated group all read back as the last one. A row added to a sheet saved the usual way, with a large empty group to the end, landed at row 1048577, past the sheet's last row. A value repeated across three columns read as empty in the last two.
+	- Actual cause:
+		- The clipboard scripts assign the filter's output on a `local` line, which hides the filter's exit status.
+		- The `eog` check was copied from the `python3` line, message and all, and the viewer launch had no display check.
+		- The ODS reader maps every row of a repeated group to the group's one element, so a write to one of them changed all of them. It stops indexing at the first large group, and a new row was then added after that group. It also kept a repeated cell's value for its first column only.
+		- The headers came from the files they were copied from, or from older names.
+	- Actual fix:
+		- A failed filter stops the clipboard script with an error, and the clipboard is left as it was.
+		- The test script no longer needs `eog`. It opens the debug image only when a display is set and `eog` is installed, and says why when it doesn't.
+		- The ODS writer splits a row out of its repeated group, or out of the large group at the end, before writing to it. A repeated cell reads the same in every column it covers.
+		- The four headers describe their own file. `.gitignore` matches `unicode_visual_debug_*.png`.
+		- `filter_2_messy.py` drops the unused set and tests membership in sets. Output is unchanged, and a run over every assigned character went from about 65 seconds to 1.
+		- Two spelling fixes in messages: "Warting" and "Scrabled".
+	- Note: the viewer still opens by default at a desktop, since showing the image is what the test script is for. Opening it only on request would be an enhancement.
+	- Note: left alone: the block generator reads its output name from argv when imported, the test script opens the newest image in the folder rather than the one it just wrote, and rows after a large repeated group in the middle of an ODS sheet are still not indexed.
+	- Swept: the `local` line in all three clipboard scripts. The other `local x="$(...)"` lines there and in the test script are checked on the next line already. List membership in every research script: only `_parse_chars` in `filter_3_visual.py` had it, and now uses a set with unchanged output. Every ODS write goes through `set_cell_value`. The gnumeric and xlsx adapters have no repeated rows.
+	- Verified: 20261004, each fix before and after. Before, a failing filter emptied the clipboard at exit 0; after, the clipboard is unchanged at exit 1, and a working filter still writes it. Before, a missing `eog` stopped the script with the `python3` message and the viewer opened with no display; after, the filters run and the image is skipped with a note, and it opens when a display is set. All three ODS cases fail before and pass after, and LibreOffice reads the written file back the same. Filter 2 and 3 output is byte-identical before and after. `git check-ignore` misses a current debug image name before and matches it after. No new shellcheck or ruff findings.
+	- Test case: none in CI. These are one-off research tools, kept out of the lint gates by item 22, and they need a clipboard, a display, fonts or odfpy. Each fix was run before and after, as above.
+	- Related IDs: 2026100419493125
+	- Branch: unicode-tools
+	- Commit: 4033fb5
+	- Acceptance signoff: Waiting: the `eog` reading, and the ODS writer's change to what it writes.
+
+- `filter_2_messy.py` crashes on six Arabic ligatures.
+	- ID: 2026100419493125
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-194931
+	- Opened by: found while working 2026100413480015
+	- Target OS: Any
+	- Steps to reproduce:
+		- `filter_2_messy.py` with U+FC5B, U+FC5C, U+FC5D, U+FC63, U+FC90 or U+FCD9 in its input.
+	- Incorrect behavior: a `TypeError` from `ord()`, since these are superscript forms whose NFKD form is two characters.
+	- Note: `filter_1_junk.py` drops all six as right-to-left, so the full pipeline never reaches it. `unicode_2_messy_alter_xclipboard_contents.bash` runs filter 2 alone, and since 2026100413480015 a crash there leaves the clipboard alone.
+	- Related IDs: 2026100413480015
 
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
