@@ -178,6 +178,34 @@ func TestTinyFractionRoundsToZero(t *testing.T) {
 	}
 }
 
+// A fraction that rounds up to a whole one carries into the integer part, and
+// a negative value that was below one keeps its sign after the carry.
+// Test ID: Erq97xg
+func TestFractionRoundingCarries(t *testing.T) {
+	reg := newReg(t)
+	dec10, hex16 := base(t, reg, "10"), base(t, reg, "16")
+	for _, c := range []struct {
+		in   string
+		to   *Base
+		prec int
+		want string
+	}{
+		{"0.99999", hex16, 2, "1"},
+		{"-0.99999", hex16, 2, "-1"},
+		{"15.999", hex16, 1, "10"},
+		{"-1.9999", hex16, 1, "-2"},
+		{"9.96", dec10, 1, "10"},
+		{"0.9995", dec10, 3, "1"},
+	} {
+		got, err := Convert(c.in, dec10, c.to, c.prec)
+		if err != nil {
+			t.Errorf("Convert(%q, p%d): %v", c.in, c.prec, err)
+		} else if got != c.want {
+			t.Errorf("Convert(%q, p%d) = %q, want %q", c.in, c.prec, got, c.want)
+		}
+	}
+}
+
 // A lone decimal marker, with or without a sign, has no digits. It used to be
 // read as zero. Either side of the marker alone is still a number.
 // Test ID: Erlz3L2
