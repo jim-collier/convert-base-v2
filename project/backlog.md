@@ -183,7 +183,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
 	- ID: 2026100413480017
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on signoff
 	- Priority: High
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -193,11 +193,22 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Probable fix: keep built-ins as cheap specs and finalize each on first lookup, or on `--list`. Config bases still validate at load. A unit test that builds every built-in keeps catching bad data. Add a `NewRegistry` benchmark with a threshold.
 	- Origin: the registry design from ad488ce. The cost was noted in passing on 2026-08-02 and in G12, never filed. Confirmed by timing and pprof.
 	- Related IDs: 2026100413480018
+	- Done: each built-in keeps its spec and is parsed and checked the first time `Lookup` or `OrderedBases` reaches it. A lookup builds only the base it finds, and a miss builds none. `--list`, `--get-index-count` and `--by-index` build them all. `leftTokens` stops at the tokens it needs instead of splitting a whole alphabet. `NewRegistry` went from about 38 ms and 29 MB to 0.17 ms and 0.24 MB.
+	- Decisions:
+		- Config bases are still checked when the file loads, through `Register`, as before. No error compared config bases against built-ins before: a config name or alias that matches a built-in takes it over by design. So there was nothing to keep there, and the config errors and their line citations are unchanged.
+		- Library meaning: `NewRegistry` no longer checks the built-ins, so its error is always nil. It stays in the signature. A built-in that fails to build comes back as an error from `Lookup`, and `OrderedBases`, which has no error return, panics, like `mkSpec` already does on bad data. Only a broken `bases.go` can reach either, and `TestEveryBuiltinBuilds` fails on that. The library is already at v0.2.0 for the next release, so no new bump.
+		- Concurrency: one `sync.Once` per built-in. `Lookup` and `OrderedBases` are safe from several goroutines. `Register` and `LoadConfig` are not, as before. Both are documented on `Registry` and in the package doc.
+	- Verified: release build, 40 runs each, dev against this branch. `255 16` went from 58 ms to 1.5 ms, `--version` stayed at 1.0 ms, and `--list` went from 59 ms to 41 ms.
+	- Verified: `--list`, `--list-compat`, both together, `--get-index-count`, `--get-base-name` and `--show-symbols` and `--show-symbols-0` for every index, `--get-base-name` and a conversion for every listed name, and an unknown-name suggestion are byte-identical to dev. So are five config cases: a stolen alias, a shadowed built-in, and three load errors with their line citations. The name, size, raw flag, markers, digits and tail of every base `.bases()` lists match dev too.
+	- Verified: go vet, golangci-lint, `go test ./...`, the four new tests under `-race`, and the full `test.bash` with the performance section and packaging rebuilds, 569 of 569.
+	- Test case: `ErmQ6z6` TestEveryBuiltinBuilds fails on a duplicate digit put into base 2. `ErmQ6zb` TestLookupBuildsOnlyItsBase and `ErmQ70b` TestNewRegistryCost (at most 2 MiB and 10 ms) fail when `NewRegistry` builds every base. `ErmQ706` TestConcurrentLookup reports a data race under `-race` without the once. `BenchmarkNewRegistry` gives the number.
+	- Branch: lazy-bases
+	- Commit: f46614b
 
 - `ParseSymbolSpec` splits every token on commas before checking for one, and rebuilds a replacer per token. (Code review 20261004 item 18)
 	- ID: 2026100413480018
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority: Avg
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -205,6 +216,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the built-in alphabets run to 65536 tokens, so this runs on every start. Checking for a comma first and building the replacer once took `NewRegistry` from 64 ms to 46 ms and from 224k allocations to 4.5k.
 	- Origin: `symbolspec.go:79` and `:150-154`. Not seen by an earlier round. Confirmed by benchmark.
 	- Related IDs: 2026100413480017
+	- Done: a token is split on commas only when it has one, and the placeholder replacer is built once. The token list is reused and the output sized up front. The bare `,` token is still the comma digit, so `85ps` keeps all 85.
+	- Verified: `NewRegistry` went from 54 ms and 224k allocations to 38 ms and 3.8k, before 2026100413480017. The `85ps` ascii85 vectors pass, and so do go vet, golangci-lint and `go test ./...`.
+	- Test case: `ErmOs7S` TestSpecParserAllocs. A 4096-digit spec took 8270 allocations before and passes at most 40 after. It also pins the comma digit, the escapes and a comma group.
+	- Branch: lazy-bases
+	- Commit: 83947e6
+	- Acceptance signoff: Self-closed: did what the item asked, and its test failed before and passes after.
+	- Closed: 20261004-171604
 
 - The number path looks up each digit twice. (Code review 20261004 item 19)
 	- ID: 2026100413480019
