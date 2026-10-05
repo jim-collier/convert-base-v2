@@ -155,6 +155,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `ErnEi9h` (one-word command), `ErnEiAv` (same directory name), `ErnEiCC` (compile error). Each fails on the old code and passes now. The private Pillow call has no test, since nothing visible changed: the new check matched the old one on every codepoint tried.
 	- Acceptance signoff: Waiting: the compile-error fix goes past the listed bugs.
 	- Branch: py-style
+	- Commit: de915f7
 
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
