@@ -1760,6 +1760,7 @@ ssrc=0; SS_DRAWN="${ssDir}/drawn" PATH="${ssDir}/bin:${PATH}" bash "${meDir}/../
 ## a minute, so its Movie is fed made-up frames: small ones across many batch
 ## edges against one Pillow save of the same frames, then 400 full-size ones
 ## whose peak memory must stay under half of what holding them all would take.
+## A one-word command types at the same pace as the first word of a longer one.
 dgDir="${CBT_TMP}/dg"; mkdir -p "${dgDir}"
 dgrc=0; python3 -B - "${meDir}/utility/gen-demo-gif.py" "${dgDir}" >"${CBT_OUT}" 2>"${CBT_ERR}" <<'EOF' || dgrc=$?
 import importlib.util, random, resource, sys
@@ -1771,7 +1772,7 @@ except SystemExit:
 	sys.exit(3)
 from PIL import Image, ImageDraw
 outDir = sys.argv[2]
-pal = gd.fBuildPalette((196, 148, 108), (160, 136, 200), []).getpalette()
+pal = gd.build_palette((196, 148, 108), (160, 136, 200), []).getpalette()
 
 def fCanvas(w, h):
 	img = Image.new("P", (w, h), 5)
@@ -1827,14 +1828,23 @@ try:
 	print(f"identity {'ok' if not bad else 'FAIL'} {bad or ''}")
 except Exception as e:
 	print(f"identity FAIL {e!r}")
+
+try:
+	alone = [e.delay for e in gd.type_events("cat", random.Random(5), (180, 180), typos=False)]
+	first = [e.delay for e in gd.type_events("cat x", random.Random(5), (180, 180), typos=False)][:3]
+	print(f"leadword {'ok' if alone == first else 'FAIL'} {alone} {first}")
+except Exception as e:
+	print(f"leadword FAIL {e!r}")
 EOF
 if ((dgrc == 3)); then
-	_warn "ErmYENq ErmYEP0" "demo gif encoder checks: no Pillow"
+	_warn "ErmYENq ErmYEP0 ErnEi9h" "demo gif checks: no Pillow"
 else
 	grep -q "^identity ok" "${CBT_OUT}" && _pass ErmYENq "demo gif batches match one Pillow save" \
 		|| _fail ErmYENq "demo gif batches match one Pillow save" "rc=${dgrc} out=[$(cat "${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
 	grep -q "^memory ok" "${CBT_OUT}" && _pass ErmYEP0 "demo gif frames are not all held until the save" \
 		|| _fail ErmYEP0 "demo gif frames are not all held until the save" "rc=${dgrc} out=[$(cat "${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+	grep -q "^leadword ok" "${CBT_OUT}" && _pass ErnEi9h "demo gif types a one-word command at first-word speed" \
+		|| _fail ErnEi9h "demo gif types a one-word command at first-word speed" "rc=${dgrc} out=[$(cat "${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
 fi
 
 ## flame-report.py is the startup gate's reader. A flamegraph it can't read is
@@ -1880,6 +1890,26 @@ cp "${meDir}/utility/test-ids.py" "${tiDir}/cicd/utility/"
 tirc=0; tiOut="$(python3 "${tiDir}/cicd/utility/test-ids.py" check 2>&1)" || tirc=$?
 { ((tirc == 0)) && [[ "${tiOut}" == "OK: 2 test IDs, all distinct" ]]; } && _pass Ermz7B5 "test-ids reads a bash array as no test call" \
 	|| _fail Ermz7B5 "test-ids reads a bash array as no test call" "rc=${tirc} out=[${tiOut}]"
+
+## Go tests are keyed by import path, since two packages can share a directory
+## name. A compile error prints under the package it broke.
+tgDir="${CBT_TMP}/tg"; mkdir -p "${tgDir}/cicd/utility" "${tgDir}/a/util" "${tgDir}/b/util"
+cp "${meDir}/utility/test-ids.py" "${tgDir}/cicd/utility/"
+printf '%s\n' '_pass Ermz7B4 "kept"' >"${tgDir}/cicd/test.bash"
+printf 'module example.com/m\n' >"${tgDir}/go.mod"
+printf '%s\n' 'package util' '' '// Test ID: Ermz7Ba' 'func TestSame(t *testing.T) {}' >"${tgDir}/a/util/x_test.go"
+printf '%s\n' 'package util' '' '// Test ID: Ermz7Bb' 'func TestSame(t *testing.T) {}' >"${tgDir}/b/util/x_test.go"
+tgrc=0; tgOut="$(python3 "${tgDir}/cicd/utility/test-ids.py" check 2>&1)" || tgrc=$?
+tgRep="$(printf '%s\n' '{"Action":"pass","Package":"example.com/m/a/util","Test":"TestSame"}' '{"Action":"pass","Package":"example.com/m/b/util","Test":"TestSame"}' \
+	| python3 "${tgDir}/cicd/utility/test-ids.py" report 2>&1 || true)"
+{ ((tgrc == 0)) && [[ "${tgOut}" == "OK: 3 test IDs, all distinct" ]] && grep -qF "Ermz7Ba  TestSame (util)" <<<"${tgRep}" && grep -qF "Ermz7Bb  TestSame (util)" <<<"${tgRep}"; } \
+	&& _pass ErnEiAv "test-ids keeps two Go packages with the same directory name apart" \
+	|| _fail ErnEiAv "test-ids keeps two Go packages with the same directory name apart" "rc=${tgrc} check=[${tgOut}] report=[$(tr '\n' ' ' <<<"${tgRep}")]"
+tgRep="$(printf '%s\n' '{"ImportPath":"example.com/m/a/util [example.com/m/a/util.test]","Action":"build-output","Output":"a/util/x_test.go:4:1: undefined: oops\n"}' \
+	'{"ImportPath":"example.com/m/a/util [example.com/m/a/util.test]","Action":"build-fail"}' '{"Action":"fail","Package":"example.com/m/a/util"}' \
+	| python3 "${tgDir}/cicd/utility/test-ids.py" report 2>&1 || true)"
+grep -qF "undefined: oops" <<<"${tgRep}" && _pass ErnEiCC "test-ids report shows a compile error under its package" \
+	|| _fail ErnEiCC "test-ids report shows a compile error under its package" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

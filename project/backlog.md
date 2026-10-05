@@ -129,20 +129,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: alias flags are separate bools ORed at each use. `canLowercase` and `canUppercase` are copies. The `case from.allOneByte` arm in `convertBitPacked` can never be reached.
 	- Origin: mostly ad488ce, grown since. Not seen by an earlier round. Confirmed by gocognit and a coverage profile.
 
-- The Python pipeline tools miss most of the Python style rules. (Code review 20261004 item 25)
-	- ID: 2026100413480025
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: no type hints anywhere, files opened without `with`, lists and tuples used as records, os.path over pathlib. Scope is `flame-report.py`, `pprof2flame.py`, `test-ids.py`, `gen-demo-gif.py` and `gen-bases-table.py`.
-	- Note: also unused `wpx` in pprof2flame and `prog` in gen-demo-gif, a private Pillow call, a `find(" ")` of -1 that skips the fast-typing start for a one-word command, and test-ids keying tests by directory basename.
-	- Origin: a8d50ce onward. Not seen by an earlier round. Confirmed by mypy and ruff.
-	- Prereq IDs: 2026100413480032
-	- Note: item 32 answered. `pprof2flame.py`, `gen-demo-gif.py` and `gen-bases-table.py` move to snake_case. `flame-report.py` keeps silkterm's names.
-
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
 	- Type: Enhancement
@@ -1020,6 +1006,35 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again after the next release. Rebuild its tag with the Go, nfpm and NSIS versions the workflow used, and compare with its `checksums.txt`. NSIS comes from the runner's apt, so its version has to be read from the workflow log.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
+
+- The Python pipeline tools miss most of the Python style rules. (Code review 20261004 item 25)
+	- ID: 2026100413480025
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: no type hints anywhere, files opened without `with`, lists and tuples used as records, os.path over pathlib. Scope is `flame-report.py`, `pprof2flame.py`, `test-ids.py`, `gen-demo-gif.py` and `gen-bases-table.py`.
+	- Note: also unused `wpx` in pprof2flame and `prog` in gen-demo-gif, a private Pillow call, a `find(" ")` of -1 that skips the fast-typing start for a one-word command, and test-ids keying tests by directory basename.
+	- Origin: a8d50ce onward. Not seen by an earlier round. Confirmed by mypy and ruff.
+	- Prereq IDs: 2026100413480032
+	- Note: item 32 answered. `pprof2flame.py`, `gen-demo-gif.py` and `gen-bases-table.py` move to snake_case. `flame-report.py` keeps silkterm's names.
+	- Progress log:
+		- Done: the three scripts use PEP 8 names, and ruff's naming rules cover them again. `flame-report.py` keeps its names and stays exempt. File names and command lines are unchanged.
+		- Done: all five have type hints, named records where bare tuples, lists and dicts stood in for them, pathlib for paths, and `with` or pathlib for every file read and write.
+		- Fixed: a one-word command types at the same pace as the first word of a longer one. The missing-glyph check uses public Pillow calls only. The unused `prog` argument is gone.
+		- Fixed: test-ids keys Go tests by import path, so two packages with the same directory name no longer share one test's ID.
+		- Fixed: a compile error now prints under the package it broke. Its output was filed under a misread key and never shown. Same key, same code, so it is fixed here rather than filed apart.
+		- Note: the `wpx` note is out of date. Item 22 already used it.
+	- Verified: output is byte-identical before and after for all five tools, across their options and error exits, apart from the compile error lines above. The demo gif comes out identical to the committed one. The bases table matches `--list` and the README row for row.
+	- Verified: ruff is clean from the repo root and fails on a camelCase function in each renamed file. mypy is clean on all five with untyped defs disallowed. Harness 555 of 555.
+	- Swept: no other `find` result in the five files goes unchecked, and no other private Pillow call is left. The report's test keys and its build-output key both moved to import path. Callers checked: `cicd.bash`, `config.bash`, `test.bash`, contributing.md, the style guide and the private notes.
+	- Test case: `ErnEi9h` (one-word command), `ErnEiAv` (same directory name), `ErnEiCC` (compile error). Each fails on the old code and passes now. The private Pillow call has no test, since nothing visible changed: the new check matched the old one on every codepoint tried.
+	- Acceptance signoff: closed without it. The compile-error fix is the same keying code as the listed bug, and has its own test.
+	- Closed: 20261004
+	- Branch: py-style
+	- Commit: de915f7
 
 - Small Go style fixes. (Code review 20261004 item 24)
 	- ID: 2026100413480024

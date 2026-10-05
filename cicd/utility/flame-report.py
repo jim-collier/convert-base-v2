@@ -18,9 +18,10 @@
 
 import argparse
 import html
-import os
 import re
 import sys
+from pathlib import Path
+from typing import NamedTuple, NoReturn
 
 STEP      = 16              # flamegraph row height in the SVG, px (a child sits at parent_y - STEP)
 SELF_TOP  = 22             	# self-time leaders to list
@@ -48,20 +49,27 @@ BUCKETS = [
 ]
 
 
-def fSkip(msg):
+class Frame(NamedTuple):
+	name: str
+	x: float                                     # fg:x, in raw samples
+	y: float                                     # px, the root row is at the bottom
+	w: float                                     # fg:w, in raw samples
+
+
+def fSkip(msg: str) -> NoReturn:
 	##	2 = environmental skip (no dir / unparseable) - non-fatal, matches the
 	##	cicd profiler stage which treats such things as a warning, not a failure.
 	sys.stderr.write(f"flame-report: {msg}\n")
 	sys.exit(2)
 
 
-def fNewest(pdir):
+def fNewest(pdir: Path) -> tuple[str, str] | None:
 	##	Sort on the timestamp, NOT the role suffix: GFS rotation retags the role
 	##	(frequent -> latest -> hour/day/...) as time passes, but the timestamp in
 	##	the name is stable.
 	best = None
 	try:
-		names = os.listdir(pdir)
+		names = [p.name for p in pdir.iterdir()]
 	except OSError as e:
 		fSkip(f"cannot read {pdir}: {e}")
 	for name in names:
@@ -71,69 +79,70 @@ def fNewest(pdir):
 	return best
 
 
-def fParse(path):
+def fAttr(attrs: str, key: str) -> float | None:
+	vm = re.search(re.escape(key) + r'="([\d.]+)"', attrs)
+	return float(vm.group(1)) if vm else None
+
+
+def fParse(path: Path) -> tuple[int, list[Frame]]:
 	try:
-		with open(path, encoding="utf-8") as f:
-			text = f.read()
+		text = path.read_text(encoding="utf-8")
 	except (OSError, UnicodeDecodeError) as e:
 		fSkip(f"cannot read {path}: {e}")
 	m = re.search(r'total_samples="(\d+)"', text)
 	total = int(m.group(1)) if m else 0
-	frames = []                                      # each: (name, x, y, w) in raw samples
+	frames: list[Frame] = []
 	for fm in FRAME_RE.finditer(text):
 		attrs = fm.group(2)
-		def val(key):
-			vm = re.search(re.escape(key) + r'="([\d.]+)"', attrs)
-			return float(vm.group(1)) if vm else None
-		y, x, w = val("y"), val("fg:x"), val("fg:w")
-		if None in (y, x, w):
+		y, x, w = fAttr(attrs, "y"), fAttr(attrs, "fg:x"), fAttr(attrs, "fg:w")
+		if y is None or x is None or w is None:
 			continue
 		name = re.sub(r"\s*\(\d[\d,]* samples.*$", "", html.unescape(fm.group(1)))
-		frames.append((name, x, y, w))
+		frames.append(Frame(name, x, y, w))
 	if not total or not frames:
 		fSkip(f"could not parse a flamegraph out of {path}")
 	return total, frames
 
 
-def fBucket(name):
+def fBucket(name: str) -> str:
 	for label, needles in BUCKETS:
 		if any(n in name for n in needles):
 			return label
 	return "other, app code"
 
 
-def fAnalyze(total, frames, top):
-	byY = {}
+def fAnalyze(total: int, frames: list[Frame], top: int) -> None:
+	byY: dict[float, list[Frame]] = {}
 	for fr in frames:
-		byY.setdefault(fr[2], []).append(fr)
+		byY.setdefault(fr.y, []).append(fr)
 	eps = 1e-6
 
-	def kids(fr):
-		_, x, y, w = fr
-		return [c for c in byY.get(y - STEP, []) if c[1] >= x - eps and c[1] + c[3] <= x + w + eps]
+	def kids(fr: Frame) -> list[Frame]:
+		return [c for c in byY.get(fr.y - STEP, []) if c.x >= fr.x - eps and c.x + c.w <= fr.x + fr.w + eps]
 
-	def parent(fr):
-		_, x, y, w = fr
-		for p in byY.get(y + STEP, []):
-			if p[1] <= x + eps and p[1] + p[3] >= x + w - eps:
+	def parent(fr: Frame) -> Frame | None:
+		for p in byY.get(fr.y + STEP, []):
+			if p.x <= fr.x + eps and p.x + p.w >= fr.x + fr.w - eps:
 				return p
 		return None
 
-	def selfW(fr):
-		return fr[3] - sum(c[3] for c in kids(fr))
+	def selfW(fr: Frame) -> float:
+		return fr.w - sum(c.w for c in kids(fr))
 
-	selfBy, inclBy, byName = {}, {}, {}
-	attrib = {}
+	selfBy: dict[str, float] = {}
+	inclBy: dict[str, float] = {}
+	byName: dict[str, list[Frame]] = {}
+	attrib: dict[str, float] = {}
 	for fr in frames:
-		name = fr[0]
+		name = fr.name
 		byName.setdefault(name, []).append(fr)
-		inclBy[name] = inclBy.get(name, 0.0) + fr[3]
+		inclBy[name] = inclBy.get(name, 0.0) + fr.w
 		s = selfW(fr)
 		selfBy[name] = selfBy.get(name, 0.0) + s
 		if s > 0:
 			attrib[fBucket(name)] = attrib.get(fBucket(name), 0.0) + s
 
-	def pct(v):
+	def pct(v: float) -> str:
 		return f"{v / total * 100:5.1f}%"
 
 	print("attribution (self-time):")
@@ -160,19 +169,18 @@ def fAnalyze(total, frames, top):
 		print(f"  {name}  ({pct(v)} self)")
 		cur, depth = parent(fr), 0
 		while cur and depth < 12:
-			print(f"      {cur[0]}")
-			if cur[0] == "all":
+			print(f"      {cur.name}")
+			if cur.name == "all":
 				break
 			cur, depth = parent(cur), depth + 1
 
 
-def main():
-	here = os.path.dirname(os.path.abspath(__file__))
-	default_dir = os.path.normpath(os.path.join(here, "..", "artifacts", "profiling"))
+def main() -> None:
+	default_dir = Path(__file__).resolve().parent.parent / "artifacts" / "profiling"
 
 	ap = argparse.ArgumentParser(description="Summarize the newest convert-base-v2 profiler flamegraph.")
-	ap.add_argument("--dir", default=default_dir, help="profiling directory (default: %(default)s)")
-	ap.add_argument("--file", help="analyze this SVG instead of the newest in --dir")
+	ap.add_argument("--dir", type=Path, default=default_dir, help="profiling directory (default: %(default)s)")
+	ap.add_argument("--file", type=Path, help="analyze this SVG instead of the newest in --dir")
 	ap.add_argument("--top", type=int, default=SELF_TOP, help="self-time leaders to list")
 	ap.add_argument("--check", action="store_true",
 	                help="startup gate: print only if newer than the local marker, then record it")
@@ -182,25 +190,25 @@ def main():
 
 	if a.file:
 		path = a.file
-		if not os.path.isfile(path):
+		if not path.is_file():
 			fSkip(f"no such file: {path}")
-		name = os.path.basename(path)
+		name = path.name
 		m = NAME_RE.match(name)
 		ts = m.group(1) if m else ""
 	else:
-		if not os.path.isdir(a.dir):
+		if not a.dir.is_dir():
 			fSkip(f"no profiling dir: {a.dir}")
 		nb = fNewest(a.dir)
 		if not nb:
 			fSkip(f"no flamegraphs in {a.dir}")
 		ts, name = nb
-		path = os.path.join(a.dir, name)
+		path = a.dir / name
 
-	marker = os.path.join(a.dir, SEEN_FILE)
+	marker = a.dir / SEEN_FILE
 	if a.check and not a.force:
 		seen = ""
 		try:
-			seen = open(marker).read().strip()
+			seen = marker.read_text().strip()
 		except OSError:
 			pass
 		if ts and seen and ts <= seen:
@@ -214,7 +222,7 @@ def main():
 
 	if a.check and not a.no_mark and ts:
 		try:
-			open(marker, "w").write(ts + "\n")
+			marker.write_text(ts + "\n")
 		except OSError as e:
 			sys.stderr.write(f"flame-report: could not write marker: {e}\n")
 
@@ -226,3 +234,4 @@ if __name__ == "__main__":
 ##	History:
 ##		- 20260709: Created.
 ##		- 20261004: An unreadable flamegraph is a skip (exit 2). The divide and conquer convert counts as big-int.
+##		- 20261004: Type hints, pathlib, and a named record for each frame.
