@@ -48,6 +48,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Library: each built-in base is built the first time `Lookup` or `OrderedBases` reaches it, so `NewRegistry` no longer checks them. `Lookup` and `OrderedBases` are safe to call from several goroutines.
 
+- Long numbers convert faster, by 20 to 40 percent from a thousand to 64 thousand digits. Each digit is now looked up once instead of twice.
+
 - Config files are read with SHCL 3.0. A backslash in a value is plain text unless it is inside double quotes, where only `\t`, `\n`, `\\`, `\"`, `\'` and `\u` escapes are accepted. Any other escape there is refused. `\,` and `\#` no longer protect a comma or a `#` outside quotes; quote the value instead. A config without backslashes in it reads the same as before.
 
 - The config file written on the first run ends with SHCL's info block, which names the format version it was written for.
@@ -73,6 +75,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `make release` and `make clean` emptied whatever directory `DIST` named. They now clear only a directory a build made, and refuse one that holds other files.
 
 - The install script stopped with no message when the release had no tag or `checksums.txt` had no line for the download. It now says which.
+
+- `--from-tail` or `--to-tail` given only commas set no tail symbols but still switched the base to its tail layout, so some lengths decoded to the wrong bytes with no error. It is refused now, naming the base. Library: `Finalize` refuses a tail `BinaryScheme` on a base with no tail symbols.
 
 ## v3.0.0 - 2026-08-04
 

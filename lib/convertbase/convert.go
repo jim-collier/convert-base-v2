@@ -98,7 +98,7 @@ func (s *dcState) growPows(n int) {
 // parseDigits reads a digit run in its own base into a big.Int. Short runs go
 // straight to the packed word loop; long ones recurse, combining the halves as
 // hi*radix^m + lo with m a leaf-aligned power of two.
-func parseDigits(digits []string, from *Base) *big.Int {
+func parseDigits(digits []int, from *Base) *big.Int {
 	s := newDCState(from)
 	if len(digits) <= s.leafDigits {
 		return s.parseLeaf(digits)
@@ -107,7 +107,7 @@ func parseDigits(digits []string, from *Base) *big.Int {
 	return s.parse(digits, len(s.pows)-1)
 }
 
-func (s *dcState) parse(digits []string, j int) *big.Int {
+func (s *dcState) parse(digits []int, j int) *big.Int {
 	for j >= 0 && s.leafDigits<<j >= len(digits) {
 		j--
 	}
@@ -126,7 +126,7 @@ func (s *dcState) parse(digits []string, j int) *big.Int {
 
 // parseLeaf is the chunk-at-a-time loop: pack a word's worth of digits with
 // plain integer arithmetic, then one bignum multiply-add per word.
-func (s *dcState) parseLeaf(digits []string) *big.Int {
+func (s *dcState) parseLeaf(digits []int) *big.Int {
 	radix := s.radix
 	chunkLen := s.chunkLen
 	val := new(big.Int)
@@ -145,7 +145,7 @@ func (s *dcState) parseLeaf(digits []string) *big.Int {
 		}
 		var chunk uint
 		for j := 0; j < n; j++ {
-			chunk = chunk*radix + uint(s.base.value[digits[i+j]])
+			chunk = chunk*radix + uint(digits[i+j])
 		}
 		i += n
 		val.Mul(val, mul)
@@ -379,11 +379,11 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 	}
 
 	// Tokenize the two parts separately.
-	intDigits, err := from.Tokenize(intPart)
+	intDigits, err := from.digitValues(intPart)
 	if err != nil {
 		return "", fmt.Errorf("integer part: %w", err)
 	}
-	fracDigits, err := from.Tokenize(fracPart)
+	fracDigits, err := from.digitValues(fracPart)
 	if err != nil {
 		return "", fmt.Errorf("fractional part: %w", err)
 	}
@@ -560,12 +560,12 @@ func convertBitPacked(input string, from, to *Base, kIn, kOut int) (string, erro
 	default:
 		// Tolerate line breaks the way the byte paths do, so wrapped multi-byte
 		// output reads back the same whether it arrives via argv or a pipe.
-		digits, err := from.Tokenize(stripLineBreaks(input))
+		digits, err := from.digitValues(stripLineBreaks(input))
 		if err != nil {
 			return "", err
 		}
 		for _, d := range digits {
-			feed(from.value[d])
+			feed(d)
 		}
 	}
 
@@ -1313,7 +1313,7 @@ func encodeBinaryPrefixed(data string, to *Base, k int) string {
 // bytes, read the leading varint length, and return exactly that many bytes.
 // Trailing zero-pad bytes past the counted length are ignored.
 func decodeBinaryPrefixed(input string, from *Base, k int) (string, error) {
-	digits, err := from.Tokenize(input)
+	digits, err := from.digitValues(input)
 	if err != nil {
 		return "", err
 	}
@@ -1321,7 +1321,7 @@ func decodeBinaryPrefixed(input string, from *Base, k int) (string, error) {
 	var acc uint64
 	var accBits int
 	for _, d := range digits {
-		acc = (acc << k) | uint64(from.value[d])
+		acc = (acc << k) | uint64(d)
 		accBits += k
 		for accBits >= 8 {
 			accBits -= 8

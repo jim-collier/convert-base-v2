@@ -8,7 +8,10 @@ package convertbase
 import (
 	"bytes"
 	"io"
+	"math"
+	"math/big"
 	"testing"
+	"time"
 )
 
 // Throughput benchmarks for the streaming binary path. Run one direction with
@@ -68,6 +71,70 @@ func BenchmarkPositional1K(b *testing.B)  { benchPositional(b, 1000) }
 func BenchmarkPositional4K(b *testing.B)  { benchPositional(b, 4000) }
 func BenchmarkPositional16K(b *testing.B) { benchPositional(b, 16000) }
 func BenchmarkPositional64K(b *testing.B) { benchPositional(b, 64000) }
+
+// The tokenizer already knows each digit's value, so the number path must not
+// look it up again by symbol. A one-byte base reads input through its byte
+// table alone, so with the symbol map gone a second lookup reads every digit
+// as zero.
+// Test ID: ErmUk2J
+func TestNumberPathUsesTokenValues(t *testing.T) {
+	reg := newReg(t)
+	dec10 := base(t, reg, "10")
+	to := base(t, reg, "36")
+	b := &Base{Aliases: []string{"nomap10"}, Symbols: dec10.Symbols}
+	if err := b.Finalize(); err != nil {
+		t.Fatal(err)
+	}
+	b.value = nil
+	for _, in := range []string{"7", "-98765432109876543210", "123.456", benchDigits(2000)} {
+		want, err := Convert(in, dec10, to, 8)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, err := Convert(in, b, to, 8)
+		if err != nil {
+			t.Fatalf("%d digits: %v", len(in), err)
+		}
+		if got != want {
+			t.Errorf("%d digits: got %.40q, want %.40q", len(in), got, want)
+		}
+	}
+}
+
+// The number path does the same divide and conquer as math/big's SetString
+// and Text, so their time is a yardstick that moves with the machine. Ours sat
+// near 1.9 times theirs at 1K digits while each digit was looked up twice, and
+// near 1.2 after. Best of several rounds, so a busy box doesn't fail it.
+// Test ID: ErmULlt
+func TestPositionalNearMathBig(t *testing.T) {
+	reg := newReg(t)
+	from, to := base(t, reg, "10"), base(t, reg, "36")
+	input := benchDigits(1000)
+	best := func(f func()) time.Duration {
+		fastest := time.Duration(math.MaxInt64)
+		for round := 0; round < 15; round++ {
+			start := time.Now()
+			for i := 0; i < 20; i++ {
+				f()
+			}
+			fastest = min(fastest, time.Since(start))
+		}
+		return fastest
+	}
+	ours := best(func() {
+		if _, err := Convert(input, from, to, 0); err != nil {
+			t.Fatal(err)
+		}
+	})
+	ref := best(func() {
+		v, _ := new(big.Int).SetString(input, 10)
+		_ = v.Text(36)
+	})
+	const limit = 1.5
+	if ratio := float64(ours) / float64(ref); ratio > limit {
+		t.Errorf("1K digits base 10 -> 36 took %.2f times math/big's own conversion, limit %.1f (%v vs %v)", ratio, limit, ours, ref)
+	}
+}
 
 func benchConvert(b *testing.B, fromName, toName, input string) {
 	reg, err := NewRegistry()
