@@ -93,47 +93,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 294764b
 	- Test case: ErmroeI, Ermroeo, ErmrofR, Ermroh4, Ermrofy, ErmrogW (CI engine section), Ermt58H (pin-tools).
 
-- `TestPositionalNearMathBig` fails now and then on a busy machine.
-	- ID: 2026100419103794
-	- Type: Bug
-	- Status: Queued
-	- Severity: Low
-	- Opened: 20261004-191037
-	- Opened by: found during the 20261004 evening backlog round
-	- Target OS: Any
-	- Incorrect behavior: at a load average near 15, `go test ./...` failed once with "took 1.58 times math/big's own conversion, limit 1.5". Three reruns passed.
-	- Expected behavior: a timing check that a busy box doesn't trip.
-	- Reproduced: 20261004, 1 of 4 runs at load 15.
-	- Possible cause: best of 15 rounds still isn't enough when both sides get different slices of a loaded CPU.
-
-- `test-ids.py` reads a bash array of linter arguments in `test.bash` as a test call with no ID.
-	- ID: 2026100419103799
-	- Type: Bug
-	- Status: Queued
-	- Severity: Low
-	- Opened: 20261004-191037
-	- Opened by: found while working 2026100413480022
-	- Target OS: Any
-	- Steps to reproduce:
-		- Put a line like `RUFF_CMD=(ruff check .)` in `cicd/test.bash` and run `cicd/utility/test-ids.py check`.
-	- Incorrect behavior: it reports a check with no ID.
-	- Expected behavior: only real test calls count.
-	- Reproduced: no. Worked around in 2026100413480022 by copying the linter commands from `config.bash` instead.
-	- Possible cause: `SH_CALL` in `test-ids.py` matches the `(` that opens an array.
-
-- `flame-report.py` exits 1 on an unreadable flamegraph, where the spec says 2, and misfiles the big-number path. (Code review 20261004 item 14)
-	- ID: 2026100413480014
-	- Type: Bug
-	- Status: Queued
-	- Severity: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Incorrect behavior: a non-UTF-8 or mode-000 SVG gives a traceback and exit 1, so the startup `--check` gate shows a crash, not a skip. `dcState.parse`/`format` and their leaf helpers land in "other, app code", which understates the big-int share. Those two are about 36% of inclusive time.
-	- Expected behavior: exit 2 on any read or decode failure, and a big-int bucket that has the divide and conquer functions.
-	- Reproduced: 20261004, by the review.
-	- Origin: `flame-report.py:65` from a8d50ce on 2026-07-09; the buckets predate the divide and conquer change a6c8612 on 2026-08-02. Not seen by an earlier round. Confirmed.
-
 - The Unicode research tools have small bugs and stale headers. (Code review 20261004 item 15)
 	- ID: 2026100413480015
 	- Type: Bug
@@ -151,18 +110,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Expected behavior: a failed filter leaves the clipboard alone, and headers describe their own file.
 	- Reproduced: the clipboard mechanism with a failing filter in a scratch script, and the `.gitignore` miss with `git check-ignore`.
 	- Origin: b3e719f and de93848, 2026-05-06 to 05-08. Not seen by an earlier round. Confirmed except the ODS writer.
-
-- The frontend parity and macOS universal binary sections of the harness fail when Go is missing, where the reactor section skips.
-	- ID: 2026100416545665
-	- Type: Bug
-	- Status: Queued
-	- Severity: Low
-	- Opened: 20261004-165456
-	- Opened by: found while working 2026100413480008
-	- Target OS: Linux
-	- Incorrect behavior: with no `go` on the PATH, both sections count failures.
-	- Expected behavior: they skip with a warning, as the reactor section does.
-	- Reproduced: no. Seen while testing 2026100413480008 with a stub `go` that acts as missing.
 
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
@@ -796,6 +743,99 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next release. The table renders, every link downloads, and the notes end with the build line.
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
+
+- `TestPositionalNearMathBig` fails now and then on a busy machine.
+	- ID: 2026100419103794
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261004-191037
+	- Opened by: found during the 20261004 evening backlog round
+	- Target OS: Any
+	- Incorrect behavior: at a load average near 15, `go test ./...` failed once with "took 1.58 times math/big's own conversion, limit 1.5". Three reruns passed.
+	- Expected behavior: a timing check that a busy box doesn't trip.
+	- Reproduced: 20261004, 1 of 4 runs at load 15. Again at load 27, 3 of 30 runs, and with 16 to 32 extra busy processes, 6 to 16 of 100.
+	- Possible cause: best of 15 rounds still isn't enough when both sides get different slices of a loaded CPU.
+	- Actual cause: all of our rounds ran first, then all of math/big's, so a change in load between the two halves read as a slowdown. Each round was a batch of 20 calls, long enough that most batches took a preemption, so even the best of 15 was often a loaded one.
+	- Actual fix: the two now take turns, one call each, in alternating order, over 1201 rounds. Each side's fastest call is compared. The limit stays 1.5.
+	- Note: a box well past its core count still slows our side a bit more than math/big's, even at its fastest. Short calls over a longer span are what find the quiet moments. With 401 rounds it still failed 5 and 6 of 100 runs under 32 extra busy processes, and with 1201 none of 200.
+	- Note: the test fails under the race detector, before and after, since that slows our side about twice as much. Nothing here runs it that way.
+	- Verified: 20261004, with 32 extra busy processes: 0 failures in 200 runs, where the old test failed 15 of 200. The double-lookup code from before 6b7629b, with the new test, failed 100 of 100 at ratios of 1.9 to 2.5. `go vet`, golangci-lint and `go test ./...` pass.
+	- Swept: every timed Go test. The only other is `ErmQ70b` TestNewRegistryCost, which times one side against a fixed limit about ten times what it takes, so it was left alone.
+	- Branch: low-bugs
+	- Commit: cbdb7a1
+	- Test case: `ErmULlt` TestPositionalNearMathBig itself. It still fails on the double-lookup code it was written for, 100 of 100, and no longer fails on a busy box.
+	- Acceptance signoff: Self-closed: reproduced, and the test now holds both ways it has to.
+	- Closed: 20261004-193613
+
+- `test-ids.py` reads a bash array of linter arguments in `test.bash` as a test call with no ID.
+	- ID: 2026100419103799
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261004-191037
+	- Opened by: found while working 2026100413480022
+	- Target OS: Any
+	- Steps to reproduce:
+		- Put a line like `RUFF_CMD=(ruff check .)` in `cicd/test.bash` and run `cicd/utility/test-ids.py check`.
+	- Incorrect behavior: it reports a check with no ID.
+	- Expected behavior: only real test calls count.
+	- Reproduced: no. Worked around in 2026100413480022 by copying the linter commands from `config.bash` instead.
+	- Possible cause: `SH_CALL` in `test-ids.py` matches the `(` that opens an array.
+	- Reproduced: 20261004, with `RUFF_CMD=(ruff check .)`, `x=(check -x)` and `a+=(_fail --quiet)` in a copy of the harness. All three were read as calls with no ID.
+	- Actual cause: `RUFF_CMD=(ruff` passed as an env assignment before a command, so `check` read as the command. A `(` after `=` passed as the start of a subshell.
+	- Actual fix: an assignment whose value opens with `(` no longer counts as an env prefix, and a `(` right after `=` no longer starts a statement. A call inside a real subshell still counts.
+	- Note: the item 22 workaround in the CI engine checks stays as it is.
+	- Verified: 20261004, the new regex finds the same 525 calls as the old one in the harness, and `test-ids.py check` passes.
+	- Swept: the other two patterns in `test-ids.py` read Go files, not bash.
+	- Branch: low-bugs
+	- Commit: debca16
+	- Test case: `Ermz7B5` runs `test-ids.py check` from a copy against a fixture with three arrays, a plain call and a call in a subshell. It fails before the fix and passes after.
+	- Acceptance signoff: Self-closed: reproduced, and its test fails before and passes after.
+	- Closed: 20261004-193613
+
+- `flame-report.py` exits 1 on an unreadable flamegraph, where the spec says 2, and misfiles the big-number path. (Code review 20261004 item 14)
+	- ID: 2026100413480014
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Incorrect behavior: a non-UTF-8 or mode-000 SVG gives a traceback and exit 1, so the startup `--check` gate shows a crash, not a skip. `dcState.parse`/`format` and their leaf helpers land in "other, app code", which understates the big-int share. Those two are about 36% of inclusive time.
+	- Expected behavior: exit 2 on any read or decode failure, and a big-int bucket that has the divide and conquer functions.
+	- Reproduced: 20261004, by the review.
+	- Origin: `flame-report.py:65` from a8d50ce on 2026-07-09; the buckets predate the divide and conquer change a6c8612 on 2026-08-02. Not seen by an earlier round. Confirmed.
+	- Actual cause: the SVG was read with no error handling, and the big-int bucket names only math/big and older function names.
+	- Actual fix: a read or decode failure on the SVG, or on the profiling dir, is a skip with exit 2 and a one-line message. The big-int bucket also takes `dcState`, `newDCState`, `parseDigits`, `formatDigits` and `wordChunk`. Names in the script are unchanged.
+	- Verified: 20261004, on the newest real flamegraph the big-int share went from 5.0 to 6.4 percent, and "other, app code" from 2.6 to 1.1. ruff is clean.
+	- Swept: every file read in `flame-report.py`. The marker read already caught `OSError`, and the marker write already reported one.
+	- Branch: low-bugs
+	- Commit: d35882b
+	- Test case: `Ermz79l` runs it on a non-UTF-8 SVG and on a mode-000 one, where the mode holds, and wants exit 2 with no traceback. `Ermz7AQ` runs it on a made-up flamegraph whose self time is all in the divide and conquer functions, and wants 100 percent big-int. Both failed before the fix and pass after.
+	- Acceptance signoff: Self-closed: reproduced, and its tests fail before and pass after.
+	- Closed: 20261004-193613
+
+- The frontend parity and macOS universal binary sections of the harness fail when Go is missing, where the reactor section skips.
+	- ID: 2026100416545665
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261004-165456
+	- Opened by: found while working 2026100413480008
+	- Target OS: Linux
+	- Incorrect behavior: with no `go` on the PATH, both sections count failures.
+	- Expected behavior: they skip with a warning, as the reactor section does.
+	- Reproduced: 20261004, in the harness self-check, which runs with a stub `go` that acts as missing. `EloQXv6` and `ErftBA8` failed there. First seen while testing 2026100413480008.
+	- Actual cause: neither section checked for Go before building or testing with it.
+	- Actual fix: both sections first run `go env GOVERSION`, as the reactor section does. Without Go they skip with a warning that names their checks, the macho-fat Go tests included.
+	- Verified: 20261004, with Go present the sections from binary streaming through the macOS universal binary pass, 316 of 316. shellcheck is clean.
+	- Swept: every Go call in `test.bash`. The reactor and browser module sections already skip. The config migration check skips when `go` is missing from the PATH, though a stub `go` that fails makes it fail. The packaging rebuild checks run `package.bash`, which needs Go, and they skip under `--quick`. Both left as they are.
+	- Branch: low-bugs
+	- Commit: 9c26b3e
+	- Test case: `ErmzVUR` in the harness self-check wants both skip lines and no failure from either section. It failed before the fix and passes after.
+	- Acceptance signoff: Self-closed: the change does what the item asked, and its test fails before and passes after.
+	- Closed: 20261004-193613
 
 - The "Config files" part of `--help` can be wrong or missing. (Code review 20261004 item 13)
 	- ID: 2026100413480013

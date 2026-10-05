@@ -39,8 +39,9 @@ SKIP_DIRS = {".git", "shcl", "testdata", "thirdparty", "node_modules", "build", 
 ID_RE     = re.compile(r"^[0-9A-Za-z]{7}$")
 GO_FUNC   = re.compile(r"^func ((?:Test|Fuzz)\w*)\(")
 GO_ID     = re.compile(r"^// Test ID: (\S+)\s*$")
-## A reporting call starts a statement, possibly after env assignments.
-SH_CALL   = re.compile(r"(?:^|[;&|{(]|\bthen|\belse|\bdo)\s*(?:\w+=\S*\s+)*"
+## A reporting call starts a statement, possibly after env assignments. A "("
+## after "=" opens an array of words, not a subshell, so neither counts.
+SH_CALL   = re.compile(r"(?:^|[;&|{]|(?<!=)\(|\bthen|\belse|\bdo)\s*(?:\w+=(?!\()\S*\s+)*"
                        r"(_pass|_fail|_warn|check|_assert|cvec|nvec|pipecheck|fCheckCoverage|fCheckLegacy)\s+(\S+)(?:\s+(\S+))?")
 PASSING   = {"_pass", "check", "_assert", "cvec", "nvec", "pipecheck", "fCheckCoverage", "fCheckLegacy"}
 
@@ -234,3 +235,4 @@ if __name__ == "__main__":
 
 ##	Script history:
 ##		- 2026-10-04 JC: Created.
+##		- 2026-10-04 JC: A bash array of words is no test call.
