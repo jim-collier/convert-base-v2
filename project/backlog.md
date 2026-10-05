@@ -34,46 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
-	- ID: 2026100413480002
-	- Type: Bug
-	- Status: Waiting for testing
-	- Needs external testing: hosted CI on dev. `ErlzPLg` failed there on every dev push since e5892c9.
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Steps to reproduce:
-		- Leave a truncated copy of the default config where the first run writes it, then run `convert-base-v2 255 16`.
-		- Or start 16 first runs at once on an empty config dir.
-	- Incorrect behavior: a cut that drops the Format line gets migrated and stamped as current. A cut inside the `10emoji` block makes every run fail, `--help` included, with an error that blames an old format. Parallel first runs both wrote the file in 1 of 30 trials.
-	- Expected behavior: the file is either whole or absent, and only one process creates it.
-	- Reproduced: 20261004, by the review, in a scratch home.
-	- Possible cause: `userconfig.go:51` uses `os.WriteFile`. The migration path already writes atomically.
-	- Probable fix: `shcl.WriteFileAtomic`, which creates exclusively through a temp file and a link.
-	- Origin: `userconfig.go:51`, last touched by 51f59b6 on 2026-10-03; the in-place write is older. Not seen by an earlier round. Confirmed.
-	- Actual cause: `os.WriteFile` creates and truncates in place, so a half-written file is visible, and a second run that passed the existence check writes over the first.
-		- `shcl.WriteFileAtomic`, the first fix, checks for the file again itself. A run that finds one by then replaces it and reports success, so the write was atomic but not exclusive.
-	- Actual fix: the first run creates the file itself. The text goes to a synced temp file beside it, and a hard link puts it in place. A link fails if anything is at the path, so only one run creates the file and the rest leave it be. The truncated-copy case has the same cause: now a whole file appears or none does. Where links don't work, an exclusive create in place still allows one creator, but a crash there can leave half a file.
-	- Note: a new file takes 0666 less the umask, like any newly created file, where it took 0644 less the umask. Under the usual 022 umask both are 0644. A crash mid-write can leave a `.convert-base-v2.shcl.tmp*` file beside the config instead of a broken config.
-	- Note: a dangling symlink at the config path is now left alone, and the run goes on without a config. Before, the default was written to wherever the link pointed.
-	- Verified: 20261004, go vet, golangci-lint and `go test ./...` clean.
-	- Verified: 20261004, second fix: go vet (linux, windows, darwin), golangci-lint and `go test ./...` clean. 30 trials of 16 first-run processes at once each had one creator and no leftover files.
-	- Swept: every file create in `lib/` and `cicd/`. The migration backup already links with an exclusive fallback. The config rewrite, `keepBackup` and the macho-fat output mean to replace. wasm and reactor write no files.
-	- Branch: exit-fixes, firstrun-excl
-	- Commit: e5892c9, 7a01a50
-	- Test case: `ErlzPLg` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
-		- Second fix: it now runs 60 trials on two threads, since the gap showed on a small CI runner and almost never with many cores. With the first fix it failed 20 of 20 plain runs here, and 46 of 50 at `-count=50 -cpu 2` before the test change. With this fix it passed 20 of 20 plain runs, and 50 of 50 at `-cpu` 1, 2, 4 and 32 and under the race detector.
-		- `Ermok4L` TestUserConfigCreateKeepsFile: the create step finds a file already there and leaves it. It failed with the first fix's write in its place.
-		- `Ermok4r` TestUserConfigCreateWithoutLinks: with no hard links, one create succeeds, whole, and a second finds the file. It failed with a truncating create in the fallback.
-	- Acceptance signoff: open, since it changes how the program writes a file in the home directory.
-	- Progress log:
-		- 20261004: reopened. `ErlzPLg` fails on hosted CI on every dev push since the merge, 2 runs creating the file. It passes here, so the window is timing.
-		- Cause: `ensureUserConfig` checks that the file is missing, then `shcl.WriteFileAtomic` checks again. A run that finds the file there by its second check replaces it, and still reports it created. So the write is atomic but not exclusive.
-		- Probable fix: create it in `ensureUserConfig` itself. Write a temp file beside it, then `os.Link` it into place; "exists" means another run made it. Where links don't work, an `O_EXCL` create.
-		- 20261004: fixed on firstrun-excl, as the probable fix above. Reproduced here first with `-count=50 -cpu 2`, 46 of 50 runs with 2 to 4 creators.
-		- Note: shcl friction, a missing capability. `WriteFileAtomic` has no create-only mode, so a caller can't create a file whole and only if absent. Smallest repro: 16 goroutines each calling it on one new path. Several return nil, where one is wanted.
-
 - The lint stage checks Go only. Shellcheck and ruff don't run, and nothing configures them. (Code review 20261004 item 22)
 	- ID: 2026100413480022
 	- Type: Enhancement
@@ -260,6 +220,47 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the backup is a hard link to the original. An in-place write between the backup check and the rename goes into both, and `keepBackup` then puts the old bytes over it. The window is milliseconds.
 	- Probable fix: when the backup no longer matches, write the old bytes under a new name.
 	- Origin: `configupgrade.go:157-161`, from 9acc437 on 2026-10-03. Not seen by an earlier round. Plausible.
+
+- The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
+	- ID: 2026100413480002
+	- Type: Bug
+	- Status: Done
+	- Needs external testing: none. Hosted CI passed on dev at 971ae42, run 37252643753.
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- Leave a truncated copy of the default config where the first run writes it, then run `convert-base-v2 255 16`.
+		- Or start 16 first runs at once on an empty config dir.
+	- Incorrect behavior: a cut that drops the Format line gets migrated and stamped as current. A cut inside the `10emoji` block makes every run fail, `--help` included, with an error that blames an old format. Parallel first runs both wrote the file in 1 of 30 trials.
+	- Expected behavior: the file is either whole or absent, and only one process creates it.
+	- Reproduced: 20261004, by the review, in a scratch home.
+	- Possible cause: `userconfig.go:51` uses `os.WriteFile`. The migration path already writes atomically.
+	- Probable fix: `shcl.WriteFileAtomic`, which creates exclusively through a temp file and a link.
+	- Origin: `userconfig.go:51`, last touched by 51f59b6 on 2026-10-03; the in-place write is older. Not seen by an earlier round. Confirmed.
+	- Actual cause: `os.WriteFile` creates and truncates in place, so a half-written file is visible, and a second run that passed the existence check writes over the first.
+		- `shcl.WriteFileAtomic`, the first fix, checks for the file again itself. A run that finds one by then replaces it and reports success, so the write was atomic but not exclusive.
+	- Actual fix: the first run creates the file itself. The text goes to a synced temp file beside it, and a hard link puts it in place. A link fails if anything is at the path, so only one run creates the file and the rest leave it be. The truncated-copy case has the same cause: now a whole file appears or none does. Where links don't work, an exclusive create in place still allows one creator, but a crash there can leave half a file.
+	- Note: a new file takes 0666 less the umask, like any newly created file, where it took 0644 less the umask. Under the usual 022 umask both are 0644. A crash mid-write can leave a `.convert-base-v2.shcl.tmp*` file beside the config instead of a broken config.
+	- Note: a dangling symlink at the config path is now left alone, and the run goes on without a config. Before, the default was written to wherever the link pointed.
+	- Verified: 20261004, go vet, golangci-lint and `go test ./...` clean.
+	- Verified: 20261004, second fix: go vet (linux, windows, darwin), golangci-lint and `go test ./...` clean. 30 trials of 16 first-run processes at once each had one creator and no leftover files.
+	- Swept: every file create in `lib/` and `cicd/`. The migration backup already links with an exclusive fallback. The config rewrite, `keepBackup` and the macho-fat output mean to replace. wasm and reactor write no files.
+	- Branch: exit-fixes, firstrun-excl
+	- Commit: e5892c9, 7a01a50
+	- Test case: `ErlzPLg` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
+		- Second fix: it now runs 60 trials on two threads, since the gap showed on a small CI runner and almost never with many cores. With the first fix it failed 20 of 20 plain runs here, and 46 of 50 at `-count=50 -cpu 2` before the test change. With this fix it passed 20 of 20 plain runs, and 50 of 50 at `-cpu` 1, 2, 4 and 32 and under the race detector.
+		- `Ermok4L` TestUserConfigCreateKeepsFile: the create step finds a file already there and leaves it. It failed with the first fix's write in its place.
+		- `Ermok4r` TestUserConfigCreateWithoutLinks: with no hard links, one create succeeds, whole, and a second finds the file. It failed with a truncating create in the fallback.
+	- Acceptance signoff: closed without it. Tested here and on hosted CI. The dangling symlink case is left alone on purpose, since writing through a link to a missing target is a guess about where the file should live.
+	- Closed: 20261004
+	- Progress log:
+		- 20261004: reopened. `ErlzPLg` fails on hosted CI on every dev push since the merge, 2 runs creating the file. It passes here, so the window is timing.
+		- Cause: `ensureUserConfig` checks that the file is missing, then `shcl.WriteFileAtomic` checks again. A run that finds the file there by its second check replaces it, and still reports it created. So the write is atomic but not exclusive.
+		- Probable fix: create it in `ensureUserConfig` itself. Write a temp file beside it, then `os.Link` it into place; "exists" means another run made it. Where links don't work, an `O_EXCL` create.
+		- 20261004: fixed on firstrun-excl, as the probable fix above. Reproduced here first with `-count=50 -cpu 2`, 46 of 50 runs with 2 to 4 creators.
+		- Note: shcl friction, a missing capability. `WriteFileAtomic` has no create-only mode, so a caller can't create a file whole and only if absent. Smallest repro: 16 goroutines each calling it on one new path. Several return nil, where one is wanted.
 
 - A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
 	- ID: 2026100413480003
