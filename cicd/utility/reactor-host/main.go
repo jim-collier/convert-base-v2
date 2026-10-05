@@ -43,8 +43,8 @@ type host struct {
 	ctx context.Context
 	mod api.Module
 
-	// Error text of the last failed stream helper call, captured before the
-	// input region is freed (free clears the module's last-error state).
+	// Error text of the last failed helper call, captured before the input
+	// region is freed (free clears the module's last-error state).
 	errText string
 }
 
@@ -70,7 +70,7 @@ func main() {
 
 	ctx := context.Background()
 	rt := wazero.NewRuntime(ctx)
-	defer func() { _ = rt.Close(ctx) }()
+	defer func() { _ = rt.Close(ctx) }() // the process is exiting anyway
 	wasi_snapshot_preview1.MustInstantiate(ctx, rt)
 
 	// A reactor initializes and stays resident; _start would mean the command
@@ -162,7 +162,7 @@ func (h *host) stream(from, to string, chunk int) {
 			if code != errNone {
 				fatal("stream: %s", h.errText)
 			}
-			_, _ = out.WriteString(part)
+			_, _ = out.WriteString(part) // a bufio error sticks, and Flush reports it
 		}
 		if rerr != nil {
 			if errors.Is(rerr, io.EOF) {
@@ -175,7 +175,7 @@ func (h *host) stream(from, to string, chunk int) {
 	if code != errNone {
 		fatal("stream: %s", h.errText)
 	}
-	_, _ = out.WriteString(tail)
+	_, _ = out.WriteString(tail) // reported by Flush, as above
 	h.streamFree(hd)
 	if err := out.Flush(); err != nil {
 		fatal("stream: stdout: %v", err)
@@ -323,6 +323,23 @@ func (h *host) run() {
 	}
 	if _, code := h.convertFit("10", "16", "255", 0xFFFFFFFF); code != errBadArg {
 		fatal("convert_fit at maximum width: code %d, want %d", code, errBadArg)
+	}
+	// The precision and width caps match the command's.
+	if _, code := h.convert("10", "16", "1", 100000); code != errNone {
+		fatal("convert at the precision cap: code %d (%s)", code, h.errText)
+	}
+	if _, code := h.convert("10", "16", "1", 100001); code != errBadArg {
+		fatal("convert past the precision cap: code %d, want %d", code, errBadArg)
+	} else if msg := h.errText; !strings.HasSuffix(msg, "at most 100000") {
+		fatal("convert past the precision cap: error %q", msg)
+	}
+	if got, code := h.fit("16", "FF", 100000); code != errNone || len(got) != 100000 {
+		fatal("fit at the width cap: %d bytes code %d", len(got), code)
+	}
+	if _, code := h.fit("16", "FF", 100001); code != errBadArg {
+		fatal("fit past the width cap: code %d, want %d", code, errBadArg)
+	} else if msg := h.errText; !strings.HasSuffix(msg, "at most 100000") {
+		fatal("fit past the width cap: error %q", msg)
 	}
 	// convert_fit equals convert then fit.
 	if got, code := h.convertFit("10", "16", "255", 6); code != errNone || got != "0000FF" {
@@ -604,6 +621,9 @@ func (h *host) convert(from, to, value string, precision int64) (string, int32) 
 	args = append(args, api.EncodeI32(int32(precision)))
 	packed := h.call("convert", args...)
 	code := h.calli32("last_error_code")
+	if code != errNone {
+		h.errText = h.lastError()
+	}
 	out := ""
 	if packed != 0 {
 		out = h.readPackedFree(packed)
@@ -634,6 +654,9 @@ func (h *host) fit(base, s string, width int64) (string, int32) {
 	args = append(args, uint64(width))
 	packed := h.call("fit", args...)
 	code := h.calli32("last_error_code")
+	if code != errNone {
+		h.errText = h.lastError()
+	}
 	out := ""
 	if packed != 0 {
 		out = h.readPackedFree(packed)

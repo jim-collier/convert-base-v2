@@ -90,17 +90,17 @@ func backupName(path string, format int, now time.Time) string {
 // unlike a rename the path never stops holding a whole config. A symlinked
 // config is backed up beside its target, which is what the write replaces.
 func backupConfig(path string, data []byte, format int, now time.Time) (string, error) {
-	real, err := filepath.EvalSymlinks(path)
+	target, err := filepath.EvalSymlinks(path)
 	if err != nil {
 		return "", err
 	}
-	backup := backupName(real, format, now)
-	if err := os.Link(real, backup); err != nil {
+	backup := backupName(target, format, now)
+	if err := os.Link(target, backup); err != nil {
 		if errors.Is(err, fs.ErrExist) {
 			return "", err
 		}
 		// Some filesystems have no hard links.
-		if err := copyNew(real, backup, data); err != nil {
+		if err := copyNew(target, backup, data); err != nil {
 			return "", err
 		}
 	}
@@ -132,7 +132,7 @@ func copyNew(from, to string, data []byte) error {
 		err = cerr
 	}
 	if err != nil {
-		_ = os.Remove(to)
+		_ = os.Remove(to) // the write error is the one to report
 		return err
 	}
 	_ = os.Chtimes(to, fi.ModTime(), fi.ModTime()) // best effort; the bytes are what matter
@@ -147,7 +147,7 @@ func dropBackup(path, backup string) {
 		return
 	}
 	if kept, err := os.ReadFile(backup); err == nil && bytes.Equal(cur, kept) {
-		_ = os.Remove(backup)
+		_ = os.Remove(backup) // a spare copy left behind costs nothing
 	}
 }
 

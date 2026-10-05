@@ -46,6 +46,19 @@ func TestConvertRefusesNonFinite(t *testing.T) {
 	}
 }
 
+// The cap matches the command's, so a page and a prompt refuse the same values.
+// Test ID: Ern7YZg
+func TestPrecisionBound(t *testing.T) {
+	res := call(t, map[string]any{"value": "1", "from": "10", "to": "16", "precision": 100000})
+	if res["ok"] != true {
+		t.Errorf("precision at the bound: got %v", res)
+	}
+	res = call(t, map[string]any{"value": "1", "from": "10", "to": "16", "precision": 100001})
+	if res["ok"] != false || !strings.Contains(res["error"].(string), "0 to 100000") {
+		t.Errorf("precision past the bound: got %v", res)
+	}
+}
+
 // A number is the natural way to pass a value from a page, so it is read.
 // Test ID: ErkSf4i
 func TestConvertReadsNumbers(t *testing.T) {

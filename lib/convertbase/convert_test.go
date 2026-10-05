@@ -119,7 +119,10 @@ func TestPositionalNearMathBig(t *testing.T) {
 		}
 	}
 	ref := func() {
-		v, _ := new(big.Int).SetString(input, 10)
+		v, ok := new(big.Int).SetString(input, 10)
+		if !ok {
+			t.Fatal("math/big refused the input")
+		}
 		_ = v.Text(36)
 	}
 	timed := func(f func()) time.Duration {
@@ -145,7 +148,8 @@ func TestPositionalNearMathBig(t *testing.T) {
 	}
 }
 
-func benchConvert(b *testing.B, fromName, toName, input string) {
+func benchBases(b *testing.B, fromName, toName string) (*Base, *Base) {
+	b.Helper()
 	reg, err := NewRegistry()
 	if err != nil {
 		b.Fatal(err)
@@ -158,6 +162,22 @@ func benchConvert(b *testing.B, fromName, toName, input string) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	return from, to
+}
+
+// benchEncoded is the benchmark payload in the named base, for the decoders.
+func benchEncoded(b *testing.B, toName string) string {
+	b.Helper()
+	from, to := benchBases(b, "bytes", toName)
+	enc, err := Convert(benchBytes(), from, to, 0)
+	if err != nil {
+		b.Fatal(err)
+	}
+	return enc
+}
+
+func benchConvert(b *testing.B, fromName, toName, input string) {
+	from, to := benchBases(b, fromName, toName)
 	// Bytes moved is measured on whichever side is the raw binary.
 	raw := len(input)
 	if toName == "bytes" {
@@ -180,18 +200,12 @@ func BenchmarkEncode64(b *testing.B) { benchConvert(b, "bytes", "64u", benchByte
 func BenchmarkEncode32(b *testing.B) { benchConvert(b, "bytes", "32", benchBytes()) }
 
 func BenchmarkDecode16(b *testing.B) {
-	reg, _ := NewRegistry()
-	from, _ := reg.Lookup("bytes")
-	to, _ := reg.Lookup("16")
-	enc, _ := Convert(benchBytes(), from, to, 0)
+	enc := benchEncoded(b, "16")
 	benchConvert(b, "16", "bytes", enc)
 }
 
 func BenchmarkDecode64(b *testing.B) {
-	reg, _ := NewRegistry()
-	from, _ := reg.Lookup("bytes")
-	to, _ := reg.Lookup("64u")
-	enc, _ := Convert(benchBytes(), from, to, 0)
+	enc := benchEncoded(b, "64u")
 	benchConvert(b, "64u", "bytes", enc)
 }
 
@@ -200,18 +214,12 @@ func BenchmarkEncode65536(b *testing.B) { benchConvert(b, "bytes", "65536qntm", 
 
 // Typed input, the browser page and the reactor all decode a big base buffered.
 func BenchmarkDecode65536(b *testing.B) {
-	reg, _ := NewRegistry()
-	from, _ := reg.Lookup("bytes")
-	to, _ := reg.Lookup("65536qntm")
-	enc, _ := Convert(benchBytes(), from, to, 0)
+	enc := benchEncoded(b, "65536qntm")
 	benchConvert(b, "65536qntm", "bytes", enc)
 }
 
 func BenchmarkDecode2048(b *testing.B) {
-	reg, _ := NewRegistry()
-	from, _ := reg.Lookup("bytes")
-	to, _ := reg.Lookup("2048qntm")
-	enc, _ := Convert(benchBytes(), from, to, 0)
+	enc := benchEncoded(b, "2048qntm")
 	benchConvert(b, "2048qntm", "bytes", enc)
 }
 
@@ -243,9 +251,7 @@ func TestBigBaseDecodeAllocs(t *testing.T) {
 // no real I/O: a bytes.Reader in, io.Discard out. This is what a `cat file | ...`
 // invocation runs.
 func benchStream(b *testing.B, fromName, toName, input string) {
-	reg, _ := NewRegistry()
-	from, _ := reg.Lookup(fromName)
-	to, _ := reg.Lookup(toName)
+	from, to := benchBases(b, fromName, toName)
 	b.SetBytes(int64(len(benchBytes()))) // report over the raw-byte side
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -261,9 +267,6 @@ func BenchmarkStreamEncode16(b *testing.B) { benchStream(b, "bytes", "16", bench
 func BenchmarkStreamEncode32(b *testing.B) { benchStream(b, "bytes", "32", benchBytes()) }
 
 func BenchmarkStreamDecode64(b *testing.B) {
-	reg, _ := NewRegistry()
-	from, _ := reg.Lookup("bytes")
-	to, _ := reg.Lookup("64u")
-	enc, _ := Convert(benchBytes(), from, to, 0)
+	enc := benchEncoded(b, "64u")
 	benchStream(b, "64u", "bytes", enc)
 }

@@ -108,7 +108,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Small Go style fixes. (Code review 20261004 item 24)
 	- ID: 2026100413480024
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority: Low
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -117,6 +117,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: errors are dropped with `_` and no comment in the `convert_test.go` benchmarks and two `reactor-host` writes.
 	- Note: `lib/wasm` and `lib/reactor` repeat the 100000 precision and width limits as literals beside the constants.
 	- Origin: several commits. Not seen by an earlier round. Confirmed by grep.
+	- Note: `SpecOpts` stays exported. It is in the tagged `lib/v0.1.0`, and both library design docs list it as public. Dropping it breaks any `go get` user who names it. A v0 module may do that, but in a release that says so, not as a style fix.
+	- Done: the seven comments say "section N". `real` is now `target`. The benchmarks check every error through two small helpers.
+	- Done: `lib/wasm` has its own `maxPrecision`, and both modules build their limit messages from the constants.
+	- Swept: every `_` drop in our Go code under `lib/` and `cicd/`, shcl left out as vendored. The ones in `stream.go`, `configupgrade.go`, `userconfig_test.go` and the reactor-host runtime close got a short reason too. The section signs still in `bases.go` are digits in a listed alphabet. No 100000 literal is left beside its constant.
+	- Verified: 20261004. go vet (linux, windows, darwin, js, wasip1), golangci-lint and `go test ./...` clean. `make reactor` and `make web` build. Each benchmark runs once clean, and reactor-host passes.
+	- Test case: `Ern7YZg` TestPrecisionBound in the browser module, and new cap checks in reactor-host, `Elmd2Y4`. They pin both modules' 100000 caps to the command's, and fail with either cap moved to 99999. The rest is style, with no behavior to test.
+	- Branch: go-lows
+	- Acceptance signoff: Self-closed: mechanical. `SpecOpts` left as public API, as the note says.
+	- Closed: 20261004-200019
 
 - The Python pipeline tools miss most of the Python style rules. (Code review 20261004 item 25)
 	- ID: 2026100413480025

@@ -29,6 +29,7 @@ package main
 
 import (
 	"errors"
+	"strconv"
 	"unsafe"
 
 	"github.com/jim-collier/convert-base-v2/lib/convertbase"
@@ -197,7 +198,7 @@ func convert(fromPtr, fromLen, toPtr, toLen, valPtr, valLen uint32, precision in
 		return 0
 	}
 	if precision > maxPrecision {
-		setErr(errBadArg, "precision must be at most 100000")
+		setErr(errBadArg, "precision must be at most "+strconv.Itoa(maxPrecision))
 		return 0
 	}
 	if precision < 0 {
@@ -335,7 +336,7 @@ func fit(namePtr, nameLen, strPtr, strLen, width uint32) uint64 {
 		return 0
 	}
 	if width > maxFitWidth {
-		setErr(errBadArg, "width must be at most 100000")
+		setErr(errBadArg, "width must be at most "+strconv.Itoa(maxFitWidth))
 		return 0
 	}
 	b, ok := namedBase(namePtr, nameLen)
@@ -366,7 +367,7 @@ func convertFit(fromPtr, fromLen, toPtr, toLen, valPtr, valLen, width uint32) ui
 		return 0
 	}
 	if width > maxFitWidth {
-		setErr(errBadArg, "width must be at most 100000")
+		setErr(errBadArg, "width must be at most "+strconv.Itoa(maxFitWidth))
 		return 0
 	}
 	from, ok := namedBase(fromPtr, fromLen)
