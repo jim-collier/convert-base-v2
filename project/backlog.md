@@ -148,13 +148,26 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - There is no public code style guide or contributing.md. (Code review 20261004 item 28)
 	- ID: 2026100413480028
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on signoff
 	- Priority: Low
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
 	- Target OS: Any
 	- Note: the directives want `project/style-guide_code.md`, a `contributing.md` that links it, and a short README pointer to both. None exist.
 	- Origin: directive gap, filed against the 2026-10-04 directives.
+	- Progress log:
+		- Done: `project/style-guide_code.md` covers Go, Bash and Python as the code is written now, with the reason for each rule. Prose and markdown rules are left out.
+		- Done: `contributing.md` covers bug reports, branches, the checks to run with the stage 3 linters, test IDs, adding a base, licensing and support links. It links the style guide.
+		- Done: one sentence at the end of the README's development section points to both. No other README text changed.
+	- Decisions:
+		- Python is documented with tabs, as every Python file here and the ruff formatter setting use, not four spaces.
+		- Contributions take the license of the directory they go into. That line is new policy and needs a look.
+	- Note: `.github/CODEOWNERS` guards the support links in `FUNDING.yml` but not the new ones in `contributing.md`. It also lists a `DONATE.md` that doesn't exist. Left alone.
+	- Verified: the relative links and anchors in the new docs and the README pointer resolve. `make vet`, `test-ids.py new`, the bases table command and the profiling example ran clean. The pipeline command was checked against its `--help` only.
+	- Branch: style-docs
+	- Commit: 7fcc945
+	- Test case: none, docs only. The harness has no link check.
+	- Acceptance signoff: Waiting: README text, the wording of both docs, and the licensing line.
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002
