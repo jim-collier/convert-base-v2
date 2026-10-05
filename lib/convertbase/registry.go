@@ -394,6 +394,12 @@ func (b *Base) Finalize() error {
 		b.runeValue = nil
 	}
 
+	// Binary mode picks the tail codec from the scheme alone, so a tail layout
+	// with no tail misreads the final chunk.
+	if len(b.TailSymbols) == 0 && isTailScheme(b.BinaryScheme) {
+		return fmt.Errorf("base %q: binary scheme %q needs tail symbols, and none are set", b.Name(), b.BinaryScheme)
+	}
+
 	// Native binary tail repertoire lookup, if this base defines one.
 	if len(b.TailSymbols) > 0 {
 		b.tailValue = make(map[string]int, len(b.TailSymbols))

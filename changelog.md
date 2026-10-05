@@ -74,6 +74,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The install script stopped with no message when the release had no tag or `checksums.txt` had no line for the download. It now says which.
 
+- `--from-tail` or `--to-tail` given only commas set no tail symbols but still switched the base to its tail layout, so some lengths decoded to the wrong bytes with no error. It is refused now, naming the base. Library: `Finalize` refuses a tail `BinaryScheme` on a base with no tail symbols.
+
 ## v3.0.0 - 2026-08-04
 
 ### Notes

@@ -878,6 +878,41 @@ func TestTailNeedsOneCharDigits(t *testing.T) {
 	}
 }
 
+// Binary mode chooses the tail codec from BinaryScheme alone, so a tail layout
+// with no tail misread the final chunk: a decode error naming the wrong thing,
+// or wrong bytes. A tail spec of only commas parses to no symbols, which is how
+// --to-tail reached it.
+// Test ID: ErmULmP
+func TestTailSchemeNeedsTail(t *testing.T) {
+	for _, scheme := range []string{"qntm", "qntm65536", "rust2048"} {
+		b := &Base{Aliases: []string{"notail2048"}, Symbols: cjkSymbols(2048), BinaryScheme: scheme}
+		err := b.Finalize()
+		if err == nil {
+			t.Errorf("%s: accepted a tail scheme with no tail", scheme)
+			continue
+		}
+		for _, want := range []string{`"notail2048"`, `"` + scheme + `"`, "needs tail symbols"} {
+			if !strings.Contains(err.Error(), want) {
+				t.Errorf("%s: error %q does not mention %s", scheme, err, want)
+			}
+		}
+	}
+
+	reg := newReg(t)
+	b := base(t, reg, "2048qntm")
+	commas := ","
+	if _, err := ApplyOptions(b, &Options{Tail: &commas}); err == nil || !strings.Contains(err.Error(), "needs tail symbols") {
+		t.Errorf("a comma-only tail should be refused, got %v", err)
+	}
+	// Clearing the tail clears the layout with it, and a codec keeps its scheme.
+	none := ""
+	for _, name := range []string{"2048qntm", "base91"} {
+		if _, err := ApplyOptions(base(t, reg, name), &Options{Tail: &none}); err != nil {
+			t.Errorf("%s with the tail cleared: %v", name, err)
+		}
+	}
+}
+
 // The crown-jewel test: the streaming and buffered binary paths must produce
 // identical output, for both encode and decode, across power-of-2 bases and many
 // lengths (the two are otherwise only ever tested against themselves).
