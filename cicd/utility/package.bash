@@ -2,6 +2,7 @@
 
 #  shellcheck disable=2086  ## 'Double quote to prevent globbing and word splitting.' (OK for integers.)
 #  shellcheck disable=2155  ## 'Declare and assign separately.' Cumbersome for locals.
+#  shellcheck disable=2094  ## 'Read and write the same file in one pipeline.' False hit: find leaves checksums.txt out by name.
 
 ##	Purpose:
 ##		- Self-contained release packager. Cross-builds every shipping platform

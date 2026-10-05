@@ -1,0 +1,31 @@
+## ruff settings for the Python tools. The lint stage in cicd/cicd.bash runs
+## `ruff check` from here. There is no Python package, so no [project] table.
+
+[tool.ruff]
+target-version = "py311"
+## One-off Unicode research scripts, not part of the build or the pipeline.
+extend-exclude = [
+	"utility/break_unicode_into_individual_codepoints_sort_filter_dupes.py",
+	"utility/generate_unicode_all_grouped_by_block.py",
+	"utility/generate_unicode_reordered_below_U1FBF9/",
+	"utility/include/filter_*.py",
+	"utility/populate_unicode_spreadsheets_with_filtered_results.py",
+]
+## Keep the excludes for a file named on the command line, as an editor names it.
+force-exclude = true
+
+[tool.ruff.lint]
+extend-select = ["N"]
+
+[tool.ruff.lint.per-file-ignores]
+## Copied from silkterm, so it keeps silkterm's names.
+"cicd/utility/flame-report.py" = ["N"]
+## Still camelCase. Drop these once they move to PEP 8 names.
+"cicd/utility/pprof2flame.py" = ["N"]
+"cicd/utility/gen-demo-gif.py" = ["N"]
+"utility/gen-bases-table.py" = ["N"]
+
+[tool.ruff.format]
+## The existing files use tabs, and are not reindented.
+indent-style = "tab"
+quote-style = "preserve"

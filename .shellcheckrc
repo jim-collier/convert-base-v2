@@ -1,0 +1,5 @@
+## Read by shellcheck for every script under this directory, in an editor too.
+## Scripts source their neighbors through "${here}/...", which shellcheck can
+## only follow when it looks beside the script.
+external-sources=true
+source-path=SCRIPTDIR
