@@ -80,7 +80,7 @@ Python here is tooling only: the pipeline helpers under `cicd/utility/` and the 
 
 - Names follow PEP 8: `snake_case` for functions and variables, `CapWords` for classes. ruff's naming rules check it.
 	- A script copied in from another project keeps its own names. `cicd/utility/flame-report.py` came from silkterm, and `pyproject.toml` exempts it.
-	- A few older scripts still use camelCase, and are exempted the same way until they are renamed. A new script gets no exemption.
+	- No other script is exempt, and a new one gets no exemption.
 	- The Unicode research scripts under `utility/` were one-off tools. They sit outside the lint check and keep their own style.
 
 - Indent with tabs, as every Python file here does. `pyproject.toml` sets ruff's formatter to match, and to keep quotes as written.

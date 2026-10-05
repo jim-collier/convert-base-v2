@@ -20,10 +20,6 @@ extend-select = ["N"]
 [tool.ruff.lint.per-file-ignores]
 ## Copied from silkterm, so it keeps silkterm's names.
 "cicd/utility/flame-report.py" = ["N"]
-## Still camelCase. Drop these once they move to PEP 8 names.
-"cicd/utility/pprof2flame.py" = ["N"]
-"cicd/utility/gen-demo-gif.py" = ["N"]
-"utility/gen-bases-table.py" = ["N"]
 
 [tool.ruff.format]
 ## The existing files use tabs, and are not reindented.
