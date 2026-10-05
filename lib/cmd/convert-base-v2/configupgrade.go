@@ -44,6 +44,14 @@ func upgradeConfigFile(path string, now time.Time) string {
 	if err == nil {
 		if err = writeConfigFile(path, up.Text); err != nil {
 			dropBackup(path, backup)
+		} else if !keepBackup(backup, data, up.Text) {
+			// The edit is newer than the conversion, so it goes back at the
+			// path, and the next run converts it.
+			if perr := putBack(path, backup); perr != nil {
+				return fmt.Sprintf("note: %s was edited while it was being converted to SHCL format %d; the edited text is in %s",
+					path, shcl.FormatMajor, backup)
+			}
+			err = errChanged
 		}
 	}
 	if err != nil {
@@ -55,7 +63,6 @@ func upgradeConfigFile(path string, now time.Time) string {
 		return fmt.Sprintf("note: %s is written for SHCL format %d and could not be converted (%s); it was read the old way for this run",
 			path, up.FromFormat, errReason(err))
 	}
-	keepBackup(backup, data)
 	return fmt.Sprintf("note: converted %s to SHCL format %d; the original is now %s", path, shcl.FormatMajor, backup)
 }
 
@@ -108,7 +115,7 @@ func backupConfig(path string, data []byte, format int, now time.Time) (string, 
 	// of what was read.
 	if kept, err := os.ReadFile(backup); err != nil || !bytes.Equal(kept, data) {
 		dropBackup(path, backup)
-		return "", errors.New("the file changed while it was being converted")
+		return "", errChanged
 	}
 	return backup, nil
 }
@@ -151,13 +158,37 @@ func dropBackup(path, backup string) {
 	}
 }
 
-// keepBackup makes sure the backup still holds the original after the write.
-// A rename never touches the old file, but this is the one copy of it, and
-// the bytes are still in memory to put back.
-func keepBackup(backup string, data []byte) {
-	if kept, err := os.ReadFile(backup); err != nil || !bytes.Equal(kept, data) {
-		_ = shcl.WriteFileAtomic(backup, string(data))
+var errChanged = errors.New("the file changed while it was being converted")
+
+// keepBackup makes sure the backup still holds the original after the write,
+// and reports false when it holds an edit instead. The backup is a hard link
+// to the old file, so text written into that file in place since the check
+// went into the backup, and is in no other file. Writing the original over it
+// would lose the edit.
+//
+// A rename never touches the old file, but this is the one copy of it, and the
+// bytes are still in memory to put back if it went missing. The converted text
+// there would mean the write went through the link, not an edit.
+func keepBackup(backup string, data []byte, converted string) bool {
+	kept, err := os.ReadFile(backup)
+	if err == nil && bytes.Equal(kept, data) {
+		return true
 	}
+	if err == nil && string(kept) != converted {
+		return false
+	}
+	_ = shcl.WriteFileAtomic(backup, string(data)) // a conversion that went through stands without it
+	return true
+}
+
+// putBack moves an edited backup back over the converted file. A symlinked
+// config gets it at the link's target, where the backup was made.
+func putBack(path, backup string) error {
+	target, err := filepath.EvalSymlinks(path)
+	if err != nil {
+		return err
+	}
+	return os.Rename(backup, target)
 }
 
 // errReason is the OS's reason without the paths, which the note already names.

@@ -194,12 +194,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Ern7YaC`, reactor-host `--regions`. It fails when a convert with 10,000 regions open takes over 3 times as long as with none. It failed at 44 to 46 times before the fix and passed at 1.1 after, run through the harness section too. reactor-host `Elmd2Y4` now also passes an interior pointer, and a length past a region's end from its start and from its middle.
 	- Branch: go-lows
 	- Acceptance signoff: Self-closed: did what the item asked, and its test fails before and passes after.
-	- Closed: 20261004-201000
+	- Closed: 20261004-200057
 
 - A config migration can lose an edit made to the original during the backup. (Code review 20261004 item 30)
 	- ID: 2026100413480030
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on signoff
 	- Priority: Low
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -207,6 +207,19 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the backup is a hard link to the original. An in-place write between the backup check and the rename goes into both, and `keepBackup` then puts the old bytes over it. The window is milliseconds.
 	- Probable fix: when the backup no longer matches, write the old bytes under a new name.
 	- Origin: `configupgrade.go:157-161`, from 9acc437 on 2026-10-03. Not seen by an earlier round. Plausible.
+	- Reproduced: 20261004, with the write step held open by a test. An append made in that window was in no file afterward. The config held the converted old text, and the backup the old text.
+	- Done: when the backup holds neither the original nor the converted text after the write, it holds an edit. That file goes back at the path, so the config is just as it was edited. The run notes that the file changed while it was being converted, and reads it the old way, as when the change is seen before the write. The next run converts it.
+		- If it can't go back, it stays under the backup name, and the note says the edited text is there.
+		- A backup that went missing, or that holds the converted text, still gets the original put back, and the conversion stands.
+	- Decisions:
+		- Not the probable fix. That would leave the converted pre-edit text at the path, and the edit under a backup name. Putting the edited file back keeps the config where it is edited, and matches what an edit seen before the write already does. `createFile` has no use here, since nothing new is created.
+	- Note: two windows are left, and no fix here can close them without a compare-and-swap replace. Where hard links don't work the backup is a copy, so an in-place edit in the window still goes with the old file. An editor that saves by rename in the window is still replaced by the converted file. Both were true before.
+	- Note: no changelog line. The migration is new since v3.0.0.
+	- Swept: `keepBackup` has one caller. The other link-based write, `createFile`, makes a new file and has nothing to lose.
+	- Verified: 20261004. go vet (linux, windows, darwin), golangci-lint and `go test ./...` clean. The three tests pass 20 times over under the race detector.
+	- Test case: `Ern8m1y` TestUpgradeConfigFileEditDuringWrite, plain and through a symlink, and `Ern925t` TestUpgradeConfigFileEditStaysInBackup. Both fail on the old code and pass now. `Ern924g` TestUpgradeConfigFileKeepsBackup pins the missing and written-through cases, and passes both ways.
+	- Branch: go-lows
+	- Acceptance signoff: Waiting: it changes what the program leaves on disk after a migration, and differs from the probable fix.
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002
