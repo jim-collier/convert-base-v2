@@ -93,30 +93,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 294764b
 	- Test case: ErmroeI, Ermroeo, ErmrofR, Ermroh4, Ermrofy, ErmrogW (CI engine section), Ermt58H (pin-tools).
 
-- `filter_2_messy.py` crashes on six Arabic ligatures.
-	- ID: 2026100419493125
-	- Type: Bug
-	- Status: Done
-	- Severity: Low
-	- Opened: 20261004-194931
-	- Opened by: found while working 2026100413480015
-	- Target OS: Any
-	- Steps to reproduce:
-		- `filter_2_messy.py` with U+FC5B, U+FC5C, U+FC5D, U+FC63, U+FC90 or U+FCD9 in its input.
-	- Incorrect behavior: a `TypeError` from `ord()`, since these are superscript forms whose NFKD form is two characters.
-	- Note: `filter_1_junk.py` drops all six as right-to-left, so the full pipeline never reaches it. `unicode_2_messy_alter_xclipboard_contents.bash` runs filter 2 alone, and since 2026100413480015 a crash there leaves the clipboard alone.
-	- Related IDs: 2026100413480015
-	- Reproduced: 20261004. Exit 1 with the `TypeError` on the six alone, and on every assigned character. These six are the only assigned characters that hit it.
-	- Actual cause: the input parser lets super and subscripts skip both decomposition checks, by name. These six are matched by "WITH SUPERSCRIPT ALEF" in their names. They skipped the multi-character check, but the ASCII check after it still ran `ord()` on the decomposed string.
-	- Actual fix: super and subscripts now skip both checks together, so `ord()` only sees a one-character decomposition. The six reach the later superscript filter and are dropped there.
-	- Verified: 20261004. Before, the six crash; after, they exit 0 with empty output, and `--debug` lists each as SUPERSCRIPT. Plain and `--debug` output over every other assigned character is byte-identical before and after, and the full run matches the run without the six. No ruff findings.
-	- Swept: every `ord()` and `normalize()` in the research scripts. In filter 2, the other two decomposition users loop over the result one character at a time. `filter_1_junk.py` calls `ord()` per character of its normalized text and only takes the length of its NFD string. `filter_3_visual.py` does no normalization, and its `ord()` calls take parsed single characters. The spreadsheet, block, sort and `build_csv.py` scripts call `ord()` on single characters only.
-	- Test case: none in CI. These are one-off research tools kept out of the CI and lint gates. The fix was run before and after on the six and on every assigned character, as above.
-	- Branch: messy-ord
-	- Commit: 4b7f563
-	- Acceptance signoff: Self-closed: the crash is gone and output is otherwise unchanged.
-	- Closed: 20261004-195218
-
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
 	- Type: Enhancement
@@ -749,6 +725,30 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next release. The table renders, every link downloads, and the notes end with the build line.
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
+
+- `filter_2_messy.py` crashes on six Arabic ligatures.
+	- ID: 2026100419493125
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261004-194931
+	- Opened by: found while working 2026100413480015
+	- Target OS: Any
+	- Steps to reproduce:
+		- `filter_2_messy.py` with U+FC5B, U+FC5C, U+FC5D, U+FC63, U+FC90 or U+FCD9 in its input.
+	- Incorrect behavior: a `TypeError` from `ord()`, since these are superscript forms whose NFKD form is two characters.
+	- Note: `filter_1_junk.py` drops all six as right-to-left, so the full pipeline never reaches it. `unicode_2_messy_alter_xclipboard_contents.bash` runs filter 2 alone, and since 2026100413480015 a crash there leaves the clipboard alone.
+	- Related IDs: 2026100413480015
+	- Reproduced: 20261004. Exit 1 with the `TypeError` on the six alone, and on every assigned character. These six are the only assigned characters that hit it.
+	- Actual cause: the input parser lets super and subscripts skip both decomposition checks, by name. These six are matched by "WITH SUPERSCRIPT ALEF" in their names. They skipped the multi-character check, but the ASCII check after it still ran `ord()` on the decomposed string.
+	- Actual fix: super and subscripts now skip both checks together, so `ord()` only sees a one-character decomposition. The six reach the later superscript filter and are dropped there.
+	- Verified: 20261004. Before, the six crash; after, they exit 0 with empty output, and `--debug` lists each as SUPERSCRIPT. Plain and `--debug` output over every other assigned character is byte-identical before and after, and the full run matches the run without the six. No ruff findings.
+	- Swept: every `ord()` and `normalize()` in the research scripts. In filter 2, the other two decomposition users loop over the result one character at a time. `filter_1_junk.py` calls `ord()` per character of its normalized text and only takes the length of its NFD string. `filter_3_visual.py` does no normalization, and its `ord()` calls take parsed single characters. The spreadsheet, block, sort and `build_csv.py` scripts call `ord()` on single characters only.
+	- Test case: none in CI. These are one-off research tools kept out of the CI and lint gates. The fix was run before and after on the six and on every assigned character, as above.
+	- Branch: messy-ord
+	- Commit: 4b7f563
+	- Acceptance signoff: Self-closed: the crash is gone and output is otherwise unchanged.
+	- Closed: 20261004-195218
 
 - The Unicode research tools have small bugs and stale headers. (Code review 20261004 item 15)
 	- ID: 2026100413480015
