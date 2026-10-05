@@ -34,32 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
-	- ID: 2026100413480002
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Steps to reproduce:
-		- Leave a truncated copy of the default config where the first run writes it, then run `convert-base-v2 255 16`.
-		- Or start 16 first runs at once on an empty config dir.
-	- Incorrect behavior: a cut that drops the Format line gets migrated and stamped as current. A cut inside the `10emoji` block makes every run fail, `--help` included, with an error that blames an old format. Parallel first runs both wrote the file in 1 of 30 trials.
-	- Expected behavior: the file is either whole or absent, and only one process creates it.
-	- Reproduced: 20261004, by the review, in a scratch home.
-	- Possible cause: `userconfig.go:51` uses `os.WriteFile`. The migration path already writes atomically.
-	- Probable fix: `shcl.WriteFileAtomic`, which creates exclusively through a temp file and a link.
-	- Origin: `userconfig.go:51`, last touched by 51f59b6 on 2026-10-03; the in-place write is older. Not seen by an earlier round. Confirmed.
-	- Actual cause: `os.WriteFile` creates and truncates in place, so a half-written file is visible, and a second run that passed the existence check writes over the first.
-	- Actual fix: `shcl.WriteFileAtomic`. The text goes to a synced temp file, which is then linked into place. The link fails if anything turned up at the path, so only one run creates the file and the rest leave it be. The truncated-copy case has the same cause: now a whole file appears or none does.
-	- Note: a new file takes 0666 less the umask, like any newly created file, where it took 0644 less the umask. Under the usual 022 umask both are 0644. A crash mid-write can leave a `.convert-base-v2.shcl.tmp*` file beside the config instead of a broken config.
-	- Verified: 20261004, go vet, golangci-lint and `go test ./...` clean.
-	- Branch: exit-fixes
-	- Commit: e5892c9
-	- Test case: `ErlzPLg` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
-	- Acceptance signoff: open, since it changes how the program writes a file in the home directory.
-
 - A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
 	- ID: 2026100413480003
 	- Type: Bug
@@ -112,6 +86,32 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `ErmULmP` TestTailSchemeNeedsTail, for each tail layout and for a comma-only tail through `ApplyOptions`, and `ErmULmv` "comma-only tail rejected" on the command. Both fail before the fix and pass after.
 	- Acceptance signoff: open. The command now refuses an input it used to take, with new error text, and the bug turned out to give wrong bytes, not only a confusing error.
 	- Related IDs: 2026100417280514
+
+- `package.bash` deletes whatever directory `--out` names before it builds. (Code review 20261004 item 4)
+	- ID: 2026100413480004
+	- Type: Bug
+	- Status: Waiting on signoff
+	- Needs local test suite run?: No. The cicd run through stage 6 passed on 20261004, with the harness at 572 of 572. Packaging made all 25 artifacts in a fresh, marked `lib/dist`.
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Steps to reproduce:
+		- `make release DIST=<a dir with other files in it>`
+	- Incorrect behavior: the directory is emptied, whatever was in it.
+	- Expected behavior: only a directory the script made or marked as its own is cleared. Anything else is refused.
+	- Reproduced: 20261004, by the review, with a fake `go` and a scratch dir.
+	- Origin: `package.bash:115`, from 9c40e8d "release packaging" on 2026-07-12. Not seen by an earlier round. Confirmed.
+	- Sweep: every `rm -rf` on a variable path in `cicd/` and `utility/`. `interop/fetch.bash:93` is one; see item 16.
+	- Actual cause: the script cleared `--out` with `rm -rf` before building, whatever it held. `make clean` did the same to `DIST`.
+	- Actual fix: a build marks the dir it makes with a hidden file. `package.bash` clears a dir only when it has the mark, takes over an empty one, and refuses anything else with a message. `make wasm` and `make reactor` mark the dir when they create it, and `make clean` follows the same rule. The mark stays out of `checksums.txt`, and the release workflow's `lib/dist/*` upload skips it as a dotfile.
+	- Swept: every `rm -r` in `cicd/`, `utility/`, `install.bash` and `lib/Makefile`. The trap removes in `package.bash`, `check-vendor.bash`, `interop/fetch.bash`, `test.bash`, `bench-encoders.bash`, `gen-screenshots.bash` and `install.bash` each take a dir the same script made with `mktemp -d`. `interop/fetch.bash:94` is fixed under item 16. `lib/Makefile` clean was the twin of this one and is fixed here. The other `rm` calls remove single files.
+	- Verified: 20261004, the three new checks fail on dev and pass on this branch. The packaging section ran with real builds: two full packages still rebuild to the same checksums, and the prerelease name checks pass. `make wasm` into a new dir marks it, and the next packaging run clears it. Shellcheck finds nothing new.
+	- Note: `make release` and `make clean` now stop on an old `lib/dist` with no mark, and say so. Trash it once.
+	- Branch: bash-traps
+	- Commit: 65ce2be
+	- Test case: harness checks `Erm3Sws` (an `--out` with other files is left alone), `Erm3SxT` (a marked dir is cleared and an empty one taken), `Erm3Syv` (`make clean`) and `Erm3SyD` (the mark is not in `checksums.txt`). The first three fail on dev. `Erm3SyD` fails when the mark is left in the checksum list.
+	- Acceptance signoff: open, since it changes what a build deletes.
 
 - Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
 	- ID: 2026100413480017
@@ -182,51 +182,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `ErmCp2H` "--quick reaches the harness" and `ErmCp2I` "-q drops the plan and progress lines, not the stage results". Both fail on dev and pass after. The harness side of the skip has no check, since that would run the harness inside itself.
 	- Acceptance signoff: open, since what `-q` hides is a call on output.
 
-- `package.bash` deletes whatever directory `--out` names before it builds. (Code review 20261004 item 4)
-	- ID: 2026100413480004
-	- Type: Bug
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes. The full cicd run, stage 6 included, since `make release` now stops on an unmarked `lib/dist`. A `lib/dist` left by an older build has no mark, so trash it once first.
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Steps to reproduce:
-		- `make release DIST=<a dir with other files in it>`
-	- Incorrect behavior: the directory is emptied, whatever was in it.
-	- Expected behavior: only a directory the script made or marked as its own is cleared. Anything else is refused.
-	- Reproduced: 20261004, by the review, with a fake `go` and a scratch dir.
-	- Origin: `package.bash:115`, from 9c40e8d "release packaging" on 2026-07-12. Not seen by an earlier round. Confirmed.
-	- Sweep: every `rm -rf` on a variable path in `cicd/` and `utility/`. `interop/fetch.bash:93` is one; see item 16.
-	- Actual cause: the script cleared `--out` with `rm -rf` before building, whatever it held. `make clean` did the same to `DIST`.
-	- Actual fix: a build marks the dir it makes with a hidden file. `package.bash` clears a dir only when it has the mark, takes over an empty one, and refuses anything else with a message. `make wasm` and `make reactor` mark the dir when they create it, and `make clean` follows the same rule. The mark stays out of `checksums.txt`, and the release workflow's `lib/dist/*` upload skips it as a dotfile.
-	- Swept: every `rm -r` in `cicd/`, `utility/`, `install.bash` and `lib/Makefile`. The trap removes in `package.bash`, `check-vendor.bash`, `interop/fetch.bash`, `test.bash`, `bench-encoders.bash`, `gen-screenshots.bash` and `install.bash` each take a dir the same script made with `mktemp -d`. `interop/fetch.bash:94` is fixed under item 16. `lib/Makefile` clean was the twin of this one and is fixed here. The other `rm` calls remove single files.
-	- Verified: 20261004, the three new checks fail on dev and pass on this branch. The packaging section ran with real builds: two full packages still rebuild to the same checksums, and the prerelease name checks pass. `make wasm` into a new dir marks it, and the next packaging run clears it. Shellcheck finds nothing new.
-	- Note: `make release` and `make clean` now stop on an old `lib/dist` with no mark, and say so. Trash it once.
-	- Branch: bash-traps
-	- Commit: 65ce2be
-	- Test case: harness checks `Erm3Sws` (an `--out` with other files is left alone), `Erm3SxT` (a marked dir is cleared and an empty one taken), `Erm3Syv` (`make clean`) and `Erm3SyD` (the mark is not in `checksums.txt`). The first three fail on dev. `Erm3SyD` fails when the mark is left in the checksum list.
-	- Acceptance signoff: open, since it changes what a build deletes.
-
-- The demo gif generator holds every frame uncompressed in memory. (Code review 20261004 item 21)
-	- ID: 2026100413480021
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes. The two new checks passed on their own, not yet inside a full harness run.
-	- Priority: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Note: 3166 frames at 960x540 come to about 1.6 GB before the save, on a box where `/tmp` has failed under memory pressure. Each added frame also copies itself and the previous frame to compare them.
-	- Probable fix: keep the last frame's bytes, and store frames compressed until the save.
-	- Origin: `gen-demo-gif.py:599-610`, from f4339b4 on 2026-07-11. Not seen by an earlier round. Confirmed by arithmetic on the committed gif.
-	- Note: the real peak was twice the estimate, since Pillow's save copied every frame again.
-	- Fixed: frames are encoded 32 at a time as they come in. Each batch is saved behind the last frame of the batch before, then that frame and the header are cut off, so the bytes match one save. Only the last frame's bytes are kept for the duplicate check.
-	- Verified: the full demo from dev's script and from this one, same scenario and binary, is byte-identical with and without the gifsicle pass, and matches the committed gif. Peak RSS went from 3308324 KB to 185140 KB, about 3.2 GB to 181 MB. Render time is about the same.
-	- Test case: `ErmYENq` "demo gif batches match one Pillow save" and `ErmYEP0` "demo gif frames are not all held until the save", in `cicd/test.bash`. They feed made-up frames and take under a second, where a real render takes over a minute. They fail with the cut point off by one byte, and with every frame held until the save (402 MiB against a 99 MiB bound).
-	- Branch: gif-memory
-	- Commit: ba15b41
-
 - macOS gets a universal binary for both amd64 and ARM.
 	- ID: 2026100313304792
 	- Type: Enhancement
@@ -248,6 +203,37 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 22452c9
 	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
 	- Verified: 20261004, on an Intel Mac with macOS 15.8.1. The universal binary, the per-arch x86_64 one and the one from the universal `.tgz` all print the same version and build line. A hex to base-62 conversion and a bytes to base-64 one match the Linux build. Gatekeeper rejects the universal and per-arch builds the same way, unsigned, with and without the quarantine flag.
+
+- The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
+	- ID: 2026100413480002
+	- Type: Bug
+	- Status: Queued
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- Leave a truncated copy of the default config where the first run writes it, then run `convert-base-v2 255 16`.
+		- Or start 16 first runs at once on an empty config dir.
+	- Incorrect behavior: a cut that drops the Format line gets migrated and stamped as current. A cut inside the `10emoji` block makes every run fail, `--help` included, with an error that blames an old format. Parallel first runs both wrote the file in 1 of 30 trials.
+	- Expected behavior: the file is either whole or absent, and only one process creates it.
+	- Reproduced: 20261004, by the review, in a scratch home.
+	- Possible cause: `userconfig.go:51` uses `os.WriteFile`. The migration path already writes atomically.
+	- Probable fix: `shcl.WriteFileAtomic`, which creates exclusively through a temp file and a link.
+	- Origin: `userconfig.go:51`, last touched by 51f59b6 on 2026-10-03; the in-place write is older. Not seen by an earlier round. Confirmed.
+	- Actual cause: `os.WriteFile` creates and truncates in place, so a half-written file is visible, and a second run that passed the existence check writes over the first.
+	- Actual fix: `shcl.WriteFileAtomic`. The text goes to a synced temp file, which is then linked into place. The link fails if anything turned up at the path, so only one run creates the file and the rest leave it be. The truncated-copy case has the same cause: now a whole file appears or none does.
+	- Note: a new file takes 0666 less the umask, like any newly created file, where it took 0644 less the umask. Under the usual 022 umask both are 0644. A crash mid-write can leave a `.convert-base-v2.shcl.tmp*` file beside the config instead of a broken config.
+	- Verified: 20261004, go vet, golangci-lint and `go test ./...` clean.
+	- Branch: exit-fixes
+	- Commit: e5892c9
+	- Test case: `ErlzPLg` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
+	- Acceptance signoff: open, since it changes how the program writes a file in the home directory.
+	- Progress log:
+		- 20261004: reopened. `ErlzPLg` fails on hosted CI on every dev push since the merge, 2 runs creating the file. It passes here, so the window is timing.
+		- Cause: `ensureUserConfig` checks that the file is missing, then `shcl.WriteFileAtomic` checks again. A run that finds the file there by its second check replaces it, and still reports it created. So the write is atomic but not exclusive.
+		- Probable fix: create it in `ensureUserConfig` itself. Write a temp file beside it, then `os.Link` it into place; "exists" means another run made it. Where links don't work, an `O_EXCL` create.
+		- Note: shcl friction, a missing capability. `WriteFileAtomic` has no create-only mode, so a caller can't create a file whole and only if absent. Smallest repro: 16 goroutines each calling it on one new path. Several return nil, where one is wanted.
 
 - The lint stage checks Go only. Shellcheck and ruff don't run, and nothing configures them. (Code review 20261004 item 22)
 	- ID: 2026100413480022
@@ -670,6 +656,27 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next beta. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
+
+- The demo gif generator holds every frame uncompressed in memory. (Code review 20261004 item 21)
+	- ID: 2026100413480021
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full harness passed 572 of 572 on 20261004, with both new checks in it.
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Note: 3166 frames at 960x540 come to about 1.6 GB before the save, on a box where `/tmp` has failed under memory pressure. Each added frame also copies itself and the previous frame to compare them.
+	- Probable fix: keep the last frame's bytes, and store frames compressed until the save.
+	- Origin: `gen-demo-gif.py:599-610`, from f4339b4 on 2026-07-11. Not seen by an earlier round. Confirmed by arithmetic on the committed gif.
+	- Note: the real peak was twice the estimate, since Pillow's save copied every frame again.
+	- Fixed: frames are encoded 32 at a time as they come in. Each batch is saved behind the last frame of the batch before, then that frame and the header are cut off, so the bytes match one save. Only the last frame's bytes are kept for the duplicate check.
+	- Verified: the full demo from dev's script and from this one, same scenario and binary, is byte-identical with and without the gifsicle pass, and matches the committed gif. Peak RSS went from 3308324 KB to 185140 KB, about 3.2 GB to 181 MB. Render time is about the same.
+	- Test case: `ErmYENq` "demo gif batches match one Pillow save" and `ErmYEP0` "demo gif frames are not all held until the save", in `cicd/test.bash`. They feed made-up frames and take under a second, where a real render takes over a minute. They fail with the cut point off by one byte, and with every frame held until the save (402 MiB against a 99 MiB bound).
+	- Branch: gif-memory
+	- Commit: ba15b41
+	- Acceptance signoff: Self-closed: the output is byte-identical, peak memory is measured before and after, and its checks pass in the full suite.
+	- Closed: 20261004-174452
 
 - The number path looks up each digit twice. (Code review 20261004 item 19)
 	- ID: 2026100413480019
