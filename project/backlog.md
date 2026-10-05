@@ -34,32 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- A custom base with invalid UTF-8 digits is accepted, and its streamed output can't be streamed back.
-	- ID: 2026100507565201
-	- Type: Bug
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes. The two new harness checks, `Erq3i2u` and `Erq3i3e`, passed alone but not yet in a full `cicd/test.bash` run.
-	- Severity: Low
-	- Opened: 20261005-075652
-	- Opened by: Backlog round 20261005, found while working item 23a
-	- Related IDs: 2026100507495201
-	- Target OS: Any
-	- Steps to reproduce:
-		- Build a base with `--from-symbols $'\x80 \x81 é è'`, or the same in `--to-symbols`.
-		- Stream bytes into it, then stream that output back.
-	- Incorrect behavior: the base is accepted. Every invalid byte reads as the same character, so which digit it maps to in the streaming lookup table can change from run to run. The `bytes` base has the same mapping issue. The streaming decoder refuses invalid UTF-8, so the base streams output its own decode refuses. No wrong output at exit 0 was seen.
-	- Expected behavior: a digit that is not valid UTF-8 is refused when the base is built, naming the base and the digit.
-	- Reproduced: 20261005. `--from bytes --to-symbols $'\x80 \x81 é è'` streamed out text at exit 0, and streaming it back failed as not valid UTF-8. Decoding the same text from the command line worked. In `bytes`, the U+FFFD entry of the rune table changed between runs, to 132, 227, 128, 225 and 229 in 5 runs. Nothing reads that table for `bytes`, so it gave no wrong output.
-	- Actual cause: an invalid byte counts as one rune, so such a digit qualified for the wide streaming path, and every one of them decoded to the same U+FFFD key.
-	- Actual fix: `Finalize` refuses a digit, tail symbol, pad or marker that is not valid UTF-8, naming the base and the text. `bytes` is exempt, and its digits get no rune table now, since they can't all be told apart there.
-	- Note: the refusal covers tail symbols, the pad and the markers too, beyond the digits the item asked for. The tail and pad reach the same streaming decode, and the markers would be the only text in a base still allowed to be invalid.
-	- Origin: the wide streaming path, `allOneRune` and `runeValue`. Not seen by an earlier round. Confirmed.
-	- Swept: every way a base is built goes through `Finalize`: built-ins, the config string and list forms, `--from-symbols`/`--to-symbols` and the tail, pad and marker flags through `ResolveBase` and `ApplyOptions`, and the browser module through `ResolveBase`. The reactor takes base names only. Spec escapes and control-digit escapes only ever give ASCII, so none is refused.
-	- Verified: the new Go tests and harness checks fail on the old code and pass on the fix. `go vet`, golangci-lint, `go test ./...`, the `lib/wasm` tests and the reactor build pass.
-	- Branch: utf8-digits
-	- Commit: 62ba851
-	- Test case: `Erq3i1c` TestFinalizeRefusesInvalidUTF8, `Erq3i2I` TestRuneTableKeysAreDigits over every built-in base, and harness `Erq3i2u` "invalid UTF-8 digit refused" and `Erq3i3e` "config invalid UTF-8 digit refused". All 4 fail before the fix and pass after.
-
 - shcl: a quoted config value with a space before certain invalid bytes fails as an unterminated quote.
 	- ID: 2026100508035901
 	- Type: Bug
@@ -1002,6 +976,34 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again after the next release. Rebuild its tag with the Go, nfpm and NSIS versions the workflow used, and compare with its `checksums.txt`. NSIS comes from the runner's apt, so its version has to be read from the workflow log.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
+
+- A custom base with invalid UTF-8 digits is accepted, and its streamed output can't be streamed back.
+	- ID: 2026100507565201
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: Done. A full `cicd/test.bash` run with perf on passed 595 of 595 on dev at c2132c5, `Erq3i2u` and `Erq3i3e` included. Hosted CI passed too.
+	- Severity: Low
+	- Opened: 20261005-075652
+	- Opened by: Backlog round 20261005, found while working item 23a
+	- Related IDs: 2026100507495201
+	- Target OS: Any
+	- Steps to reproduce:
+		- Build a base with `--from-symbols $'\x80 \x81 é è'`, or the same in `--to-symbols`.
+		- Stream bytes into it, then stream that output back.
+	- Incorrect behavior: the base is accepted. Every invalid byte reads as the same character, so which digit it maps to in the streaming lookup table can change from run to run. The `bytes` base has the same mapping issue. The streaming decoder refuses invalid UTF-8, so the base streams output its own decode refuses. No wrong output at exit 0 was seen.
+	- Expected behavior: a digit that is not valid UTF-8 is refused when the base is built, naming the base and the digit.
+	- Reproduced: 20261005. `--from bytes --to-symbols $'\x80 \x81 é è'` streamed out text at exit 0, and streaming it back failed as not valid UTF-8. Decoding the same text from the command line worked. In `bytes`, the U+FFFD entry of the rune table changed between runs, to 132, 227, 128, 225 and 229 in 5 runs. Nothing reads that table for `bytes`, so it gave no wrong output.
+	- Actual cause: an invalid byte counts as one rune, so such a digit qualified for the wide streaming path, and every one of them decoded to the same U+FFFD key.
+	- Actual fix: `Finalize` refuses a digit, tail symbol, pad or marker that is not valid UTF-8, naming the base and the text. `bytes` is exempt, and its digits get no rune table now, since they can't all be told apart there.
+	- Note: the refusal covers tail symbols, the pad and the markers too, beyond the digits the item asked for. The tail and pad reach the same streaming decode, and the markers would be the only text in a base still allowed to be invalid.
+	- Origin: the wide streaming path, `allOneRune` and `runeValue`. Not seen by an earlier round. Confirmed.
+	- Swept: every way a base is built goes through `Finalize`: built-ins, the config string and list forms, `--from-symbols`/`--to-symbols` and the tail, pad and marker flags through `ResolveBase` and `ApplyOptions`, and the browser module through `ResolveBase`. The reactor takes base names only. Spec escapes and control-digit escapes only ever give ASCII, so none is refused.
+	- Verified: the new Go tests and harness checks fail on the old code and pass on the fix. `go vet`, golangci-lint, `go test ./...`, the `lib/wasm` tests and the reactor build pass.
+	- Branch: utf8-digits
+	- Commit: 62ba851
+	- Test case: `Erq3i1c` TestFinalizeRefusesInvalidUTF8, `Erq3i2I` TestRuneTableKeysAreDigits over every built-in base, and harness `Erq3i2u` "invalid UTF-8 digit refused" and `Erq3i3e` "config invalid UTF-8 digit refused". All 4 fail before the fix and pass after.
+	- Acceptance signoff: Self-closed. The tests fail before the fix and pass after, and the wider refusal of tail, pad and markers follows the same reason as the digits.
+	- Closed: 20261005-084420
 
 - There is no public code style guide or contributing.md. (Code review 20261004 item 28)
 	- ID: 2026100413480028
