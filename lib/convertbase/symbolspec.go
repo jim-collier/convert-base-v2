@@ -66,7 +66,13 @@ func ParseSymbolSpec(s string) ([]string, error) {
 	if len(digitTokens) == 1 {
 		t := digitTokens[0]
 		if strings.Contains(t, ",") {
-			return splitCommas(t), nil
+			// A lone "," is a separator here, not the comma digit, so it
+			// leaves nothing. Only a token among others can be that digit.
+			symbols := splitCommas(t)
+			if len(symbols) == 0 {
+				return nil, errors.New("symbol spec has only commas, so no digit symbols")
+			}
+			return symbols, nil
 		}
 		symbols := make([]string, 0, utf8.RuneCountInString(t))
 		for _, r := range t {

@@ -590,14 +590,19 @@ func NewRegistry() (*Registry, error) {
 // Register adds b to the registry. Later registrations with the same (normalized)
 // alias override earlier ones - this is how config-file entries override built-ins.
 func (r *Registry) Register(b *Base) error {
-	if err := b.Finalize(); err != nil {
-		return err
-	}
-	if err := b.checkSizeAliases(); err != nil {
+	if err := b.check(); err != nil {
 		return err
 	}
 	r.add(b)
 	return nil
+}
+
+// check is everything Register asks of a base before adding it.
+func (b *Base) check() error {
+	if err := b.Finalize(); err != nil {
+		return err
+	}
+	return b.checkSizeAliases()
 }
 
 // checkSizeAliases requires every pure-integer alias to equal the symbol count.

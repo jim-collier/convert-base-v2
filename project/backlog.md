@@ -34,6 +34,35 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- A symbol spec of only commas parses to no symbols without an error.
+	- ID: 2026100417280514
+	- Type: Bug
+	- Status: Waiting on signoff
+	- Severity: Low
+	- Opened: 20261004-172805
+	- Opened by: found while working 2026100416041479
+	- Target OS: Any
+	- Steps to reproduce:
+		- A config base with `tail: ,` or `tail: , ,`.
+	- Incorrect behavior: the base loads with no tail and no word about it. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
+	- Expected behavior: "no digit symbols" or similar, naming the field.
+	- Reproduced: 20261004. `--to-symbols ','`, `--to-tail ','` and a config `tail: ","` in quotes all parse to no symbols with no error. A bare `tail: ,` never reaches the parser; see Decisions.
+	- Probable fix: `ParseSymbolSpec` returns an error when a non-empty spec yields no symbols. Check what an intentionally empty field means first, since an empty `--to-tail` clears a tail on purpose.
+	- Related IDs: 2026100416041479
+	- Actual cause: in a one-token spec a comma is a separator, so a spec of only commas left nothing, and `ParseSymbolSpec` returned the empty list as fine.
+	- Actual fix: `ParseSymbolSpec` refuses it as having only commas. The command names the flag, such as `--to-symbols:` or `--to-tail:`, and a config error names the line, the base and the field.
+	- Decisions:
+		- An empty value still means none on purpose, and never reaches the parser. An empty `--to-tail` clears a tail, an empty `--to-symbols` falls back to the base name, and an empty config `tail:` sets no tail.
+		- SHCL reads a bare `tail: ,` or `tail: , ,` as an empty list, the same as `tail:`. So it stays meaning no tail. Only a quoted `","` reaches the parser.
+		- A lone `,` among other tokens is still the comma digit, as `85ps` needs.
+	- Against: closed item 2026100416041479. Its checks `ErmULmv` and the comma-only part of `ErmULmP` expected "needs tail symbols", naming the base. The parser now refuses first, naming the flag, so both are commented out with the reason. The layout check itself stands, and the rest of `ErmULmP` still pins it.
+	- Verified: 20261004. `go vet`, `golangci-lint`, `go test ./...` and the harness from CLI surface through Config migration pass. Every built-in base still loads.
+	- Swept: every `ParseSymbolSpec` caller. `--from-symbols` and `--to-symbols` through `ResolveBase`, both tail flags through `ApplyOptions`, config `symbols` and `tail` through `configSpec`, the built-in specs, and the help's base report, which prints the new error. `lib/wasm` gets the new error with no flag name, like its other errors. `lib/reactor` takes base names only.
+	- Branch: help-commas
+	- Commit: 27146f0
+	- Test case: Go `Ermubbp` TestSpecOnlyCommas, and harness `ErmufVw` (`--to-tail`), `ErmufXE` (`--to-symbols`) and `ErmufYc` (config `tail`). All fail before the fix and pass after.
+	- Acceptance signoff: Waiting: a bare comma in a config stays an empty value, and the error wording.
+
 - The lint stage checks Go only. Shellcheck and ruff don't run, and nothing configures them. (Code review 20261004 item 22)
 	- ID: 2026100413480022
 	- Type: Enhancement
@@ -63,20 +92,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: lint-sh-py
 	- Commit: 294764b
 	- Test case: ErmroeI, Ermroeo, ErmrofR, Ermroh4, Ermrofy, ErmrogW (CI engine section), Ermt58H (pin-tools).
-
-- The "Config files" part of `--help` can be wrong or missing. (Code review 20261004 item 13)
-	- ID: 2026100413480013
-	- Type: Bug
-	- Status: Queued
-	- Severity: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Incorrect behavior: a config at mode 000 shows as `[loaded]`, though the load skipped it. A config that fails to parse stops `--help` from printing at all.
-	- Expected behavior: help shows "unreadable" or the parse error in that section, and prints the rest.
-	- Reproduced: 20261004, by the review, in a scratch home.
-	- Possible cause: `describePath` only checks that `os.Stat` works. The config load runs before the help branch and returns on error.
-	- Origin: `main.go:902-912`, from ad488ce. Not seen by an earlier round. Confirmed.
 
 - `flame-report.py` exits 1 on an unreadable flamegraph, where the spec says 2, and misfiles the big-number path. (Code review 20261004 item 14)
 	- ID: 2026100413480014
@@ -120,22 +135,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Incorrect behavior: with no `go` on the PATH, both sections count failures.
 	- Expected behavior: they skip with a warning, as the reactor section does.
 	- Reproduced: no. Seen while testing 2026100413480008 with a stub `go` that acts as missing.
-
-- A symbol spec of only commas parses to no symbols without an error.
-	- ID: 2026100417280514
-	- Type: Bug
-	- Status: Queued
-	- Severity: Low
-	- Opened: 20261004-172805
-	- Opened by: found while working 2026100416041479
-	- Target OS: Any
-	- Steps to reproduce:
-		- A config base with `tail: ,` or `tail: , ,`.
-	- Incorrect behavior: the base loads with no tail and no word about it. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
-	- Expected behavior: "no digit symbols" or similar, naming the field.
-	- Reproduced: no. Seen while working 2026100416041479.
-	- Probable fix: `ParseSymbolSpec` returns an error when a non-empty spec yields no symbols. Check what an intentionally empty field means first, since an empty `--to-tail` clears a tail on purpose.
-	- Related IDs: 2026100416041479
 
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
@@ -769,6 +768,30 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next release. The table renders, every link downloads, and the notes end with the build line.
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
+
+- The "Config files" part of `--help` can be wrong or missing. (Code review 20261004 item 13)
+	- ID: 2026100413480013
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Incorrect behavior: a config at mode 000 shows as `[loaded]`, though the load skipped it. A config that fails to parse stops `--help` from printing at all.
+	- Expected behavior: help shows "unreadable" or the parse error in that section, and prints the rest.
+	- Reproduced: 20261004, by the review, in a scratch home.
+	- Possible cause: `describePath` only checks that `os.Stat` works. The config load runs before the help branch and returns on error.
+	- Origin: `main.go:902-912`, from ad488ce. Not seen by an earlier round. Confirmed.
+	- Actual cause: the help's status for each config file came from `os.Stat`, not from the load. The loads run before the help branch, and their errors returned first.
+	- Actual fix: under `--help`, a failed config load is kept and the run goes on. The config section marks the file `[unreadable]`, or `[not loaded]` with the error on the next line. A typed `--config` that is missing shows as `[not found]` there. Any other run still stops at the error. `LoadConfig` now checks every base in a file before adding any, so a failed file leaves no bases for the help's base report to list.
+	- Against: the strict config loader (G12). Only the help goes on past a bad config. A conversion still fails on one.
+	- Verified: 20261004. A mode 000 user config, a mode 000 typed config, a file that won't parse and one with a bad second base each show in the help, with exit 0. The same files still fail a conversion. `go vet`, `golangci-lint`, `go test ./...` and the harness from CLI surface through Config migration pass.
+	- Swept: both config paths, system and user, and both help callers, `--help` and the no-argument help on stderr. The other `os.Stat` in main is the typed `--config` check, which still refuses outside the help. `lib/wasm` and `lib/reactor` load no config.
+	- Branch: help-commas
+	- Commit: 27146f0
+	- Test case: harness `ErmufTF` (parse error shown, rest printed) and `ErmufUW` (mode 000, default and typed path), and Go `ErmubcQ` TestLoadConfigAllOrNothing. All three fail before the fix and pass after.
+	- Acceptance signoff: closed without it. Help is the place a broken config should be visible, so showing it there and going on is the least surprise. A conversion still stops at a bad config.
+	- Closed: 20261004
 
 - The dogfood stage reports a failed copy as installed. (Code review 20261004 item 11)
 	- ID: 2026100413480011

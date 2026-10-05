@@ -76,7 +76,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The install script stopped with no message when the release had no tag or `checksums.txt` had no line for the download. It now says which.
 
-- `--from-tail` or `--to-tail` given only commas set no tail symbols but still switched the base to its tail layout, so some lengths decoded to the wrong bytes with no error. It is refused now, naming the base. Library: `Finalize` refuses a tail `BinaryScheme` on a base with no tail symbols.
+- `--from-tail` or `--to-tail` given only commas set no tail symbols but still switched the base to its tail layout, so some lengths decoded to the wrong bytes with no error. It is refused now, naming the flag. Library: `Finalize` refuses a tail `BinaryScheme` on a base with no tail symbols.
+
+- A symbol spec of only commas, such as `--to-symbols ','` or `tail: ","` in a config file, gave no symbols, and the error that followed, if any, didn't say why. It is refused now as having only commas, naming the flag or the config field. An empty value still means none, as before. Library: `ParseSymbolSpec` returns an error for it.
+
+- `--help` stopped at a config file that would not load, and listed one it could not open as `[loaded]`. Its config section now marks such a file `[unreadable]`, or `[not loaded]` with the error under it, and the rest of the help prints. Any other run still stops at the error. Library: a config file that fails to load adds no bases, where before the ones above the fault stayed.
 
 ### Other work
 

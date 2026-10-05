@@ -899,11 +899,13 @@ func TestTailSchemeNeedsTail(t *testing.T) {
 	}
 
 	reg := newReg(t)
-	b := base(t, reg, "2048qntm")
-	commas := ","
-	if _, err := ApplyOptions(b, &Options{Tail: &commas}); err == nil || !strings.Contains(err.Error(), "needs tail symbols") {
-		t.Errorf("a comma-only tail should be refused, got %v", err)
-	}
+	// Off since 2026100417280514: a comma-only tail is now refused by the spec
+	// parser, before the layout check, naming the flag. TestSpecOnlyCommas pins it.
+	// b := base(t, reg, "2048qntm")
+	// commas := ","
+	// if _, err := ApplyOptions(b, &Options{Tail: &commas}); err == nil || !strings.Contains(err.Error(), "needs tail symbols") {
+	// 	t.Errorf("a comma-only tail should be refused, got %v", err)
+	// }
 	// Clearing the tail clears the layout with it, and a codec keeps its scheme.
 	none := ""
 	for _, name := range []string{"2048qntm", "base91"} {

@@ -423,6 +423,24 @@ printf 'base: x\n\tsymbols: abc\n\tnegative:\n\t\tdecimal: X\n' >"${CBT_TMP}/nes
 check Erg4X7I errmsg "config nested field rejected" 'line 4: base "x": "decimal" is nested under negative' -- --config "${CBT_TMP}/nested.shcl" 255 16
 printf 'base: x\n\tsymbols: abc\n  bogus indent\n' >"${CBT_TMP}/bad.shcl"
 check ElHp3yZ errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
+## --help goes on past a config that won't load and says why in its config
+## section. It used to stop at the error, and called an unreadable file loaded.
+_run --config "${CBT_TMP}/bad.shcl" --help
+{ ((_rc == 0)) && [[ "$_out" == *Usage:* ]] && grep -qF "bad.shcl" <<<"$_out" && grep -qF "[not loaded]" <<<"$_out" && grep -qF "line 3:" <<<"$_out" && [[ "$_out" == *"(optional user-specified flags)"* ]]; } && _pass ErmufTF "--help shows a config error and prints the rest" || _fail ErmufTF "--help shows a config error and prints the rest" "rc=$_rc err=[$_err] out=[$_out]"
+## Both the default user path, which a normal run skips when it won't open, and
+## a typed one, which a normal run refuses.
+lockedcfg="${CBT_TMP}/xdg-locked/convert-base-v2/convert-base-v2.shcl"
+mkdir -p "${lockedcfg%/*}"
+printf 'base: lockd\n\tsymbols: abcd\n##    Format   3\n' >"$lockedcfg"; chmod 000 "$lockedcfg"
+if [[ -r "$lockedcfg" ]]; then
+	_warn ErmufUW "--help unreadable config not checked (running as root)"
+else
+	for lockedhow in default typed; do
+		if [[ "$lockedhow" == default ]]; then XDG_CONFIG_HOME="${CBT_TMP}/xdg-locked" _run --help; else _run --config "$lockedcfg" --help; fi
+		{ ((_rc == 0)) && grep -qF "[unreadable]" <<<"$_out" && ! grep -qF "[loaded]" <<<"$_out"; } && _pass ErmufUW "--help shows a mode 000 config as unreadable ($lockedhow path)" || _fail ErmufUW "--help shows a mode 000 config as unreadable ($lockedhow path)" "rc=$_rc err=[$_err] out=[$_out]"
+	done
+fi
+chmod 600 "$lockedcfg"
 ## SHCL leaves a bare backslash alone, so the symbol spec's own escape still
 ## puts a space inside a digit. In double quotes an unknown escape is refused.
 ## Both files name the current format, since one without it is read the old
@@ -822,7 +840,13 @@ printf -- 'base: wide2048\n\tsymbols: "%s"\n\ttail: "⸐ ⸑ ⸒ ⸓ ⸔ ⸕ ⸖
 check Erm5wxg errmsg "config tail on two-character digits rejected" '"wide2048": a tail needs every digit to be a single character' -- --config "${CBT_TMP}/tail-wide.shcl" --from bytes --to 16 5
 ## A tail of only commas parses to no symbols, and the tail layout without a
 ## tail decoded some lengths to the wrong bytes.
-check ErmULmv errmsg "comma-only tail rejected" '"2048qntm": binary scheme "qntm" needs tail symbols' -- --from bytes --to 2048qntm --to-tail ',' 5
+## Off since 2026100417280514: the spec parser now refuses a comma-only tail
+## first, naming the flag rather than the base and layout. ErmufVw pins it.
+## check ErmULmv errmsg "comma-only tail rejected" '"2048qntm": binary scheme "qntm" needs tail symbols' -- --from bytes --to 2048qntm --to-tail ',' 5
+check ErmufVw errmsg "comma-only tail names the flag" '--to-tail: symbol spec has only commas' -- --from bytes --to 2048qntm --to-tail ',' 5
+check ErmufXE errmsg "comma-only symbols names the flag" '--to-symbols: symbol spec has only commas' -- --to-symbols ',' 5
+printf -- 'base: cfgcomma\n\tsymbols: 0123456789abcdef\n\ttail: ","\n##    Format   3\n' >"${CBT_TMP}/tail-comma.shcl"
+check ErmufYc errmsg "config comma-only tail names the field" 'line 3: base "cfgcomma": tail: symbol spec has only commas' -- --config "${CBT_TMP}/tail-comma.shcl" 5 16
 
 ## Same tail declared in a config file rather than on the command line.
 tailcfg="${CBT_TMP}/tail.shcl"
