@@ -165,6 +165,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every `$(cat "...")` of a single file, every `_rand16` and `od ... /dev/urandom` random number, and each `printf "\U..."` loop. Left alone: `head -c ... /dev/urandom` where the loop needs random bytes, the per-base `--show-symbols-0 --by-index` load in the symbol fuzz, which also checks that an index and its listed name are the same base, and the per-pair name check in the back-compat suite, which costs about 0.1 s.
 	- Test case: none new. These are the harness's own checks. Each one touched was watched to fail and pass, as above. A wall-clock limit on harness sections would flake on a busy machine.
 	- Branch: harness-forks
+	- Commit: 94bbb66
 	- Acceptance signoff: Self-closed: the change does what the item asked, the checks keep their meaning and were each watched to fail.
 	- Closed: 20261004-205908
 
