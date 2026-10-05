@@ -34,23 +34,25 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- shcl: a quoted config value with a space before certain invalid bytes fails as an unterminated quote.
+- shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
 	- ID: 2026100508035901
 	- Type: Bug
 	- Status: Queued
 	- Severity: Low
 	- Opened: 20261005-080359
 	- Opened by: Backlog round 20261005, found while working 2026100507565201
-	- Related IDs: 2026100507565201
+	- Related IDs: 2026100507565201, shcl 2026100511212359
 	- Target OS: Any
 	- Steps to reproduce:
 		- Parse `base:` then a tab and `symbols: "a b \x80 c"`, with a real `\x80` byte, under strict mode. `\xff` in the same place does the same.
+		- `"\x80"` and `"a\x80 b"` fail too, so the space has nothing to do with it.
 	- Incorrect behavior: `line 2: E017 unterminated quote in value`. `"\xff a b c"` and `"a b \xe9 c"` parse fine.
 	- Expected behavior: the value parses, or a parse error that names the bad byte. This project then refuses the digit itself.
 	- Reproduced: 20261005, with both the vendored copy and the upstream shcl tree at 0d4c174c. Rough edge, not a silent wrong answer: the config is still refused, only with the wrong message.
 	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here. Check again after the 3.0.0 re-pin.
 	- Progress log:
 		- 20261005: left out of the round. Upstream is still at 0d4c174c with no 3.0.0 tag, and the bug isn't in its backlog yet.
+		- 20261005: filed in shcl's backlog as 2026100511212359, reproduced there at `0d1a491c`. Its `utf8Len` takes any byte that isn't a lead byte as the start of a 4-byte character, so the quote scan can step over the closing quote.
 
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
