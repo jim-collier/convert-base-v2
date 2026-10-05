@@ -104,35 +104,44 @@ func TestNumberPathUsesTokenValues(t *testing.T) {
 // The number path does the same divide and conquer as math/big's SetString
 // and Text, so their time is a yardstick that moves with the machine. Ours sat
 // near 1.9 times theirs at 1K digits while each digit was looked up twice, and
-// near 1.2 after. Best of several rounds, so a busy box doesn't fail it.
+// near 1.2 after. The two take turns, one call each, so both see the same load,
+// and each side's fastest call is compared. Timing all of ours and then all of
+// theirs let a load change in between read as a slowdown. Many short rounds
+// give a busy box enough quiet moments for both minimums.
 // Test ID: ErmULlt
 func TestPositionalNearMathBig(t *testing.T) {
 	reg := newReg(t)
 	from, to := base(t, reg, "10"), base(t, reg, "36")
 	input := benchDigits(1000)
-	best := func(f func()) time.Duration {
-		fastest := time.Duration(math.MaxInt64)
-		for round := 0; round < 15; round++ {
-			start := time.Now()
-			for i := 0; i < 20; i++ {
-				f()
-			}
-			fastest = min(fastest, time.Since(start))
-		}
-		return fastest
-	}
-	ours := best(func() {
+	ours := func() {
 		if _, err := Convert(input, from, to, 0); err != nil {
 			t.Fatal(err)
 		}
-	})
-	ref := best(func() {
+	}
+	ref := func() {
 		v, _ := new(big.Int).SetString(input, 10)
 		_ = v.Text(36)
-	})
+	}
+	timed := func(f func()) time.Duration {
+		start := time.Now()
+		f()
+		return time.Since(start)
+	}
+	ours()
+	ref()
+	bestOurs, bestRef := time.Duration(math.MaxInt64), time.Duration(math.MaxInt64)
+	for round := 0; round < 1201; round++ {
+		if round%2 == 0 {
+			bestOurs = min(bestOurs, timed(ours))
+			bestRef = min(bestRef, timed(ref))
+		} else {
+			bestRef = min(bestRef, timed(ref))
+			bestOurs = min(bestOurs, timed(ours))
+		}
+	}
 	const limit = 1.5
-	if ratio := float64(ours) / float64(ref); ratio > limit {
-		t.Errorf("1K digits base 10 -> 36 took %.2f times math/big's own conversion, limit %.1f (%v vs %v)", ratio, limit, ours, ref)
+	if ratio := float64(bestOurs) / float64(bestRef); ratio > limit {
+		t.Errorf("1K digits base 10 -> 36 took %.2f times math/big's own conversion, limit %.1f (%v vs %v)", ratio, limit, bestOurs, bestRef)
 	}
 }
 
