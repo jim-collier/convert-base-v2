@@ -65,7 +65,7 @@ Inside the package:
 
 - `convert.go` is the conversion core. It has two paths: an arbitrary-precision path (handles sign and fractions) and a fast bit-packing path used when a base is a power of two.
 
-- `registry.go` defines the `Base` type and the lookup registry.
+- `registry.go` defines the `Base` type and the lookup registry. A built-in base is parsed and checked the first time it is looked up, since a run uses two bases and building all of them took about 50 ms. Config bases are checked when the file loads.
 
 - `options.go` is how a caller says "base sixteen, but with a different negative marker". The command's flags build one of these.
 

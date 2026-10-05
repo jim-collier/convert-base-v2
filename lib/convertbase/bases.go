@@ -8,6 +8,7 @@ package convertbase
 import (
 	"fmt"
 	"strings"
+	"unicode"
 )
 
 //	Incorrectly-defined bases, but that made it into at least one compiled version, and some output may have been used. Kept for documentation in case something needs to be reverse-engineered in the future; don't delete.
@@ -896,7 +897,8 @@ type SpecOpts struct {
 
 // mkSpec builds a *Base from a SpecOpts. It panics on errors because this is
 // called from predefined data at init time: any failure is a bug to fix in the
-// source, not a runtime condition.
+// source, not a runtime condition. The symbols are parsed later, when the base
+// is first used (see Base.ready).
 func mkSpec(opts SpecOpts) *Base {
 	if opts.NegSymbol != "" && opts.DisallowNeg {
 		panic(fmt.Sprintf("predefinedBases %q: NegSymbol=%q conflicts with DisallowNeg", opts.Aliases, opts.NegSymbol))
@@ -904,18 +906,13 @@ func mkSpec(opts SpecOpts) *Base {
 	if opts.DecSymbol != "" && opts.DisallowDec {
 		panic(fmt.Sprintf("predefinedBases %q: DecSymbol=%q conflicts with DisallowDec", opts.Aliases, opts.DecSymbol))
 	}
-	symbols, err := ParseSymbolSpec(opts.BaseSymbols)
-	if err != nil {
-		panic(fmt.Sprintf("predefinedBases: spec %q: %v", opts.Aliases, err))
-	}
-
 	if opts.PadEmit && opts.Pad == "" {
 		panic(fmt.Sprintf("predefinedBases %q: PadEmit set but Pad is empty", opts.Aliases))
 	}
 
 	b := &Base{
 		Aliases:       opts.Aliases,
-		Symbols:       symbols,
+		pending:       &pendingBuild{spec: opts.BaseSymbols},
 		TailSymbols:   opts.TailSymbols,
 		BinaryScheme:  opts.BinaryScheme,
 		PadSymbol:     opts.Pad,
@@ -1012,14 +1009,26 @@ func runeRange(lo, hi rune) []string {
 	return out
 }
 
-// leftTokens returns the first n whitespace-separated tokens from s, joined
-// by single spaces, with a single space on each end (matching the constant
-// convention of space-padded edges). Panics if n exceeds the token count.
-// This is called at init, so a bad count is a bug, not a runtime condition.
+// leftTokens returns the first n whitespace-separated tokens from s, with a
+// single space on each end (matching the constant convention of space-padded
+// edges). Panics if n exceeds the token count. This is called at init, so a bad
+// count is a bug, not a runtime condition. It stops after the n-th token, since
+// it runs every start and the source alphabets are thousands of tokens long.
 func leftTokens(s string, n int) string {
-	tokens := strings.Fields(s)
-	if n > len(tokens) {
-		panic(fmt.Sprintf("leftTokens: want %d, only %d available in %q", n, len(tokens), s))
+	end := 0
+	for i := 0; i < n; i++ {
+		start := strings.IndexFunc(s[end:], isNotSpace)
+		if start < 0 {
+			panic(fmt.Sprintf("leftTokens: want %d, only %d available in %q", n, i, s))
+		}
+		end += start
+		if stop := strings.IndexFunc(s[end:], unicode.IsSpace); stop < 0 {
+			end = len(s)
+		} else {
+			end += stop
+		}
 	}
-	return " " + strings.Join(tokens[:n], " ") + " "
+	return " " + strings.TrimSpace(s[:end]) + " "
 }
+
+func isNotSpace(r rune) bool { return !unicode.IsSpace(r) }

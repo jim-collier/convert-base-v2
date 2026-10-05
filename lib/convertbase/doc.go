@@ -30,6 +30,10 @@
 // A precision of -1 sizes the output fraction to the input's; a value of 0 or
 // more fixes the digit count.
 //
+// Each built-in base is built the first time Lookup or OrderedBases reaches
+// it, so a new registry is cheap. Lookup and OrderedBases are safe to call from
+// several goroutines; Register and LoadConfig are not.
+//
 // [Options] carries per-base overrides for the negative marker, the decimal
 // marker, binary padding, and the tail repertoire a big base needs to stream.
 // Each field is a tri-state: nil leaves the base alone, a pointer to an empty

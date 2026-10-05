@@ -12,6 +12,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -92,6 +93,44 @@ type Base struct {
 	negative   string         // effective negative marker ("" if disabled)
 	decimal    string         // effective decimal marker ("" if disabled)
 	maxByteLen int            // longest symbol in bytes (for slow-path tokenizing)
+
+	pending *pendingBuild // built-ins only: parsed and finalized on first use
+}
+
+// pendingBuild holds a built-in base's spec until something asks for the base.
+// The two biggest alphabets took most of each run to build, and a conversion
+// uses two bases. The once makes concurrent lookups of one base safe.
+type pendingBuild struct {
+	once sync.Once
+	spec string // symbol spec still to parse; empty when Symbols is already set
+	err  error
+}
+
+// ready builds a built-in base the first time it is needed. A no-op for any
+// other base, which was finalized when it was registered.
+func (b *Base) ready() error {
+	p := b.pending
+	if p == nil {
+		return nil
+	}
+	p.once.Do(func() {
+		if p.spec != "" {
+			syms, err := ParseSymbolSpec(p.spec)
+			if err != nil {
+				p.err = fmt.Errorf("predefined %q: %w", b.Name(), err)
+				return
+			}
+			b.Symbols = syms
+		}
+		if err := b.Finalize(); err != nil {
+			p.err = fmt.Errorf("predefined %q: %w", b.Name(), err)
+			return
+		}
+		if err := b.checkSizeAliases(); err != nil {
+			p.err = fmt.Errorf("predefined %q: %w", b.Name(), err)
+		}
+	})
+	return p.err
 }
 
 // Built-in defaults if a base doesn't override.
@@ -496,6 +535,10 @@ func (b *Base) Tokenize(s string) ([]string, error) {
 }
 
 // Registry holds all known bases, keyed by normalized alias.
+//
+// Lookup and OrderedBases are safe to call from several goroutines at once.
+// Register and LoadConfig change the registry, so they must not run alongside
+// anything else.
 type Registry struct {
 	byAlias       map[string]*Base
 	ordered       []*Base  // registration order preserved
@@ -503,13 +546,22 @@ type Registry struct {
 }
 
 // NewRegistry builds a registry pre-populated with the predefined bases.
+//
+// Each built-in is parsed and checked the first time Lookup or OrderedBases
+// reaches it, not here, so the error is always nil today. It stays in the
+// signature for compatibility.
 func NewRegistry() (*Registry, error) {
-	r := &Registry{byAlias: make(map[string]*Base)}
-	for _, b := range predefinedBases() {
+	bases := predefinedBases()
+	r := &Registry{
+		byAlias: make(map[string]*Base, 3*len(bases)),
+		ordered: make([]*Base, 0, len(bases)),
+	}
+	for _, b := range bases {
 		b.Source = "built-in"
-		if err := r.Register(b); err != nil {
-			return nil, fmt.Errorf("predefined %q: %w", b.Name(), err)
+		if b.pending == nil {
+			b.pending = &pendingBuild{}
 		}
+		r.add(b)
 	}
 	return r, nil
 }
@@ -520,17 +572,29 @@ func (r *Registry) Register(b *Base) error {
 	if err := b.Finalize(); err != nil {
 		return err
 	}
-	// Sanity: every pure-integer alias must equal the symbol count. Check the
-	// normalized form (so "b99" is caught too, not just "99") and every alias,
-	// not only the first - otherwise ["3","99"] would register "99" as a working
-	// name for a 3-symbol base.
+	if err := b.checkSizeAliases(); err != nil {
+		return err
+	}
+	r.add(b)
+	return nil
+}
+
+// checkSizeAliases requires every pure-integer alias to equal the symbol count.
+// It checks the normalized form (so "b99" is caught too, not just "99") and
+// every alias, not only the first - otherwise ["3","99"] would register "99" as
+// a working name for a 3-symbol base.
+func (b *Base) checkSizeAliases() error {
 	for _, a := range b.Aliases {
 		if n, err := strconv.Atoi(normalizeBaseName(a)); err == nil && n != len(b.Symbols) {
 			return fmt.Errorf("base %q: alias %q implies size %d but has %d symbols",
 				b.Name(), a, n, len(b.Symbols))
 		}
 	}
-	seen := make(map[string]bool)
+	return nil
+}
+
+func (r *Registry) add(b *Base) {
+	seen := make(map[string]bool, len(b.Aliases))
 	for _, a := range b.Aliases {
 		// The base-prefix strip applies here too, not just at Lookup: an alias
 		// spelled "base91" registers under the key "91", so bare 91 and b91
@@ -543,7 +607,6 @@ func (r *Registry) Register(b *Base) error {
 		r.byAlias[k] = b
 	}
 	r.ordered = append(r.ordered, b)
-	return nil
 }
 
 // Lookup resolves a base name or alias. Case-insensitive; accepts an optional
@@ -556,12 +619,12 @@ func (r *Registry) Lookup(name string) (*Base, error) {
 		return nil, errors.New("empty base name")
 	}
 	if b, ok := r.byAlias[k]; ok {
-		return b, nil
+		return readyBase(b)
 	}
 	// Exact match above wins, so this can't shadow a real name.
 	if rest, ok := stripBasePrefix(k); ok {
 		if b, ok := r.byAlias[normalizeBaseName(rest)]; ok {
-			return b, nil
+			return readyBase(b)
 		}
 	}
 	// Offer near matches when we have any. With 60+ bases behind non-obvious
@@ -572,6 +635,13 @@ func (r *Registry) Lookup(name string) (*Base, error) {
 		q = normalizeBaseName(rest)
 	}
 	return nil, &UnknownBaseError{Name: name, Suggestions: r.suggestBases(q)}
+}
+
+func readyBase(b *Base) (*Base, error) {
+	if err := b.ready(); err != nil {
+		return nil, err
+	}
+	return b, nil
 }
 
 // suggestBases returns up to four base aliases near the normalized query k:
@@ -701,10 +771,16 @@ func (r *Registry) liveAliases(b *Base) []string {
 // addresses the same base as the N-th listed row and neither listing has gaps.
 // Fully-shadowed bases (every alias overridden by a later config base) are
 // dropped, so the count and the index don't include a base no name can reach.
+//
+// It builds every built-in it returns. One that will not build is a bug in
+// bases.go, which TestEveryBuiltinBuilds catches, so it panics like mkSpec.
 func (r *Registry) OrderedBases() []*Base {
 	bases := make([]*Base, 0, len(r.ordered))
 	for _, b := range r.ordered {
 		if len(r.liveAliases(b)) > 0 {
+			if err := b.ready(); err != nil {
+				panic(err)
+			}
 			bases = append(bases, b)
 		}
 	}
