@@ -39,11 +39,23 @@ const etcConfigPath = "/etc/convert-base-v2/convert-base-v2.shcl"
 const maxPrecision = 100000
 
 func main() {
-	if err := run(); err != nil {
-		fmt.Fprintf(os.Stderr, "error: %v\n", hintErr(err))
-		os.Exit(1)
+	err := run()
+	if err == nil {
+		return
 	}
+	var status exitStatus
+	if errors.As(err, &status) {
+		os.Exit(int(status))
+	}
+	fmt.Fprintf(os.Stderr, "error: %v\n", hintErr(err))
+	os.Exit(1)
 }
+
+// exitStatus ends the run with that exit code and no message, for a run that
+// has already said what went wrong.
+type exitStatus int
+
+func (s exitStatus) Error() string { return fmt.Sprintf("exit status %d", int(s)) }
 
 // hintErr appends the command's own pointers to library errors the library
 // states neutrally (it has no idea flags exist). Every wrap on the way up is
@@ -81,283 +93,417 @@ func run() (err error) {
 		}
 	}()
 
-	var (
-		fromName      = flag.String("from", "", "input base name/alias (e.g. 10, hex, 64url); default 10")
-		toName        = flag.String("to", "", "output base name/alias; default 10; also accepted as a positional arg")
-		fromSymbols   = flag.String("from-symbols", "", "custom input base: the digit symbols, whitespace-delimited")
-		toSymbols     = flag.String("to-symbols", "", "custom output base (same form)")
-		precision     = flag.String("precision", "auto", "max fractional digits, or 'auto' to match the input's precision")
-		lower         = flag.Bool("lower", false, "lowercase output (errors if output base has mixed-case digits)")
-		upper         = flag.Bool("upper", false, "uppercase output (errors if output base has mixed-case digits)")
-		escapeCtrl    = flag.Bool("escape-controls", false, "write control-character digits as named escapes (⊳LF, ⊳TAB, ...); input accepts them either way")
-		noNewline     = flag.Bool("no-newline", false, "do not append a trailing newline to text output (like echo -n)")
-		nFlag         = flag.Bool("n", false, "alias for -no-newline")
-		binaryMode    = flag.Bool("binary", false, "treat both sides as raw byte data (byte encode/decode, like basenc); an omitted --from/--to defaults to bytes")
-		binFlag       = flag.Bool("bin", false, "alias for -binary")
-		bFlag         = flag.Bool("b", false, "alias for -binary")
-		numberMode    = flag.Bool("number", false, "treat input as a positional number value (the default); silences the byte-vs-number note")
-		numFlag       = flag.Bool("num", false, "alias for -number")
-		nCapFlag      = flag.Bool("N", false, "alias for -number")
-		list          = flag.Bool("list", false, "list all known bases and exit")
-		listCompat    = flag.Bool("list-compat", false, "list only the convert-base-v1/v1b compatibility bases and exit")
-		getIndexCount = flag.Bool("get-index-count", false, "print how many bases are defined, then exit; valid --by-index values run 0 to count-1")
-		getBaseName   = flag.Bool("get-base-name", false, "print a base's canonical name, then exit; pick the base with a name/alias argument or --by-index")
-		showSymbols   = flag.Bool("show-symbols", false, "print a base's symbols concatenated with no delimiters, then exit; pick the base with a name/alias argument or --by-index")
-		showSymbols0  = flag.Bool("show-symbols-0", false, "like --show-symbols but NUL-separated, for machine parsing of multi-char symbols")
-		byIndex       = flag.Int("by-index", -1, "pick a base by its INDEX column in --list (0-based); used with --get-base-name / --show-symbols")
-		configFile    = flag.String("config", userConfigPath(), "user-level SHCL config file; /etc is always tried too (missing file is OK)\n        ")
-	)
-
-	var asked infoAsks
-	flag.Var(asked.flag("help"), "help", "show help and exit")
-	flag.Var(asked.flag("help"), "h", "alias for -help")
-	flag.Var(asked.flag("version"), "version", "print version and exit")
-	flag.Var(asked.flag("version"), "v", "alias for -version")
-	flag.Var(asked.flag("version"), "V", "alias for -version")
-	flag.Var(asked.flag("about"), "about", "print version, copyright, license and project home, then exit")
-	flag.Var(asked.flag("donate"), "donate", "print ways to support the project, then exit")
-	flag.Var(asked.flag("examples"), "examples", "show usage examples and exit")
-
-	// Per-side overrides. These apply to whatever base the side resolved to,
-	// named or custom. An empty value disables the marker; an absent flag
-	// leaves the base's own setting alone.
-	fromMarkers := &sideFlags{prefix: "--from"}
-	toMarkers := &sideFlags{prefix: "--to"}
-	flag.Var(&fromMarkers.neg, "from-neg", `negative marker for the input base (default "-"; empty disables)`)
-	flag.Var(&fromMarkers.dec, "from-dec", `decimal marker for the input base (default "."; empty disables)`)
-	flag.Var(&fromMarkers.pad, "from-pad", "padding character stripped from input in binary mode")
-	flag.Var(&fromMarkers.tail, "from-tail", "tail symbols for a >8-bit input base in binary mode")
-	flag.Var(&toMarkers.neg, "to-neg", `negative marker for the output base (default "-"; empty disables)`)
-	flag.Var(&toMarkers.dec, "to-dec", `decimal marker for the output base (default "."; empty disables)`)
-	flag.Var(&toMarkers.pad, "to-pad", "padding character written in binary mode")
-	flag.Var(&toMarkers.tail, "to-tail", "tail symbols for a >8-bit output base in binary mode")
-
-	// Suppress Go's default auto-exit on -h/-help; we handle help ourselves
-	// so we can show config-file status and base-resolution info. ContinueOnError
-	// (instead of the default ExitOnError) lets us turn flag's terse errors into
-	// hints about the two most common stumbles: a negative number typed without a
-	// "--" separator, and a mistyped flag.
-	flag.CommandLine.Init(os.Args[0], flag.ContinueOnError)
-	flag.CommandLine.SetOutput(io.Discard) // we print our own message
-	flag.CommandLine.Usage = func() {}     // no-op; we print help manually
-	if perr := flag.CommandLine.Parse(os.Args[1:]); perr != nil {
-		return improveFlagError(perr)
+	f, err := parseFlags(os.Args[1:])
+	if err != nil {
+		return err
 	}
 
 	// --about opens with the version line, so it covers --version. Only the help
 	// reports on the config files, so everything else prints before they load.
-	if asked.has("about") {
-		asked.drop("version")
+	if f.asked.has("about") {
+		f.asked.drop("version")
 	}
-	if len(asked) > 0 && !asked.has("help") {
-		return printInfo(stdout, asked, nil)
+	if len(f.asked) > 0 && !f.asked.has("help") {
+		return printInfo(stdout, f.asked, nil)
 	}
 
-	// Build registry and layer on config files (lowest to highest precedence):
-	//   built-in  <  /etc  <  user config  <  CLI flags
-	// Later-registered aliases overwrite earlier ones.
-	reg, err := convertbase.NewRegistry()
+	reg, configErrs, err := loadConfigs(f)
 	if err != nil {
 		return err
 	}
+	help := func(w io.Writer) {
+		printHelp(w, reg, configErrs, etcConfigPath, f.configFile, f.fromName, f.toName, f.fromSymbols, f.toSymbols)
+	}
+
+	// --help (with or without accompanying flags). Explicitly requested, so it
+	// goes to stdout (pipeable); the no-number help below keeps stderr.
+	if len(f.asked) > 0 {
+		return printInfo(stdout, f.asked, help)
+	}
+	if f.list || f.listCompat {
+		printLists(stdout, reg, f.list, f.listCompat)
+		return nil
+	}
+	if f.getIndexCount || f.getBaseName || f.showSymbols || f.showSymbols0 {
+		return printBaseQuery(stdout, reg, f)
+	}
+
+	c, err := planConversion(reg, f)
+	if err != nil {
+		return err
+	}
+	// No number and stdin is a terminal - nothing to do. This is the error path
+	// (exit 2), so help goes to stderr, leaving stdout clean.
+	if len(f.args) == 0 && !c.fromStdin {
+		help(os.Stderr)
+		return exitStatus(2)
+	}
+	return c.run(stdout, reg)
+}
+
+// cliFlags is the parsed command line. Each alias sets the same field as the
+// flag it stands for.
+type cliFlags struct {
+	fromName, toName       string
+	fromSymbols, toSymbols string
+	precision              string
+	lower, upper           bool
+	escapeCtrl             bool
+	noNewline              bool
+	binary, number         bool
+	list, listCompat       bool
+	getIndexCount          bool
+	getBaseName            bool
+	showSymbols            bool
+	showSymbols0           bool
+	byIndex                int
+	configFile             string
+	configExplicit         bool // --config was typed, not defaulted
+	asked                  infoAsks
+	fromMarkers, toMarkers sideFlags
+	args                   []string // positionals: NUMBER or "-", then OUTBASE
+}
+
+func parseFlags(args []string) (*cliFlags, error) {
+	f := &cliFlags{
+		fromMarkers: sideFlags{prefix: "--from"},
+		toMarkers:   sideFlags{prefix: "--to"},
+	}
+	// ContinueOnError rather than the default ExitOnError, so -h/-help don't
+	// auto-exit (the help reports on config files and base resolution) and
+	// flag's terse errors can become hints about the two most common stumbles:
+	// a negative number typed without a "--" separator, and a mistyped flag.
+	fs := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
+	fs.SetOutput(io.Discard) // we print our own message
+	fs.Usage = func() {}     // no-op; we print help manually
+
+	fs.StringVar(&f.fromName, "from", "", "input base name/alias (e.g. 10, hex, 64url); default 10")
+	fs.StringVar(&f.toName, "to", "", "output base name/alias; default 10; also accepted as a positional arg")
+	fs.StringVar(&f.fromSymbols, "from-symbols", "", "custom input base: the digit symbols, whitespace-delimited")
+	fs.StringVar(&f.toSymbols, "to-symbols", "", "custom output base (same form)")
+	fs.StringVar(&f.precision, "precision", "auto", "max fractional digits, or 'auto' to match the input's precision")
+	fs.BoolVar(&f.lower, "lower", false, "lowercase output (errors if output base has mixed-case digits)")
+	fs.BoolVar(&f.upper, "upper", false, "uppercase output (errors if output base has mixed-case digits)")
+	fs.BoolVar(&f.escapeCtrl, "escape-controls", false, "write control-character digits as named escapes (⊳LF, ⊳TAB, ...); input accepts them either way")
+	fs.BoolVar(&f.noNewline, "no-newline", false, "do not append a trailing newline to text output (like echo -n)")
+	fs.BoolVar(&f.noNewline, "n", false, "alias for -no-newline")
+	fs.BoolVar(&f.binary, "binary", false, "treat both sides as raw byte data (byte encode/decode, like basenc); an omitted --from/--to defaults to bytes")
+	fs.BoolVar(&f.binary, "bin", false, "alias for -binary")
+	fs.BoolVar(&f.binary, "b", false, "alias for -binary")
+	fs.BoolVar(&f.number, "number", false, "treat input as a positional number value (the default); silences the byte-vs-number note")
+	fs.BoolVar(&f.number, "num", false, "alias for -number")
+	fs.BoolVar(&f.number, "N", false, "alias for -number")
+	fs.BoolVar(&f.list, "list", false, "list all known bases and exit")
+	fs.BoolVar(&f.listCompat, "list-compat", false, "list only the convert-base-v1/v1b compatibility bases and exit")
+	fs.BoolVar(&f.getIndexCount, "get-index-count", false, "print how many bases are defined, then exit; valid --by-index values run 0 to count-1")
+	fs.BoolVar(&f.getBaseName, "get-base-name", false, "print a base's canonical name, then exit; pick the base with a name/alias argument or --by-index")
+	fs.BoolVar(&f.showSymbols, "show-symbols", false, "print a base's symbols concatenated with no delimiters, then exit; pick the base with a name/alias argument or --by-index")
+	fs.BoolVar(&f.showSymbols0, "show-symbols-0", false, "like --show-symbols but NUL-separated, for machine parsing of multi-char symbols")
+	fs.IntVar(&f.byIndex, "by-index", -1, "pick a base by its INDEX column in --list (0-based); used with --get-base-name / --show-symbols")
+	fs.StringVar(&f.configFile, "config", userConfigPath(), "user-level SHCL config file; /etc is always tried too (missing file is OK)\n        ")
+
+	fs.Var(f.asked.flag("help"), "help", "show help and exit")
+	fs.Var(f.asked.flag("help"), "h", "alias for -help")
+	fs.Var(f.asked.flag("version"), "version", "print version and exit")
+	fs.Var(f.asked.flag("version"), "v", "alias for -version")
+	fs.Var(f.asked.flag("version"), "V", "alias for -version")
+	fs.Var(f.asked.flag("about"), "about", "print version, copyright, license and project home, then exit")
+	fs.Var(f.asked.flag("donate"), "donate", "print ways to support the project, then exit")
+	fs.Var(f.asked.flag("examples"), "examples", "show usage examples and exit")
+
+	// Per-side overrides. These apply to whatever base the side resolved to,
+	// named or custom. An empty value disables the marker; an absent flag
+	// leaves the base's own setting alone.
+	fs.Var(&f.fromMarkers.neg, "from-neg", `negative marker for the input base (default "-"; empty disables)`)
+	fs.Var(&f.fromMarkers.dec, "from-dec", `decimal marker for the input base (default "."; empty disables)`)
+	fs.Var(&f.fromMarkers.pad, "from-pad", "padding character stripped from input in binary mode")
+	fs.Var(&f.fromMarkers.tail, "from-tail", "tail symbols for a >8-bit input base in binary mode")
+	fs.Var(&f.toMarkers.neg, "to-neg", `negative marker for the output base (default "-"; empty disables)`)
+	fs.Var(&f.toMarkers.dec, "to-dec", `decimal marker for the output base (default "."; empty disables)`)
+	fs.Var(&f.toMarkers.pad, "to-pad", "padding character written in binary mode")
+	fs.Var(&f.toMarkers.tail, "to-tail", "tail symbols for a >8-bit output base in binary mode")
+
+	if err := fs.Parse(args); err != nil {
+		return nil, improveFlagError(err)
+	}
+	fs.Visit(func(fl *flag.Flag) {
+		if fl.Name == "config" {
+			f.configExplicit = true
+		}
+	})
+	f.args = fs.Args()
+	return f, nil
+}
+
+// loadConfigs builds the registry and layers the config files on it, lowest to
+// highest precedence: built-in < /etc < user config < CLI flags. Later-registered
+// aliases overwrite earlier ones. The map has each config that did not load.
+func loadConfigs(f *cliFlags) (*convertbase.Registry, map[string]error, error) {
+	reg, err := convertbase.NewRegistry()
+	if err != nil {
+		return nil, nil, err
+	}
+	l := &configLoad{reg: reg, errs: make(map[string]error), helpAsked: f.asked.has("help")}
 	now := time.Now()
 	if note := upgradeConfigFile(etcConfigPath, now); note != "" {
 		fmt.Fprintln(os.Stderr, note)
 	}
-	// A config that will not load stops every run but --help, which shows why
-	// in its config section and prints the rest. Every other run stays strict,
-	// since a dropped file means converting with the wrong bases. Forgiven
-	// failures are kept too, so the help never calls a skipped file loaded.
-	helpAsked := asked.has("help")
-	configErrs := make(map[string]error)
 	// Nobody types the system path, so a copy that will not open at all just
 	// means there is no system config. A file that opens and will not parse
 	// still stops us, since that one was put there on purpose.
-	if err := reg.LoadConfig(etcConfigPath); err != nil {
-		if !helpAsked && !convertbase.IsConfigUnreadable(err) {
-			return fmt.Errorf("config %s: %w", etcConfigPath, err)
-		}
-		configErrs[etcConfigPath] = err
+	if err := l.load(etcConfigPath, true); err != nil {
+		return nil, nil, err
 	}
-	// Only load user config if it's a different path (avoid double-registering
-	// if user explicitly set -config=/etc/...).
-	userPath := *configFile
-	configExplicit := false
-	flag.Visit(func(f *flag.Flag) {
-		if f.Name == "config" {
-			configExplicit = true
-		}
-	})
-	if configExplicit && userPath == etcConfigPath {
-		// Already loaded above, where a file that will not open is forgiven.
-		// That forgiveness is only for the paths nobody typed; a typed
-		// --config still has to open.
-		f, openErr := os.Open(userPath)
-		if openErr == nil {
-			_ = f.Close() // opened only to prove it opens; nothing was written
-		} else if !helpAsked {
-			return fmt.Errorf("config %s: %w", userPath, openErr)
-		}
-	}
-	if userPath != "" && userPath != etcConfigPath {
-		// A missing default config path is fine, but if the user explicitly typed
-		// --config, a missing/unreadable file is almost certainly a typo - error
-		// instead of silently dropping their custom bases.
-		if configExplicit {
-			// Under --help the load below finds the same fault, and the help
-			// shows it.
-			if _, statErr := os.Stat(userPath); statErr != nil {
-				if !helpAsked {
-					return fmt.Errorf("config %s: %w", userPath, statErr)
-				}
-			} else if note := explicitConfigNote(userPath); note != "" {
-				fmt.Fprintln(os.Stderr, note)
+
+	userPath := f.configFile
+	switch {
+	case userPath == etcConfigPath:
+		// Already loaded above, and only once, where a file that will not open
+		// is forgiven. That forgiveness is only for the paths nobody typed; a
+		// typed --config still has to open.
+		if f.configExplicit {
+			if err := checkOpens(userPath); err != nil && !l.helpAsked {
+				return nil, nil, fmt.Errorf("config %s: %w", userPath, err)
 			}
-		} else if ensureUserConfig(userPath) {
-			// First run: there is now a real file at the path the help text
-			// names, with a working example base in it.
-			fmt.Fprintf(os.Stderr, "note: created default config %s\n", userPath)
-			if legacy := legacyConfigPath(userPath); legacy != userPath {
-				if _, statErr := os.Stat(legacy); statErr == nil {
-					fmt.Fprintf(os.Stderr, "note: %s is the older YAML config and is no longer read\n", legacy)
-				}
+		}
+	case userPath != "":
+		if f.configExplicit {
+			if err := checkTypedConfig(userPath, l.helpAsked); err != nil {
+				return nil, nil, err
 			}
-		} else if note := upgradeConfigFile(userPath, now); note != "" {
-			fmt.Fprintln(os.Stderr, note)
+		} else {
+			prepareDefaultConfig(userPath, now)
 		}
 		// Outside --help a typed --config already failed above if it was not
 		// readable, so the only unreadable file reaching here is the default
 		// path, same case as the system one.
-		if err := reg.LoadConfig(userPath); err != nil {
-			if !helpAsked && (configExplicit || !convertbase.IsConfigUnreadable(err)) {
-				return fmt.Errorf("config %s: %w", userPath, err)
-			}
-			configErrs[userPath] = err
+		if err := l.load(userPath, !f.configExplicit); err != nil {
+			return nil, nil, err
 		}
 	}
+	return reg, l.errs, nil
+}
 
-	// --help (with or without accompanying flags). Explicitly requested, so it
-	// goes to stdout (pipeable); the no-args error path below keeps stderr.
-	if len(asked) > 0 {
-		return printInfo(stdout, asked, func(w io.Writer) {
-			printHelp(w, reg, configErrs, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
-		})
-	}
+// configLoad loads config files into reg. A config that will not load stops
+// every run but --help, which shows why in its config section and prints the
+// rest. Every other run stays strict, since a dropped file means converting
+// with the wrong bases. Forgiven failures are kept in errs too, so the help
+// never calls a skipped file loaded.
+type configLoad struct {
+	reg       *convertbase.Registry
+	errs      map[string]error
+	helpAsked bool
+}
 
-	// --list shows the everyday bases, --list-compat the v1/v1b compatibility
-	// ones. Both together print both tables, everyday first.
-	if *list || *listCompat {
-		if *list {
-			reg.Print(stdout, false)
-		}
-		if *listCompat {
-			if *list {
-				fmt.Fprintln(stdout)
-			}
-			reg.Print(stdout, true)
-		}
+// load loads one file. forgiveUnreadable lets a file that will not open at all
+// count as no file, which is only right for a path nobody typed.
+func (l *configLoad) load(path string, forgiveUnreadable bool) error {
+	err := l.reg.LoadConfig(path)
+	if err == nil {
 		return nil
 	}
-
-	// Base-introspection query modes. Each prints one thing and exits, like
-	// --list. They let scripts enumerate bases (count, name-by-index, symbols)
-	// without parsing the human-readable --list table.
-	if *getIndexCount {
-		fmt.Fprintln(stdout, len(reg.OrderedBases()))
-		return nil
+	forgiven := l.helpAsked || (forgiveUnreadable && convertbase.IsConfigUnreadable(err))
+	if !forgiven {
+		return fmt.Errorf("config %s: %w", path, err)
 	}
-	if *getBaseName || *showSymbols || *showSymbols0 {
-		posName := ""
-		if a := flag.Args(); len(a) >= 1 {
-			posName = a[0]
-		}
-		b, err := selectBase(reg, *byIndex, posName)
-		if err != nil {
-			return err
-		}
-		if *getBaseName {
-			fmt.Fprintln(stdout, b.Name())
+	l.errs[path] = err
+	return nil
+}
+
+func checkOpens(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		return err
+	}
+	_ = f.Close() // opened only to prove it opens; nothing was written
+	return nil
+}
+
+// checkTypedConfig refuses a typed --config that is missing or unreadable,
+// which is almost certainly a typo, instead of silently dropping the custom
+// bases. Under --help the load finds the same fault, and the help shows it.
+func checkTypedConfig(path string, helpAsked bool) error {
+	if _, err := os.Stat(path); err != nil {
+		if helpAsked {
 			return nil
 		}
-		// --show-symbols: all symbols concatenated, no delimiters, one trailing
-		// newline. --show-symbols-0 NUL-separates them so scripts can still split
-		// multi-char symbols.
-		if *showSymbols0 {
-			for i, s := range b.Symbols {
-				if i > 0 {
-					stdout.WriteString("\x00")
-				}
-				stdout.WriteString(s)
-			}
-		} else {
-			for _, s := range b.Symbols {
-				if *escapeCtrl {
-					s = convertbase.EscapeControls(s, b)
-				}
-				stdout.WriteString(s)
-			}
-			stdout.WriteString("\n")
+		return fmt.Errorf("config %s: %w", path, err)
+	}
+	if note := explicitConfigNote(path); note != "" {
+		fmt.Fprintln(os.Stderr, note)
+	}
+	return nil
+}
+
+// prepareDefaultConfig creates the default user config on a first run, or
+// upgrades an old one. A missing default path is fine either way.
+func prepareDefaultConfig(path string, now time.Time) {
+	if !ensureUserConfig(path) {
+		if note := upgradeConfigFile(path, now); note != "" {
+			fmt.Fprintln(os.Stderr, note)
 		}
+		return
+	}
+	// First run: there is now a real file at the path the help text names,
+	// with a working example base in it.
+	fmt.Fprintf(os.Stderr, "note: created default config %s\n", path)
+	if legacy := legacyConfigPath(path); legacy != path {
+		if _, err := os.Stat(legacy); err == nil {
+			fmt.Fprintf(os.Stderr, "note: %s is the older YAML config and is no longer read\n", legacy)
+		}
+	}
+}
+
+// printLists prints --list, the everyday bases, and --list-compat, the v1/v1b
+// compatibility ones. Both together print both tables, everyday first.
+func printLists(out io.Writer, reg *convertbase.Registry, everyday, compat bool) {
+	if everyday {
+		reg.Print(out, false)
+	}
+	if compat {
+		if everyday {
+			fmt.Fprintln(out)
+		}
+		reg.Print(out, true)
+	}
+}
+
+// printBaseQuery answers the base-introspection flags. Each prints one thing,
+// like --list, so scripts can enumerate bases (count, name-by-index, symbols)
+// without parsing the human-readable --list table.
+func printBaseQuery(out *bufio.Writer, reg *convertbase.Registry, f *cliFlags) error {
+	if f.getIndexCount {
+		fmt.Fprintln(out, len(reg.OrderedBases()))
 		return nil
 	}
+	posName := ""
+	if len(f.args) >= 1 {
+		posName = f.args[0]
+	}
+	b, err := selectBase(reg, f.byIndex, posName)
+	if err != nil {
+		return err
+	}
+	switch {
+	case f.getBaseName:
+		fmt.Fprintln(out, b.Name())
+	case f.showSymbols0:
+		// NUL-separated so scripts can still split multi-char symbols.
+		for i, s := range b.Symbols {
+			if i > 0 {
+				out.WriteString("\x00")
+			}
+			out.WriteString(s)
+		}
+	default:
+		// --show-symbols: all symbols concatenated, no delimiters, one
+		// trailing newline.
+		for _, s := range b.Symbols {
+			if f.escapeCtrl {
+				s = convertbase.EscapeControls(s, b)
+			}
+			out.WriteString(s)
+		}
+		out.WriteString("\n")
+	}
+	return nil
+}
 
-	// --by-index only selects a base for the query flags above. Reaching here with
-	// it set means a normal conversion, where it does nothing - say so rather than
+// conversion is a number conversion, worked out from the flags and positionals
+// before any input is read.
+type conversion struct {
+	f         *cliFlags
+	from, to  *convertbase.Base
+	bytes     *convertbase.Base // set when --binary routes two text bases through bytes
+	fromStdin bool
+	precision int
+}
+
+// planConversion resolves both bases and checks the flags against them. The
+// checks run in a fixed order, so the same mistake always gets the same error.
+func planConversion(reg *convertbase.Registry, f *cliFlags) (*conversion, error) {
+	// --by-index only selects a base for the query flags. Reaching here with it
+	// set means a normal conversion, where it does nothing - say so rather than
 	// silently ignoring it.
-	if *byIndex >= 0 {
+	if f.byIndex >= 0 {
 		fmt.Fprintf(os.Stderr, "note: --by-index is ignored here; it only picks a base for --get-base-name / --show-symbols\n")
 	}
 
 	// Mode flags up front: an omitted base defaults to bytes under --binary
 	// (so `--from hex --binary` implies `--to bytes`), else to base 10.
-	byteMode := *binaryMode || *binFlag || *bFlag
-	numMode := *numberMode || *numFlag || *nCapFlag
-	if byteMode && numMode {
-		return errors.New("choose either --binary or --number, not both")
+	if f.binary && f.number {
+		return nil, errors.New("choose either --binary or --number, not both")
 	}
 	defaultBase := "10"
-	if byteMode {
+	if f.binary {
 		defaultBase = "bytes"
 	}
 
-	// Defaults: an unspecified side falls back to defaultBase.
-	inBaseName := *fromName
-	if inBaseName == "" && *fromSymbols == "" {
-		inBaseName = defaultBase
+	c := &conversion{f: f}
+	var err error
+	if c.from, err = resolveInputBase(reg, f, defaultBase); err != nil {
+		return nil, err
 	}
-	// Conflicting input selectors: --from-symbols silently wins over --from. Say
-	// so, so a script mistake isn't masked (note to stderr; stdout stays clean).
-	if *fromSymbols != "" && *fromName != "" {
-		fmt.Fprintf(os.Stderr, "note: --from-symbols overrides --from %q\n", *fromName)
-	}
-	from, err := convertbase.ResolveBase(reg, inBaseName, *fromSymbols, fromMarkers.options())
-	if err != nil {
-		return fmt.Errorf("input base: %w", err)
-	}
-
-	args := flag.Args()
 
 	// NUMBER comes from stdin only for an explicit "-", or a pipe with no
 	// positional. When a positional NUMBER is given it always wins - changing
 	// that would break the common `prog NUMBER` form in scripts whose stdin is an
 	// inherited pipe (a read-loop, this being run under another pipe, etc.), and
 	// would make the tool consume a pipe it was never meant to touch.
-	fromStdin := (len(args) >= 1 && args[0] == "-") || (len(args) == 0 && !isTerminal(os.Stdin))
+	args := f.args
+	c.fromStdin = (len(args) >= 1 && args[0] == "-") || (len(args) == 0 && !isTerminal(os.Stdin))
 
-	// OUTBASE: --to flag wins over positional (args[1], after NUMBER or "-").
-	// Default to defaultBase if neither set. Resolved up front (it doesn't depend
-	// on the number) so the streaming path below can be chosen before a byte is
-	// read.
-	outBaseName := *toName
-	posOut := ""
-	if len(args) >= 2 {
-		posOut = args[1]
+	outName, posOut := outputBaseName(reg, f, defaultBase)
+	if err := checkPositionals(args, posOut); err != nil {
+		return nil, err
 	}
-	if outBaseName == "" {
-		outBaseName = posOut
+	notePipeIgnored(reg, args, c.fromStdin)
+	if c.to, err = convertbase.ResolveBase(reg, outName, f.toSymbols, f.toMarkers.options()); err != nil {
+		return nil, fmt.Errorf("output base: %w", err)
 	}
-	if outBaseName == "" && *toSymbols == "" {
-		outBaseName = defaultBase
+
+	if c.precision, err = parsePrecision(f.precision); err != nil {
+		return nil, err
+	}
+	if err := checkOutputFlags(f, c.from, c.to); err != nil {
+		return nil, err
+	}
+	return c, nil
+}
+
+// resolveInputBase resolves the input side; an unspecified one falls back to
+// defaultBase.
+func resolveInputBase(reg *convertbase.Registry, f *cliFlags, defaultBase string) (*convertbase.Base, error) {
+	name := f.fromName
+	if name == "" && f.fromSymbols == "" {
+		name = defaultBase
+	}
+	// Conflicting input selectors: --from-symbols silently wins over --from. Say
+	// so, so a script mistake isn't masked (note to stderr; stdout stays clean).
+	if f.fromSymbols != "" && f.fromName != "" {
+		fmt.Fprintf(os.Stderr, "note: --from-symbols overrides --from %q\n", f.fromName)
+	}
+	from, err := convertbase.ResolveBase(reg, name, f.fromSymbols, f.fromMarkers.options())
+	if err != nil {
+		return nil, fmt.Errorf("input base: %w", err)
+	}
+	return from, nil
+}
+
+// outputBaseName picks the OUTBASE name: the --to flag wins over the positional
+// (args[1], after NUMBER or "-"), and defaultBase is used if neither is set. It
+// doesn't depend on the number, so the streaming path can be chosen before a
+// byte is read. posOut is the positional OUTBASE, or "".
+func outputBaseName(reg *convertbase.Registry, f *cliFlags, defaultBase string) (name, posOut string) {
+	if len(f.args) >= 2 {
+		posOut = f.args[1]
+	}
+	name = f.toName
+	if name == "" {
+		name = posOut
+	}
+	if name == "" && f.toSymbols == "" {
+		name = defaultBase
 	}
 
 	// Conflicting output selectors: --to-symbols wins over any name, and --to
@@ -365,175 +511,193 @@ func run() (err error) {
 	// two selectors disagree so a mistake isn't masked. A --to and positional that
 	// name the same base is not a conflict and stays quiet.
 	switch {
-	case *toSymbols != "" && (*toName != "" || posOut != ""):
-		other := *toName
+	case f.toSymbols != "" && (f.toName != "" || posOut != ""):
+		other := f.toName
 		if other == "" {
 			other = posOut
 		}
 		fmt.Fprintf(os.Stderr, "note: --to-symbols overrides output base %q\n", other)
-	case *toName != "" && posOut != "" && !sameBase(reg, *toName, posOut):
-		fmt.Fprintf(os.Stderr, "note: --to %q overrides positional output base %q\n", *toName, posOut)
+	case f.toName != "" && posOut != "" && !sameBase(reg, f.toName, posOut):
+		fmt.Fprintf(os.Stderr, "note: --to %q overrides positional output base %q\n", f.toName, posOut)
 	}
+	return name, posOut
+}
 
-	// Extra positional guard.
-	expectedPositionals := 0
+// checkPositionals refuses anything past NUMBER (or "-") and OUTBASE.
+func checkPositionals(args []string, posOut string) error {
+	expected := 0
 	if len(args) >= 1 {
-		expectedPositionals = 1 // NUMBER or "-"
+		expected = 1 // NUMBER or "-"
 	}
 	if posOut != "" {
-		expectedPositionals++
+		expected++
 	}
-	if len(args) > expectedPositionals {
-		extra := args[expectedPositionals]
-		// A leftover that looks like a flag means the user put flags after the
-		// NUMBER; flag parsing stops at the first non-flag, so they were never seen.
-		if strings.HasPrefix(extra, "-") && extra != "-" {
-			return fmt.Errorf("flags must come before the NUMBER: move %q ahead of it, e.g. %s %s NUMBER BASE (see --help)", extra, filepath.Base(os.Args[0]), extra)
-		}
-		return fmt.Errorf("unexpected extra positional argument: %q (see --help for usage)", extra)
+	if len(args) <= expected {
+		return nil
 	}
+	extra := args[expected]
+	// A leftover that looks like a flag means the user put flags after the
+	// NUMBER; flag parsing stops at the first non-flag, so they were never seen.
+	if strings.HasPrefix(extra, "-") && extra != "-" {
+		return fmt.Errorf("flags must come before the NUMBER: move %q ahead of it, e.g. %s %s NUMBER BASE (see --help)", extra, filepath.Base(os.Args[0]), extra)
+	}
+	return fmt.Errorf("unexpected extra positional argument: %q (see --help for usage)", extra)
+}
 
-	// Kill the silent-wrong-output trap: `echo 255 | prog 16` reads "16" as the
-	// NUMBER and never touches the pipe, so it prints "16" with exit 0. Detect the
-	// telltale shape - a real pipe, one positional, and that positional naming a
-	// known base - and point the user at "-". A bare number positional (the
-	// ordinary read-loop case) does not trip this. Whether the pipe actually holds
-	// data is deliberately not tested: finding out means reading it, and that is
-	// the one thing this path must not do.
-	if !fromStdin && len(args) == 1 && isNamedPipe(os.Stdin) {
-		if _, lerr := reg.Lookup(args[0]); lerr == nil {
-			fmt.Fprintf(os.Stderr, "note: reading %q as the NUMBER, not the output base; stdin (piped) was ignored. To convert piped input, use: something | %s - %s\n",
-				args[0], filepath.Base(os.Args[0]), args[0])
-		}
+// notePipeIgnored kills the silent-wrong-output trap: `echo 255 | prog 16` reads
+// "16" as the NUMBER and never touches the pipe, so it prints "16" with exit 0.
+// Detect the telltale shape - a real pipe, one positional, and that positional
+// naming a known base - and point the user at "-". A bare number positional (the
+// ordinary read-loop case) does not trip this. Whether the pipe actually holds
+// data is deliberately not tested: finding out means reading it, and that is
+// the one thing this path must not do.
+func notePipeIgnored(reg *convertbase.Registry, args []string, fromStdin bool) {
+	if fromStdin || len(args) != 1 || !isNamedPipe(os.Stdin) {
+		return
 	}
-
-	to, err := convertbase.ResolveBase(reg, outBaseName, *toSymbols, toMarkers.options())
-	if err != nil {
-		return fmt.Errorf("output base: %w", err)
+	if _, err := reg.Lookup(args[0]); err == nil {
+		fmt.Fprintf(os.Stderr, "note: reading %q as the NUMBER, not the output base; stdin (piped) was ignored. To convert piped input, use: something | %s - %s\n",
+			args[0], filepath.Base(os.Args[0]), args[0])
 	}
+}
 
-	// -1 is the auto sentinel Convert understands; an explicit value must be >= 0.
-	precVal := -1
-	if !strings.EqualFold(strings.TrimSpace(*precision), "auto") {
-		n, perr := strconv.Atoi(strings.TrimSpace(*precision))
-		if perr != nil || n < 0 {
-			return errors.New("precision must be a non-negative integer or 'auto'")
-		}
-		if n > maxPrecision {
-			return fmt.Errorf("precision must be at most %d", maxPrecision)
-		}
-		precVal = n
+// parsePrecision reads --precision. -1 is the auto sentinel Convert
+// understands; an explicit value must be >= 0.
+func parsePrecision(s string) (int, error) {
+	s = strings.TrimSpace(s)
+	if strings.EqualFold(s, "auto") {
+		return -1, nil
 	}
+	n, err := strconv.Atoi(s)
+	if err != nil || n < 0 {
+		return 0, errors.New("precision must be a non-negative integer or 'auto'")
+	}
+	if n > maxPrecision {
+		return 0, fmt.Errorf("precision must be at most %d", maxPrecision)
+	}
+	return n, nil
+}
 
-	if *lower && *upper {
+// checkOutputFlags refuses the output flags that can't apply to these bases.
+func checkOutputFlags(f *cliFlags, from, to *convertbase.Base) error {
+	if f.lower && f.upper {
 		return errors.New("choose either --lower or --upper, not both")
 	}
-
 	// --lower/--upper: error out if the output base has mixed-case digits
 	// (previously silently ignored; now strict, per user preference).
-	if *lower && !canLowercase(to) {
+	if f.lower && !canRecase(to, strings.ToLower) {
 		return fmt.Errorf("--lower is invalid for mixed-case output base %q: lowercasing its digits would change their meaning", to.Name())
 	}
-	if *upper && !canUppercase(to) {
+	if f.upper && !canRecase(to, strings.ToUpper) {
 		return fmt.Errorf("--upper is invalid for mixed-case output base %q: uppercasing its digits would change their meaning", to.Name())
 	}
 	// Escapes are a text notation, so they only reach the number path. Byte mode
 	// writes raw bytes or a fixed codec alphabet, where the flag would be
 	// accepted and then do nothing.
-	if *escapeCtrl && (byteMode || from.Binary || to.Binary) {
+	if f.escapeCtrl && (f.binary || from.Binary || to.Binary) {
 		return errors.New("--escape-controls applies to number conversions only, not byte mode")
 	}
+	return nil
+}
 
-	// No number and stdin is a terminal - nothing to do. This is the error path
-	// (exit 2), so help goes to stderr, leaving stdout clean.
-	if len(args) == 0 && !fromStdin {
-		printHelp(os.Stderr, reg, configErrs, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
-		os.Exit(2)
-	}
-
+// run converts the number, streaming it when it can.
+func (c *conversion) run(stdout *bufio.Writer, reg *convertbase.Registry) error {
 	// --binary is meaningful only between two text bases; if either side is
 	// already the bytes base the conversion is byte-exact anyway, so ignore it.
-	routeBytes := byteMode && !from.Binary && !to.Binary
-	var bytes *convertbase.Base
-	if routeBytes {
-		bytes, err = reg.Lookup("bytes")
-		if err != nil {
+	if c.f.binary && !c.from.Binary && !c.to.Binary {
+		var err error
+		if c.bytes, err = reg.Lookup("bytes"); err != nil {
 			return err
 		}
 	}
+	c.noteNumberReading()
 
-	// Loud note for the silent-ambiguous case: two power-of-2 text bases with no
-	// mode given. The value is converted as a number (leading zeros dropped),
-	// which differs from a byte re-encoding. Goes to stderr so pipes stay clean.
-	if !byteMode && !numMode && !from.Binary && !to.Binary &&
-		convertbase.PowerOfTwoBits(len(from.Symbols)) > 0 && convertbase.PowerOfTwoBits(len(to.Symbols)) > 0 {
+	// --lower/--upper would need per-chunk rewriting, so they fall through to
+	// the buffered path.
+	if c.fromStdin && !c.f.lower && !c.f.upper {
+		handled, err := c.stream(stdout)
+		if err != nil || handled {
+			return err
+		}
+	}
+	return c.convertBuffered(stdout)
+}
+
+// noteNumberReading is the loud note for the silent-ambiguous case: two
+// power-of-2 text bases with no mode given. The value is converted as a number
+// (leading zeros dropped), which differs from a byte re-encoding. Goes to
+// stderr so pipes stay clean.
+func (c *conversion) noteNumberReading() {
+	if c.f.binary || c.f.number || c.from.Binary || c.to.Binary {
+		return
+	}
+	if convertbase.PowerOfTwoBits(len(c.from.Symbols)) > 0 && convertbase.PowerOfTwoBits(len(c.to.Symbols)) > 0 {
 		fmt.Fprintln(os.Stderr, "FYI: Converted as a positional notation number (assumed '--number' flag). If you meant to do binary encode/decode, add the --binary flag.")
 	}
+}
 
-	// Streaming fast path: for the bit-packed conversions, pipe stdin straight to
-	// stdout with no whole-file buffering. --lower/--upper would need per-chunk
-	// rewriting, so they fall through to the buffered path. The streams write
-	// os.Stdout themselves and return their own write errors; nothing is in the
-	// stdout buffer yet, so the order holds.
-	if fromStdin && !*lower && !*upper {
-		var handled bool
-		var serr error
-		if routeBytes {
-			handled, serr = convertbase.StreamBytesRoute(os.Stdin, os.Stdout, from, to, bytes)
-		} else {
-			handled, serr = convertbase.StreamConvert(os.Stdin, os.Stdout, from, to)
-		}
-		if serr != nil {
-			return serr
-		}
-		if handled {
-			// Text output normally ends in a newline (as the buffered path's
-			// Println does); no-newline and binary output stay byte-exact.
-			if !to.Binary && !*noNewline && !*nFlag {
-				fmt.Fprintln(stdout)
-			}
-			return nil
-		}
+// stream is the fast path for the bit-packed conversions: stdin straight to
+// stdout with no whole-file buffering. handled is false when the pair can't
+// stream. The streams write os.Stdout themselves and return their own write
+// errors; nothing is in the stdout buffer yet, so the order holds.
+func (c *conversion) stream(stdout *bufio.Writer) (handled bool, err error) {
+	if c.bytes != nil {
+		handled, err = convertbase.StreamBytesRoute(os.Stdin, os.Stdout, c.from, c.to, c.bytes)
+	} else {
+		handled, err = convertbase.StreamConvert(os.Stdin, os.Stdout, c.from, c.to)
 	}
+	if err != nil || !handled {
+		return handled, err
+	}
+	// Text output normally ends in a newline (as the buffered path's
+	// Println does); no-newline and binary output stay byte-exact.
+	if !c.to.Binary && !c.f.noNewline {
+		fmt.Fprintln(stdout)
+	}
+	return true, nil
+}
 
-	// Buffered path: read the whole number (from stdin or argv), convert, emit.
+// convertBuffered reads the whole number (from stdin or argv), converts, emits.
+func (c *conversion) convertBuffered(stdout *bufio.Writer) error {
 	var number string
-	if fromStdin {
-		number, err = readStdin(from)
-		if err != nil {
+	if c.fromStdin {
+		var err error
+		if number, err = readStdin(c.from); err != nil {
 			return err
 		}
 	} else {
-		number = args[0]
+		number = c.f.args[0]
 	}
 
-	var result string
-	if routeBytes {
-		// from-digits -> raw bytes -> to-digits, matching the streaming route and
-		// basenc byte-for-byte (whole-byte checks and RFC padding included).
-		mid, cerr := convertbase.Convert(number, from, bytes, precVal)
-		if cerr != nil {
-			return cerr
-		}
-		result, err = convertbase.Convert(mid, bytes, to, precVal)
-	} else {
-		result, err = convertbase.Convert(number, from, to, precVal)
-	}
+	result, err := c.convert(number)
 	if err != nil {
 		return err
 	}
-	if *lower || *upper {
-		result = recaseDigits(result, to, *upper)
+	if c.f.lower || c.f.upper {
+		result = recaseDigits(result, c.to, c.f.upper)
 	}
-	if *escapeCtrl {
-		result = convertbase.EscapeControls(result, to)
+	if c.f.escapeCtrl {
+		result = convertbase.EscapeControls(result, c.to)
 	}
 
 	stdout.WriteString(result)
-	if !*noNewline && !*nFlag && !to.Binary {
+	if !c.f.noNewline && !c.to.Binary {
 		stdout.WriteString("\n")
 	}
 	return nil
+}
+
+func (c *conversion) convert(number string) (string, error) {
+	if c.bytes == nil {
+		return convertbase.Convert(number, c.from, c.to, c.precision)
+	}
+	// from-digits -> raw bytes -> to-digits, matching the streaming route and
+	// basenc byte-for-byte (whole-byte checks and RFC padding included).
+	mid, err := convertbase.Convert(number, c.from, c.bytes, c.precision)
+	if err != nil {
+		return "", err
+	}
+	return convertbase.Convert(mid, c.bytes, c.to, c.precision)
 }
 
 // improveFlagError turns flag's terse parse errors into a hint for the two
@@ -784,36 +948,18 @@ func recaseDigits(s string, b *convertbase.Base, upper bool) string {
 	return prefix + recase(s)
 }
 
-// canLowercase reports whether strings.ToLower on the output would still be a
-// valid representation. False when the base contains both the upper- and lower-
-// case form of the same letter (i.e. mixed-case digits).
-func canLowercase(b *convertbase.Base) bool {
+// canRecase reports whether recasing the output's digits with recase keeps
+// them a valid representation. False when the base has both cases of the same
+// letter as digits (mixed-case digits), since recasing would collide them.
+func canRecase(b *convertbase.Base, recase func(string) string) bool {
 	seen := make(map[string]struct{}, len(b.Symbols))
 	for _, s := range b.Symbols {
 		seen[s] = struct{}{}
 	}
 	for _, s := range b.Symbols {
-		l := strings.ToLower(s)
-		if l != s {
-			if _, both := seen[l]; both {
-				return false
-			}
-		}
-	}
-	return true
-}
-
-// canUppercase is the --upper counterpart of canLowercase: false when the base
-// carries both cases of the same letter, since uppercasing would collide them.
-func canUppercase(b *convertbase.Base) bool {
-	seen := make(map[string]struct{}, len(b.Symbols))
-	for _, s := range b.Symbols {
-		seen[s] = struct{}{}
-	}
-	for _, s := range b.Symbols {
-		u := strings.ToUpper(s)
-		if u != s {
-			if _, both := seen[u]; both {
+		r := recase(s)
+		if r != s {
+			if _, both := seen[r]; both {
 				return false
 			}
 		}
