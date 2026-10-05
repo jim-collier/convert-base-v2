@@ -139,3 +139,41 @@ func TestVersionIsPatchable(t *testing.T) {
 		t.Errorf("--version = %q, want the stamped v9.8.7-stamped", got)
 	}
 }
+
+// Each alias sets its flag's one value, so the last spelling given wins, as
+// with -h and --help.
+// Test ID: ErqCOGX
+func TestFlagAliasesShareOneValue(t *testing.T) {
+	type field func(*cliFlags) bool
+	binary := func(f *cliFlags) bool { return f.binary }
+	number := func(f *cliFlags) bool { return f.number }
+	noNewline := func(f *cliFlags) bool { return f.noNewline }
+	cases := []struct {
+		args []string
+		get  field
+		want bool
+	}{
+		{[]string{"--binary"}, binary, true},
+		{[]string{"--bin"}, binary, true},
+		{[]string{"-b"}, binary, true},
+		{[]string{"--number"}, number, true},
+		{[]string{"--num"}, number, true},
+		{[]string{"-N"}, number, true},
+		{[]string{"--no-newline"}, noNewline, true},
+		{[]string{"-n"}, noNewline, true},
+		{[]string{"--binary", "--bin=false"}, binary, false},
+		{[]string{"-b=false", "--binary"}, binary, true},
+		{[]string{"--num", "-N=false"}, number, false},
+		{[]string{"-n", "--no-newline=false"}, noNewline, false},
+		{[]string{"--from", "16"}, binary, false},
+	}
+	for _, c := range cases {
+		f, err := parseFlags(c.args)
+		if err != nil {
+			t.Fatalf("%q: %v", c.args, err)
+		}
+		if got := c.get(f); got != c.want {
+			t.Errorf("%q: got %v, want %v", c.args, got, c.want)
+		}
+	}
+}
