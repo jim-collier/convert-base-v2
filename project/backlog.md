@@ -93,13 +93,22 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `run()` is 440 lines, and the command's flag helpers repeat themselves. (Code review 20261004 item 23c)
 	- ID: 2026100507495203
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on signoff
 	- Priority: Low
 	- Opened: 20261005-074952
 	- Opened by: Code review 20261004
 	- Parent ID: 2026100413480023
 	- Target OS: Any
 	- Note: `main.go` `run()` has an `os.Exit(2)` inside it. Alias flags are separate bools ORed at each use, and `canLowercase` and `canUppercase` are copies.
+	- Done: `run()` is now a short list of steps in the same order: parse flags, info output, load configs, help, the list and base query flags, plan the conversion, then stream or buffer it. Each step is its own small function, so the same mistake gets the same error first. The no-number help returns exit 2 to `main` instead of calling `os.Exit` itself. The flags are one struct, and each alias sets the same field as its flag. `canLowercase` and `canUppercase` are one `canRecase`. gocognit for `run()` went from 166 to 15, and its length from 465 lines to 58. The largest new step is `loadConfigs` at 18. `main.go` grew from 1087 to 1233 lines, mostly function headers and comments.
+	- Note: one thing a user can type now reads differently. A later `=false` on another spelling of the same flag, as in `--binary --bin=false`, `--num -N=false` or `-n --no-newline=false`, used to be ignored, since each spelling had its own bool and they were ORed. Now the last one given wins, the same as `-h`/`--help` and `-v`/`--version` already did, and the same as giving one spelling twice.
+	- Verified: the old and new builds give the same stdout, stderr, exit code and config dir over 222 argument lists, each run in 5 config states: no config yet, a current one, an old-format one, one that won't load, and one at mode 000. That's 1110 runs. The lists cover every flag and alias spelling, bad flags, `--help`, `--about`, `--donate`, `--examples`, `--version`, `--list`, the base queries, typed and broken `--config` files, piped, redirected and streamed stdin, and writes to `/dev/full`. The only differences are the 4 `=false` lists in the note above, in each state.
+	- Verified: `go vet`, golangci-lint, `go test ./...`, `test-ids.py check`, the wasip1 build of the command, and the harness in quick mode at 557 of 557.
+	- Swept: every flag with an alias: `--binary`/`--bin`/`-b`, `--number`/`--num`/`-N` and `--no-newline`/`-n`. The info flags already shared one value. `os.Exit` in `lib/cmd` is now only in `main`. Nothing else in the repo calls `canLowercase`, `canUppercase` or reads `flag.CommandLine`.
+	- Branch: run-split
+	- Commit: 76bcdb1
+	- Test case: `ErqCOGX` TestFlagAliasesShareOneValue is new. It checks every alias spelling sets its flag, and that a later `=false` on another spelling turns it off. It fails when an alias is bound to the wrong field. The old code had no `parseFlags` to test. Exit 2 with help on stderr is the existing harness check `Eje9ui2`, and the rest is the existing harness.
+	- Acceptance signoff: needed for the `=false` change in the note above. The rest of the refactor changes no output.
 
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
