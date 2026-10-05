@@ -293,7 +293,7 @@ func TestUpgradeConfigFileReadOnlyDir(t *testing.T) {
 	if err := os.Chmod(dir, 0o555); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) })
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) }) // lets TempDir remove it; a failure shows there
 
 	note := upgradeConfigFile(path, upgradeTime)
 	if !strings.Contains(note, "could not be converted") || !strings.Contains(note, "read the old way") {
@@ -329,6 +329,149 @@ func TestUpgradeConfigFileWriteFails(t *testing.T) {
 	}
 	if names := dirNames(t, dir); len(names) != 1 {
 		t.Fatalf("files: %q", names)
+	}
+}
+
+// appendDuringWrite makes the write hook append to the config in place first,
+// which holds open the window between the backup check and the replace.
+func appendDuringWrite(t *testing.T, path, extra string) {
+	t.Helper()
+	saved := writeConfigFile
+	writeConfigFile = func(file, text string) error {
+		f, err := os.OpenFile(path, os.O_WRONLY|os.O_APPEND, 0)
+		if err != nil {
+			return err
+		}
+		if _, err := f.WriteString(extra); err != nil {
+			t.Fatal(err)
+		}
+		if err := f.Close(); err != nil {
+			t.Fatal(err)
+		}
+		return saved(file, text)
+	}
+	t.Cleanup(func() { writeConfigFile = saved })
+}
+
+const addedBase = "base: added\n\tsymbols: 01\n"
+
+// An edit written into the file in place, after the backup is checked and
+// before the converted text replaces it, goes into the backup too, since it is
+// the same file. That edit is the newest text there is, so it goes back at the
+// path and the conversion waits for the next run.
+// Test ID: Ern8m1y
+func TestUpgradeConfigFileEditDuringWrite(t *testing.T) {
+	for _, linked := range []bool{false, true} {
+		dir := t.TempDir()
+		target := writeOld(t, dir, oldUserConfig)
+		path := target
+		if linked {
+			path = filepath.Join(t.TempDir(), "convert-base-v2.shcl")
+			if err := os.Symlink(target, path); err != nil {
+				t.Skip("no symlinks here:", err)
+			}
+		}
+		appendDuringWrite(t, target, addedBase)
+
+		note := upgradeConfigFile(path, upgradeTime)
+		edited := oldUserConfig + addedBase
+		var holders []string
+		for _, name := range dirNames(t, dir) {
+			if fileText(t, filepath.Join(dir, name)) == edited {
+				holders = append(holders, name)
+			}
+		}
+		if got := fileText(t, path); got != edited {
+			t.Fatalf("linked %v: the config holds %q, want the edit; files holding it: %q; note %q", linked, got, holders, note)
+		}
+		if !strings.Contains(note, "changed while it was being converted") {
+			t.Fatalf("linked %v: note %q", linked, note)
+		}
+		if names := dirNames(t, dir); len(names) != 1 {
+			t.Fatalf("linked %v: files: %q", linked, names)
+		}
+		if linked {
+			if fi, err := os.Lstat(path); err != nil || fi.Mode()&os.ModeSymlink == 0 {
+				t.Fatal("the link was replaced")
+			}
+		}
+		// The next run converts the edited file.
+		writeConfigFile = shcl.WriteFileAtomic
+		if note := upgradeConfigFile(path, upgradeTime.Add(time.Minute)); !strings.Contains(note, "converted") {
+			t.Fatalf("linked %v: next run: %q", linked, note)
+		}
+		if got := fileText(t, filepath.Join(dir, "convert-base-v2_backup_20261003-140609_format-v1.shcl")); got != edited {
+			t.Fatalf("linked %v: next run's backup holds %q", linked, got)
+		}
+	}
+}
+
+// Only an edit counts as one. A backup gone missing, or holding the converted
+// text because the write went through the link, gets the original put back,
+// and the conversion stands.
+// Test ID: Ern924g
+func TestUpgradeConfigFileKeepsBackup(t *testing.T) {
+	backupPath := func(dir string) string {
+		return filepath.Join(dir, "convert-base-v2_backup_20261003-140509_format-v1.shcl")
+	}
+	for _, c := range []struct {
+		name  string
+		write func(dir, file, text string) error
+	}{
+		{"missing", func(dir, file, text string) error {
+			if err := shcl.WriteFileAtomic(file, text); err != nil {
+				return err
+			}
+			return os.Remove(backupPath(dir))
+		}},
+		{"written through", func(_, file, text string) error {
+			return os.WriteFile(file, []byte(text), 0o640)
+		}},
+	} {
+		dir := t.TempDir()
+		path := writeOld(t, dir, oldUserConfig)
+		saved := writeConfigFile
+		writeConfigFile = func(file, text string) error { return c.write(dir, file, text) }
+		note := upgradeConfigFile(path, upgradeTime)
+		writeConfigFile = saved
+		if !strings.Contains(note, "converted "+path) {
+			t.Fatalf("%s: note %q", c.name, note)
+		}
+		if got := fileText(t, backupPath(dir)); got != oldUserConfig {
+			t.Fatalf("%s: backup holds %q", c.name, got)
+		}
+		if v, ok := shcl.FormatVersion(fileText(t, path)); !ok || v != shcl.FormatMajor {
+			t.Fatalf("%s: config names format %d, %v", c.name, v, ok)
+		}
+	}
+}
+
+// When the edit cannot go back, it stays in the backup, and the note says so.
+// Test ID: Ern925t
+func TestUpgradeConfigFileEditStaysInBackup(t *testing.T) {
+	if os.Geteuid() == 0 || runtime.GOOS == "windows" {
+		t.Skip("a read-only mode on a directory does not stop root, or windows")
+	}
+	dir := t.TempDir()
+	path := writeOld(t, dir, oldUserConfig)
+	appendDuringWrite(t, path, addedBase)
+	inner := writeConfigFile
+	writeConfigFile = func(file, text string) error {
+		err := inner(file, text)
+		if cerr := os.Chmod(dir, 0o555); cerr != nil {
+			t.Fatal(cerr)
+		}
+		return err
+	}
+	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) }) // lets TempDir remove it; a failure shows there
+
+	note := upgradeConfigFile(path, upgradeTime)
+	backup := filepath.Join(dir, "convert-base-v2_backup_20261003-140509_format-v1.shcl")
+	if !strings.Contains(note, "edited while it was being converted") || !strings.Contains(note, backup) {
+		t.Fatalf("note %q", note)
+	}
+	if got := fileText(t, backup); got != oldUserConfig+addedBase {
+		t.Fatalf("backup holds %q, want the edit", got)
 	}
 }
 

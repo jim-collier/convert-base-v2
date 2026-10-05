@@ -29,6 +29,7 @@ package main
 
 import (
 	"errors"
+	"strconv"
 	"unsafe"
 
 	"github.com/jim-collier/convert-base-v2/lib/convertbase"
@@ -133,9 +134,16 @@ func packRegion(s string) uint64 {
 // regions. Requiring the range to sit inside a region catches a stale or
 // misplaced pointer at the call instead of reading whatever the Go heap holds
 // there. A zero length is a legal empty string.
+//
+// Hosts nearly always pass a region's own start, which the map finds at once.
+// Only a pointer into the middle of one walks them all, and a host holding
+// thousands open made every call pay for that walk.
 func hostBytes(ptr, n uint32) ([]byte, bool) {
 	if n == 0 {
 		return nil, true
+	}
+	if buf, ok := regions[ptr]; ok && uint64(n) <= uint64(len(buf)) {
+		return buf[:n], true
 	}
 	for base, buf := range regions {
 		if ptr >= base && uint64(ptr)+uint64(n) <= uint64(base)+uint64(len(buf)) {
@@ -197,7 +205,7 @@ func convert(fromPtr, fromLen, toPtr, toLen, valPtr, valLen uint32, precision in
 		return 0
 	}
 	if precision > maxPrecision {
-		setErr(errBadArg, "precision must be at most 100000")
+		setErr(errBadArg, "precision must be at most "+strconv.Itoa(maxPrecision))
 		return 0
 	}
 	if precision < 0 {
@@ -335,7 +343,7 @@ func fit(namePtr, nameLen, strPtr, strLen, width uint32) uint64 {
 		return 0
 	}
 	if width > maxFitWidth {
-		setErr(errBadArg, "width must be at most 100000")
+		setErr(errBadArg, "width must be at most "+strconv.Itoa(maxFitWidth))
 		return 0
 	}
 	b, ok := namedBase(namePtr, nameLen)
@@ -366,7 +374,7 @@ func convertFit(fromPtr, fromLen, toPtr, toLen, valPtr, valLen, width uint32) ui
 		return 0
 	}
 	if width > maxFitWidth {
-		setErr(errBadArg, "width must be at most 100000")
+		setErr(errBadArg, "width must be at most "+strconv.Itoa(maxFitWidth))
 		return 0
 	}
 	from, ok := namedBase(fromPtr, fromLen)

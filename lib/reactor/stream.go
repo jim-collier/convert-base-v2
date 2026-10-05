@@ -224,7 +224,7 @@ func streamFinish(handle uint32) uint64 {
 		return 0
 	}
 	s.finished = true
-	_ = s.pw.Close()
+	_ = s.pw.Close() // a pipe writer's Close always returns nil
 	if err := <-s.done; err != nil {
 		s.failed = true
 		setErr(classify(err), err.Error())

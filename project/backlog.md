@@ -105,19 +105,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: alias flags are separate bools ORed at each use. `canLowercase` and `canUppercase` are copies. The `case from.allOneByte` arm in `convertBitPacked` can never be reached.
 	- Origin: mostly ad488ce, grown since. Not seen by an earlier round. Confirmed by gocognit and a coverage profile.
 
-- Small Go style fixes. (Code review 20261004 item 24)
-	- ID: 2026100413480024
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: `SpecOpts` is exported but only `mkSpec` uses it. `real` shadows the builtin in `configupgrade.go:93`. Seven comments in `bases.go` use a section sign where ASCII would do.
-	- Note: errors are dropped with `_` and no comment in the `convert_test.go` benchmarks and two `reactor-host` writes.
-	- Note: `lib/wasm` and `lib/reactor` repeat the 100000 precision and width limits as literals beside the constants.
-	- Origin: several commits. Not seen by an earlier round. Confirmed by grep.
-
 - The Python pipeline tools miss most of the Python style rules. (Code review 20261004 item 25)
 	- ID: 2026100413480025
 	- Type: Enhancement
@@ -168,30 +155,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: Any
 	- Note: the directives want `project/style-guide_code.md`, a `contributing.md` that links it, and a short README pointer to both. None exist.
 	- Origin: directive gap, filed against the 2026-10-04 directives.
-
-- The reactor scans every open region for each pointer a host passes. (Code review 20261004 item 29)
-	- ID: 2026100413480029
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: a convert call took 67 us with no other allocations open, 948 us with 1,000 and 8.3 ms with 10,000.
-	- Probable fix: an exact lookup on the start pointer first, with the scan only for pointers into the middle of a region.
-	- Origin: `reactor/main.go:136-148`, from 36d7ccc on 2026-08-02. Not seen by an earlier round. Confirmed with a scratch reactor-host bench.
-
-- A config migration can lose an edit made to the original during the backup. (Code review 20261004 item 30)
-	- ID: 2026100413480030
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: the backup is a hard link to the original. An in-place write between the backup check and the rename goes into both, and `keepBackup` then puts the old bytes over it. The window is milliseconds.
-	- Probable fix: when the backup no longer matches, write the old bytes under a new name.
-	- Origin: `configupgrade.go:157-161`, from 9acc437 on 2026-10-03. Not seen by an earlier round. Plausible.
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002
@@ -1044,6 +1007,75 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again after the next release. Rebuild its tag with the Go, nfpm and NSIS versions the workflow used, and compare with its `checksums.txt`. NSIS comes from the runner's apt, so its version has to be read from the workflow log.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
+
+- Small Go style fixes. (Code review 20261004 item 24)
+	- ID: 2026100413480024
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: `SpecOpts` is exported but only `mkSpec` uses it. `real` shadows the builtin in `configupgrade.go:93`. Seven comments in `bases.go` use a section sign where ASCII would do.
+	- Note: errors are dropped with `_` and no comment in the `convert_test.go` benchmarks and two `reactor-host` writes.
+	- Note: `lib/wasm` and `lib/reactor` repeat the 100000 precision and width limits as literals beside the constants.
+	- Origin: several commits. Not seen by an earlier round. Confirmed by grep.
+	- Note: `SpecOpts` stays exported. It is in the tagged `lib/v0.1.0`, and both library design docs list it as public. Dropping it breaks any `go get` user who names it. A v0 module may do that, but in a release that says so, not as a style fix.
+	- Done: the seven comments say "section N". `real` is now `target`. The benchmarks check every error through two small helpers.
+	- Done: `lib/wasm` has its own `maxPrecision`, and both modules build their limit messages from the constants.
+	- Swept: every `_` drop in our Go code under `lib/` and `cicd/`, shcl left out as vendored. The ones in `stream.go`, `configupgrade.go`, `userconfig_test.go` and the reactor-host runtime close got a short reason too. The section signs still in `bases.go` are digits in a listed alphabet. No 100000 literal is left beside its constant.
+	- Verified: 20261004. go vet (linux, windows, darwin, js, wasip1), golangci-lint and `go test ./...` clean. `make reactor` and `make web` build. Each benchmark runs once clean, and reactor-host passes.
+	- Test case: `Ern7YZg` TestPrecisionBound in the browser module, and new cap checks in reactor-host, `Elmd2Y4`. They pin both modules' 100000 caps to the command's, and fail with either cap moved to 99999. The rest is style, with no behavior to test.
+	- Branch: go-lows
+	- Commit: 36e8857
+	- Acceptance signoff: Self-closed: mechanical. `SpecOpts` left as public API, as the note says.
+	- Closed: 20261004-200019
+
+- The reactor scans every open region for each pointer a host passes. (Code review 20261004 item 29)
+	- ID: 2026100413480029
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: a convert call took 67 us with no other allocations open, 948 us with 1,000 and 8.3 ms with 10,000.
+	- Probable fix: an exact lookup on the start pointer first, with the scan only for pointers into the middle of a region.
+	- Origin: `reactor/main.go:136-148`, from 36d7ccc on 2026-08-02. Not seen by an earlier round. Confirmed with a scratch reactor-host bench.
+	- Done: as the probable fix. A pointer to a region's start is found in the map at once. Only a pointer into the middle of a region still walks them all.
+	- Verified: 20261004. 25 converts took about 0.8 ms with no other regions open. With 10,000 open they took 38 ms before and 0.8 ms after, 46 times as long against 1.1. go vet, golangci-lint, `go test ./...` and `make reactor` clean.
+	- Test case: `Ern7YaC`, reactor-host `--regions`. It fails when a convert with 10,000 regions open takes over 3 times as long as with none. It failed at 44 to 46 times before the fix and passed at 1.1 after, run through the harness section too. reactor-host `Elmd2Y4` now also passes an interior pointer, and a length past a region's end from its start and from its middle.
+	- Branch: go-lows
+	- Commit: 314421e
+	- Acceptance signoff: Self-closed: did what the item asked, and its test fails before and passes after.
+	- Closed: 20261004-200057
+
+- A config migration can lose an edit made to the original during the backup. (Code review 20261004 item 30)
+	- ID: 2026100413480030
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: the backup is a hard link to the original. An in-place write between the backup check and the rename goes into both, and `keepBackup` then puts the old bytes over it. The window is milliseconds.
+	- Probable fix: when the backup no longer matches, write the old bytes under a new name.
+	- Origin: `configupgrade.go:157-161`, from 9acc437 on 2026-10-03. Not seen by an earlier round. Plausible.
+	- Reproduced: 20261004, with the write step held open by a test. An append made in that window was in no file afterward. The config held the converted old text, and the backup the old text.
+	- Done: when the backup holds neither the original nor the converted text after the write, it holds an edit. That file goes back at the path, so the config is just as it was edited. The run notes that the file changed while it was being converted, and reads it the old way, as when the change is seen before the write. The next run converts it.
+		- If it can't go back, it stays under the backup name, and the note says the edited text is there.
+		- A backup that went missing, or that holds the converted text, still gets the original put back, and the conversion stands.
+	- Decisions:
+		- Not the probable fix. That would leave the converted pre-edit text at the path, and the edit under a backup name. Putting the edited file back keeps the config where it is edited, and matches what an edit seen before the write already does. `createFile` has no use here, since nothing new is created.
+	- Note: two windows are left, and no fix here can close them without a compare-and-swap replace. Where hard links don't work the backup is a copy, so an in-place edit in the window still goes with the old file. An editor that saves by rename in the window is still replaced by the converted file. Both were true before.
+	- Note: no changelog line. The migration is new since v3.0.0.
+	- Swept: `keepBackup` has one caller. The other link-based write, `createFile`, makes a new file and has nothing to lose.
+	- Verified: 20261004. go vet (linux, windows, darwin), golangci-lint and `go test ./...` clean. The three tests pass 20 times over under the race detector.
+	- Test case: `Ern8m1y` TestUpgradeConfigFileEditDuringWrite, plain and through a symlink, and `Ern925t` TestUpgradeConfigFileEditStaysInBackup. Both fail on the old code and pass now. `Ern924g` TestUpgradeConfigFileKeepsBackup pins the missing and written-through cases, and passes both ways.
+	- Branch: go-lows
+	- Commit: 6e8854e
+	- Acceptance signoff: closed without it. Putting the edited file back keeps the edit where the user expects it, and matches what the code already did for a change seen before the write. The two gaps left need a compare-and-swap replace the OS doesn't give, so they stay as notes here.
+	- Closed: 20261004
 
 - Python tools use three naming styles. Which one should they follow? (Code review 20261004 item 32)
 	- ID: 2026100413480032

@@ -215,7 +215,7 @@ func predefinedBases() []*Base {
 		}),
 
 		// base-30 Rock; a novelty honorary base for the legendary comedy TV show.
-		// It's RFC 4648 §7 base-32hex, but with the ending U and V chopped off.
+		// It's RFC 4648 section 7 base-32hex, but with the ending U and V chopped off.
 		//   (Which conveniently also happen to be among the more ambiguous characters in the alphabet.)
 		// And unlike starting with, say, Crockford or word-safe as the base, the letters "ROCK" are in this base.
 		// Not an official standard. Created by Jim Collier 2026-04-19, first published with this code on github.
@@ -230,9 +230,9 @@ func predefinedBases() []*Base {
 		//  It extends (or is a subset) of most of the previous and following >base-10 alphabets.
 		//
 
-		// RFC base-32 - letters first, RFC 4648 §6.
+		// RFC base-32 - letters first, RFC 4648 section 6.
 		// While listed first in the standard, it's kind of backwards compared to every base so far and most to come.
-		//   (But at least consistent with the backward RFC 4648 §4 64-bit scheme.)
+		//   (But at least consistent with the backward RFC 4648 section 4 64-bit scheme.)
 		// 0 and 1 are excluded for human-read disambiguity.
 		// Aliases "32r" and bare "32" are required for backward-compatibility with convert-base-v1[b], don't delete them.
 		//   Bare "32" is deliberately last: it resolves (legacy scripts pass it) but is not advertised,
@@ -245,7 +245,7 @@ func predefinedBases() []*Base {
 			PadEmit:     true, // strict RFC 4648 s6 output is padded
 		}),
 
-		// Base-32hex (numbers first), RFC 4648 §7.
+		// Base-32hex (numbers first), RFC 4648 section 7.
 		// Although listed second in the RFC base-32 standard, it is more consistent (hexadecimal-like) with other bases.
 		// Alias "32h" is required for backward-compatibility with convert-base-v1[b], don't delete it.
 		// Aliases "32tt" and "32tz" overlap the same part of base-62, by design.
@@ -428,7 +428,7 @@ func predefinedBases() []*Base {
 		// The Base-64 domain
 		//
 
-		// Base 64, RFC 4648 §4
+		// Base 64, RFC 4648 section 4
 		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
 		// Aliases "64r" and bare "64" are required for backward-compatibility with convert-base-v1[b], don't delete them.
 		//   Bare "64" is deliberately last: it resolves (legacy scripts pass it) but is not advertised,
@@ -441,7 +441,7 @@ func predefinedBases() []*Base {
 			PadEmit:     true, // strict RFC 4648 s4 output is padded
 		}),
 
-		// Base64 URL-safe, RFC 4648 §5
+		// Base64 URL-safe, RFC 4648 section 5
 		// FYI: Base 64 using lower code points, has the highest binary-to-UTF8 density of any encoding scheme.
 		// https://www.rfc-editor.org/rfc/rfc4648.html#section-5
 		mkSpec(SpecOpts{
@@ -524,7 +524,7 @@ func predefinedBases() []*Base {
 		//	// Base-69: The "nice" radix.
 		//	// It was debated on including a childish base like this.
 		//	// But in the spirit of being comprehensive, it was included.
-		//	// Not an official standard, but published. It's based on the awkward RFC 4648 §4.
+		//	// Not an official standard, but published. It's based on the awkward RFC 4648 section 4.
 		//	// https://github.com/pshihn/base69
 		//	mkSpec(SpecOpts{
 		//		BaseSymbols: rfc4648start_c62 + " + / - * < > |",

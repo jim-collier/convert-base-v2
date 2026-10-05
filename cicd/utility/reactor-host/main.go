@@ -12,7 +12,8 @@
 // --batch reads one conversion request per stdin line (FROM <tab> TO <tab>
 // PRECISION <tab> HEX(VALUE), answering "ok" <tab> HEX(RESULT) or "err", the
 // module-driver protocol), and --stream FROM TO [CHUNK] pipes stdin to stdout
-// through the streaming ABI.
+// through the streaming ABI. --regions times a conversion with no other
+// regions open and with many, and fails when the second is much slower.
 package main
 
 import (
@@ -22,9 +23,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -43,8 +46,8 @@ type host struct {
 	ctx context.Context
 	mod api.Module
 
-	// Error text of the last failed stream helper call, captured before the
-	// input region is freed (free clears the module's last-error state).
+	// Error text of the last failed helper call, captured before the input
+	// region is freed (free clears the module's last-error state).
 	errText string
 }
 
@@ -56,10 +59,12 @@ func main() {
 	}
 	usageOK := (mode == "" && len(args) == 1) ||
 		(mode == "batch" && len(args) == 1) ||
+		(mode == "regions" && len(args) == 1) ||
 		(mode == "stream" && (len(args) == 3 || len(args) == 4))
 	if !usageOK {
 		fmt.Fprintln(os.Stderr, "usage: reactor-host MODULE.wasm\n"+
 			"       reactor-host --batch MODULE.wasm\n"+
+			"       reactor-host --regions MODULE.wasm\n"+
 			"       reactor-host --stream MODULE.wasm FROM TO [CHUNK]")
 		os.Exit(2)
 	}
@@ -70,7 +75,7 @@ func main() {
 
 	ctx := context.Background()
 	rt := wazero.NewRuntime(ctx)
-	defer func() { _ = rt.Close(ctx) }()
+	defer func() { _ = rt.Close(ctx) }() // the process is exiting anyway
 	wasi_snapshot_preview1.MustInstantiate(ctx, rt)
 
 	// A reactor initializes and stays resident; _start would mean the command
@@ -85,6 +90,8 @@ func main() {
 	switch mode {
 	case "batch":
 		h.batch()
+	case "regions":
+		h.regions()
 	case "stream":
 		chunk := 4096
 		if len(args) == 4 {
@@ -150,6 +157,46 @@ func (h *host) batch() {
 	}
 }
 
+// regions checks that a call's cost does not grow with the number of regions
+// the host holds open. Each pointer a call passes used to be found by a walk
+// of every open region, so 10,000 of them made a conversion over 40 times
+// slower. The fastest of many batches is compared, so a busy machine only
+// widens the margin.
+func (h *host) regions() {
+	const held, limit = 10000, 3.0
+	timed := func() time.Duration {
+		best := time.Duration(math.MaxInt64)
+		for round := 0; round < 40; round++ {
+			start := time.Now()
+			for i := 0; i < 25; i++ {
+				if _, code := h.convert("10", "62", "1234567890", -1); code != errNone {
+					fatal("regions: convert code %d", code)
+				}
+			}
+			best = min(best, time.Since(start))
+		}
+		return best
+	}
+	timed() // warm up
+	alone := timed()
+	open := make([]uint64, held)
+	for i := range open {
+		if open[i] = h.call("alloc", 16); open[i] == 0 {
+			fatal("regions: alloc failed: %s", h.lastError())
+		}
+	}
+	crowded := timed()
+	h.freeAll(open...)
+	if n := h.call("region_count"); n != 0 {
+		fatal("regions: region_count %d after freeing, want 0", n)
+	}
+	ratio := float64(crowded) / float64(alone)
+	fmt.Printf("reactor-host: 25 converts took %v alone, %v with %d regions open (%.2fx)\n", alone, crowded, held, ratio)
+	if ratio > limit {
+		fatal("with %d regions open a convert took %.1f times as long, limit %.1f", held, ratio, limit)
+	}
+}
+
 // stream pipes stdin to stdout through the streaming ABI, in fixed chunks.
 func (h *host) stream(from, to string, chunk int) {
 	hd := h.streamNew(from, to)
@@ -162,7 +209,7 @@ func (h *host) stream(from, to string, chunk int) {
 			if code != errNone {
 				fatal("stream: %s", h.errText)
 			}
-			_, _ = out.WriteString(part)
+			_, _ = out.WriteString(part) // a bufio error sticks, and Flush reports it
 		}
 		if rerr != nil {
 			if errors.Is(rerr, io.EOF) {
@@ -175,7 +222,7 @@ func (h *host) stream(from, to string, chunk int) {
 	if code != errNone {
 		fatal("stream: %s", h.errText)
 	}
-	_, _ = out.WriteString(tail)
+	_, _ = out.WriteString(tail) // reported by Flush, as above
 	h.streamFree(hd)
 	if err := out.Flush(); err != nil {
 		fatal("stream: stdout: %v", err)
@@ -324,6 +371,23 @@ func (h *host) run() {
 	if _, code := h.convertFit("10", "16", "255", 0xFFFFFFFF); code != errBadArg {
 		fatal("convert_fit at maximum width: code %d, want %d", code, errBadArg)
 	}
+	// The precision and width caps match the command's.
+	if _, code := h.convert("10", "16", "1", 100000); code != errNone {
+		fatal("convert at the precision cap: code %d (%s)", code, h.errText)
+	}
+	if _, code := h.convert("10", "16", "1", 100001); code != errBadArg {
+		fatal("convert past the precision cap: code %d, want %d", code, errBadArg)
+	} else if msg := h.errText; !strings.HasSuffix(msg, "at most 100000") {
+		fatal("convert past the precision cap: error %q", msg)
+	}
+	if got, code := h.fit("16", "FF", 100000); code != errNone || len(got) != 100000 {
+		fatal("fit at the width cap: %d bytes code %d", len(got), code)
+	}
+	if _, code := h.fit("16", "FF", 100001); code != errBadArg {
+		fatal("fit past the width cap: code %d, want %d", code, errBadArg)
+	} else if msg := h.errText; !strings.HasSuffix(msg, "at most 100000") {
+		fatal("fit past the width cap: error %q", msg)
+	}
 	// convert_fit equals convert then fit.
 	if got, code := h.convertFit("10", "16", "255", 6); code != errNone || got != "0000FF" {
 		fatal("convert_fit 255->16 width 6: got %q code %d", got, code)
@@ -346,6 +410,20 @@ func (h *host) run() {
 		fatal("lookup with wild pointer: code %d, want %d", code, errBadArg)
 	}
 	p := h.call("alloc", 8)
+	if !h.mod.Memory().Write(uint32(p), []byte("xx16yyyy")) {
+		fatal("memory write at %d failed", p)
+	}
+	// A pointer into the middle of a region is legal, and a length past its
+	// end is not, even from the region's own start.
+	if code := h.calli32("lookup", p+2, 2); code != errNone {
+		fatal("lookup through an interior pointer: code %d (%s)", code, h.lastError())
+	}
+	if code := h.calli32("lookup", p, 9); code != errBadArg {
+		fatal("lookup running past its region: code %d, want %d", code, errBadArg)
+	}
+	if code := h.calli32("lookup", p+6, 3); code != errBadArg {
+		fatal("interior lookup running past its region: code %d, want %d", code, errBadArg)
+	}
 	if h.calli32("free", p) != errNone {
 		fatal("free of fresh region failed")
 	}
@@ -604,6 +682,9 @@ func (h *host) convert(from, to, value string, precision int64) (string, int32) 
 	args = append(args, api.EncodeI32(int32(precision)))
 	packed := h.call("convert", args...)
 	code := h.calli32("last_error_code")
+	if code != errNone {
+		h.errText = h.lastError()
+	}
 	out := ""
 	if packed != 0 {
 		out = h.readPackedFree(packed)
@@ -634,6 +715,9 @@ func (h *host) fit(base, s string, width int64) (string, int32) {
 	args = append(args, uint64(width))
 	packed := h.call("fit", args...)
 	code := h.calli32("last_error_code")
+	if code != errNone {
+		h.errText = h.lastError()
+	}
 	out := ""
 	if packed != 0 {
 		out = h.readPackedFree(packed)

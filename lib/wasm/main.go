@@ -24,6 +24,9 @@ import (
 	"github.com/jim-collier/convert-base-v2/lib/convertbase"
 )
 
+// The command and the reactor cap precision at the same value.
+const maxPrecision = 100000
+
 func main() {
 	reg, err := convertbase.NewRegistry()
 	if err != nil {
@@ -66,8 +69,8 @@ func convert(reg *convertbase.Registry) func(js.Value, []js.Value) any {
 			// thread: fractional digits cost quadratic time, and a browser tab
 			// has no Ctrl-C. The check also catches NaN and infinities.
 			f := p.Float()
-			if f != math.Trunc(f) || f < 0 || f > 100000 {
-				return fail("precision must be a whole number from 0 to 100000")
+			if f != math.Trunc(f) || f < 0 || f > maxPrecision {
+				return fail("precision must be a whole number from 0 to " + strconv.Itoa(maxPrecision))
 			}
 			precision = int(f)
 		}
