@@ -6,6 +6,7 @@
 package main
 
 import (
+	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -76,10 +77,13 @@ func TestUserConfigIsStamped(t *testing.T) {
 // First runs started together: one of them creates the file, the rest leave
 // it be, and what is there is the whole default with no temp files beside it.
 // A plain write let several create it, each truncating the others.
+// Two threads, because the gap between the check and the create showed on a
+// small CI runner and almost never with many cores.
 // Test ID: ErlzPLg
 func TestUserConfigFirstRunsRace(t *testing.T) {
+	defer runtime.GOMAXPROCS(runtime.GOMAXPROCS(2))
 	want := userConfigText()
-	for trial := 0; trial < 20; trial++ {
+	for trial := 0; trial < 60; trial++ {
 		dir := t.TempDir()
 		path := filepath.Join(dir, "convert-base-v2.shcl")
 		var created atomic.Int32
@@ -109,6 +113,54 @@ func TestUserConfigFirstRunsRace(t *testing.T) {
 		if names := dirNames(t, dir); len(names) != 1 {
 			t.Fatalf("trial %d: files %q", trial, names)
 		}
+	}
+}
+
+// A file that turns up after the first run's check is kept. The race above
+// only hits that gap now and then; this goes straight to it.
+// Test ID: Ermok4L
+func TestUserConfigCreateKeepsFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "convert-base-v2.shcl")
+	const other = "base: theirs\n\tsymbols: 01\n"
+	if err := os.WriteFile(path, []byte(other), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := createFile(path, userConfigText()); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("createFile over an existing file: %v, want it to exist", err)
+	}
+	if got := fileText(t, path); got != other {
+		t.Fatalf("file replaced with %d bytes", len(got))
+	}
+	if names := dirNames(t, dir); len(names) != 1 {
+		t.Fatalf("files %q", names)
+	}
+}
+
+// Where hard links don't work, the file is still created once, whole, with
+// no temp file left.
+// Test ID: Ermok4r
+func TestUserConfigCreateWithoutLinks(t *testing.T) {
+	saved := linkFile
+	linkFile = func(oldname, newname string) error {
+		return &os.LinkError{Op: "link", Old: oldname, New: newname, Err: syscall.EPERM}
+	}
+	t.Cleanup(func() { linkFile = saved })
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "convert-base-v2.shcl")
+	want := userConfigText()
+	if err := createFile(path, want); err != nil {
+		t.Fatal(err)
+	}
+	if err := createFile(path, "base: second\n"); !errors.Is(err, os.ErrExist) {
+		t.Fatalf("second create: %v, want it to exist", err)
+	}
+	if got := fileText(t, path); got != want {
+		t.Fatalf("file is %d bytes, want the %d-byte default", len(got), len(want))
+	}
+	if names := dirNames(t, dir); len(names) != 1 {
+		t.Fatalf("files %q", names)
 	}
 }
 
