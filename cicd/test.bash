@@ -1409,7 +1409,9 @@ section "Frontend parity"
 MODDRV_DIR="${meDir}/utility/module-driver"
 MODDRV="${CBT_TMP}/module-driver"
 RHOST="${CBT_TMP}/reactor-host"
-if ! (cd "${MODDRV_DIR}" && go build -o "${MODDRV}" .) >"${CBT_ERR}" 2>&1; then
+if ! go env GOVERSION >/dev/null 2>&1; then
+	_warn "EloQXv6 EloQXv7 EloQXv8 EloQXv9" "frontend parity skipped: needs a Go toolchain"
+elif ! (cd "${MODDRV_DIR}" && go build -o "${MODDRV}" .) >"${CBT_ERR}" 2>&1; then
 	_fail EloQXv6 "module driver build" "$(tail -2 "${CBT_ERR}")"
 else
 	preq="${CBT_TMP}/parity_req"; pcli="${CBT_TMP}/parity_cli"; pout="${CBT_TMP}/parity_out"
@@ -1498,9 +1500,13 @@ fi
 ## against the real command cross-built for both Macs.
 section "macOS universal binary"
 ## Each Go test there prints its own line and ID. This check is the suite.
-mfrc=0
-(cd "${meDir}/utility/macho-fat" && go test -json -count=1 .) 2>&1 | python3 "${meDir}/utility/test-ids.py" report || mfrc=$?
-((mfrc == 0)) && _pass ErftBA8 "macho-fat tests" || _fail ErftBA8 "macho-fat tests" "exit ${mfrc}, see the lines above"
+if ! go env GOVERSION >/dev/null 2>&1; then
+	_warn "ErftBA8 ErftBA9 ErftBAA ErftBAB ErftBAC ErftBAD" "macOS universal binary tests skipped: needs a Go toolchain"
+else
+	mfrc=0
+	(cd "${meDir}/utility/macho-fat" && go test -json -count=1 .) 2>&1 | python3 "${meDir}/utility/test-ids.py" report || mfrc=$?
+	((mfrc == 0)) && _pass ErftBA8 "macho-fat tests" || _fail ErftBA8 "macho-fat tests" "exit ${mfrc}, see the lines above"
+fi
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -2023,8 +2029,8 @@ fi
 ## Harness self-check. This whole run again, against a program that refuses
 ## everything, with Go off the PATH and the perf section on. Nearly every check
 ## fails, and each failure has to be counted and the run carried on to the
-## summary. A fake go stands in for a missing one, since go can share a dir
-## with tools the run needs.
+## summary. A section that needs Go skips instead. A fake go stands in for a
+## missing one, since go can share a dir with tools the run needs.
 if [[ "${CICDTEST_SELFCHECK:-0}" != "1" ]]; then
 	section "Harness self-check"
 	hsDir="${CBT_TMP}/hs"; mkdir -p "${hsDir}/bin" "${hsDir}/tmp"
@@ -2040,6 +2046,10 @@ if [[ "${CICDTEST_SELFCHECK:-0}" != "1" ]]; then
 		|| _fail ErmGPkH "every check failing still reaches the summary" "rc=${hsrc} aborts=[${hsAbort}] tail=[$(tail -3 "${hsDir}/out" | tr '\n' ' ')]"
 	grep -qF 'reactor module skipped: needs a Go 1.24+ toolchain' "${hsDir}/out" && _pass ErmGPkf "reactor section skips with Go off the PATH" \
 		|| _fail ErmGPkf "reactor section skips with Go off the PATH" "no skip line for the reactor section"
+	hsGoFail="$(grep -oE ' FAIL (EloQXv[6-9]|ErftBA[89A-D]) ' "${hsDir}/out" | sort -u | tr -d '\n' || true)"
+	{ grep -qF 'frontend parity skipped: needs a Go toolchain' "${hsDir}/out" && grep -qF 'macOS universal binary tests skipped: needs a Go toolchain' "${hsDir}/out" \
+		&& [[ -z "${hsGoFail}" ]]; } && _pass ErmzVUR "parity and macOS sections skip with Go off the PATH" \
+		|| _fail ErmzVUR "parity and macOS sections skip with Go off the PATH" "skip lines missing or failures: [${hsGoFail}]"
 	## A failed interop check names the first sample that differs.
 	if command -v node >/dev/null 2>&1 && [[ -d "${meDir}/utility/interop/thirdparty" ]]; then
 		hsDiff="$(grep -m1 -A1 -F 'interop encode == qntm base2048' "${hsDir}/out" | tail -1 || true)"
