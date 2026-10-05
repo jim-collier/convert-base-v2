@@ -76,40 +76,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Reproduced: 20261005, with both the vendored copy and the upstream shcl tree at 0d4c174c. Rough edge, not a silent wrong answer: the config is still refused, only with the wrong message.
 	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here. Check again after the 3.0.0 re-pin.
 
-- Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
-	- ID: 2026100413480023
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: `Finalize` scores 117 on gocognit, and copies its case-flip block three times, one copy already different. `Convert` opens with 70 lines of byte-mode branching before the number path. `run()` is 440 lines with an `os.Exit(2)` inside.
-	- Note: alias flags are separate bools ORed at each use. `canLowercase` and `canUppercase` are copies. The `case from.allOneByte` arm in `convertBitPacked` can never be reached.
-	- Origin: mostly ad488ce, grown since. Not seen by an earlier round. Confirmed by gocognit and a coverage profile.
-	- Progress log:
-		- 20261005: split into 3 children, one per file, so each can be done and checked alone. This item closes when they do.
-
-- `run()` is 440 lines, and the command's flag helpers repeat themselves. (Code review 20261004 item 23c)
-	- ID: 2026100507495203
-	- Type: Enhancement
-	- Status: Waiting on signoff
-	- Priority: Low
-	- Opened: 20261005-074952
-	- Opened by: Code review 20261004
-	- Parent ID: 2026100413480023
-	- Target OS: Any
-	- Note: `main.go` `run()` has an `os.Exit(2)` inside it. Alias flags are separate bools ORed at each use, and `canLowercase` and `canUppercase` are copies.
-	- Done: `run()` is now a short list of steps in the same order: parse flags, info output, load configs, help, the list and base query flags, plan the conversion, then stream or buffer it. Each step is its own small function, so the same mistake gets the same error first. The no-number help returns exit 2 to `main` instead of calling `os.Exit` itself. The flags are one struct, and each alias sets the same field as its flag. `canLowercase` and `canUppercase` are one `canRecase`. gocognit for `run()` went from 166 to 15, and its length from 465 lines to 58. The largest new step is `loadConfigs` at 18. `main.go` grew from 1087 to 1233 lines, mostly function headers and comments.
-	- Note: one thing a user can type now reads differently. A later `=false` on another spelling of the same flag, as in `--binary --bin=false`, `--num -N=false` or `-n --no-newline=false`, used to be ignored, since each spelling had its own bool and they were ORed. Now the last one given wins, the same as `-h`/`--help` and `-v`/`--version` already did, and the same as giving one spelling twice.
-	- Verified: the old and new builds give the same stdout, stderr, exit code and config dir over 222 argument lists, each run in 5 config states: no config yet, a current one, an old-format one, one that won't load, and one at mode 000. That's 1110 runs. The lists cover every flag and alias spelling, bad flags, `--help`, `--about`, `--donate`, `--examples`, `--version`, `--list`, the base queries, typed and broken `--config` files, piped, redirected and streamed stdin, and writes to `/dev/full`. The only differences are the 4 `=false` lists in the note above, in each state.
-	- Verified: `go vet`, golangci-lint, `go test ./...`, `test-ids.py check`, the wasip1 build of the command, and the harness in quick mode at 557 of 557.
-	- Swept: every flag with an alias: `--binary`/`--bin`/`-b`, `--number`/`--num`/`-N` and `--no-newline`/`-n`. The info flags already shared one value. `os.Exit` in `lib/cmd` is now only in `main`. Nothing else in the repo calls `canLowercase`, `canUppercase` or reads `flag.CommandLine`.
-	- Branch: run-split
-	- Commit: 76bcdb1
-	- Test case: `ErqCOGX` TestFlagAliasesShareOneValue is new. It checks every alias spelling sets its flag, and that a later `=false` on another spelling turns it off. It fails when an alias is bound to the wrong field. The old code had no `parseFlags` to test. Exit 2 with help on stderr is the existing harness check `Eje9ui2`, and the rest is the existing harness.
-	- Acceptance signoff: needed for the `=false` change in the note above. The rest of the refactor changes no output.
-
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
 	- Type: Enhancement
@@ -1186,6 +1152,23 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: closed without it. Putting the edited file back keeps the edit where the user expects it, and matches what the code already did for a change seen before the write. The two gaps left need a compare-and-swap replace the OS doesn't give, so they stay as notes here.
 	- Closed: 20261004
 
+- Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
+	- ID: 2026100413480023
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: `Finalize` scores 117 on gocognit, and copies its case-flip block three times, one copy already different. `Convert` opens with 70 lines of byte-mode branching before the number path. `run()` is 440 lines with an `os.Exit(2)` inside.
+	- Note: alias flags are separate bools ORed at each use. `canLowercase` and `canUppercase` are copies. The `case from.allOneByte` arm in `convertBitPacked` can never be reached.
+	- Origin: mostly ad488ce, grown since. Not seen by an earlier round. Confirmed by gocognit and a coverage profile.
+	- Progress log:
+		- 20261005: split into 3 children, one per file, so each can be done and checked alone. This item closes when they do.
+		- 20261005: all 3 children done. gocognit went from 121 to 7 for `Finalize`, 91 to 8 for `Convert`, and 166 to 15 for `run()`. The `convertBitPacked` dead arm is gone.
+	- Test case: see the children, 2026100507495201, 2026100507495202 and 2026100507495203.
+	- Closed: 20261005-083847
+
 - `Finalize` is hard to follow and copies its case-flip block 3 times. (Code review 20261004 item 23a)
 	- ID: 2026100507495201
 	- Type: Enhancement
@@ -1227,6 +1210,27 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Erq97xg` TestFractionRoundingCarries is new. Nothing pinned a fraction rounding up into the integer part, which now crosses a function boundary. It passes on the old and new code, and fails when the carry or the sign check after it is broken. The rest is the existing suite: `EjeDvPM` TestNumberVectors, `Ejlud57` TestAutoPrecision, `ErkSf4c` TestTinyFractionRoundsToZero, `Erlz3L2` TestMarkersWithoutDigits, `EjeDvPR` TestCustomSymbolsAndMarkers, `EjeDvPV` TestRoundTripNumber, `ErmUk2J` TestNumberPathUsesTokenValues, `EjeDvPN` TestCodecVectors, `EjeDvPO` TestNativeBaseVectors, `EjeDvPP` TestRFCPaddingVectors, `El5P4dm` TestWrappedBinaryDecode, `El5mcJr` TestUserDefinedTail, `EjeDvPU` TestStreamBufferedEquivalence and `Erm5wyD` TestBigBaseDecodeAllocs.
 	- Acceptance signoff: Self-closed: a refactor whose output and errors are the same before and after.
 	- Closed: 20261005-082456
+
+- `run()` is 440 lines, and the command's flag helpers repeat themselves. (Code review 20261004 item 23c)
+	- ID: 2026100507495203
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261005-074952
+	- Opened by: Code review 20261004
+	- Parent ID: 2026100413480023
+	- Target OS: Any
+	- Note: `main.go` `run()` has an `os.Exit(2)` inside it. Alias flags are separate bools ORed at each use, and `canLowercase` and `canUppercase` are copies.
+	- Done: `run()` is now a short list of steps in the same order: parse flags, info output, load configs, help, the list and base query flags, plan the conversion, then stream or buffer it. Each step is its own small function, so the same mistake gets the same error first. The no-number help returns exit 2 to `main` instead of calling `os.Exit` itself. The flags are one struct, and each alias sets the same field as its flag. `canLowercase` and `canUppercase` are one `canRecase`. gocognit for `run()` went from 166 to 15, and its length from 465 lines to 58. The largest new step is `loadConfigs` at 18. `main.go` grew from 1087 to 1233 lines, mostly function headers and comments.
+	- Note: one thing a user can type now reads differently. A later `=false` on another spelling of the same flag, as in `--binary --bin=false`, `--num -N=false` or `-n --no-newline=false`, used to be ignored, since each spelling had its own bool and they were ORed. Now the last one given wins, the same as `-h`/`--help` and `-v`/`--version` already did, and the same as giving one spelling twice.
+	- Verified: the old and new builds give the same stdout, stderr, exit code and config dir over 222 argument lists, each run in 5 config states: no config yet, a current one, an old-format one, one that won't load, and one at mode 000. That's 1110 runs. The lists cover every flag and alias spelling, bad flags, `--help`, `--about`, `--donate`, `--examples`, `--version`, `--list`, the base queries, typed and broken `--config` files, piped, redirected and streamed stdin, and writes to `/dev/full`. The only differences are the 4 `=false` lists in the note above, in each state.
+	- Verified: `go vet`, golangci-lint, `go test ./...`, `test-ids.py check`, the wasip1 build of the command, and the harness in quick mode at 557 of 557.
+	- Swept: every flag with an alias: `--binary`/`--bin`/`-b`, `--number`/`--num`/`-N` and `--no-newline`/`-n`. The info flags already shared one value. `os.Exit` in `lib/cmd` is now only in `main`. Nothing else in the repo calls `canLowercase`, `canUppercase` or reads `flag.CommandLine`.
+	- Branch: run-split
+	- Commit: 76bcdb1
+	- Test case: `ErqCOGX` TestFlagAliasesShareOneValue is new. It checks every alias spelling sets its flag, and that a later `=false` on another spelling turns it off. It fails when an alias is bound to the wrong field. The old code had no `parseFlags` to test. Exit 2 with help on stderr is the existing harness check `Eje9ui2`, and the rest is the existing harness.
+	- Acceptance signoff: Self-closed. Last one wins is the usual rule for repeated flags, and `-h`/`--help` already worked that way, so the `=false` change is the least surprise. It is in the changelog. The rest of the refactor changes no output.
+	- Closed: 20261005-083847
 
 - Python tools use three naming styles. Which one should they follow? (Code review 20261004 item 32)
 	- ID: 2026100413480032

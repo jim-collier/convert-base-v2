@@ -44,6 +44,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The copyright line in `--help` uses the © sign.
 
+- When two spellings of the same flag are given, the last one wins. `--binary --bin=false` now turns binary mode off, where the `=false` used to be ignored. Same for `--num`/`-N` and `--no-newline`/`-n`.
+
 - Each run starts faster. A conversion used to build all the built-in bases first, which took about 65 ms. It now builds only the two it uses, in about 2 ms total. `--list` builds them all and takes about 40 ms.
 
 - Library: each built-in base is built the first time `Lookup` or `OrderedBases` reaches it, so `NewRegistry` no longer checks them. `Lookup` and `OrderedBases` are safe to call from several goroutines.
