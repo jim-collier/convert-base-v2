@@ -60,6 +60,22 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 62ba851
 	- Test case: `Erq3i1c` TestFinalizeRefusesInvalidUTF8, `Erq3i2I` TestRuneTableKeysAreDigits over every built-in base, and harness `Erq3i2u` "invalid UTF-8 digit refused" and `Erq3i3e` "config invalid UTF-8 digit refused". All 4 fail before the fix and pass after.
 
+- shcl: a quoted config value with a space before certain invalid bytes fails as an unterminated quote.
+	- ID: 2026100508035901
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261005-080359
+	- Opened by: Backlog round 20261005, found while working 2026100507565201
+	- Related IDs: 2026100507565201
+	- Target OS: Any
+	- Steps to reproduce:
+		- Parse `base:` then a tab and `symbols: "a b \x80 c"`, with a real `\x80` byte, under strict mode. `\xff` in the same place does the same.
+	- Incorrect behavior: `line 2: E017 unterminated quote in value`. `"\xff a b c"` and `"a b \xe9 c"` parse fine.
+	- Expected behavior: the value parses, or a parse error that names the bad byte. This project then refuses the digit itself.
+	- Reproduced: 20261005, with both the vendored copy and the upstream shcl tree at 0d4c174c. Rough edge, not a silent wrong answer: the config is still refused, only with the wrong message.
+	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here. Check again after the 3.0.0 re-pin.
+
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
 	- Type: Enhancement
