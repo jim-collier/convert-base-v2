@@ -542,6 +542,8 @@ Everything else runs from one script, `cicd/cicd.bash`. It goes through formatti
 
 Tests sandbox their own config directory, so running them will not read or write the config file in your home directory.
 
+To send a change, see [contributing.md](contributing.md). The code style, and the reasons for it, are in the [style guide](project/style-guide_code.md).
+
 ## Support convert-base-v2
 
 This tool is free and open source, and built and maintained in spare time. If it saves you some, you can sponsor the project on [GitHub](https://github.com/sponsors/jim-collier) or [Ko-fi](https://ko-fi.com/jimcollier). It is appreciated, and never expected.
