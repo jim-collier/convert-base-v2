@@ -9,8 +9,11 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 )
 
 // A bare-number alias is a size, so it has to match the symbol count. Only the
@@ -93,4 +96,154 @@ func containsBase(list []*Base, b *Base) bool {
 		}
 	}
 	return false
+}
+
+// Built-ins are parsed and checked on first use, so a bad alphabet in bases.go
+// no longer stops NewRegistry. This builds every one of them instead.
+// Test ID: ErmQ6z6
+func TestEveryBuiltinBuilds(t *testing.T) {
+	reg := newReg(t)
+	if len(reg.ordered) != len(predefinedBases()) {
+		t.Fatalf("registry has %d bases, bases.go defines %d", len(reg.ordered), len(predefinedBases()))
+	}
+	for _, b := range reg.ordered {
+		if err := b.ready(); err != nil {
+			t.Errorf("%v", err)
+			continue
+		}
+		for _, a := range b.Aliases {
+			if got, err := reg.Lookup(a); err != nil || got != b {
+				t.Errorf("alias %q of %s does not resolve to it: %v", a, b.Name(), err)
+			}
+		}
+	}
+}
+
+// built reports which bases have been parsed and finalized so far.
+func built(reg *Registry) []string {
+	var names []string
+	for _, b := range reg.ordered {
+		if b.value != nil {
+			names = append(names, b.Name())
+		}
+	}
+	return names
+}
+
+func containsName(names []string, want string) bool {
+	for _, n := range names {
+		if n == want {
+			return true
+		}
+	}
+	return false
+}
+
+// A lookup builds the base it finds and nothing else. A miss builds nothing,
+// though it walks every alias for suggestions.
+// Test ID: ErmQ6zb
+func TestLookupBuildsOnlyItsBase(t *testing.T) {
+	reg := newReg(t)
+	if got := built(reg); len(got) != 0 {
+		t.Fatalf("a new registry has built %q", got)
+	}
+	if _, err := reg.Lookup("hexx"); err == nil {
+		t.Fatal("hexx should not resolve")
+	}
+	if got := built(reg); len(got) != 0 {
+		t.Errorf("an unknown name built %q", got)
+	}
+	hex := base(t, reg, "Base-Hex")
+	big := base(t, reg, "65536utf32")
+	got := built(reg)
+	if len(got) != 2 || !containsName(got, hex.Name()) || !containsName(got, big.Name()) {
+		t.Errorf("two lookups built %q, want only %s and %s", got, hex.Name(), big.Name())
+	}
+	if len(big.Symbols) != 65536 {
+		t.Errorf("%s has %d symbols", big.Name(), len(big.Symbols))
+	}
+}
+
+// Library callers may share one registry across goroutines. Each built-in is
+// built once, however many lookups race for it. Run under -race to see a
+// missing guard.
+// Test ID: ErmQ706
+func TestConcurrentLookup(t *testing.T) {
+	reg := newReg(t)
+	names := []string{"65536qntm", "32768qntm", "hex", "85ps", "bytes", "keyboard"}
+	got := make([][]*Base, 8)
+	var wg sync.WaitGroup
+	for g := range got {
+		wg.Add(1)
+		go func(g int) {
+			defer wg.Done()
+			if g%2 == 1 {
+				reg.OrderedBases()
+			}
+			for _, n := range names {
+				b, err := reg.Lookup(n)
+				if err != nil {
+					t.Errorf("Lookup(%q): %v", n, err)
+					return
+				}
+				got[g] = append(got[g], b)
+			}
+		}(g)
+	}
+	wg.Wait()
+	for g := 1; g < len(got); g++ {
+		for i := range got[g] {
+			if got[g][i] != got[0][i] {
+				t.Errorf("goroutine %d got a different %s", g, names[i])
+			}
+		}
+	}
+	bytesB := base(t, reg, "bytes")
+	for _, b := range got[0] {
+		if b.Binary || !b.RawCodec() {
+			continue
+		}
+		enc, err := Convert("\x00\x01\xfe\xff", bytesB, b, 0)
+		if err != nil {
+			t.Fatalf("%s: %v", b.Name(), err)
+		}
+		if back, err := Convert(enc, b, bytesB, 0); err != nil || back != "\x00\x01\xfe\xff" {
+			t.Errorf("%s round trip: %q, %v", b.Name(), back, err)
+		}
+	}
+}
+
+// Every run of the command builds a registry. Building all the built-ins took
+// about 50 ms and 29 MB; deferring each to first use takes well under 1 ms.
+// Test ID: ErmQ70b
+func TestNewRegistryCost(t *testing.T) {
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	if _, err := NewRegistry(); err != nil {
+		t.Fatal(err)
+	}
+	runtime.ReadMemStats(&after)
+	if n := after.TotalAlloc - before.TotalAlloc; n > 2<<20 {
+		t.Errorf("NewRegistry allocated %d bytes, want at most 2 MiB", n)
+	}
+	fastest := time.Hour
+	for i := 0; i < 5; i++ {
+		start := time.Now()
+		if _, err := NewRegistry(); err != nil {
+			t.Fatal(err)
+		}
+		fastest = min(fastest, time.Since(start))
+	}
+	if fastest > 10*time.Millisecond {
+		t.Errorf("NewRegistry took %v at best, want at most 10ms", fastest)
+	}
+}
+
+func BenchmarkNewRegistry(b *testing.B) {
+	b.ReportAllocs()
+	for i := 0; i < b.N; i++ {
+		if _, err := NewRegistry(); err != nil {
+			b.Fatal(err)
+		}
+	}
 }

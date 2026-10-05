@@ -403,6 +403,35 @@ func TestSpecParser(t *testing.T) {
 	}
 }
 
+// The big built-in alphabets run to 65536 tokens. The parser used to split
+// every token on commas and build a replacer for each escaped one, a few
+// allocations per digit. A bare "," token is still the comma digit (85ps).
+// Test ID: ErmOs7S
+func TestSpecParserAllocs(t *testing.T) {
+	spec := strings.Join(runeRange(0x4E00, 0x4E00+4095), " ") + ` , a\ b c\td 0,1`
+	syms, err := ParseSymbolSpec(spec)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []string{",", "a b", "c\td", "0", "1"}
+	if len(syms) != 4096+len(want) {
+		t.Fatalf("got %d symbols, want %d", len(syms), 4096+len(want))
+	}
+	for i, w := range want {
+		if got := syms[4096+i]; got != w {
+			t.Errorf("symbol %d = %q, want %q", 4096+i, got, w)
+		}
+	}
+	allocs := testing.AllocsPerRun(5, func() {
+		if _, err := ParseSymbolSpec(spec); err != nil {
+			t.Fatal(err)
+		}
+	})
+	if allocs > 40 {
+		t.Errorf("parsing a 4096-digit spec took %.0f allocations, want at most 40", allocs)
+	}
+}
+
 // The spec parser holds escaped whitespace aside as noncharacters, so a spec
 // that already has one would turn it into a whitespace digit.
 // Test ID: ErkSf4d
