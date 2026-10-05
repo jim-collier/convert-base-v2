@@ -93,6 +93,34 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 294764b
 	- Test case: ErmroeI, Ermroeo, ErmrofR, Ermroh4, Ermrofy, ErmrogW (CI engine section), Ermt58H (pin-tools).
 
+- `TestPositionalNearMathBig` fails now and then on a busy machine.
+	- ID: 2026100419103794
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-191037
+	- Opened by: found during the 20261004 evening backlog round
+	- Target OS: Any
+	- Incorrect behavior: at a load average near 15, `go test ./...` failed once with "took 1.58 times math/big's own conversion, limit 1.5". Three reruns passed.
+	- Expected behavior: a timing check that a busy box doesn't trip.
+	- Reproduced: 20261004, 1 of 4 runs at load 15.
+	- Possible cause: best of 15 rounds still isn't enough when both sides get different slices of a loaded CPU.
+
+- `test-ids.py` reads a bash array of linter arguments in `test.bash` as a test call with no ID.
+	- ID: 2026100419103799
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-191037
+	- Opened by: found while working 2026100413480022
+	- Target OS: Any
+	- Steps to reproduce:
+		- Put a line like `RUFF_CMD=(ruff check .)` in `cicd/test.bash` and run `cicd/utility/test-ids.py check`.
+	- Incorrect behavior: it reports a check with no ID.
+	- Expected behavior: only real test calls count.
+	- Reproduced: no. Worked around in 2026100413480022 by copying the linter commands from `config.bash` instead.
+	- Possible cause: `SH_CALL` in `test-ids.py` matches the `(` that opens an array.
+
 - `flame-report.py` exits 1 on an unreadable flamegraph, where the spec says 2, and misfiles the big-number path. (Code review 20261004 item 14)
 	- ID: 2026100413480014
 	- Type: Bug
