@@ -1708,6 +1708,87 @@ ssrc=0; SS_DRAWN="${ssDir}/drawn" PATH="${ssDir}/bin:${PATH}" bash "${meDir}/../
 { ((ssrc != 0)) && [[ ! -s "${ssDir}/drawn" ]]; } && _pass ErmCp2P "gen-screenshots draws nothing after a failed command" \
 	|| _fail ErmCp2P "gen-screenshots draws nothing after a failed command" "rc=${ssrc} drawn: $(wc -l <"${ssDir}/drawn")"
 
+## The demo gif encodes frames in batches as they come. A real render takes over
+## a minute, so its Movie is fed made-up frames: small ones across many batch
+## edges against one Pillow save of the same frames, then 400 full-size ones
+## whose peak memory must stay under half of what holding them all would take.
+dgDir="${CBT_TMP}/dg"; mkdir -p "${dgDir}"
+dgrc=0; python3 -B - "${meDir}/utility/gen-demo-gif.py" "${dgDir}" >"${CBT_OUT}" 2>"${CBT_ERR}" <<'EOF' || dgrc=$?
+import importlib.util, random, resource, sys
+spec = importlib.util.spec_from_file_location("gendemogif", sys.argv[1])
+gd = importlib.util.module_from_spec(spec)
+try:
+	spec.loader.exec_module(gd)
+except SystemExit:
+	sys.exit(3)
+from PIL import Image, ImageDraw
+outDir = sys.argv[2]
+pal = gd.fBuildPalette((196, 148, 108), (160, 136, 200), []).getpalette()
+
+def fCanvas(w, h):
+	img = Image.new("P", (w, h), 5)
+	img.putpalette(pal)
+	return img
+
+try:
+	w, h, n = gd.CANVAS_W, gd.CANVAS_H, 400
+	canvas = fCanvas(w, h)
+	before = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+	mov = gd.Movie()
+	for i in range(n):
+		ImageDraw.Draw(canvas).rectangle([i * 2, 100, i * 2 + 9, 120], fill=6)
+		mov.add(canvas.copy(), 20)
+	mov.save(f"{outDir}/mem.gif")
+	grewMiB = (resource.getrusage(resource.RUSAGE_SELF).ru_maxrss - before) / 1024
+	heldMiB = n * w * h / 2**20
+	print(f"memory {'ok' if grewMiB < heldMiB / 2 else 'FAIL'} grew {grewMiB:.0f} MiB, all frames {heldMiB:.0f} MiB")
+except Exception as e:
+	print(f"memory FAIL {e!r}")
+
+class OldMovie:
+	##	The single-save Movie from before batching, as the reference.
+	def __init__(self):
+		self.frames, self.durs, self._rem = [], [], 0.0
+	def add(self, img, ms):
+		ms += self._rem
+		dur = max(20, int(round(ms / 10.0)) * 10)
+		self._rem = ms - dur if ms > 20 else 0.0
+		if self.frames and img.tobytes() == self.frames[-1].tobytes():
+			self.durs[-1] += dur
+		else:
+			self.frames.append(img)
+			self.durs.append(dur)
+
+try:
+	rng, bad = random.Random(7), []
+	for n in (1, 2, 3, 4, 5, 7, 8, 60):
+		canvas, mov, old = fCanvas(64, 48), gd.Movie(), OldMovie()
+		mov.BATCH = 3
+		for i in range(n):
+			if i == 0 or rng.random() > 0.2:
+				x, y = rng.randrange(64), rng.randrange(48)
+				ImageDraw.Draw(canvas).rectangle([x, y, x + rng.randrange(1, 40), y + rng.randrange(1, 30)], fill=rng.randrange(40))
+			ms = rng.uniform(5, 700)
+			mov.add(canvas.copy(), ms)
+			old.add(canvas.copy(), ms)
+		mov.save(f"{outDir}/new{n}.gif")
+		old.frames[0].save(f"{outDir}/old{n}.gif", format="GIF", save_all=True, append_images=old.frames[1:], duration=old.durs, loop=0, optimize=False)
+		with open(f"{outDir}/new{n}.gif", "rb") as f1, open(f"{outDir}/old{n}.gif", "rb") as f2:
+			if f1.read() != f2.read() or mov.durs != old.durs:
+				bad.append(n)
+	print(f"identity {'ok' if not bad else 'FAIL'} {bad or ''}")
+except Exception as e:
+	print(f"identity FAIL {e!r}")
+EOF
+if ((dgrc == 3)); then
+	_warn "ErmYENq ErmYEP0" "demo gif encoder checks: no Pillow"
+else
+	grep -q "^identity ok" "${CBT_OUT}" && _pass ErmYENq "demo gif batches match one Pillow save" \
+		|| _fail ErmYENq "demo gif batches match one Pillow save" "rc=${dgrc} out=[$(cat "${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+	grep -q "^memory ok" "${CBT_OUT}" && _pass ErmYEP0 "demo gif frames are not all held until the save" \
+		|| _fail ErmYEP0 "demo gif frames are not all held until the save" "rc=${dgrc} out=[$(cat "${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+fi
+
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## CI engine. cicd.bash runs from a copy with a stub config, so every stage is
