@@ -92,8 +92,8 @@ section(){ printf '\n%s>>> %s%s\n' "${b}" "$*" "${rst}"; }
 ## A bare x="$(...)" that runs the program ends the whole run when a conversion
 ## is refused. A single run goes through these instead, and a pipeline ends in
 ## "|| true". Either way the check after it judges what came out.
-_run(){    _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@"        >"${CBT_OUT}" 2>"${CBT_ERR}" || _rc=$?; _out="$(cat "${CBT_OUT}")"; _err="$(cat "${CBT_ERR}")"; }
-_run_in(){ local f="$1"; shift; _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@" <"$f" >"${CBT_OUT}" 2>"${CBT_ERR}" || _rc=$?; _out="$(cat "${CBT_OUT}")"; _err="$(cat "${CBT_ERR}")"; }
+_run(){    _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@"        >"${CBT_OUT}" 2>"${CBT_ERR}" || _rc=$?; _out="$(<"${CBT_OUT}")"; _err="$(<"${CBT_ERR}")"; }
+_run_in(){ local f="$1"; shift; _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@" <"$f" >"${CBT_OUT}" 2>"${CBT_ERR}" || _rc=$?; _out="$(<"${CBT_OUT}")"; _err="$(<"${CBT_ERR}")"; }
 
 ## Every check has an ID, the first argument here: when the test was written,
 ## as milliseconds since 2000-01-01 UTC in base 62. `utility/test-ids.py new`
@@ -129,19 +129,20 @@ _assert(){
 ## check ID MODE LABEL EXPECTED -- ARGS...   (ARGS go straight to the binary as argv)
 check(){ local id="$1" mode="$2" label="$3" expected="$4"; shift 4; [[ "${1:-}" == "--" ]] && shift; _run "$@"; _assert "$id" "$mode" "$label" "$expected"; }
 
+## Random numbers come from $SRANDOM, which costs no fork.
+[[ -n "${SRANDOM:-}" ]] || { printf 'test.bash needs bash 5.1 or later, for $SRANDOM. This is %s.\n' "${BASH_VERSION}" >&2; exit 1; }
+
 ## Random base-10 integer, 1..maxlen digits, no leading zeros.
 _rand_int(){
 	local -i maxlen="$1"
-	local -i len=$(( 1 + $(od -An -N2 -tu2 /dev/urandom) % maxlen ))
-	local digits; digits="$(head -c "$len" /dev/urandom | od -An -tu1 -v | tr ' ' '\n' | grep -E '[0-9]' | awk '{printf "%d", $1 % 10}')"
+	local -i len=$(( 1 + SRANDOM % maxlen ))
+	local digits="" chunk
+	while (( ${#digits} < len )); do printf -v chunk '%09d' $(( SRANDOM % 1000000000 )); digits+="$chunk"; done
 	digits="${digits:0:len}"
 	digits="${digits#"${digits%%[!0]*}"}"
 	[[ -z "$digits" ]] && digits="0"
 	printf '%s' "$digits"
 }
-
-## One 16-bit unsigned random number (0..65535). Enough to index the largest base.
-_rand16(){ od -An -N2 -tu2 /dev/urandom | tr -d ' '; }
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -224,21 +225,34 @@ for oldname in binary bin raw; do "${EXE}" --get-base-name "$oldname" >/dev/null
 aliasdup="$("${EXE}" --list --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/ { for (i = 7; i <= NF; i++) { a = $i; sub(/,$/, "", a); if (a == $2) print $2 } }' || true)"
 [[ -z "$aliasdup" ]] && _pass ErkSf4s "--list ALIASES never repeats the NAME" || _fail ErkSf4s "--list ALIASES never repeats the NAME" "repeated on: ${aliasdup}"
 ## A dash digit can't double as the negative marker, so those bases use "~" or
-## none. Every base is checked.
+## none. Every base is checked. One already on "~" or off can't break the rule,
+## so its digits aren't read.
 dashneg=""
 while read -r dnidx dnname _ dnneg _; do
 	[[ "$dnidx" =~ ^[0-9]+$ ]] || continue
-	"${EXE}" --show-symbols-0 "$dnname" 2>/dev/null | tr '\0' '\n' | grep -qxF -e '-' || continue
-	[[ "$dnneg" == "~" || "$dnneg" == "(off)" ]] || dashneg+=" ${dnname}=${dnneg}"
+	[[ "$dnneg" == "~" || "$dnneg" == "(off)" ]] && continue
+	dnsyms="$("${EXE}" --show-symbols-0 "$dnname" 2>/dev/null | tr '\0' '\n' || true)"
+	[[ $'\n'"${dnsyms}"$'\n' == *$'\n-\n'* ]] || continue
+	dashneg+=" ${dnname}=${dnneg}"
 done < <("${EXE}" --list --list-compat 2>/dev/null)
 [[ -z "$dashneg" ]] && _pass ErkSf4r "a dash digit is never the negative marker" || _fail ErkSf4r "a dash digit is never the negative marker" "bases:${dashneg}"
 ## The README bases table is generated from the binary, so a renamed base leaves
 ## it pointing at a name that no longer exists. Nothing else notices that.
 README_MD="${meDir}/../README.md"
 if [[ -r "${README_MD}" ]]; then
+	## Names and aliases from one listing. A README name that is neither still
+	## gets the program's own lookup, which also takes a prefix or other case.
+	declare -A readme_known=()
+	while read -r rkidx rkname _ _ _ _ rkaliases; do
+		[[ "$rkidx" =~ ^[0-9]+$ ]] || continue
+		readme_known["$rkname"]=1
+		read -ra rkalias <<<"${rkaliases//,/ }"
+		for rka in "${rkalias[@]}"; do readme_known["$rka"]=1; done
+	done < <("${EXE}" --list --list-compat 2>/dev/null)
 	readme_stale=""; readme_n=0
 	while read -r rname; do
 		readme_n=$((readme_n + 1))
+		[[ -n "${readme_known["$rname"]:-}" ]] && continue
 		"${TIMEOUT[@]}" "${EXE}" --get-base-name "$rname" >/dev/null 2>&1 || readme_stale+=" ${rname}"
 	done < <(grep -oP '^\| *[0-9]+ \| *\K[^ |]+' "${README_MD}" | sort -u)
 	{ (( readme_n >= 20 )) && [[ -z "$readme_stale" ]]; } \
@@ -588,9 +602,9 @@ _run --to 16 255 hex
 ## `echo 255 | prog 16` reads 16 as the NUMBER and leaves the pipe alone. With
 ## a base name as the only argument and a pipe on stdin, a note says to use -.
 pnout="$(printf '255' | "${TIMEOUT[@]}" "${EXE}" 16 2>"${CBT_ERR}")" || true
-{ [[ "$pnout" == 16 ]] && grep -qF 'stdin (piped) was ignored' "${CBT_ERR}"; } && _pass ErkSf4l "piped stdin with a base name for NUMBER gets a note" || _fail ErkSf4l "piped stdin with a base name for NUMBER gets a note" "out=[$pnout] err=[$(cat "${CBT_ERR}")]"
+{ [[ "$pnout" == 16 ]] && grep -qF 'stdin (piped) was ignored' "${CBT_ERR}"; } && _pass ErkSf4l "piped stdin with a base name for NUMBER gets a note" || _fail ErkSf4l "piped stdin with a base name for NUMBER gets a note" "out=[$pnout] err=[$(<"${CBT_ERR}")]"
 pnout="$(printf '255' | "${TIMEOUT[@]}" "${EXE}" 255 16 2>"${CBT_ERR}")" || true
-{ [[ "$pnout" == FF ]] && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErkSf4t "no pipe note when NUMBER and base are both given" || _fail ErkSf4t "no pipe note when NUMBER and base are both given" "out=[$pnout] err=[$(cat "${CBT_ERR}")]"
+{ [[ "$pnout" == FF ]] && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErkSf4t "no pipe note when NUMBER and base are both given" || _fail ErkSf4t "no pipe note when NUMBER and base are both given" "out=[$pnout] err=[$(<"${CBT_ERR}")]"
 
 ## Shell-metachar / injection strings are just invalid digits: must error, never execute.
 sentinel="${CBT_TMP}/PWNED"
@@ -624,7 +638,7 @@ if [[ -w /dev/full ]]; then
 		"num:- 16" "raw:--from bytes --to hex -" "raw:-n --from bytes --to hex -"; do
 		read -ra fargs <<<"${fcase#*:}"; frc=0
 		"${TIMEOUT[@]}" "${EXE}" "${fargs[@]}" <"${CBT_TMP}/full_${fcase%%:*}" >/dev/full 2>"${CBT_ERR}" || frc=$?
-		{ ((frc != 0 && frc != 124)) && grep -qF 'no space left' "${CBT_ERR}"; } && _pass Erm02E7 "full stdout fails: ${fargs[*]}" || _fail Erm02E7 "full stdout fails: ${fargs[*]}" "rc=$frc err=[$(cat "${CBT_ERR}")]"
+		{ ((frc != 0 && frc != 124)) && grep -qF 'no space left' "${CBT_ERR}"; } && _pass Erm02E7 "full stdout fails: ${fargs[*]}" || _fail Erm02E7 "full stdout fails: ${fargs[*]}" "rc=$frc err=[$(<"${CBT_ERR}")]"
 	done
 else
 	_warn Erm02E7 "write-failure checks skipped: no /dev/full"
@@ -665,7 +679,7 @@ for base in "${POW2_BASES[@]}"; do
 		rc1=0; rc2=0
 		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
 		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
-		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { p2fail=$((p2fail+1)); p2detail="n=${n} rc1=${rc1} rc2=${rc2} err=[$(cat "${CBT_ERR}")]"; }
+		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { p2fail=$((p2fail+1)); p2detail="n=${n} rc1=${rc1} rc2=${rc2} err=[$(<"${CBT_ERR}")]"; }
 	done
 	((p2fail == 0)) && _pass ElWMN5W "binary round-trip via ${base} (all lengths, bit-perfect)" || _fail ElWMN5W "binary round-trip via ${base}" "${p2fail} lengths mismatched, last: ${p2detail}"
 done
@@ -677,7 +691,7 @@ done
 ## newline as a digit.
 raw_all_fail=0; raw_all_n=0
 for base in "${RAW_BASES[@]}"; do
-	for n in 1 2 3 4 5 7 8 11 13 16 17 31 63 100 255 257 $(( 1 + $(_rand16) % 512 )); do
+	for n in 1 2 3 4 5 7 8 11 13 16 17 31 63 100 255 257 $(( 1 + SRANDOM % 512 )); do
 		len=$n
 		[[ "$base" == "85z" ]] && len=$(( (n / 4) * 4 )) # Z85: multiple of 4 only
 		src="${CBT_TMP}/ra_src"; mid="${CBT_TMP}/ra_mid"; out="${CBT_TMP}/ra_out"
@@ -686,7 +700,7 @@ for base in "${RAW_BASES[@]}"; do
 		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" --no-newline <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
 		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes --no-newline <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
 		raw_all_n=$((raw_all_n + 1))
-		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail EjK8KIi "raw round-trip ${base} n=${len}" "rc1=$rc1 rc2=$rc2 err=[$(cat "${CBT_ERR}")]"; }
+		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail EjK8KIi "raw round-trip ${base} n=${len}" "rc1=$rc1 rc2=$rc2 err=[$(<"${CBT_ERR}")]"; }
 	done
 done
 ((raw_all_fail == 0)) && _pass EjK8KIi "raw round-trip, all codec bases (${#RAW_BASES[@]} bases, ${raw_all_n} blobs)" || printf '  %s%d raw round-trip failures above%s\n' "${red}" "$raw_all_fail" "${rst}"
@@ -746,10 +760,10 @@ _run --from 91hk --to bytes -- 'fPN-Kd'
 ## interop; they come straight from the reference implementations. Each pins the
 ## tail/secondary-block handling, and for 65536 the little-endian byte order.
 nvec(){ # ID LABEL BASE INPUT_HEX EXPECTED_CODEPOINTS(space-separated hex)
-	local id="$1" label="$2" base="$3" hex="$4" cps="$5" src exp="" got cp
+	local id="$1" label="$2" base="$3" hex="$4" cps="$5" src exp="" got cp ch
 	src="${CBT_TMP}/nv_src"
 	printf '%b' "$(printf '%s' "$hex" | sed 's/../\\x&/g')" >"$src"
-	for cp in $cps; do exp+=$(printf "\\U$(printf '%08x' "0x${cp}")"); done
+	for cp in $cps; do printf -v ch '\\U%08x' "0x${cp}"; printf -v ch "$ch"; exp+="$ch"; done
 	_run_in "$src" --from bytes --to "$base"; got="$_out"
 	[[ "$got" == "$exp" ]] && _pass "$id" "native vector ${label}" \
 		|| _fail "$id" "native vector ${label}" "want=[$cps] got=[$(printf '%s' "$got" | od -An -tx1 | tr -d '\n')]"
@@ -818,7 +832,7 @@ check El51s2E errmsg "pad on non-2^N rejected" 'at most 256 symbols' -- --from b
 
 ## A user-defined base above 8 bits streams only once it declares a tail. Without
 ## one the packing writes a leading length, which can't be known while streaming.
-SYM512=""; for ((cp=0x4E00; cp<0x5000; cp++)); do SYM512+=$(printf "\\U$(printf '%08x' "$cp")")" "; done
+SYM512=""; for ((cp=0x4E00; cp<0x5000; cp++)); do printf -v ch '\\U%08x' "$cp"; printf -v ch "$ch"; SYM512+="${ch} "; done
 tailrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑" -n 2>/dev/null \
 	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --from-tail "⸐ ⸑" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1 || true)
 tailwant=$(head -c 37 /bin/cat | md5sum | cut -d' ' -f1)
@@ -834,7 +848,7 @@ check El5mcJo errmsg "tail too narrow rejected" 'must be between' -- --from byte
 check El5mcJp errmsg "tail on bytes rejected" 'do not apply' -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
 ## Binary decode of a tail base reads one character per digit, so a tail on a
 ## base of longer digits used to encode bytes it could not decode.
-SYM2048W=""; for ((cp=0; cp<2048; cp++)); do SYM2048W+=$(printf "\\U$(printf '%08x' $((0x4E00 + cp / 64)))\\U$(printf '%08x' $((0x5000 + cp % 64)))")" "; done
+SYM2048W=""; for ((cp=0; cp<2048; cp++)); do printf -v ch '\\U%08x\\U%08x' $((0x4E00 + cp / 64)) $((0x5000 + cp % 64)); printf -v ch "$ch"; SYM2048W+="${ch} "; done
 check Erm5wxB errmsg "tail on two-character digits rejected" 'single character' -- --from bytes --to-symbols "$SYM2048W" --to-tail "⸐ ⸑ ⸒ ⸓ ⸔ ⸕ ⸖ ⸗" 5
 printf -- 'base: wide2048\n\tsymbols: "%s"\n\ttail: "⸐ ⸑ ⸒ ⸓ ⸔ ⸕ ⸖ ⸗"\n' "$SYM2048W" >"${CBT_TMP}/tail-wide.shcl"
 check Erm5wxg errmsg "config tail on two-character digits rejected" '"wide2048": a tail needs every digit to be a single character' -- --config "${CBT_TMP}/tail-wide.shcl" --from bytes --to 16 5
@@ -1013,7 +1027,7 @@ maxlen=48; ((doLong)) && maxlen=160
 fuzz_fail=0
 ## An empty scrape has already failed above, and a modulo by its size would end the run.
 for ((i=0; i<iters && ${#FUZZ_BASES[@]} > 0; i++)); do
-	idx=$(( $(od -An -N2 -tu2 /dev/urandom) % ${#FUZZ_BASES[@]} ))
+	idx=$(( SRANDOM % ${#FUZZ_BASES[@]} ))
 	base="${FUZZ_BASES[idx]}"
 	val="$(_rand_int "$maxlen")"
 	_run --from 10 --to "$base" -- "$val"; enc="$_out"; ((_rc == 0)) || { fuzz_fail=$((fuzz_fail+1)); _fail EizUJEE "fuzz enc base=$base val-len=${#val}" "rc=$_rc err=[$_err]"; continue; }
@@ -1034,10 +1048,16 @@ done
 ## a clean string compare is a valid round-trip check. The bytes base (raw bytes)
 ## is the one left out; it is covered bit-perfectly in its own section above.
 _run --get-index-count; n_bases="$_out"
+## Names by index from one listing. An index it leaves out gets a name no base
+## has, so its round trips fail. An empty one would read as base 10 and pass.
 declare -a IDX_NAME=()
-for ((i=0; i<n_bases; i++)); do _run --get-base-name --by-index="$i"; IDX_NAME[i]="$_out"; done
+while read -r lidx lname _; do
+	[[ "$lidx" =~ ^[0-9]+$ ]] || continue
+	IDX_NAME[lidx]="$lname"
+done < <("${EXE}" --list --list-compat 2>/dev/null)
 declare -a ELIGIBLE=()
 for ((i=0; i<n_bases; i++)); do
+	IDX_NAME[i]="${IDX_NAME[i]:-unlisted-index-${i}}"
 	case "${IDX_NAME[i]}" in bytes|98keyboard) continue ;; esac
 	ELIGIBLE+=("$i")
 done
@@ -1056,11 +1076,10 @@ _load_syms(){
 _rand_symbols(){
 	local -n syms="SYMS_$1"
 	local -i size=${#syms[@]}
-	local -i len=$(( 1 + $(_rand16) % maxlen ))
-	local rand_vals; mapfile -t rand_vals < <(head -c $((2 * len)) /dev/urandom | od -An -v -tu2 | tr -s ' ' '\n' | grep -v '^$')
+	local -i len=$(( 1 + SRANDOM % maxlen ))
 	local out=""; local -i j rand_val idx
 	for ((j = 0; j < len; j++)); do
-		rand_val=${rand_vals[j]:-0}
+		rand_val=SRANDOM
 		if ((j == 0)); then idx=$(( 1 + rand_val % (size - 1) )); else idx=$(( rand_val % size )); fi
 		out+="${syms[idx]}"
 	done
@@ -1069,8 +1088,8 @@ _rand_symbols(){
 
 symfuzz_fail=0; symfuzz_n=0
 for ((i = 0; i < iters && ${#ELIGIBLE[@]} > 0; i++)); do
-	src_idx="${ELIGIBLE[$(( $(_rand16) % ${#ELIGIBLE[@]} ))]}"
-	tgt_idx="${ELIGIBLE[$(( $(_rand16) % ${#ELIGIBLE[@]} ))]}"
+	src_idx="${ELIGIBLE[$(( SRANDOM % ${#ELIGIBLE[@]} ))]}"
+	tgt_idx="${ELIGIBLE[$(( SRANDOM % ${#ELIGIBLE[@]} ))]}"
 	_load_syms "$src_idx"
 	src_name="${IDX_NAME[src_idx]}"; tgt_name="${IDX_NAME[tgt_idx]}"
 	src_str="$(_rand_symbols "$src_idx")"
@@ -1244,7 +1263,7 @@ fInteropSamples(){
 	local file="$1"; local -i count="$2" i len
 	: >"$file"
 	for ((i = 0; i < count; i++)); do
-		if ((i <= 24)); then len=$i; else len=$(( 1 + $(_rand16) % 4096 )); fi
+		if ((i <= 24)); then len=$i; else len=$(( 1 + SRANDOM % 4096 )); fi
 		((len)) && head -c "$len" /dev/urandom | od -An -tx1 -v | tr -d ' \n' >>"$file"
 		echo >>"$file"
 	done
@@ -1560,7 +1579,7 @@ EOF
 )"
 rnrc=0; rnGot="$(bash "${meDir}/utility/release-notes.bash" --version v9.9.9-beta1 --dist "${rnDist}" --repo o/r --changelog "${rnDir}/changelog.md" 2>"${CBT_ERR}")" || rnrc=$?
 { ((rnrc == 0)) && [[ "${rnGot}" == "${rnWant}" ]]; } && _pass ErlN8Nk "release notes: changelog, downloads table, build line" || _fail ErlN8Nk "release notes: changelog, downloads table, build line" "rc=${rnrc} diff: $(diff <(printf '%s\n' "${rnWant}") <(printf '%s\n' "${rnGot}") || true)"
-grep -qF "not a known asset, listed under the table: notes.txt" "${CBT_ERR}" && _pass ErlN8OJ "release notes warn of a file they can't place" || _fail ErlN8OJ "release notes warn of a file they can't place" "stderr=[$(cat "${CBT_ERR}")]"
+grep -qF "not a known asset, listed under the table: notes.txt" "${CBT_ERR}" && _pass ErlN8OJ "release notes warn of a file they can't place" || _fail ErlN8OJ "release notes warn of a file they can't place" "stderr=[$(<"${CBT_ERR}")]"
 ## A --no-arm run, and a build that says another version: only the column that
 ## has something, and no build line rather than a wrong one.
 rnDist2="${rnDir}/dist2"; mkdir -p "${rnDist2}"
@@ -1568,7 +1587,7 @@ cp -p "${rnDist}"/convert-base-v2-linux-x86_64{,.tgz} "${rnDist}"/convert-base-v
 rnGot="$(bash "${meDir}/utility/release-notes.bash" --version v9.9.9 --dist "${rnDist2}" --repo o/r --changelog "${rnDir}/changelog.md" 2>"${CBT_ERR}" || true)"
 rnU="https://github.com/o/r/releases/download/v9.9.9"
 rnWant="$(printf '%s\n' 'See changelog.md.' '' '### Downloads' '' '| OS | x86_64' '| :--- | :---' "| Linux | [binary](${rnU}/convert-base-v2-linux-x86_64), [.tgz](${rnU}/convert-base-v2-linux-x86_64.tgz)" "| Windows | [.zip](${rnU}/convert-base-v2-windows-x86_64.zip)")"
-{ [[ "${rnGot}" == "${rnWant}" ]] && grep -qF "so the notes name no build number" "${CBT_ERR}"; } && _pass ErlN8Oq "release notes: only filled columns, no build line for another version" || _fail ErlN8Oq "release notes: only filled columns, no build line for another version" "got=[${rnGot}] stderr=[$(cat "${CBT_ERR}")]"
+{ [[ "${rnGot}" == "${rnWant}" ]] && grep -qF "so the notes name no build number" "${CBT_ERR}"; } && _pass ErlN8Oq "release notes: only filled columns, no build line for another version" || _fail ErlN8Oq "release notes: only filled columns, no build line for another version" "got=[${rnGot}] stderr=[$(<"${CBT_ERR}")]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1587,7 +1606,7 @@ fNames(){ find "$1" -mindepth 1 -maxdepth 1 -printf '%f ' 2>&1 || true; }
 fPgRun(){ PATH="${pgBin}:${PATH}" bash "${meDir}/utility/package.bash" --version v9.9.9 --build-epoch 1700000000 --out "$1" >/dev/null 2>"${CBT_ERR}"; }
 pgrc=0; fPgRun "${pgDir}/theirs" || pgrc=$?
 { ((pgrc != 0)) && [[ -f "${pgDir}/theirs/notes.txt" ]] && grep -qF "no sign a build made them" "${CBT_ERR}"; } && _pass Erm3Sws "package.bash leaves alone an --out it did not make" \
-	|| _fail Erm3Sws "package.bash leaves alone an --out it did not make" "rc=${pgrc} left: [$(fNames "${pgDir}/theirs")] err=[$(cat "${CBT_ERR}")]"
+	|| _fail Erm3Sws "package.bash leaves alone an --out it did not make" "rc=${pgrc} left: [$(fNames "${pgDir}/theirs")] err=[$(<"${CBT_ERR}")]"
 fPgRun "${pgDir}/ours" || true
 mkdir -p "${pgDir}/ours/sub"; echo old >"${pgDir}/ours/old.tgz"
 fPgRun "${pgDir}/ours" || true
@@ -1656,7 +1675,7 @@ for crCase in "nofile|no 'var version'" "norepo|could not list the tags" "repo|n
 	crRoot="${crCase%%|*}"; crWant="${crCase#*|}"; crrc=0
 	bash "${meDir}/utility/check-release.bash" --repo "${crDir}/${crRoot}" >/dev/null 2>"${CBT_ERR}" || crrc=$?
 	{ ((crrc == 1)) && grep -qF -- "${crWant}" "${CBT_ERR}"; } && _pass Erm3Szg "check-release says why: ${crWant}" \
-		|| _fail Erm3Szg "check-release says why: ${crWant}" "rc=${crrc} err=[$(cat "${CBT_ERR}")]"
+		|| _fail Erm3Szg "check-release says why: ${crWant}" "rc=${crrc} err=[$(<"${CBT_ERR}")]"
 done
 
 inDir="${CBT_TMP}/in"; mkdir -p "${inDir}/bin" "${inDir}/home"
@@ -1675,7 +1694,7 @@ for inCase in '{"message": "Not Found"}|could not determine the stable release t
 	printf '%s\n' "${inCase%%|*}" >"${inDir}/release.json"; inWant="${inCase#*|}"; inrc=0
 	HOME="${inDir}/home" FAKE_RELEASE="${inDir}/release.json" PATH="${inDir}/bin:${PATH}" bash "${meDir}/../install.bash" -y --arch x86_64 </dev/null >/dev/null 2>"${CBT_ERR}" || inrc=$?
 	{ ((inrc == 1)) && grep -qF -- "${inWant}" "${CBT_ERR}"; } && _pass Erm3T0M "install.bash says why: ${inWant}" \
-		|| _fail Erm3T0M "install.bash says why: ${inWant}" "rc=${inrc} err=[$(cat "${CBT_ERR}")]"
+		|| _fail Erm3T0M "install.bash says why: ${inWant}" "rc=${inrc} err=[$(<"${CBT_ERR}")]"
 done
 
 ## magick lists pango first, then more than a pipe holds. Any other call
@@ -1730,7 +1749,7 @@ printf '%s\n' '#!/bin/sh' 'while [ $# -gt 0 ]; do [ "$1" = -o ] && { cp "$FAKE_T
 chmod +x "${feDir}/bin/curl"
 ferc=0; FAKE_TGZ="${feDir}/pkg.tgz" PATH="${feDir}/bin:${PATH}" bash "${feDir}/fetch.bash" --refresh >/dev/null 2>"${CBT_ERR}" || ferc=$?
 { ((ferc != 0)) && [[ -f "${feDir}/thirdparty/keep/file" ]] && grep -qF "not a plain directory name" "${CBT_ERR}"; } && _pass Erm3T2q "interop refresh refuses a pin name that is not a plain name" \
-	|| _fail Erm3T2q "interop refresh refuses a pin name that is not a plain name" "rc=${ferc} left: [$(fNames "${feDir}/thirdparty")] err=[$(cat "${CBT_ERR}")]"
+	|| _fail Erm3T2q "interop refresh refuses a pin name that is not a plain name" "rc=${ferc} left: [$(fNames "${feDir}/thirdparty")] err=[$(<"${CBT_ERR}")]"
 
 ## The benchmark times only runs that worked. A 1 MiB blob and one run keep
 ## each of these to about a second.
@@ -1840,11 +1859,11 @@ if ((dgrc == 3)); then
 	_warn "ErmYENq ErmYEP0 ErnEi9h" "demo gif checks: no Pillow"
 else
 	grep -q "^identity ok" "${CBT_OUT}" && _pass ErmYENq "demo gif batches match one Pillow save" \
-		|| _fail ErmYENq "demo gif batches match one Pillow save" "rc=${dgrc} out=[$(cat "${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+		|| _fail ErmYENq "demo gif batches match one Pillow save" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
 	grep -q "^memory ok" "${CBT_OUT}" && _pass ErmYEP0 "demo gif frames are not all held until the save" \
-		|| _fail ErmYEP0 "demo gif frames are not all held until the save" "rc=${dgrc} out=[$(cat "${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+		|| _fail ErmYEP0 "demo gif frames are not all held until the save" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
 	grep -q "^leadword ok" "${CBT_OUT}" && _pass ErnEi9h "demo gif types a one-word command at first-word speed" \
-		|| _fail ErnEi9h "demo gif types a one-word command at first-word speed" "rc=${dgrc} out=[$(cat "${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+		|| _fail ErnEi9h "demo gif types a one-word command at first-word speed" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
 fi
 
 ## flame-report.py is the startup gate's reader. A flamegraph it can't read is
@@ -1955,7 +1974,7 @@ fCeRun(){
 	( cd "${ceDir}" && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
 		HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${ceDir}/knobs" CE_SUDO_LOG="${ceDir}/sudo.log" \
 		bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
-	ceOut="$(cat "${CBT_OUT}")"; ceKnobs="$(cat "${ceDir}/knobs")"; ceSudo="$(cat "${ceDir}/sudo.log")"; ceTmp="$(ls -A "${ceDir}/tmp")"
+	ceOut="$(<"${CBT_OUT}")"; ceKnobs="$(<"${ceDir}/knobs")"; ceSudo="$(<"${ceDir}/sudo.log")"; ceTmp="$(ls -A "${ceDir}/tmp")"
 }
 fCeTail(){ printf 'rc=%s tmp=[%s] out=[%s]' "${ceRc}" "${ceTmp}" "$(tail -4 "${CBT_OUT}" | tr '\n' ' ')"; }
 
@@ -2026,7 +2045,7 @@ EOF
 		clRc=0
 		( cd "${clRepo}" && git add -A && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
 			HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" bash "${clRepo}/cicd/cicd.bash" -y </dev/null >"${CBT_OUT}" 2>&1 ) || clRc=$?
-		clOut="$(cat "${CBT_OUT}")"
+		clOut="$(<"${CBT_OUT}")"
 	}
 	fClTail(){ printf 'rc=%s out=[%s]' "${clRc}" "$(grep -E 'OK: (shellcheck|ruff)|FAILED|ABORTED|SC[0-9]{4}|\.py:' "${CBT_OUT}" | head -4 | tr '\n' ' ')"; }
 

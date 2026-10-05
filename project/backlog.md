@@ -145,7 +145,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The harness repeats calls and forks that one pass could do. (Code review 20261004 item 27)
 	- ID: 2026100413480027
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority: Low
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -154,6 +154,19 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: `$(cat f)`, a per-symbol `printf` loop and `_rand_int` fork in loops. `$(<f)`, `printf -v` and `$SRANDOM` are near free.
 	- Origin: several commits from 4ff92e8 on. Not seen by an earlier round. Confirmed by timing.
 	- Related IDs: 2026100413480017
+	- Note: 2026100413480017 had already cut most of the 13 s, since a lookup by name no longer builds every base. A lookup by index still does, which is why the `IDX_NAME` loop was the slow one left.
+	- Done: `IDX_NAME` comes from one `--list --list-compat`. An index the listing leaves out gets a name no base has, so its round trips fail. An empty name would have read as base 10 and passed.
+	- Done: the README check takes names and aliases from one listing, and asks the program only about a name that is in neither, so a prefix or other case still resolves as before.
+	- Done: the dash check skips a base whose marker is already `~` or off, and tests the digits in the shell instead of through `grep`. There is no listing of every alphabet, so it still runs the program once for each other base.
+	- Done: `_run` and the other simple reads use `$(<f)`. The random helpers use `$SRANDOM`, and `_rand16` is gone. The three code-point loops build their strings with `printf -v`. The harness now stops at the top on a bash older than 5.1.
+	- Verified: section timings, median of three, before and after: CLI surface 1.1 s to 0.9 s, binary and streaming 13.8 s to 11.5 s, fuzz 10.5 s to 4.6 s, back-compat 5.7 s to 5.4 s. The full harness went from 147 s to 138 s, 555 of 555 both times. shellcheck is clean and `test-ids.py check` passes.
+	- Verified: each rewritten check fails when what it watches is broken, and passes again once restored. A binary with `64url` renamed and a README row with an unknown name fail the README check, while `HEX`, `base-16` and an alias still pass. A listing that shows `64url` with a `-` marker fails the dash check. Swapping two names in the listing, or dropping a row, fails the symbol fuzz. Corrupted base-10 output fails the matrix, fuzz and back-compat round trips. Corrupted 2048 and 65536 output fails the native vectors, and a broken tail round trip fails the tail checks.
+	- Verified: the new code-point strings match the old ones byte for byte, for all three loops.
+	- Swept: every `$(cat "...")` of a single file, every `_rand16` and `od ... /dev/urandom` random number, and each `printf "\U..."` loop. Left alone: `head -c ... /dev/urandom` where the loop needs random bytes, the per-base `--show-symbols-0 --by-index` load in the symbol fuzz, which also checks that an index and its listed name are the same base, and the per-pair name check in the back-compat suite, which costs about 0.1 s.
+	- Test case: none new. These are the harness's own checks. Each one touched was watched to fail and pass, as above. A wall-clock limit on harness sections would flake on a busy machine.
+	- Branch: harness-forks
+	- Acceptance signoff: Self-closed: the change does what the item asked, the checks keep their meaning and were each watched to fail.
+	- Closed: 20261004-205908
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002
