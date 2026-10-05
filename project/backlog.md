@@ -83,6 +83,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004. A mode 000 user config, a mode 000 typed config, a file that won't parse and one with a bad second base each show in the help, with exit 0. The same files still fail a conversion. `go vet`, `golangci-lint`, `go test ./...` and the harness from CLI surface through Config migration pass.
 	- Swept: both config paths, system and user, and both help callers, `--help` and the no-argument help on stderr. The other `os.Stat` in main is the typed `--config` check, which still refuses outside the help. `lib/wasm` and `lib/reactor` load no config.
 	- Branch: help-commas
+	- Commit: 27146f0
 	- Test case: harness `ErmufTF` (parse error shown, rest printed) and `ErmufUW` (mode 000, default and typed path), and Go `ErmubcQ` TestLoadConfigAllOrNothing. All three fail before the fix and pass after.
 	- Acceptance signoff: Waiting: new status words in the help, and a missing typed `--config` now shows in the help instead of stopping it.
 
@@ -154,6 +155,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004. `go vet`, `golangci-lint`, `go test ./...` and the harness from CLI surface through Config migration pass. Every built-in base still loads.
 	- Swept: every `ParseSymbolSpec` caller. `--from-symbols` and `--to-symbols` through `ResolveBase`, both tail flags through `ApplyOptions`, config `symbols` and `tail` through `configSpec`, the built-in specs, and the help's base report, which prints the new error. `lib/wasm` gets the new error with no flag name, like its other errors. `lib/reactor` takes base names only.
 	- Branch: help-commas
+	- Commit: 27146f0
 	- Test case: Go `Ermubbp` TestSpecOnlyCommas, and harness `ErmufVw` (`--to-tail`), `ErmufXE` (`--to-symbols`) and `ErmufYc` (config `tail`). All fail before the fix and pass after.
 	- Acceptance signoff: Waiting: a bare comma in a config stays an empty value, and the error wording.
 
