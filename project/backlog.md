@@ -34,59 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- A symbol spec of only commas parses to no symbols without an error.
-	- ID: 2026100417280514
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Severity: Low
-	- Opened: 20261004-172805
-	- Opened by: found while working 2026100416041479
-	- Target OS: Any
-	- Steps to reproduce:
-		- A config base with `tail: ,` or `tail: , ,`.
-	- Incorrect behavior: the base loads with no tail and no word about it. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
-	- Expected behavior: "no digit symbols" or similar, naming the field.
-	- Reproduced: 20261004. `--to-symbols ','`, `--to-tail ','` and a config `tail: ","` in quotes all parse to no symbols with no error. A bare `tail: ,` never reaches the parser; see Decisions.
-	- Probable fix: `ParseSymbolSpec` returns an error when a non-empty spec yields no symbols. Check what an intentionally empty field means first, since an empty `--to-tail` clears a tail on purpose.
-	- Related IDs: 2026100416041479
-	- Actual cause: in a one-token spec a comma is a separator, so a spec of only commas left nothing, and `ParseSymbolSpec` returned the empty list as fine.
-	- Actual fix: `ParseSymbolSpec` refuses it as having only commas. The command names the flag, such as `--to-symbols:` or `--to-tail:`, and a config error names the line, the base and the field.
-	- Decisions:
-		- An empty value still means none on purpose, and never reaches the parser. An empty `--to-tail` clears a tail, an empty `--to-symbols` falls back to the base name, and an empty config `tail:` sets no tail.
-		- SHCL reads a bare `tail: ,` or `tail: , ,` as an empty list, the same as `tail:`. So it stays meaning no tail. Only a quoted `","` reaches the parser.
-		- A lone `,` among other tokens is still the comma digit, as `85ps` needs.
-	- Against: closed item 2026100416041479. Its checks `ErmULmv` and the comma-only part of `ErmULmP` expected "needs tail symbols", naming the base. The parser now refuses first, naming the flag, so both are commented out with the reason. The layout check itself stands, and the rest of `ErmULmP` still pins it.
-	- Verified: 20261004. `go vet`, `golangci-lint`, `go test ./...` and the harness from CLI surface through Config migration pass. Every built-in base still loads.
-	- Swept: every `ParseSymbolSpec` caller. `--from-symbols` and `--to-symbols` through `ResolveBase`, both tail flags through `ApplyOptions`, config `symbols` and `tail` through `configSpec`, the built-in specs, and the help's base report, which prints the new error. `lib/wasm` gets the new error with no flag name, like its other errors. `lib/reactor` takes base names only.
-	- Branch: help-commas
-	- Commit: 27146f0
-	- Test case: Go `Ermubbp` TestSpecOnlyCommas, and harness `ErmufVw` (`--to-tail`), `ErmufXE` (`--to-symbols`) and `ErmufYc` (config `tail`). All fail before the fix and pass after.
-	- Acceptance signoff: Waiting: a bare comma in a config stays an empty value, and the error wording.
-
-- There is no public code style guide or contributing.md. (Code review 20261004 item 28)
-	- ID: 2026100413480028
-	- Type: Enhancement
-	- Status: Waiting on signoff
-	- Priority: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: the directives want `project/style-guide_code.md`, a `contributing.md` that links it, and a short README pointer to both. None exist.
-	- Origin: directive gap, filed against the 2026-10-04 directives.
-	- Progress log:
-		- Done: `project/style-guide_code.md` covers Go, Bash and Python as the code is written now, with the reason for each rule. Prose and markdown rules are left out.
-		- Done: `contributing.md` covers bug reports, branches, the checks to run with the stage 3 linters, test IDs, adding a base, licensing and support links. It links the style guide.
-		- Done: one sentence at the end of the README's development section points to both. No other README text changed.
-	- Decisions:
-		- Python is documented with tabs, as every Python file here and the ruff formatter setting use, not four spaces.
-		- Contributions take the license of the directory they go into. That line is new policy and needs a look.
-	- Note: `.github/CODEOWNERS` guards the support links in `FUNDING.yml` but not the new ones in `contributing.md`. It also lists a `DONATE.md` that doesn't exist. Left alone.
-	- Verified: the relative links and anchors in the new docs and the README pointer resolve. `make vet`, `test-ids.py new`, the bases table command and the profiling example ran clean. The pipeline command was checked against its `--help` only.
-	- Branch: style-docs
-	- Commit: 7fcc945
-	- Test case: none, docs only. The harness has no link check.
-	- Acceptance signoff: Waiting: README text, the wording of both docs, and the licensing line.
-
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
 	- Type: Enhancement
@@ -676,6 +623,35 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
 
+- A symbol spec of only commas parses to no symbols without an error.
+	- ID: 2026100417280514
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261004-172805
+	- Opened by: found while working 2026100416041479
+	- Target OS: Any
+	- Steps to reproduce:
+		- A config base with `tail: ,` or `tail: , ,`.
+	- Incorrect behavior: the base loads with no tail and no word about it. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
+	- Expected behavior: "no digit symbols" or similar, naming the field.
+	- Reproduced: 20261004. `--to-symbols ','`, `--to-tail ','` and a config `tail: ","` in quotes all parse to no symbols with no error. A bare `tail: ,` never reaches the parser; see Decisions.
+	- Probable fix: `ParseSymbolSpec` returns an error when a non-empty spec yields no symbols. Check what an intentionally empty field means first, since an empty `--to-tail` clears a tail on purpose.
+	- Related IDs: 2026100416041479
+	- Actual cause: in a one-token spec a comma is a separator, so a spec of only commas left nothing, and `ParseSymbolSpec` returned the empty list as fine.
+	- Actual fix: `ParseSymbolSpec` refuses it as having only commas. The command names the flag, such as `--to-symbols:` or `--to-tail:`, and a config error names the line, the base and the field.
+	- Decisions:
+		- An empty value still means none on purpose, and never reaches the parser. An empty `--to-tail` clears a tail, an empty `--to-symbols` falls back to the base name, and an empty config `tail:` sets no tail.
+		- SHCL reads a bare `tail: ,` or `tail: , ,` as an empty list, the same as `tail:`. So it stays meaning no tail. Only a quoted `","` reaches the parser.
+		- A lone `,` among other tokens is still the comma digit, as `85ps` needs.
+	- Against: closed item 2026100416041479. Its checks `ErmULmv` and the comma-only part of `ErmULmP` expected "needs tail symbols", naming the base. The parser now refuses first, naming the flag, so both are commented out with the reason. The layout check itself stands, and the rest of `ErmULmP` still pins it.
+	- Verified: 20261004. `go vet`, `golangci-lint`, `go test ./...` and the harness from CLI surface through Config migration pass. Every built-in base still loads.
+	- Swept: every `ParseSymbolSpec` caller. `--from-symbols` and `--to-symbols` through `ResolveBase`, both tail flags through `ApplyOptions`, config `symbols` and `tail` through `configSpec`, the built-in specs, and the help's base report, which prints the new error. `lib/wasm` gets the new error with no flag name, like its other errors. `lib/reactor` takes base names only.
+	- Branch: help-commas
+	- Commit: 27146f0
+	- Test case: Go `Ermubbp` TestSpecOnlyCommas, and harness `ErmufVw` (`--to-tail`), `ErmufXE` (`--to-symbols`) and `ErmufYc` (config `tail`). All fail before the fix and pass after.
+	- Acceptance signoff: 20261005. The next shcl release should handle a bare comma. Check `tail: ,` again after the re-pin.
+
 - `filter_2_messy.py` crashes on six Arabic ligatures.
 	- ID: 2026100419493125
 	- Type: Bug
@@ -994,6 +970,30 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again after the next release. Rebuild its tag with the Go, nfpm and NSIS versions the workflow used, and compare with its `checksums.txt`. NSIS comes from the runner's apt, so its version has to be read from the workflow log.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
+
+- There is no public code style guide or contributing.md. (Code review 20261004 item 28)
+	- ID: 2026100413480028
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: the directives want `project/style-guide_code.md`, a `contributing.md` that links it, and a short README pointer to both. None exist.
+	- Origin: directive gap, filed against the 2026-10-04 directives.
+	- Progress log:
+		- Done: `project/style-guide_code.md` covers Go, Bash and Python as the code is written now, with the reason for each rule. Prose and markdown rules are left out.
+		- Done: `contributing.md` covers bug reports, branches, the checks to run with the stage 3 linters, test IDs, adding a base, licensing and support links. It links the style guide.
+		- Done: one sentence at the end of the README's development section points to both. No other README text changed.
+	- Decisions:
+		- Python is documented with tabs, as every Python file here and the ruff formatter setting use, not four spaces.
+		- Contributions take the license of the directory they go into. Signed off 20261005.
+	- Fixed: `.github/CODEOWNERS` dropped the `DONATE.md` that doesn't exist, and now covers the support links in the README, `contributing.md` and `--donate`.
+	- Verified: the relative links and anchors in the new docs and the README pointer resolve. `make vet`, `test-ids.py new`, the bases table command and the profiling example ran clean. The pipeline command was checked against its `--help` only.
+	- Branch: style-docs
+	- Commit: 7fcc945
+	- Test case: none, docs only. The harness has no link check.
+	- Acceptance signoff: 20261005.
 
 - The harness repeats calls and forks that one pass could do. (Code review 20261004 item 27)
 	- ID: 2026100413480027
