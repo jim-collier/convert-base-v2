@@ -247,3 +247,86 @@ func BenchmarkNewRegistry(b *testing.B) {
 		}
 	}
 }
+
+// Every invalid byte decodes to the same U+FFFD, so a base with such digits got
+// one rune table entry for all of them, picked by map order, and streamed out
+// text its own streaming decode refused. The raw-byte base is the one exception.
+// Test ID: Erq3i1c
+func TestFinalizeRefusesInvalidUTF8(t *testing.T) {
+	bad := "\x80"
+	cases := map[string]struct {
+		spec string
+		opts *Options
+		want string
+	}{
+		"digit":    {spec: "\x80 \x81 é è", want: `digit "\x80" at index 0`},
+		"late":     {spec: "a b é \xff", want: `digit "\xff" at index 3`},
+		"tail":     {spec: sym512(), opts: &Options{Tail: strPtr("\x80 \x81")}, want: `tail symbol "\x80" at index 0`},
+		"pad":      {spec: "0123", opts: &Options{Pad: &bad}, want: `padding symbol "\x80"`},
+		"negative": {spec: "0123", opts: &Options{Negative: &bad}, want: `negative marker "\x80"`},
+		"decimal":  {spec: "0123", opts: &Options{Decimal: &bad}, want: `decimal marker "\x80"`},
+	}
+	for name, c := range cases {
+		t.Run(name, func(t *testing.T) {
+			_, err := ResolveBase(nil, "", c.spec, c.opts)
+			if err == nil {
+				t.Fatal("accepted")
+			}
+			if !strings.Contains(err.Error(), c.want+" is not valid UTF-8") || !strings.Contains(err.Error(), `base "custom(`) {
+				t.Fatalf("got %v, want the base and %s", err, c.want)
+			}
+		})
+	}
+	// A config's list form skips the spec parser and goes straight to Finalize.
+	reg := newReg(t)
+	if err := reg.Register(&Base{Aliases: []string{"listed"}, Symbols: []string{"a", "b\x80"}}); err == nil ||
+		!strings.Contains(err.Error(), `base "listed": digit "b\x80" at index 1 is not valid UTF-8`) {
+		t.Errorf("list form: %v", err)
+	}
+	if err := loadConfigText(t, "base: strung\n\tsymbols: \"\x80 \x81 a b\"\n##    Format   3\n"); err == nil ||
+		!strings.Contains(err.Error(), `base "strung": digit "\x80" at index 0 is not valid UTF-8`) {
+		t.Errorf("config: %v", err)
+	}
+	// Spec escapes and control digits are plain ASCII, so they stay accepted.
+	if _, err := ResolveBase(nil, "", `\  \t \n \\ \" a`, nil); err != nil {
+		t.Errorf("escaped spec: %v", err)
+	}
+	if _, err := ResolveBase(nil, "", "\x00 \x01 \x7f é", nil); err != nil {
+		t.Errorf("control digits: %v", err)
+	}
+	b := bytesBase()
+	if err := b.Finalize(); err != nil {
+		t.Errorf("bytes: %v", err)
+	}
+}
+
+func sym512() string {
+	var sb strings.Builder
+	for r := rune(0x4E00); r < 0x4E00+512; r++ {
+		sb.WriteRune(r)
+		sb.WriteByte(' ')
+	}
+	return sb.String()
+}
+
+// The wide streaming path decodes each rune and looks it up, so every key in a
+// base's rune table has to be one of its digits written back out. The raw-byte
+// base gave its 128 high bytes one U+FFFD key, and which byte won changed run to
+// run.
+// Test ID: Erq3i2I
+func TestRuneTableKeysAreDigits(t *testing.T) {
+	reg := newReg(t)
+	for _, b := range reg.ordered {
+		if err := b.ready(); err != nil {
+			t.Fatal(err)
+		}
+		if !b.allOneRune {
+			continue
+		}
+		for r, v := range b.runeValue {
+			if got, ok := b.value[string(r)]; !ok || got != v {
+				t.Errorf("%s: rune %q maps to %d, but %q is not that digit", b.Name(), r, v, string(r))
+			}
+		}
+	}
+}
