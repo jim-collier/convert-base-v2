@@ -76,16 +76,19 @@ def _parse_chars(text, fail_log=None):
 				name = unicodedata.name(c, '')
 				is_super_sub = _is_super_sub(name)
 				nfkd = unicodedata.normalize('NFKD', c)
-				# Non-ASCII that decomposes to multiple chars → combined, drop it
-				if len(nfkd) > 1 and not is_super_sub:
-					if fail_log is not None:
-						fail_log.append((code_point, c, 'FAIL:NFKD_MULTI', name))
-					continue
-				# Non-ASCII that decomposes to ASCII → masquerading, drop it
-				if ord(nfkd) < 128 and not is_super_sub:
-					if fail_log is not None:
-						fail_log.append((code_point, c, 'FAIL:NFKD_ASCII', name))
-					continue
+				# Super/subscripts skip both checks, and some of them decompose to
+				# several chars (U+FC5B), so ord() is only safe after the length test.
+				if not is_super_sub:
+					# Non-ASCII that decomposes to multiple chars → combined, drop it
+					if len(nfkd) > 1:
+						if fail_log is not None:
+							fail_log.append((code_point, c, 'FAIL:NFKD_MULTI', name))
+						continue
+					# Non-ASCII that decomposes to ASCII → masquerading, drop it
+					if ord(nfkd) < 128:
+						if fail_log is not None:
+							fail_log.append((code_point, c, 'FAIL:NFKD_ASCII', name))
+						continue
 			seen.add(c)
 			chars.append(c)
 	return chars
