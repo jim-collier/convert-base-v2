@@ -124,6 +124,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004. go vet (linux, windows, darwin, js, wasip1), golangci-lint and `go test ./...` clean. `make reactor` and `make web` build. Each benchmark runs once clean, and reactor-host passes.
 	- Test case: `Ern7YZg` TestPrecisionBound in the browser module, and new cap checks in reactor-host, `Elmd2Y4`. They pin both modules' 100000 caps to the command's, and fail with either cap moved to 99999. The rest is style, with no behavior to test.
 	- Branch: go-lows
+	- Commit: 36e8857
 	- Acceptance signoff: Self-closed: mechanical. `SpecOpts` left as public API, as the note says.
 	- Closed: 20261004-200019
 
@@ -193,6 +194,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004. 25 converts took about 0.8 ms with no other regions open. With 10,000 open they took 38 ms before and 0.8 ms after, 46 times as long against 1.1. go vet, golangci-lint, `go test ./...` and `make reactor` clean.
 	- Test case: `Ern7YaC`, reactor-host `--regions`. It fails when a convert with 10,000 regions open takes over 3 times as long as with none. It failed at 44 to 46 times before the fix and passed at 1.1 after, run through the harness section too. reactor-host `Elmd2Y4` now also passes an interior pointer, and a length past a region's end from its start and from its middle.
 	- Branch: go-lows
+	- Commit: 314421e
 	- Acceptance signoff: Self-closed: did what the item asked, and its test fails before and passes after.
 	- Closed: 20261004-200057
 
@@ -219,6 +221,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004. go vet (linux, windows, darwin), golangci-lint and `go test ./...` clean. The three tests pass 20 times over under the race detector.
 	- Test case: `Ern8m1y` TestUpgradeConfigFileEditDuringWrite, plain and through a symlink, and `Ern925t` TestUpgradeConfigFileEditStaysInBackup. Both fail on the old code and pass now. `Ern924g` TestUpgradeConfigFileKeepsBackup pins the missing and written-through cases, and passes both ways.
 	- Branch: go-lows
+	- Commit: 6e8854e
 	- Acceptance signoff: Waiting: it changes what the program leaves on disk after a migration, and differs from the probable fix.
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
