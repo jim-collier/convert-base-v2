@@ -88,6 +88,31 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 44ed0be
 	- Test case: `Erm5wwf` TestTailNeedsOneCharDigits, `Erm5wxB` "tail on two-character digits rejected" and `Erm5wxg` "config tail on two-character digits rejected". All three fail before the fix and pass after.
 
+- A tail layout with no tail symbols, such as from `--to-tail ','`, decodes bytes wrong at exit 0.
+	- ID: 2026100416041479
+	- Type: Bug
+	- Status: Waiting on signoff
+	- Severity: High
+	- Note: raised from Low once the command was found to reach it. It blocks release, since the result is wrong bytes at exit 0.
+	- Opened: 20261004-160414
+	- Opened by: found while working 2026100413480003
+	- Target OS: Any
+	- Steps to reproduce:
+		- In Go, build a `Base` with `BinaryScheme` set to a tail scheme and no tail, then decode bytes from it.
+	- Incorrect behavior: fails with `symbol "..." is not in the base`, which doesn't say what is wrong.
+	- Expected behavior: `Finalize` refuses a tail scheme without a tail, naming the base.
+	- Reproduced: 20261004. The command reaches it too. `--to-tail ','` parses to no tail symbols but still sets the qntm layout, and 3, 7 and 10 bytes then decode to the wrong bytes with exit 0. A config `tail:` can't reach it, since the layout is set only when the tail has symbols.
+	- Actual cause: binary mode picks the tail codec from `BinaryScheme` alone, and nothing checked that a tail layout had a tail. A tail spec of only commas parses to an empty list with no error, and `ApplyOptions` set the layout anyway.
+	- Actual fix: `Finalize` refuses a tail layout with no tail symbols, naming the base and the layout, beside the one-character tail check. The command reports it the same way.
+	- Note: a config `tail:` of only commas is still ignored without a word, for the same parsing reason. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
+	- Verified: every built-in base still loads, and clearing a tail with an empty `--to-tail` still works on a tail base and a codec base. `go vet`, `golangci-lint`, `go test ./...` and the full harness in quick mode pass.
+	- Swept: every way a scheme is set. Built-ins all have a tail with a tail layout. The config sets one only with a nonempty tail. `ApplyOptions` clears the layout with an empty tail and sets it with a parsed one, which is now checked. The browser and reactor modules take no tail.
+	- Branch: digit-values
+	- Commit: fbf6380
+	- Test case: `ErmULmP` TestTailSchemeNeedsTail, for each tail layout and for a comma-only tail through `ApplyOptions`, and `ErmULmv` "comma-only tail rejected" on the command. Both fail before the fix and pass after.
+	- Acceptance signoff: open. The command now refuses an input it used to take, with new error text, and the bug turned out to give wrong bytes, not only a confusing error.
+	- Related IDs: 2026100417280514
+
 - Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
 	- ID: 2026100413480017
 	- Type: Enhancement
@@ -205,28 +230,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
 	- Verified: 20261004, on an Intel Mac with macOS 15.8.1. The universal binary, the per-arch x86_64 one and the one from the universal `.tgz` all print the same version and build line. A hex to base-62 conversion and a bytes to base-64 one match the Linux build. Gatekeeper rejects the universal and per-arch builds the same way, unsigned, with and without the quarantine flag.
 
-- The number path looks up each digit twice. (Code review 20261004 item 19)
-	- ID: 2026100413480019
-	- Type: Enhancement
-	- Status: Done
-	- Priority: Avg
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: `Tokenize` knows each digit's value, turns it back into a string, and `parseLeaf` hashes it again. Passing values instead was 30 to 37 percent faster from 1K to 64K digits, and the suite passed.
-	- Note: this leaves the divide and conquer design alone.
-	- Origin: `convert.go:148` from a6c8612 on 2026-08-02, and `Tokenize`. Not seen by an earlier round. Confirmed by benchmark.
-	- Done: the number path takes digit values straight from the tokenizer, and the divide and conquer parse packs them as they are. The two binary paths that read through `Tokenize` and looked each digit up again do the same. `Tokenize` keeps its signature and errors, and is now built on the same value scan.
-	- Decisions:
-		- The divide and conquer split, leaf size and format leg are unchanged.
-	- Verified: `BenchmarkPositional`, base 10 to 36, went from 40 to 24 us at 1K digits, 184 to 121 us at 4K, 0.98 to 0.73 ms at 16K and 6.8 to 5.4 ms at 64K. `go vet`, `golangci-lint` and `go test ./...` pass, the browser and reactor modules build, and the full harness passes in quick mode, conversions, interop and frontend parity included.
-	- Swept: every `Tokenize` caller. The number path and the two binary decoders now use values. `SymbolSlice`, `Fit` and the reactor's symbol count want symbols, so they keep `Tokenize`. No other site looks a digit up by its symbol after tokenizing.
-	- Branch: digit-values
-	- Commit: 6b7629b
-	- Test case: `ErmUk2J` TestNumberPathUsesTokenValues converts with the symbol map removed, so a second lookup reads every digit as zero. `ErmULlt` TestPositionalNearMathBig limits 1K digits to 1.5 times math/big's own conversion. It measured 1.9 before and 1.2 after. Both fail before the change and pass after. `BenchmarkPositional1K` to `64K` give the numbers, and `ElmJ1ea` TestDivideConquerBoundaries, `Elm99Wy` TestDigitChunkBoundaries and `Elm99Wz` TestFractionChunkBoundaries cover correctness.
-	- Acceptance signoff: Self-closed: the change does what the item asked, and its tests pass.
-	- Closed: 20261004-172702
-
 - The demo gif generator holds every frame uncompressed in memory. (Code review 20261004 item 21)
 	- ID: 2026100413480021
 	- Type: Enhancement
@@ -298,29 +301,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Reproduced: the clipboard mechanism with a failing filter in a scratch script, and the `.gitignore` miss with `git check-ignore`.
 	- Origin: b3e719f and de93848, 2026-05-06 to 05-08. Not seen by an earlier round. Confirmed except the ODS writer.
 
-- A library caller can set a tail scheme on a base with no tail, and decoding then fails.
-	- ID: 2026100416041479
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Severity: Low
-	- Opened: 20261004-160414
-	- Opened by: found while working 2026100413480003
-	- Target OS: Any
-	- Steps to reproduce:
-		- In Go, build a `Base` with `BinaryScheme` set to a tail scheme and no tail, then decode bytes from it.
-	- Incorrect behavior: fails with `symbol "..." is not in the base`, which doesn't say what is wrong.
-	- Expected behavior: `Finalize` refuses a tail scheme without a tail, naming the base.
-	- Reproduced: 20261004. The command reaches it too. `--to-tail ','` parses to no tail symbols but still sets the qntm layout, and 3, 7 and 10 bytes then decode to the wrong bytes with exit 0. A config `tail:` can't reach it, since the layout is set only when the tail has symbols.
-	- Actual cause: binary mode picks the tail codec from `BinaryScheme` alone, and nothing checked that a tail layout had a tail. A tail spec of only commas parses to an empty list with no error, and `ApplyOptions` set the layout anyway.
-	- Actual fix: `Finalize` refuses a tail layout with no tail symbols, naming the base and the layout, beside the one-character tail check. The command reports it the same way.
-	- Note: a config `tail:` of only commas is still ignored without a word, for the same parsing reason. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
-	- Verified: every built-in base still loads, and clearing a tail with an empty `--to-tail` still works on a tail base and a codec base. `go vet`, `golangci-lint`, `go test ./...` and the full harness in quick mode pass.
-	- Swept: every way a scheme is set. Built-ins all have a tail with a tail layout. The config sets one only with a nonempty tail. `ApplyOptions` clears the layout with an empty tail and sets it with a parsed one, which is now checked. The browser and reactor modules take no tail.
-	- Branch: digit-values
-	- Commit: fbf6380
-	- Test case: `ErmULmP` TestTailSchemeNeedsTail, for each tail layout and for a comma-only tail through `ApplyOptions`, and `ErmULmv` "comma-only tail rejected" on the command. Both fail before the fix and pass after.
-	- Acceptance signoff: open. The command now refuses an input it used to take, with new error text, and the bug turned out to give wrong bytes, not only a confusing error.
-
 - The frontend parity and macOS universal binary sections of the harness fail when Go is missing, where the reactor section skips.
 	- ID: 2026100416545665
 	- Type: Bug
@@ -332,6 +312,22 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Incorrect behavior: with no `go` on the PATH, both sections count failures.
 	- Expected behavior: they skip with a warning, as the reactor section does.
 	- Reproduced: no. Seen while testing 2026100413480008 with a stub `go` that acts as missing.
+
+- A symbol spec of only commas parses to no symbols without an error.
+	- ID: 2026100417280514
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261004-172805
+	- Opened by: found while working 2026100416041479
+	- Target OS: Any
+	- Steps to reproduce:
+		- A config base with `tail: ,` or `tail: , ,`.
+	- Incorrect behavior: the base loads with no tail and no word about it. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
+	- Expected behavior: "no digit symbols" or similar, naming the field.
+	- Reproduced: no. Seen while working 2026100416041479.
+	- Probable fix: `ParseSymbolSpec` returns an error when a non-empty spec yields no symbols. Check what an intentionally empty field means first, since an empty `--to-tail` clears a tail on purpose.
+	- Related IDs: 2026100416041479
 
 - Several Go functions are hard to read at a glance. (Code review 20261004 item 23)
 	- ID: 2026100413480023
@@ -667,6 +663,28 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next beta. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
+
+- The number path looks up each digit twice. (Code review 20261004 item 19)
+	- ID: 2026100413480019
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Avg
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: `Tokenize` knows each digit's value, turns it back into a string, and `parseLeaf` hashes it again. Passing values instead was 30 to 37 percent faster from 1K to 64K digits, and the suite passed.
+	- Note: this leaves the divide and conquer design alone.
+	- Origin: `convert.go:148` from a6c8612 on 2026-08-02, and `Tokenize`. Not seen by an earlier round. Confirmed by benchmark.
+	- Done: the number path takes digit values straight from the tokenizer, and the divide and conquer parse packs them as they are. The two binary paths that read through `Tokenize` and looked each digit up again do the same. `Tokenize` keeps its signature and errors, and is now built on the same value scan.
+	- Decisions:
+		- The divide and conquer split, leaf size and format leg are unchanged.
+	- Verified: `BenchmarkPositional`, base 10 to 36, went from 40 to 24 us at 1K digits, 184 to 121 us at 4K, 0.98 to 0.73 ms at 16K and 6.8 to 5.4 ms at 64K. `go vet`, `golangci-lint` and `go test ./...` pass, the browser and reactor modules build, and the full harness passes in quick mode, conversions, interop and frontend parity included.
+	- Swept: every `Tokenize` caller. The number path and the two binary decoders now use values. `SymbolSlice`, `Fit` and the reactor's symbol count want symbols, so they keep `Tokenize`. No other site looks a digit up by its symbol after tokenizing.
+	- Branch: digit-values
+	- Commit: 6b7629b
+	- Test case: `ErmUk2J` TestNumberPathUsesTokenValues converts with the symbol map removed, so a second lookup reads every digit as zero. `ErmULlt` TestPositionalNearMathBig limits 1K digits to 1.5 times math/big's own conversion. It measured 1.9 before and 1.2 after. Both fail before the change and pass after. `BenchmarkPositional1K` to `64K` give the numbers, and `ElmJ1ea` TestDivideConquerBoundaries, `Elm99Wy` TestDigitChunkBoundaries and `Elm99Wz` TestFractionChunkBoundaries cover correctness.
+	- Acceptance signoff: Self-closed: the change does what the item asked, and its tests pass.
+	- Closed: 20261004-172702
 
 - `ParseSymbolSpec` splits every token on commas before checking for one, and rebuilds a replacer per token. (Code review 20261004 item 18)
 	- ID: 2026100413480018
