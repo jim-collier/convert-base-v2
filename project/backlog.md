@@ -51,13 +51,22 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `Finalize` is hard to follow and copies its case-flip block 3 times. (Code review 20261004 item 23a)
 	- ID: 2026100507495201
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority: Low
 	- Opened: 20261005-074952
 	- Opened by: Code review 20261004
 	- Parent ID: 2026100413480023
 	- Target OS: Any
 	- Note: `registry.go` `Finalize` scores 117 on gocognit. One of the 3 case-flip copies already differs from the others.
+	- Note: the copy that differs is the decode alias one, from the Crockford work. It has no `default: continue` and uses a zero byte to mean "not a letter" instead. It flips only a one-byte alias, and skips any form already in the table. Every input gives the same result as the other 2 copies, so it was a different way of writing the same thing, not a bug. No behavior changed.
+	- Done: `Finalize` is now a short list of steps, each its own small function, in the same order, so the same error comes first. The 3 copies are one `flipCase`. gocognit went from 121 on dev to 7 for `Finalize`, and 18 for the largest step.
+	- Verified: the derived tables and every error message are unchanged for every built-in and for 43 edge-case bases, before against after, including re-finalizing a copy. `go vet`, `go test ./...` and golangci-lint are clean.
+	- Swept: the other ASCII case code. `asciiUpper` in `escapes.go` only uppercases escape names, so it stays. `canLowercase`/`canUppercase` in `main.go` belong to item 23c.
+	- Branch: finalize-split
+	- Commit: b062cd7
+	- Test case: no new test, since nothing changed that a test could see. The existing suite covers `Finalize`: `EjeDvPT` TestFinalizeRejections, `EjeDvPQ` TestCrockfordAsymmetric, `ErmQ6z6` TestEveryBuiltinBuilds, `El51s2F` TestPadRejections, `El5mcJt` TestTailValidation, `Erm5wwf` TestTailNeedsOneCharDigits, `ErmULmP` TestTailSchemeNeedsTail, `El4bQL2` TestApplyMarkers and `Erlz3L2` TestMarkersWithoutDigits. Case flips on the command: `El4bQKx` and `Eje5hGL`.
+	- Acceptance signoff: Self-closed: the intent was clear, and the change does what it asked and no more.
+	- Closed: 20261005-075552
 
 - `Convert` buries the number path under byte-mode branching, and `convertBitPacked` has a dead arm. (Code review 20261004 item 23b)
 	- ID: 2026100507495202
