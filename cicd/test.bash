@@ -861,6 +861,13 @@ check ErmufVw errmsg "comma-only tail names the flag" '--to-tail: symbol spec ha
 check ErmufXE errmsg "comma-only symbols names the flag" '--to-symbols: symbol spec has only commas' -- --to-symbols ',' 5
 printf -- 'base: cfgcomma\n\tsymbols: 0123456789abcdef\n\ttail: ","\n##    Format   3\n' >"${CBT_TMP}/tail-comma.shcl"
 check ErmufYc errmsg "config comma-only tail names the field" 'line 3: base "cfgcomma": tail: symbol spec has only commas' -- --config "${CBT_TMP}/tail-comma.shcl" 5 16
+## A digit that isn't valid UTF-8 used to stream out text the same base's
+## streaming decode refused.
+printf 'hi' >"${CBT_TMP}/hi.bin"
+_run_in "${CBT_TMP}/hi.bin" --from bytes --to-symbols $'\x80 \x81 \xc3\xa9 \xc3\xa8'
+_assert Erq3i2u errmsg "invalid UTF-8 digit refused" 'base "custom(4)": digit "\x80" at index 0 is not valid UTF-8'
+printf -- 'base: cfgbadutf\n\tsymbols: "\xff a b c"\n##    Format   3\n' >"${CBT_TMP}/bad-utf8.shcl"
+check Erq3i3e errmsg "config invalid UTF-8 digit refused" 'base "cfgbadutf": digit "\xff" at index 0 is not valid UTF-8' -- --config "${CBT_TMP}/bad-utf8.shcl" 5 16
 
 ## Same tail declared in a config file rather than on the command line.
 tailcfg="${CBT_TMP}/tail.shcl"

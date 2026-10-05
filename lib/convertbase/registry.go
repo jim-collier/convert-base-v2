@@ -189,6 +189,9 @@ func (b *Base) Finalize() error {
 	if len(b.Symbols) < 2 {
 		return fmt.Errorf("base %q: need at least 2 symbols, have %d", b.Name(), len(b.Symbols))
 	}
+	if err := b.checkUTF8(); err != nil {
+		return err
+	}
 	if err := b.buildDigitTables(); err != nil {
 		return err
 	}
@@ -210,6 +213,43 @@ func (b *Base) Finalize() error {
 	}
 	b.buildRuneTable()
 	return b.buildTail()
+}
+
+// checkUTF8 refuses digits, tail symbols, pad or markers that aren't valid
+// UTF-8. Every invalid byte decodes to the same U+FFFD, so the rune table can't
+// tell such digits apart, and the streaming decoder refuses them, so the base
+// would stream out text it can't read back. The raw-byte base is exempt, since
+// its digits are single bytes by design.
+func (b *Base) checkUTF8() error {
+	if !b.Binary {
+		if i := firstInvalidUTF8(b.Symbols); i >= 0 {
+			return fmt.Errorf("base %q: digit %q at index %d is not valid UTF-8", b.Name(), b.Symbols[i], i)
+		}
+	}
+	if i := firstInvalidUTF8(b.TailSymbols); i >= 0 {
+		return fmt.Errorf("base %q: tail symbol %q at index %d is not valid UTF-8", b.Name(), b.TailSymbols[i], i)
+	}
+	if !utf8.ValidString(b.PadSymbol) {
+		return fmt.Errorf("base %q: padding symbol %q is not valid UTF-8", b.Name(), b.PadSymbol)
+	}
+	for _, mk := range []struct {
+		kind string
+		mark *string
+	}{{"negative", b.Negative}, {"decimal", b.Decimal}} {
+		if mk.mark != nil && !utf8.ValidString(*mk.mark) {
+			return fmt.Errorf("base %q: %s marker %q is not valid UTF-8", b.Name(), mk.kind, *mk.mark)
+		}
+	}
+	return nil
+}
+
+func firstInvalidUTF8(syms []string) int {
+	for i, s := range syms {
+		if !utf8.ValidString(s) {
+			return i
+		}
+	}
+	return -1
 }
 
 // buildDigitTables fills value, byteValue, allOneByte and maxByteLen from the
@@ -406,9 +446,10 @@ func (b *Base) checkPad() error {
 // decoder accepts exactly what the buffered one does or the base doesn't
 // qualify at all.
 func (b *Base) buildRuneTable() {
+	// The raw-byte base's high bytes would all land on the one U+FFFD key.
 	b.allOneRune = true
 	for sym := range b.value {
-		if utf8.RuneCountInString(sym) != 1 {
+		if utf8.RuneCountInString(sym) != 1 || !utf8.ValidString(sym) {
 			b.allOneRune = false
 			break
 		}

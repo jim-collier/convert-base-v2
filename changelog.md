@@ -84,6 +84,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `--help` stopped at a config file that would not load, and listed one it could not open as `[loaded]`. Its config section now marks such a file `[unreadable]`, or `[not loaded]` with the error under it, and the rest of the help prints. Any other run still stops at the error. Library: a config file that fails to load adds no bases, where before the ones above the fault stayed.
 
+- A custom base with a digit that isn't valid UTF-8, such as `--to-symbols $'\x80 \x81 é è'`, was accepted, and its streamed output was then refused by its own streaming decode. Such a digit is refused now, naming the base and the digit, and so are tail symbols, a pad and markers that aren't valid UTF-8. The `bytes` base is unchanged. Library: `Finalize` returns the error.
+
 ### Other work
 
 - The pipeline's lint stage checks the Bash scripts with shellcheck and the Python tools with ruff, set up by `.shellcheckrc` and `pyproject.toml`. A finding stops the run. A few copied-in and one-off research scripts are left out.  [20261004]
