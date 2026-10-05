@@ -48,6 +48,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Library: each built-in base is built the first time `Lookup` or `OrderedBases` reaches it, so `NewRegistry` no longer checks them. `Lookup` and `OrderedBases` are safe to call from several goroutines.
 
+- Long numbers convert faster, by 20 to 40 percent from a thousand to 64 thousand digits. Each digit is now looked up once instead of twice.
+
 - Config files are read with SHCL 3.0. A backslash in a value is plain text unless it is inside double quotes, where only `\t`, `\n`, `\\`, `\"`, `\'` and `\u` escapes are accepted. Any other escape there is refused. `\,` and `\#` no longer protect a comma or a `#` outside quotes; quote the value instead. A config without backslashes in it reads the same as before.
 
 - The config file written on the first run ends with SHCL's info block, which names the format version it was written for.

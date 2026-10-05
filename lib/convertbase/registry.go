@@ -504,38 +504,53 @@ func resolveMarker(kind string, raw *string, def string, digits map[string]int, 
 // Returns an error for any unrecognized byte/rune. s must NOT contain the
 // negative or decimal markers - the caller is expected to strip those first.
 func (b *Base) Tokenize(s string) ([]string, error) {
+	values, err := b.digitValues(s)
+	if err != nil || values == nil {
+		return nil, err
+	}
+	out := make([]string, len(values))
+	for i, v := range values {
+		out[i] = b.Symbols[v]
+	}
+	return out, nil
+}
+
+// digitValues is Tokenize returning each digit's value. The conversion paths
+// use it so a digit is looked up once, not again by its canonical symbol.
+func (b *Base) digitValues(s string) ([]int, error) {
 	if s == "" {
 		return nil, nil
 	}
 	if b.allOneByte {
-		out := make([]string, 0, len(s))
+		out := make([]int, len(s))
 		for i := 0; i < len(s); i++ {
 			v := b.byteValue[s[i]]
 			if v < 0 {
 				return nil, fmt.Errorf("byte %#02x (%q) not in base %q", s[i], string(s[i]), b.Name())
 			}
-			out = append(out, b.Symbols[v])
+			out[i] = v
 		}
 		return out, nil
 	}
 	// Greedy longest-match for bases with multi-byte symbols.
-	var out []string
+	var out []int
 	for len(s) > 0 {
-		matched := ""
+		matched := 0
+		var v int
 		for l := b.maxByteLen; l > 0; l-- {
 			if l > len(s) {
 				continue
 			}
-			if _, ok := b.value[s[:l]]; ok {
-				matched = s[:l]
+			if val, ok := b.value[s[:l]]; ok {
+				matched, v = l, val
 				break
 			}
 		}
-		if matched == "" {
+		if matched == 0 {
 			return nil, fmt.Errorf("cannot tokenize %q in base %q", s, b.Name())
 		}
-		out = append(out, b.Symbols[b.value[matched]])
-		s = s[len(matched):]
+		out = append(out, v)
+		s = s[matched:]
 	}
 	return out, nil
 }
