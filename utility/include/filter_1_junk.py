@@ -2,9 +2,19 @@
 
 """
 Purpose:
-	Generate a CSV of printable Unicode characters, grouped by Unicode block.
-	Each block becomes one or more rows with ~128-256 chars each (preferring 256).
-	Usage: ./generate_unicode_csv.py [output.csv]
+	Filters out Unicode characters that can't stand alone as a digit: combining
+	marks, format characters, right-to-left characters, dependent signs found by
+	name such as viramas, vowel signs and tone marks, a hard-coded list of
+	modifiers and repeat marks, ASCII symbols that cause trouble in shells and
+	file names, and characters that decompose into more than one base character.
+	First of three filters, ahead of 'filter_2_messy.py' and 'filter_3_visual.py'.
+	Prints the kept characters on one line, space-separated, without duplicates.
+
+	Usage:
+		./filter_1_junk.py [--debug] [chars ...]
+		echo "chars" | ./filter_1_junk.py [--debug]
+
+	--debug:  lists each removed character and the reason on stderr
 
 Copyright (c) 2026 Bubbles
 Licensed under The MIT License (MIT). Full text at:

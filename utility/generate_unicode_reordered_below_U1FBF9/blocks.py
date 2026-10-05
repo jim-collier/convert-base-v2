@@ -1,10 +1,6 @@
 """
-Build categorized CSV of printable Unicode U+0000..U+1FBF9.
-
-To run:
-	- Make sure 'blocks.py' and 'build_csv.py' are in the same directory.
-	- Requires Python 3, and the standard library `unicodedata` - in this case 15.0.0.
-	- Run: python3 build_csv.py
+Unicode 15 block table up to U+1FBFF, for 'build_csv.py' beside it, which
+imports it. Not run on its own.
 
 Copyright (c) 2026 Bubbles
 Licensed under The MIT License (MIT). Full text at:

@@ -4,7 +4,9 @@
 Purpose:
     Generate a CSV of printable Unicode characters, grouped by Unicode block.
     Each block becomes one or more rows with ~128-256 chars each (preferring 256).
-    Usage: ./generate_unicode_csv.py [output.csv]
+    Usage: ./generate_unicode_all_grouped_by_block.py [output.csv]
+    The output defaults to unicode_printable.csv. Its block table and helpers
+    are also imported by 'populate_unicode_spreadsheets_with_filtered_results.py'.
 
 Copyright (c) 2026 Bubbles
 Licensed under The MIT License (MIT). Full text at:
