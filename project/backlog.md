@@ -90,28 +90,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261005: split into 3 children, one per file, so each can be done and checked alone. This item closes when they do.
 
-- `Convert` buries the number path under byte-mode branching, and `convertBitPacked` has a dead arm. (Code review 20261004 item 23b)
-	- ID: 2026100507495202
-	- Type: Enhancement
-	- Status: Done
-	- Priority: Low
-	- Opened: 20261005-074952
-	- Opened by: Code review 20261004
-	- Parent ID: 2026100413480023
-	- Target OS: Any
-	- Note: `convert.go` `Convert` opens with 70 lines of byte-mode branching. The `case from.allOneByte` arm in `convertBitPacked` can never be reached.
-	- Note: why the arm was dead. It needs a source that isn't raw bytes but has one-byte digits. `Convert` is the only caller, and only calls it with one side raw bytes, so the target is raw bytes. The fast path at the top of `convertBitPacked` already returns for exactly that case.
-	- Done: `Convert` is now a short list of steps. Byte mode moved to `convertBytes`, which hands off to one of 3 steps: the codecs, bit-packing up to 8 bits, or the big-base schemes. The number path is split into marker checks, fraction rounding and joining. Error order is the same. The dead arm is gone, and a one-byte source to raw bytes still takes `decodeDigitsToBytes`. gocognit went from 91 to 8 for `Convert` and from 33 to 27 for `convertBitPacked`. The largest new step is 18.
-	- Verified: output and error text of `Convert` are the same before and after over 55,639 cases: every built-in base to and from `bytes` with good, bad, padded and cut-short input, a sample of number pairs, all at 3 precisions. `go vet`, `go test ./...`, golangci-lint, the browser and reactor builds, and the harness in quick mode at 557 of 557 pass.
-	- Verified: the command on 32 MiB times the same before and after for hex and base64 stream decode, base64 stream encode and buffered hex encode. The positional, profile and big-base benchmarks did not move past noise, and no benchmark allocates more.
-	- Note: in the package's own benchmarks `Decode16` and `Decode64` read 15 to 20 percent slower. The decoder's machine code is the same. Moving it by 32 bytes swaps which build is faster, so that is where the function lands, not the change. In the command binary the alignment is reversed.
-	- Swept: `StreamConvert` picks the non-binary side the same way, and needed no change. The comments in `bases.go` and `registry.go` that name `convertBitPacked` and `Convert()` still hold.
-	- Branch: convert-split
-	- Commit: c6b1bf0
-	- Test case: `Erq97xg` TestFractionRoundingCarries is new. Nothing pinned a fraction rounding up into the integer part, which now crosses a function boundary. It passes on the old and new code, and fails when the carry or the sign check after it is broken. The rest is the existing suite: `EjeDvPM` TestNumberVectors, `Ejlud57` TestAutoPrecision, `ErkSf4c` TestTinyFractionRoundsToZero, `Erlz3L2` TestMarkersWithoutDigits, `EjeDvPR` TestCustomSymbolsAndMarkers, `EjeDvPV` TestRoundTripNumber, `ErmUk2J` TestNumberPathUsesTokenValues, `EjeDvPN` TestCodecVectors, `EjeDvPO` TestNativeBaseVectors, `EjeDvPP` TestRFCPaddingVectors, `El5P4dm` TestWrappedBinaryDecode, `El5mcJr` TestUserDefinedTail, `EjeDvPU` TestStreamBufferedEquivalence and `Erm5wyD` TestBigBaseDecodeAllocs.
-	- Acceptance signoff: Self-closed: a refactor whose output and errors are the same before and after.
-	- Closed: 20261005-082456
-
 - `run()` is 440 lines, and the command's flag helpers repeat themselves. (Code review 20261004 item 23c)
 	- ID: 2026100507495203
 	- Type: Enhancement
@@ -1218,6 +1196,28 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: no new test, since nothing changed that a test could see. The existing suite covers `Finalize`: `EjeDvPT` TestFinalizeRejections, `EjeDvPQ` TestCrockfordAsymmetric, `ErmQ6z6` TestEveryBuiltinBuilds, `El51s2F` TestPadRejections, `El5mcJt` TestTailValidation, `Erm5wwf` TestTailNeedsOneCharDigits, `ErmULmP` TestTailSchemeNeedsTail, `El4bQL2` TestApplyMarkers and `Erlz3L2` TestMarkersWithoutDigits. Case flips on the command: `El4bQKx` and `Eje5hGL`.
 	- Acceptance signoff: Self-closed: the intent was clear, and the change does what it asked and no more.
 	- Closed: 20261005-075552
+
+- `Convert` buries the number path under byte-mode branching, and `convertBitPacked` has a dead arm. (Code review 20261004 item 23b)
+	- ID: 2026100507495202
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261005-074952
+	- Opened by: Code review 20261004
+	- Parent ID: 2026100413480023
+	- Target OS: Any
+	- Note: `convert.go` `Convert` opens with 70 lines of byte-mode branching. The `case from.allOneByte` arm in `convertBitPacked` can never be reached.
+	- Note: why the arm was dead. It needs a source that isn't raw bytes but has one-byte digits. `Convert` is the only caller, and only calls it with one side raw bytes, so the target is raw bytes. The fast path at the top of `convertBitPacked` already returns for exactly that case.
+	- Done: `Convert` is now a short list of steps. Byte mode moved to `convertBytes`, which hands off to one of 3 steps: the codecs, bit-packing up to 8 bits, or the big-base schemes. The number path is split into marker checks, fraction rounding and joining. Error order is the same. The dead arm is gone, and a one-byte source to raw bytes still takes `decodeDigitsToBytes`. gocognit went from 91 to 8 for `Convert` and from 33 to 27 for `convertBitPacked`. The largest new step is 18.
+	- Verified: output and error text of `Convert` are the same before and after over 55,639 cases: every built-in base to and from `bytes` with good, bad, padded and cut-short input, a sample of number pairs, all at 3 precisions. `go vet`, `go test ./...`, golangci-lint, the browser and reactor builds, and the harness in quick mode at 557 of 557 pass.
+	- Verified: the command on 32 MiB times the same before and after for hex and base64 stream decode, base64 stream encode and buffered hex encode. The positional, profile and big-base benchmarks did not move past noise, and no benchmark allocates more.
+	- Note: in the package's own benchmarks `Decode16` and `Decode64` read 15 to 20 percent slower. The decoder's machine code is the same. Moving it by 32 bytes swaps which build is faster, so that is where the function lands, not the change. In the command binary the alignment is reversed.
+	- Swept: `StreamConvert` picks the non-binary side the same way, and needed no change. The comments in `bases.go` and `registry.go` that name `convertBitPacked` and `Convert()` still hold.
+	- Branch: convert-split
+	- Commit: c6b1bf0
+	- Test case: `Erq97xg` TestFractionRoundingCarries is new. Nothing pinned a fraction rounding up into the integer part, which now crosses a function boundary. It passes on the old and new code, and fails when the carry or the sign check after it is broken. The rest is the existing suite: `EjeDvPM` TestNumberVectors, `Ejlud57` TestAutoPrecision, `ErkSf4c` TestTinyFractionRoundsToZero, `Erlz3L2` TestMarkersWithoutDigits, `EjeDvPR` TestCustomSymbolsAndMarkers, `EjeDvPV` TestRoundTripNumber, `ErmUk2J` TestNumberPathUsesTokenValues, `EjeDvPN` TestCodecVectors, `EjeDvPO` TestNativeBaseVectors, `EjeDvPP` TestRFCPaddingVectors, `El5P4dm` TestWrappedBinaryDecode, `El5mcJr` TestUserDefinedTail, `EjeDvPU` TestStreamBufferedEquivalence and `Erm5wyD` TestBigBaseDecodeAllocs.
+	- Acceptance signoff: Self-closed: a refactor whose output and errors are the same before and after.
+	- Closed: 20261005-082456
 
 - Python tools use three naming styles. Which one should they follow? (Code review 20261004 item 32)
 	- ID: 2026100413480032
