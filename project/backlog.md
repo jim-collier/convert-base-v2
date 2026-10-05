@@ -233,7 +233,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The demo gif generator holds every frame uncompressed in memory. (Code review 20261004 item 21)
 	- ID: 2026100413480021
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes. The two new checks passed on their own, not yet inside a full harness run.
 	- Priority: Avg
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -241,6 +242,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: 3166 frames at 960x540 come to about 1.6 GB before the save, on a box where `/tmp` has failed under memory pressure. Each added frame also copies itself and the previous frame to compare them.
 	- Probable fix: keep the last frame's bytes, and store frames compressed until the save.
 	- Origin: `gen-demo-gif.py:599-610`, from f4339b4 on 2026-07-11. Not seen by an earlier round. Confirmed by arithmetic on the committed gif.
+	- Note: the real peak was twice the estimate, since Pillow's save copied every frame again.
+	- Fixed: frames are encoded 32 at a time as they come in. Each batch is saved behind the last frame of the batch before, then that frame and the header are cut off, so the bytes match one save. Only the last frame's bytes are kept for the duplicate check.
+	- Verified: the full demo from dev's script and from this one, same scenario and binary, is byte-identical with and without the gifsicle pass, and matches the committed gif. Peak RSS went from 3308324 KB to 185140 KB, about 3.2 GB to 181 MB. Render time is about the same.
+	- Test case: `ErmYENq` "demo gif batches match one Pillow save" and `ErmYEP0` "demo gif frames are not all held until the save", in `cicd/test.bash`. They feed made-up frames and take under a second, where a real render takes over a minute. They fail with the cut point off by one byte, and with every frame held until the save (402 MiB against a 99 MiB bound).
+	- Branch: gif-memory
+	- Commit: ba15b41
 
 - The lint stage checks Go only. Shellcheck and ruff don't run, and nothing configures them. (Code review 20261004 item 22)
 	- ID: 2026100413480022
