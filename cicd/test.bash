@@ -2,9 +2,11 @@
 
 #  shellcheck disable=1091  ## 'source is valid here, but shellcheck doesn't know the path to it.'
 #  shellcheck disable=2001  ## 'See if you can use ${variable//search/replace} instead.' Complains about good uses of sed.
+#  shellcheck disable=2015  ## 'A && B || C is not if-then-else.' The one-line check form. _pass only fails if printing fails, and then _fail counts it too.
 #  shellcheck disable=2016  ## 'Expressions don't expand in single quotes, use double quotes for that.' I know, and I often want an explicit '$'.
 #  shellcheck disable=2034  ## 'variable appears unused.' Complains about valid use of variable indirection (e.g. later use of local -n var=$1)
 #  shellcheck disable=2046  ## 'Quote to prevent word-splitting.' (OK for integers.)
+#  shellcheck disable=2059  ## 'Variables in the printf format.' The \U escapes are built into the format on purpose, so printf expands them.
 #  shellcheck disable=2086  ## 'Double quote to prevent globbing and word splitting.' (OK for integers.)
 #  shellcheck disable=2155  ## 'Declare and assign separately to avoid masking return values.' Cumbersome and unnecessary.
 #  shellcheck disable=2162  ## 'read without -r will mangle backslashes.'
@@ -12,6 +14,7 @@
 #  shellcheck disable=2181  ## 'Check exit code directly, not indirectly with $?.'
 #  shellcheck disable=2207  ## 'Prefer mapfile or read -a to split command output.'
 #  shellcheck disable=2317  ## 'Can't reach.' (an 'exit' used for debugging makes a visual mess.)
+#  shellcheck disable=2329  ## 'Never invoked.' False hit on cleanup, which the EXIT trap runs.
 
 ##	Purpose:
 ##		- Exhaustive, CI-friendly test harness for convert-base-v2. Exits non-zero if any check fails.
@@ -27,7 +30,7 @@
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
 ##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
-##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, -q, and the dogfood copy.
+##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, -q, the dogfood copy, and the shellcheck and ruff gates.
 ##			- The harness itself: a run against a program that refuses everything, with Go off the PATH, counts each failure and reaches its summary.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
@@ -1664,6 +1667,15 @@ ptWant="$(sed -n 's/^NFPM_VERSION=//p' "${meDir}/tool-versions.env")"
 ptrc=0; ptOut="$(HOME="${ptDir}/home" FAKE_MOD="${ptWant}" PATH="${ptDir}/bin:${PATH}" bash "${meDir}/utility/pin-tools.bash" 2>&1)" || ptrc=$?
 { ((ptrc == 0)) && [[ -n "${ptWant}" && "${ptOut}" != *"installing nfpm"* ]]; } && _pass Erm3T1Z "pin-tools reads nfpm's version from a long module list" \
 	|| _fail Erm3T1Z "pin-tools reads nfpm's version from a long module list" "rc=${ptrc} want=${ptWant} out=[${ptOut}]"
+## shellcheck and ruff are only compared. A version that merely starts with
+## the pinned one is a different version.
+ptSc="$(sed -n 's/^SHELLCHECK_VERSION=//p' "${meDir}/tool-versions.env")"; ptRuff="$(sed -n 's/^RUFF_VERSION=//p' "${meDir}/tool-versions.env")"
+printf '%s\n' '#!/bin/sh' "printf 'ShellCheck\\nversion: ${ptSc}\\nlicense: x\\n'" >"${ptDir}/bin/shellcheck"
+printf '%s\n' '#!/bin/sh' "echo 'ruff ${ptRuff}1'" >"${ptDir}/bin/ruff"
+chmod +x "${ptDir}/bin/shellcheck" "${ptDir}/bin/ruff"
+ptrc=0; ptOut="$(HOME="${ptDir}/home" FAKE_MOD="${ptWant}" PATH="${ptDir}/bin:${PATH}" bash "${meDir}/utility/pin-tools.bash" 2>&1)" || ptrc=$?
+{ ((ptrc == 0)) && [[ -n "${ptSc}" && -n "${ptRuff}" && "${ptOut}" == *"WARNING: ruff is not the pinned ${ptRuff}"* && "${ptOut}" != *"shellcheck is not"* ]]; } && _pass Ermt58H "pin-tools reports a shellcheck or ruff that is not the pinned version" \
+	|| _fail Ermt58H "pin-tools reports a shellcheck or ruff that is not the pinned version" "rc=${ptrc} out=[${ptOut}]"
 
 ## awk -v would read the backslash as an escape and miss the heading.
 rbDir="${CBT_TMP}/rb"; mkdir -p "${rbDir}/dist"; rbVer='v9.9.9-b\q'
@@ -1875,6 +1887,68 @@ CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun -y
 CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun
 { ((ceRc == 1)) && [[ "${ceSudo}" == "-n cp -f "* && "${ceOut}" == *"even with sudo -n"* ]]; } && _pass ErmCp2L "dogfood: an attended run tries only sudo -n" \
 	|| _fail ErmCp2L "dogfood: an attended run tries only sudo -n" "sudo=[${ceSudo}] $(fCeTail)"
+
+## Lint: shellcheck and ruff check what the engine finds in a git repo of
+## fixtures. A finding fails the run, and so does finding nothing to check,
+## since a linter handed no files passes.
+if command -v shellcheck >/dev/null 2>&1 && command -v ruff >/dev/null 2>&1; then
+	clRepo="${ceDir}/lint"
+	mkdir -p "${clRepo}/cicd/utility/include" "${clRepo}/lib" "${clRepo}/skip"
+	cp "${meDir}/cicd.bash" "${clRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${clRepo}/cicd/utility/include/"
+	cp "${ceRepo}/lib/out" "${clRepo}/lib/out"
+	## The linter commands are the real config's; the file list is the fixtures'.
+	cp "${ceRepo}/cicd/config.bash" "${clRepo}/cicd/config.bash"
+	grep -E '^(SHELLCHECK_PROBE|SHELLCHECK_CMD|RUFF_PROBE|RUFF_CMD)=' "${meDir}/config.bash" >>"${clRepo}/cicd/config.bash"
+	cat >>"${clRepo}/cicd/config.bash" <<'EOF'
+VET_CMD=(true); TEST_CMD=(true); FUZZ_ENABLE=0; DOGFOOD_FIXED_DESTS=()
+SHELLCHECK_EXCLUDE=(cicd/ lib/ skip/ ${CL_SH_EXCLUDE:-})
+EOF
+	printf '%s\n' '#!/usr/bin/env bash' 'echo "${1:-}"' >"${clRepo}/ok.bash"
+	printf '%s\n' '#!/bin/sh' 'echo "$1"' >"${clRepo}/tool"
+	printf '%s\n' '#!/usr/bin/env node' 'console.log(1)' >"${clRepo}/run.mjs"
+	printf '%s\n' '#!/usr/bin/env bash' 'echo $1' >"${clRepo}/skip/bad.bash"
+	printf '%s\n' 'import sys' 'print(sys.argv)' >"${clRepo}/ok.py"
+	printf '%s\n' 'import os' >"${clRepo}/skip/bad.py"
+	printf '%s\n' '[tool.ruff]' 'extend-exclude = ["skip/"]' >"${clRepo}/pyproject.toml"
+	chmod +x "${clRepo}/tool" "${clRepo}/run.mjs"
+	git -C "${clRepo}" init -q
+	fClRun(){
+		clRc=0
+		( cd "${clRepo}" && git add -A && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
+			HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" bash "${clRepo}/cicd/cicd.bash" -y </dev/null >"${CBT_OUT}" 2>&1 ) || clRc=$?
+		clOut="$(cat "${CBT_OUT}")"
+	}
+	fClTail(){ printf 'rc=%s out=[%s]' "${clRc}" "$(grep -E 'OK: (shellcheck|ruff)|FAILED|ABORTED|SC[0-9]{4}|\.py:' "${CBT_OUT}" | head -4 | tr '\n' ' ')"; }
+
+	fClRun
+	{ ((clRc == 0)) && [[ "${clOut}" == *"OK: shellcheck clean (2 files)"* && "${clOut}" == *"OK: ruff clean (1 files)"* ]]; } && _pass ErmroeI "lint: shellcheck takes .bash files and shell shebangs, ruff takes .py, excludes hold" \
+		|| _fail ErmroeI "lint: shellcheck takes .bash files and shell shebangs, ruff takes .py, excludes hold" "$(fClTail)"
+	printf '%s\n' '#!/bin/sh' 'echo $1' >"${clRepo}/tool"
+	fClRun
+	{ ((clRc != 0)) && [[ "${clOut}" == *"tool:2:"*"[SC2086]"* && "${clOut}" != *"OK: shellcheck clean"* ]]; } && _pass Ermroeo "lint: a shellcheck finding in a script with no .bash name fails the run" \
+		|| _fail Ermroeo "lint: a shellcheck finding in a script with no .bash name fails the run" "$(fClTail)"
+	clFound="${clOut}"
+	printf '%s\n' '#!/bin/sh' 'echo "$1"' >"${clRepo}/tool"
+	printf '%s\n' 'import os' >"${clRepo}/bad.py"
+	fClRun
+	{ ((clRc != 0)) && [[ "${clOut}" == *"bad.py:1:"*"F401"* && "${clOut}" != *"OK: ruff clean"* ]]; } && _pass ErmrofR "lint: a ruff finding fails the run" \
+		|| _fail ErmrofR "lint: a ruff finding fails the run" "$(fClTail)"
+	## The startup look at the newest run log has to show both kinds.
+	mkdir -p "${ceDir}/lintlog"; printf '%s\n%s\n' "${clFound}" "${clOut}" >"${ceDir}/lintlog/run_20260101-000000.log"
+	clReport="$(bash "${meDir}/utility/lint-report.bash" --file "${ceDir}/lintlog/run_20260101-000000.log" 2>&1 || true)"
+	{ [[ "${clReport}" == "FLAG "*"tool:2:"*"[SC2086]"* && "${clReport}" == *"bad.py:1:"*"F401"* ]]; } && _pass Ermroh4 "lint-report shows shellcheck and ruff findings from a run log" \
+		|| _fail Ermroh4 "lint-report shows shellcheck and ruff findings from a run log" "report=[${clReport}]"
+	rm -f "${clRepo}/bad.py"
+	CL_SH_EXCLUDE="ok.bash tool" fClRun
+	{ ((clRc != 0)) && [[ "${clOut}" == *"FAILED: shellcheck: no Bash files found to check"* ]]; } && _pass Ermrofy "lint: shellcheck finding no files fails the run" \
+		|| _fail Ermrofy "lint: shellcheck finding no files fails the run" "$(fClTail)"
+	printf '%s\n' '[tool.ruff]' 'extend-exclude = ["*.py"]' >"${clRepo}/pyproject.toml"
+	fClRun
+	{ ((clRc != 0)) && [[ "${clOut}" == *"FAILED: ruff: no Python files found to check"* && "${clOut}" == *"OK: shellcheck clean"* ]]; } && _pass ErmrogW "lint: ruff finding no files fails the run" \
+		|| _fail ErmrogW "lint: ruff finding no files fails the run" "$(fClTail)"
+else
+	_warn "ErmroeI Ermroeo ErmrofR Ermroh4 Ermrofy ErmrogW" "lint stage checks skipped: needs shellcheck and ruff"
+fi
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

@@ -521,7 +521,7 @@ Prerequisites, in the order you are likely to need them.
 
 - **Bash 4 and the usual GNU tools** are needed for the pipeline scripts, which is what all the checks run under.
 
-- **Optional tools** are probed for and skipped when missing: `golangci-lint`, `staticcheck`, `govulncheck`, `nfpm` and `makensis` for packaging, `node` and `cargo` for the third-party comparison tests, `gifsicle` and Python with Pillow for the demo animation.
+- **Optional tools** are probed for and skipped when missing: `golangci-lint`, `staticcheck`, `shellcheck`, `ruff`, `govulncheck`, `nfpm` and `makensis` for packaging, `node` and `cargo` for the third-party comparison tests, `gifsicle` and Python with Pillow for the demo animation.
 
 The Go tree is under `lib/`. The command is in `lib/cmd/convert-base-v2/`, the conversion core in `lib/convertbase/`, and the WebAssembly entry points in `lib/wasm/` and `lib/reactor/`.
 

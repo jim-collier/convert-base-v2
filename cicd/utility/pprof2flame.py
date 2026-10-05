@@ -24,7 +24,11 @@
 ##	SPDX-License-Identifier: MIT
 
 
-import argparse, html, os, subprocess, sys
+import argparse
+import html
+import os
+import subprocess
+import sys
 
 STEP    = 16      # row height in the SVG, px (a child sits at parent_y - STEP)
 RECTH   = 15      # drawn rect height, px
@@ -58,7 +62,8 @@ def fFold(prof, go):
 	for line in raw.splitlines():
 		low = line.strip()
 		if low in ("Samples:", "Locations", "Mappings"):
-			section = low.rstrip(":"); continue
+			section = low.rstrip(":")
+			continue
 		if section == "Samples":
 			if ":" not in line or not low[:1].isdigit():
 				continue
@@ -165,7 +170,7 @@ def fEmit(frames, total, title, minwidth):
 		esc = html.escape(name)
 		out.append(
 			f'<title>{esc} ({int(w)} samples, {pct:.2f}%)</title>'
-			f'<rect x="{x/WIDTH*100:.4f}%" y="{y}" width="{frac*usable/WIDTH*100:.4f}%" '
+			f'<rect x="{x/WIDTH*100:.4f}%" y="{y}" width="{wpx/WIDTH*100:.4f}%" '
 			f'height="{RECTH}" fill="{fColor(name)}" fg:x="{int(xoff)}" fg:w="{int(w)}"/>'
 		)
 	out.append('</svg>')

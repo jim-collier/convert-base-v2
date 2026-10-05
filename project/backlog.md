@@ -37,7 +37,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The lint stage checks Go only. Shellcheck and ruff don't run, and nothing configures them. (Code review 20261004 item 22)
 	- ID: 2026100413480022
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: a full `cicd/test.bash`, and one `cicd/cicd.bash` run to see stage 3 pass on the real tree.
 	- Priority: Avg
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -47,6 +48,21 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Origin: the lint stage from a8d50ce on 2026-07-09. Directive gap, filed against the 2026-10-04 directives.
 	- Prereq IDs: 2026100413480032
 	- Note: item 32 answered. ruff's naming rules stay on, with `flame-report.py` excluded since it came from silkterm.
+	- Progress log:
+		- Done: stage 3 runs shellcheck on every tracked Bash file, found by `.bash` name or by a shell shebang on an executable, and ruff on the Python tools. Both are probe-gated like golangci-lint. A finding stops the run, and so does an empty file list.
+		- Done: `.shellcheckrc` lets shellcheck follow sourced files beside a script. `pyproject.toml` adds ruff's naming rules and sets tab indent for its formatter.
+		- Done: `lint-report.bash` now shows shellcheck and ruff findings from a run log. `tool-versions.env` records both versions, and `pin-tools.bash` warns when one differs, since neither is installed by the pipeline.
+		- Done: the nine ruff findings in the pipeline tools are fixed. `pprof2flame.py` now uses its `wpx`, and its SVG output is unchanged.
+		- Note: hosted CI is unchanged. Its runner has an older shellcheck and no ruff.
+	- Decisions:
+		- The SC2015 notes in `test.bash`, 134 by now, are cleared with one file-level disable rather than rewritten. All of them are `&& _pass || _fail`, and `_pass` fails only when printing fails, which `_fail` then counts. An if/else on each would add several hundred lines and change nothing.
+		- Left out of shellcheck: `legacy/`, the v1 and v1b scripts, the shared `n8git_backup-and-publish` and `gfs-rotate.bash`, and the Unicode research scripts. Left out of ruff: the Unicode research scripts.
+		- Naming rules are off for `flame-report.py` for good, and for `pprof2flame.py`, `gen-demo-gif.py` and `gen-bases-table.py` until their snake_case rename.
+	- Verified: shellcheck is clean on the 14 files the stage finds, and ruff on 5. The stage fails on a shellcheck finding in `install.bash` and on a ruff finding in `gen-bases-table.py`, and passes again without them. The new harness checks fail on the old engine, `lint-report.bash` and `pin-tools.bash`, and pass on the new ones.
+	- Swept: every tracked shell file through shellcheck and every Python file through ruff, the excluded ones included.
+	- Branch: lint-sh-py
+	- Commit: 294764b
+	- Test case: ErmroeI, Ermroeo, ErmrofR, Ermroh4, Ermrofy, ErmrogW (CI engine section), Ermt58H (pin-tools).
 
 - The "Config files" part of `--help` can be wrong or missing. (Code review 20261004 item 13)
 	- ID: 2026100413480013

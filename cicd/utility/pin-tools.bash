@@ -12,6 +12,7 @@ set -euo pipefail
 ##		  with `go install`.
 ##		- Warn-only: an install failure (e.g. offline) keeps whatever is there;
 ##		  the probe-gated stages still skip a tool that stays missing.
+##		- shellcheck and ruff are only checked, not installed.
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${here}/../tool-versions.env"
@@ -53,5 +54,19 @@ fPinModule(){
 	go install "${module}@${want}" || echo "[ pin: WARNING: ${exe} install failed; keeping what's there ]"
 }
 fPinModule nfpm "${NFPM_VERSION}" github.com/goreleaser/nfpm/v2/cmd/nfpm
+
+## Not ours to install, so only say when one differs. A missing one is the
+## lint stage's to report.
+fPinWarn(){
+	local exe="$1" want="$2"; shift 2
+	local have=""
+	command -v "${exe}" >/dev/null 2>&1 || return 0
+	have="$("${exe}" "$@" 2>&1 || true)"
+	if [[ "${have}" =~ (^|[^0-9.])"${want}"($|[^0-9.]) ]]; then return 0; fi
+	changed=1
+	echo "[ pin: WARNING: ${exe} is not the pinned ${want}; lint findings may differ ]"
+}
+fPinWarn shellcheck "${SHELLCHECK_VERSION}" --version
+fPinWarn ruff       "${RUFF_VERSION}"       --version
 
 ((changed)) || echo "[ pins ok ]"

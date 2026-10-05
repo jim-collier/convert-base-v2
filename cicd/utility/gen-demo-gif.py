@@ -33,16 +33,26 @@
 ##	SPDX-License-Identifier: MIT
 
 
-import argparse, io, os, random, re, shlex, subprocess, sys, unicodedata
+import argparse
+import io
+import os
+import random
+import re
+import shlex
+import subprocess
+import sys
+import unicodedata
 
 try:
 	import tomllib
 except ImportError:
-	sys.stderr.write("gen-demo-gif: needs python 3.11+ (tomllib)\n"); sys.exit(2)
+	sys.stderr.write("gen-demo-gif: needs python 3.11+ (tomllib)\n")
+	sys.exit(2)
 try:
 	from PIL import Image, ImageDraw, ImageFont
 except ImportError:
-	sys.stderr.write("gen-demo-gif: Pillow not installed\n"); sys.exit(2)
+	sys.stderr.write("gen-demo-gif: Pillow not installed\n")
+	sys.exit(2)
 
 
 ##	Canvas and window chrome. 960x540 total; the window fills the whole view
@@ -101,7 +111,8 @@ def fEmojiInit():
 	##	if any piece is missing the chars just draw through the monochrome
 	##	fallback like before.
 	try:
-		import gi, cairo
+		import gi
+		import cairo
 		gi.require_version("Pango", "1.0")
 		gi.require_version("PangoCairo", "1.0")
 		from gi.repository import Pango, PangoCairo

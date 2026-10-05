@@ -93,6 +93,24 @@ STATICCHECK_PROBE=(staticcheck -version)
 ## Named packages, not ./..., so the vendored shcl copy stays out of it.
 STATICCHECK_CMD=(staticcheck ./cmd/convert-base-v2 ./convertbase)
 
+## Stage 3 also lints the Bash and Python, from the repo root, probe-gated the
+## same way. shellcheck takes every tracked Bash file the engine finds, less the
+## path prefixes below; .shellcheckrc at the root lets it follow sourced files.
+## ruff reads pyproject.toml, which has its own excludes. An empty list fails.
+SHELLCHECK_PROBE=(shellcheck --version)
+SHELLCHECK_CMD=(shellcheck -f gcc)
+SHELLCHECK_EXCLUDE=(
+	legacy/                                     # the v1 tree, kept as it was
+	cicd/utility/convert-base-v1                # v1 and v1b, frozen copies the harness checks against
+	cicd/utility/convert-base-v1b
+	cicd/utility/n8git_backup-and-publish       # shared copies, linted where they come from
+	cicd/utility/include/gfs-rotate.bash
+	utility/unicode_                            # one-off Unicode research scripts
+	utility/test_filter_all_from_xclipboard_input.bash
+)
+RUFF_PROBE=(ruff --version)
+RUFF_CMD=(ruff check --output-format concise)
+
 ## Stage 4a: unit tests (Go, run inside SRC_DIR) plus the integration harness
 ## (cicd/test.bash, run from root against the staged binary via CICDTEST_EXE).
 UNIT_TEST_CMD=(go test -json ./...)
@@ -201,3 +219,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-07-03 JC: Created (converted from the monolithic cicd.bash to the generic engine + config split).
 ##		- 2026-07-09 JC: Added lint (vet/golangci/staticcheck), fuzz, vuln, and profiler stages; artifact dirs; quiet/message publish.
 ##		- 2026-07-29 JC: Added the vendor pin check (cicd/vendor-pins.env) ahead of stage 1.
+##		- 2026-10-04 JC: shellcheck and ruff in the lint stage.

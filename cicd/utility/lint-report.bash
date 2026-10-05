@@ -81,15 +81,17 @@ if ((check)) && ((! noMark)) && [[ -n "$ts" ]]; then
 	printf '%s\n' "$ts" > "$marker" 2>/dev/null || echo "lint-report: could not write marker: $marker" >&2
 fi
 
-##	Distil warnings/advisories from the Go toolchain. go vet and gofmt say nothing
-##	on success; staticcheck emits "SAxxxx"/"QFxxxx" + "file.go:line:col:" findings;
-##	golangci prints "level=warning" and per-linter lines; govulncheck reports a
-##	called "Vulnerability" + "GO-YYYY-NNNN" id. A hard build/test error only shows
-##	in a failed run's log (a passing run aborts on the first error). The excludes
+##	Distil warnings/advisories from the Go toolchain and the script linters. go vet
+##	and gofmt say nothing on success; staticcheck emits "SAxxxx"/"QFxxxx" +
+##	"file.go:line:col:" findings; golangci prints "level=warning" and per-linter
+##	lines; govulncheck reports a called "Vulnerability" + "GO-YYYY-NNNN" id;
+##	shellcheck ends each finding with "[SCxxxx]", and ruff starts each with
+##	"file.py:line:col:". A hard build/test error or a shellcheck/ruff finding
+##	only shows in a failed run's log (a passing run aborts on the first error). The excludes
 ##	drop the clean-run noise: "0 issues/no problems", the "[ OK: ... ]" status lines
 ##	the engine prints, and govulncheck's note about UNcalled dependency vulns (it
 ##	says outright our code doesn't reach them, so they are not actionable here).
-warns="$(grep -inE 'warning|vet:|SA[0-9]{4}|QF[0-9]{4}|Vulnerability|GO-[0-9]{4}-|# .*\.go|\.go:[0-9]+:[0-9]+:' "$log" 2>/dev/null \
+warns="$(grep -inE 'warning|vet:|SA[0-9]{4}|QF[0-9]{4}|SC[0-9]{4}|Vulnerability|GO-[0-9]{4}-|# .*\.go|\.(go|py):[0-9]+:[0-9]+:' "$log" 2>/dev/null \
 	| grep -viE 'no vulnerabilities|0 issues|no problems|0 warnings|found no|Scanning your code|\[ OK:|scan also found|appear to call|in modules you require|packages you import' || true)"
 if [[ -n "$warns" ]]; then n=$(printf '%s\n' "$warns" | grep -c .); else n=0; fi
 
@@ -105,3 +107,4 @@ fi
 
 ##	Script history:
 ##		- 20260709: Created.
+##		- 20261004: shellcheck and ruff findings.

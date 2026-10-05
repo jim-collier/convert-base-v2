@@ -16,7 +16,11 @@
 ##	SPDX-License-Identifier: MIT
 
 
-import argparse, html, os, re, sys
+import argparse
+import html
+import os
+import re
+import sys
 
 STEP      = 16              # flamegraph row height in the SVG, px (a child sits at parent_y - STEP)
 SELF_TOP  = 22             	# self-time leaders to list

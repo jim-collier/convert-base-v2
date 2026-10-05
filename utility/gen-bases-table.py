@@ -22,7 +22,13 @@
 ##	SPDX-License-Identifier: MIT
 
 
-import argparse, math, os, shutil, subprocess, sys, unicodedata
+import argparse
+import math
+import os
+import shutil
+import subprocess
+import sys
+import unicodedata
 
 ##	Two forms of the same number. The signed fractional one shows more of what
 ##	a base can do, but nine of the alphabets use every candidate character as a

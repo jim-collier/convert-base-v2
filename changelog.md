@@ -78,6 +78,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `--from-tail` or `--to-tail` given only commas set no tail symbols but still switched the base to its tail layout, so some lengths decoded to the wrong bytes with no error. It is refused now, naming the base. Library: `Finalize` refuses a tail `BinaryScheme` on a base with no tail symbols.
 
+### Other work
+
+- The pipeline's lint stage checks the Bash scripts with shellcheck and the Python tools with ruff, set up by `.shellcheckrc` and `pyproject.toml`. A finding stops the run. A few copied-in and one-off research scripts are left out.  [20261004]
+
 ## v3.0.0 - 2026-08-04
 
 ### Notes

@@ -24,7 +24,7 @@
 ##	- Stages (fail-fast, any error aborts before the next stage):
 ##	   1. format (gofmt)
 ##	   2. native build (staged aside so the cross stage can't clobber it)
-##	   3. lint (go vet gating; golangci-lint + staticcheck if installed)
+##	   3. lint (go vet gating; golangci-lint, staticcheck, shellcheck and ruff if installed)
 ##	   4. tests (unit + integration harness + fuzz + govulncheck security)
 ##	   5. profiler (flamegraph SVG; non-gating artifact - see failure policy)
 ##	   6. cross-compile + package every shipping platform (archives, deb/rpm, Windows installers, checksums)
@@ -87,7 +87,7 @@ while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
 	--no-fmt)                 FMT_CMD=(); shift ;;
-	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); shift ;;
+	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); SHELLCHECK_CMD=(); RUFF_CMD=(); shift ;;
 	--no-cross)               BUILD_CROSS=0; shift ;;
 	--no-profile)             PROFILE_ENABLE=0; shift ;;
 	--no-dogfood)             DOGFOOD_FIXED_DESTS=(); shift ;;
@@ -131,6 +131,27 @@ fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fEcho "$*"; [[ "${stage_pa
 fDie(){ { fEcho_Force "FAILED: $*"; } >&2; exit 1; }
 ## Run a command array inside the Go module dir (SRC_DIR). Go tool stages need it.
 in_src(){ ( cd "${root}/${SRC_DIR}" && "$@" ); }
+## Every tracked Bash file into the named array: a *.bash name, or an executable
+## with a sh or bash shebang. Paths starting with a SHELLCHECK_EXCLUDE entry are
+## left out. A new script is checked without being listed anywhere.
+fShellFiles(){
+	local -n files_fsf="$1"
+	local entry mode path exclude firstLine
+	local shebangRe='^#!.*[/[:space:]](ba)?sh([[:space:]]|$)'
+	files_fsf=()
+	while IFS= read -r -d '' entry; do
+		mode="${entry%% *}"; path="${entry#*$'\t'}"
+		for exclude in "${SHELLCHECK_EXCLUDE[@]}"; do
+			if [[ "${path}" == "${exclude}"* ]]; then continue 2; fi
+		done
+		if [[ "${path}" != *.bash ]]; then
+			[[ "${mode}" == "100755" ]] || continue
+			firstLine=""; IFS= read -r firstLine <"${root}/${path}" || true
+			[[ "${firstLine}" =~ ${shebangRe} ]] || continue
+		fi
+		files_fsf+=("${path}")
+	done < <(git -C "${root}" ls-files -s -z)
+}
 trap 'rc=$?; printf "\n[ CICD ABORTED (exit %s) at line %s: %s ]\n" "$rc" "$LINENO" "$BASH_COMMAND" >&2; exit $rc' ERR
 
 ## Preflight: show the plan with resolved paths, then confirm.
@@ -148,7 +169,7 @@ fEcho_Chat "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debu
 ((${#RELEASE_BUILD_CMD[@]})) && \
 fEcho_Chat "                       ${RELEASE_BUILD_CMD[*]} -> ${STAGED_RELEASE_BIN} (release, dogfooded)"
 if ((${#VET_CMD[@]})); then
-	fEcho_Chat "Lint ................: ${VET_CMD[*]}  (+ golangci-lint, staticcheck if installed)"
+	fEcho_Chat "Lint ................: ${VET_CMD[*]}  (+ golangci-lint, staticcheck, shellcheck, ruff if installed)"
 else
 	fEcho_Chat "Lint ................: (skipped)"
 fi
@@ -255,8 +276,9 @@ if ((${#RELEASE_BUILD_CMD[@]})); then
 	fEcho "OK: release build: ${STAGED_RELEASE_BIN} ($(du -h "${STAGED_RELEASE_BIN}" | cut -f1))  ($("${STAGED_RELEASE_BIN}" --version))"
 fi
 
-## Stage 3: lint. go vet is gating; golangci-lint / staticcheck run when installed
-## (a failed probe skips that one with a warning). All output lands in the run log.
+## Stage 3: lint. go vet is gating; golangci-lint, staticcheck, shellcheck and ruff
+## run when installed (a failed probe skips that one with a warning). Any finding
+## from one that runs aborts. All output lands in the run log.
 fSection "3/8  Lint"
 if ((${#VET_CMD[@]} == 0)); then
 	fEcho_Chat "lint skipped"
@@ -275,6 +297,25 @@ else
 			in_src "${STATICCHECK_CMD[@]}"; fEcho "OK: staticcheck clean"
 		else
 			fEcho "WARNING: staticcheck skipped (not installed: go install honnef.co/go/tools/cmd/staticcheck@latest)"
+		fi
+	fi
+	## A linter handed no files passes, so an empty list is a failure.
+	if [[ -n "${SHELLCHECK_CMD[*]:-}" ]]; then
+		if "${SHELLCHECK_PROBE[@]}" >/dev/null 2>&1; then
+			fShellFiles shellFiles
+			((${#shellFiles[@]})) || fDie "shellcheck: no Bash files found to check"
+			"${SHELLCHECK_CMD[@]}" "${shellFiles[@]}"; fEcho "OK: shellcheck clean (${#shellFiles[@]} files)"
+		else
+			fEcho "WARNING: shellcheck skipped (not installed: apt install shellcheck)"
+		fi
+	fi
+	if [[ -n "${RUFF_CMD[*]:-}" ]]; then
+		if "${RUFF_PROBE[@]}" >/dev/null 2>&1; then
+			pyCount="$("${RUFF_CMD[@]}" --show-files 2>/dev/null | grep -c '\.py$' || true)"
+			((pyCount)) || fDie "ruff: no Python files found to check"
+			"${RUFF_CMD[@]}"; fEcho "OK: ruff clean (${pyCount} files)"
+		else
+			fEcho "WARNING: ruff skipped (not installed: pipx install ruff)"
 		fi
 	fi
 fi
@@ -501,3 +542,4 @@ fEcho_Clean
 ##		- 2026-07-03 JC: Created. Generic engine + config.bash, adapted from the sister project; Go build staging, exhaustive tests, quiet publish.
 ##		- 2026-07-09 JC: silkterm-style output (fEcho/fSection letterbox); -q/-m/--quick flags; lint, fuzz, vuln, profiler stages; tee'd run log; message prompt replaces y/n.
 ##		- 2026-07-29 JC: Vendored drop-in files are verified against their pinned upstream release before the build.
+##		- 2026-10-04 JC: shellcheck and ruff in the lint stage.
