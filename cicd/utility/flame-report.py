@@ -33,12 +33,14 @@ FRAME_RE  = re.compile(r"<title>(.*?)</title><rect ([^>]*?)/>", re.S)
 
 ##	Subsystem buckets for THIS app, keyed on function-name substrings. The
 ##	workload drives both hot paths, so self-time splits across: the
-##	arbitrary-precision math/big convert (the real O(N^2) sink), the O(N)
-##	streaming bit-packing/codec path, and Go's GC + allocator (usually just the
-##	cost of the allocations the convert paths make - discount unless it dwarfs
-##	the actual work). Order matters: first match wins.
+##	arbitrary-precision big-number convert (math/big plus our divide and conquer
+##	parse and format around it), the O(N) streaming bit-packing/codec path, and
+##	Go's GC + allocator (usually just the cost of the allocations the convert
+##	paths make - discount unless it dwarfs the actual work). Order matters:
+##	first match wins.
 BUCKETS = [
-	("big-int, math/big convert", ("math/big", ".Convert", "bigConvert", "quoRem")),
+	("big-int, math/big convert", ("math/big", ".Convert", "bigConvert", "quoRem",
+	                               "dcState", "DCState", "parseDigits", "formatDigits", "wordChunk")),
 	("streaming, bit-packing/codec", ("stream", "encodeCodec", "decodeCodec", "bitPack", "packBits", "unpackBits")),
 	("GC + allocator (discount)", ("runtime.gc", "mallocgc", "runtime.scan", "runtime.mark", "runtime.sweep",
 	                               "memclr", "memmove", "growslice", "typedslicecopy", "runtime.span", "heap")),
@@ -58,7 +60,11 @@ def fNewest(pdir):
 	##	(frequent -> latest -> hour/day/...) as time passes, but the timestamp in
 	##	the name is stable.
 	best = None
-	for name in os.listdir(pdir):
+	try:
+		names = os.listdir(pdir)
+	except OSError as e:
+		fSkip(f"cannot read {pdir}: {e}")
+	for name in names:
 		m = NAME_RE.match(name)
 		if m and (best is None or m.group(1) > best[0]):
 			best = (m.group(1), name)
@@ -66,7 +72,11 @@ def fNewest(pdir):
 
 
 def fParse(path):
-	text = open(path, encoding="utf-8").read()
+	try:
+		with open(path, encoding="utf-8") as f:
+			text = f.read()
+	except (OSError, UnicodeDecodeError) as e:
+		fSkip(f"cannot read {path}: {e}")
 	m = re.search(r'total_samples="(\d+)"', text)
 	total = int(m.group(1)) if m else 0
 	frames = []                                      # each: (name, x, y, w) in raw samples
@@ -215,3 +225,4 @@ if __name__ == "__main__":
 
 ##	History:
 ##		- 20260709: Created.
+##		- 20261004: An unreadable flamegraph is a skip (exit 2). The divide and conquer convert counts as big-int.

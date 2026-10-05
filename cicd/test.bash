@@ -1825,6 +1825,38 @@ else
 		|| _fail ErmYEP0 "demo gif frames are not all held until the save" "rc=${dgrc} out=[$(cat "${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
 fi
 
+## flame-report.py is the startup gate's reader. A flamegraph it can't read is
+## a skip, exit 2, never a traceback. Root reads a mode-000 file anyway, so
+## that case only runs where the mode holds.
+frDir="${CBT_TMP}/fr"; mkdir -p "${frDir}"
+printf '<svg total_samples="9">\xff\xfe</svg>\n' >"${frDir}/flame_20260101-000000_latest.svg"
+printf '<svg total_samples="9"></svg>\n' >"${frDir}/locked.svg"; chmod 000 "${frDir}/locked.svg"
+frCases=("${frDir}/flame_20260101-000000_latest.svg")
+[[ -r "${frDir}/locked.svg" ]] || frCases+=("${frDir}/locked.svg")
+for frFile in "${frCases[@]}"; do
+	frrc=0; python3 "${meDir}/utility/flame-report.py" --file "${frFile}" >/dev/null 2>"${CBT_ERR}" || frrc=$?
+	{ ((frrc == 2)) && ! grep -qF "Traceback" "${CBT_ERR}"; } && _pass Ermz79l "flame-report skips an unreadable flamegraph: ${frFile##*/}" \
+		|| _fail Ermz79l "flame-report skips an unreadable flamegraph: ${frFile##*/}" "rc=${frrc} err=[$(tail -2 "${CBT_ERR}")]"
+done
+chmod 600 "${frDir}/locked.svg"
+## The divide and conquer parse and format, and what they call, are big-int
+## time. Every frame here has self time only in those.
+frPkg="github.com/jim-collier/convert-base-v2/lib/convertbase"
+{
+	printf '<svg total_samples="100">\n'
+	for frFrame in "all 100 0 100" "${frPkg}.parseDigits 84 0 40" "${frPkg}.newDCState 68 0 10" "${frPkg}.wordChunk 52 0 10" \
+		"${frPkg}.(*dcState).parse 68 10 30" "${frPkg}.(*dcState).parseLeaf 52 10 30" "${frPkg}.formatDigits 84 40 60" \
+		"${frPkg}.(*dcState).growPows 68 40 10" "${frPkg}.(*dcState).format 68 50 50" "${frPkg}.(*dcState).formatLeaf 52 50 50"; do
+		read -r frName frY frX frW <<<"${frFrame}"
+		printf '<g><title>%s (%s samples)</title><rect x="0" y="%s" width="1" height="15" fg:x="%s" fg:w="%s"/></g>\n' "${frName}" "${frW}" "${frY}" "${frX}" "${frW}"
+	done
+	printf '</svg>\n'
+} >"${frDir}/flame_20260101-000001_latest.svg"
+frrc=0; python3 "${meDir}/utility/flame-report.py" --file "${frDir}/flame_20260101-000001_latest.svg" >"${CBT_OUT}" 2>"${CBT_ERR}" || frrc=$?
+{ ((frrc == 0)) && grep -qE '^  big-int, math/big convert\.*: 100\.0%$' "${CBT_OUT}"; } && _pass Ermz7AQ "flame-report counts the divide and conquer convert as big-int" \
+	|| _fail Ermz7AQ "flame-report counts the divide and conquer convert as big-int" "rc=${frrc} out=[$(head -8 "${CBT_OUT}" | tr '\n' ' ')] err=[$(tail -2 "${CBT_ERR}")]"
+
+
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## CI engine. cicd.bash runs from a copy with a stub config, so every stage is
