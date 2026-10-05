@@ -182,11 +182,39 @@ func (b *Base) HasByteDigit(c byte) bool {
 
 // Finalize builds the derived lookup tables and resolves Negative/Decimal.
 // Call after Symbols/Aliases/Negative/Decimal are set.
+//
+// The steps run in this order on purpose: each one reads tables the ones before
+// it built, and the first error found is the one reported.
 func (b *Base) Finalize() error {
 	if len(b.Symbols) < 2 {
 		return fmt.Errorf("base %q: need at least 2 symbols, have %d", b.Name(), len(b.Symbols))
 	}
+	if err := b.buildDigitTables(); err != nil {
+		return err
+	}
+	singleCase := !b.hasBothCases()
+	if singleCase {
+		b.addCaseFlips()
+	}
+	if err := b.addDecodeAliases(singleCase); err != nil {
+		return err
+	}
+	if err := b.checkPrefixFree(); err != nil {
+		return err
+	}
+	if err := b.resolveMarkers(); err != nil {
+		return err
+	}
+	if err := b.checkPad(); err != nil {
+		return err
+	}
+	b.buildRuneTable()
+	return b.buildTail()
+}
 
+// buildDigitTables fills value, byteValue, allOneByte and maxByteLen from the
+// digits alone, refusing an empty or repeated symbol.
+func (b *Base) buildDigitTables() error {
 	b.value = make(map[string]int, len(b.Symbols))
 	b.allOneByte = true
 	for i := range b.byteValue {
@@ -211,122 +239,115 @@ func (b *Base) Finalize() error {
 			b.allOneByte = false
 		}
 	}
+	return nil
+}
 
-	// Accept case-flipped ASCII letters as *input* aliases (doesn't affect
-	// output), but only for effectively single-case bases. Skip this behavior
-	// entirely for mixed-case bases (e.g., base32w, base52, base64r) where
-	// upper and lower are distinct digits.
-	bothCase := false
-	for sym := range b.value {
+// flipCase returns the other case of an ASCII letter, and false for anything
+// else.
+func flipCase(c byte) (byte, bool) {
+	switch {
+	case c >= 'A' && c <= 'Z':
+		return c + 32, true
+	case c >= 'a' && c <= 'z':
+		return c - 32, true
+	}
+	return 0, false
+}
+
+// hasBothCases reports whether some letter digit has its other case as a digit
+// too, as in base32w, base52 or base64r. There upper and lower are distinct
+// digits, so no case-flipped input is accepted.
+func (b *Base) hasBothCases() bool {
+	for _, sym := range b.Symbols {
 		if len(sym) != 1 {
 			continue
 		}
-		c := sym[0]
-		var flipped byte
-		switch {
-		case c >= 'A' && c <= 'Z':
-			flipped = c + 32
-		case c >= 'a' && c <= 'z':
-			flipped = c - 32
-		default:
+		if flipped, ok := flipCase(sym[0]); ok {
+			if _, exists := b.value[string(flipped)]; exists {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// addCaseFlips accepts case-flipped ASCII letters as input for a single-case
+// base. Output is unchanged.
+func (b *Base) addCaseFlips() {
+	for v, sym := range b.Symbols {
+		if len(sym) != 1 {
+			continue
+		}
+		flipped, ok := flipCase(sym[0])
+		if !ok {
 			continue
 		}
 		if _, exists := b.value[string(flipped)]; exists {
-			bothCase = true
-			break
+			continue
+		}
+		b.value[string(flipped)] = v
+		if b.allOneByte {
+			b.byteValue[flipped] = v
 		}
 	}
-	if !bothCase {
-		type extra struct {
-			s string
-			b byte
-			v int
-		}
-		var adds []extra
-		for sym, v := range b.value {
-			if len(sym) != 1 {
-				continue
-			}
-			c := sym[0]
-			var flipped byte
-			switch {
-			case c >= 'A' && c <= 'Z':
-				flipped = c + 32
-			case c >= 'a' && c <= 'z':
-				flipped = c - 32
-			default:
-				continue
-			}
-			fs := string(flipped)
-			if _, exists := b.value[fs]; !exists {
-				adds = append(adds, extra{fs, flipped, v})
-			}
-		}
-		for _, e := range adds {
-			b.value[e.s] = e.v
-			if b.allOneByte {
-				b.byteValue[e.b] = e.v
-			}
-		}
-	}
+}
 
-	// Decode-only aliases for asymmetric codecs (Crockford: O->0, I/L->1). Input
-	// leniency only, never emitted. Applies the same case-flip as digits for
-	// single-case bases, so "o"/"i"/"l" resolve too. Won't clobber a real digit.
+// addDecodeAliases adds decode-only aliases for asymmetric codecs (Crockford:
+// O->0, I/L->1). Input leniency only, never emitted. A single-case base takes
+// the case-flipped alias too, so "o"/"i"/"l" resolve. An alias never replaces a
+// digit, or a case-flipped digit, already in the table.
+func (b *Base) addDecodeAliases(singleCase bool) error {
 	for alias, target := range b.DecodeAliases {
 		tv, ok := b.value[target]
 		if !ok {
 			return fmt.Errorf("base %q: decode alias %q targets %q, which is not a digit", b.Name(), alias, target)
 		}
 		forms := []string{alias}
-		if !bothCase && len(alias) == 1 {
-			c := alias[0]
-			var flipped byte
-			switch {
-			case c >= 'A' && c <= 'Z':
-				flipped = c + 32
-			case c >= 'a' && c <= 'z':
-				flipped = c - 32
-			}
-			if flipped != 0 {
+		if singleCase && len(alias) == 1 {
+			if flipped, ok := flipCase(alias[0]); ok {
 				forms = append(forms, string(flipped))
 			}
 		}
 		for _, f := range forms {
 			if _, exists := b.value[f]; exists {
-				continue // never override a genuine digit
+				continue
 			}
 			b.value[f] = tv
+			// An alias can be longer than one byte, unlike a case flip.
 			if b.allOneByte && len(f) == 1 {
 				b.byteValue[f[0]] = tv
 			}
 		}
 	}
+	return nil
+}
 
-	// Prefix-free check (only possible with multi-byte symbols; single-byte
-	// symbol sets are trivially prefix-free). Tokenizing is greedy longest-match,
-	// which decodes correctly iff no symbol is a prefix of another - otherwise a
-	// string like "10" (digits "1","0") is misread as a single digit "10".
-	if !b.allOneByte {
-		symSet := make(map[string]struct{}, len(b.Symbols))
-		for _, s := range b.Symbols {
-			symSet[s] = struct{}{}
-		}
-		for _, s := range b.Symbols {
-			for l := 1; l < len(s); l++ {
-				if _, ok := symSet[s[:l]]; ok {
-					return fmt.Errorf("base %q: symbol %q begins with another symbol %q, so a run of digits can't be split unambiguously; make the symbol set prefix-free", b.Name(), s, s[:l])
-				}
+// checkPrefixFree refuses a symbol that starts with another symbol. Tokenizing
+// is greedy longest-match, which decodes correctly only if no symbol is a
+// prefix of another: with digits "1", "0" and "10", the string "10" reads as one
+// digit. Single-byte symbol sets are prefix-free by definition.
+func (b *Base) checkPrefixFree() error {
+	if b.allOneByte {
+		return nil
+	}
+	symSet := make(map[string]struct{}, len(b.Symbols))
+	for _, s := range b.Symbols {
+		symSet[s] = struct{}{}
+	}
+	for _, s := range b.Symbols {
+		for l := 1; l < len(s); l++ {
+			if _, ok := symSet[s[:l]]; ok {
+				return fmt.Errorf("base %q: symbol %q begins with another symbol %q, so a run of digits can't be split unambiguously; make the symbol set prefix-free", b.Name(), s, s[:l])
 			}
 		}
 	}
+	return nil
+}
 
-	// Resolve effective negative/decimal markers.
-	//
-	//   nil         -> use global default; collision with a digit is an error
-	//                 (to force-disable, point the field at "")
-	//   &""         -> explicitly disabled
-	//   &"X"        -> use X; collision is an error
+// resolveMarkers sets the effective negative and decimal markers, per the
+// nil/&""/&"X" rules on Base.Negative. A marker may not be a digit, equal the
+// other marker, or appear inside a digit.
+func (b *Base) resolveMarkers() error {
 	var err error
 	b.negative, err = resolveMarker("negative", b.Negative, DefaultNegative, b.value, b.Name())
 	if err != nil {
@@ -340,9 +361,8 @@ func (b *Base) Finalize() error {
 		return fmt.Errorf("base %q: negative and decimal markers are both %q", b.Name(), b.negative)
 	}
 
-	// A marker that appears *inside* a digit symbol breaks parsing: Convert scans
-	// the raw string for the marker before tokenizing, so a symbol like "a.b" or
-	// "a-b" gets split at the marker and its value silently changes. Reject it.
+	// Convert scans the raw string for a marker before tokenizing, so a symbol
+	// like "a.b" or "a-b" would get split at the marker and silently change value.
 	for _, mk := range []struct{ kind, mark string }{{"negative", b.negative}, {"decimal", b.decimal}} {
 		if mk.mark == "" {
 			continue
@@ -353,30 +373,39 @@ func (b *Base) Finalize() error {
 			}
 		}
 	}
+	return nil
+}
 
-	// A padding symbol must not also be a digit: binary decode strips a trailing
-	// run of it, so a pad that doubled as a digit would eat real trailing data.
-	if b.PadSymbol != "" {
-		if _, collides := b.value[b.PadSymbol]; collides {
-			return fmt.Errorf("base %q: padding symbol %q is also a digit", b.Name(), b.PadSymbol)
-		}
-		// Padding is counted in characters: encode appends one per position left
-		// before the group boundary, decode strips a trailing run. A multi-character
-		// pad overshoots the boundary on encode and only strips by accident.
-		if utf8.RuneCountInString(b.PadSymbol) > 1 {
-			return fmt.Errorf("base %q: padding symbol %q must be a single character", b.Name(), b.PadSymbol)
-		}
-		// Padding is only ever applied on the bit-packed binary path, which needs a
-		// power-of-2 base of at most 8 bits per digit. Set anywhere else it would be
-		// accepted and then silently do nothing, so reject it where it is defined.
-		if k := PowerOfTwoBits(len(b.Symbols)); k == 0 || k > 8 {
-			return fmt.Errorf("base %q: padding applies only to power-of-2 bases of at most 256 symbols; this base has %d", b.Name(), len(b.Symbols))
-		}
+// checkPad refuses a padding symbol that could never work.
+func (b *Base) checkPad() error {
+	if b.PadSymbol == "" {
+		return nil
 	}
+	// Binary decode strips a trailing run of the pad, so a pad that doubled as a
+	// digit would eat real trailing data.
+	if _, collides := b.value[b.PadSymbol]; collides {
+		return fmt.Errorf("base %q: padding symbol %q is also a digit", b.Name(), b.PadSymbol)
+	}
+	// Padding is counted in characters: encode appends one per position left
+	// before the group boundary, decode strips a trailing run. A multi-character
+	// pad overshoots the boundary on encode and only strips by accident.
+	if utf8.RuneCountInString(b.PadSymbol) > 1 {
+		return fmt.Errorf("base %q: padding symbol %q must be a single character", b.Name(), b.PadSymbol)
+	}
+	// Padding is only ever applied on the bit-packed binary path, which needs a
+	// power-of-2 base of at most 8 bits per digit. Set anywhere else it would be
+	// accepted and then silently do nothing, so reject it where it is defined.
+	if k := PowerOfTwoBits(len(b.Symbols)); k == 0 || k > 8 {
+		return fmt.Errorf("base %q: padding applies only to power-of-2 bases of at most 256 symbols; this base has %d", b.Name(), len(b.Symbols))
+	}
+	return nil
+}
 
-	// Rune lookup for the wide streaming path. Checking b.value rather than
-	// b.Symbols covers the decode aliases too, so the streaming decoder accepts
-	// exactly what the buffered one does or the base doesn't qualify at all.
+// buildRuneTable fills the rune lookup for the wide streaming path. Checking
+// b.value rather than b.Symbols covers the decode aliases too, so the streaming
+// decoder accepts exactly what the buffered one does or the base doesn't
+// qualify at all.
+func (b *Base) buildRuneTable() {
 	b.allOneRune = true
 	for sym := range b.value {
 		if utf8.RuneCountInString(sym) != 1 {
@@ -384,48 +413,46 @@ func (b *Base) Finalize() error {
 			break
 		}
 	}
-	if b.allOneRune {
-		b.runeValue = make(map[rune]int, len(b.value))
-		for sym, v := range b.value {
-			r, _ := utf8.DecodeRuneInString(sym)
-			b.runeValue[r] = v
-		}
-	} else {
+	if !b.allOneRune {
 		b.runeValue = nil
+		return
 	}
-
-	// Binary mode picks the tail codec from the scheme alone, so a tail layout
-	// with no tail misreads the final chunk.
-	if len(b.TailSymbols) == 0 && isTailScheme(b.BinaryScheme) {
-		return fmt.Errorf("base %q: binary scheme %q needs tail symbols, and none are set", b.Name(), b.BinaryScheme)
+	b.runeValue = make(map[rune]int, len(b.value))
+	for sym, v := range b.value {
+		r, _ := utf8.DecodeRuneInString(sym)
+		b.runeValue[r] = v
 	}
+}
 
-	// Native binary tail repertoire lookup, if this base defines one.
-	if len(b.TailSymbols) > 0 {
-		b.tailValue = make(map[string]int, len(b.TailSymbols))
-		for i, s := range b.TailSymbols {
-			if s == "" {
-				return fmt.Errorf("base %q: empty tail symbol at index %d", b.Name(), i)
-			}
-			if _, dup := b.tailValue[s]; dup {
-				return fmt.Errorf("base %q: duplicate tail symbol %q", b.Name(), s)
-			}
-			// Decode looks a symbol up in the primary repertoire first, so a tail
-			// symbol that is also a digit could never be reached as a tail.
-			if _, isDigit := b.value[s]; isDigit {
-				return fmt.Errorf("base %q: tail symbol %q is also a digit", b.Name(), s)
-			}
-			b.tailValue[s] = i
+// buildTail fills the native binary tail lookup, if this base has a tail.
+func (b *Base) buildTail() error {
+	if len(b.TailSymbols) == 0 {
+		// Binary mode picks the tail codec from the scheme alone, so a tail layout
+		// with no tail misreads the final chunk.
+		if isTailScheme(b.BinaryScheme) {
+			return fmt.Errorf("base %q: binary scheme %q needs tail symbols, and none are set", b.Name(), b.BinaryScheme)
 		}
-		if err := b.checkTailWidth(); err != nil {
-			return err
-		}
-		if err := b.checkTailDigitsOneChar(); err != nil {
-			return err
-		}
+		return nil
 	}
-
-	return nil
+	b.tailValue = make(map[string]int, len(b.TailSymbols))
+	for i, s := range b.TailSymbols {
+		if s == "" {
+			return fmt.Errorf("base %q: empty tail symbol at index %d", b.Name(), i)
+		}
+		if _, dup := b.tailValue[s]; dup {
+			return fmt.Errorf("base %q: duplicate tail symbol %q", b.Name(), s)
+		}
+		// Decode looks a symbol up in the primary repertoire first, so a tail
+		// symbol that is also a digit could never be reached as a tail.
+		if _, isDigit := b.value[s]; isDigit {
+			return fmt.Errorf("base %q: tail symbol %q is also a digit", b.Name(), s)
+		}
+		b.tailValue[s] = i
+	}
+	if err := b.checkTailWidth(); err != nil {
+		return err
+	}
+	return b.checkTailDigitsOneChar()
 }
 
 // checkTailDigitsOneChar refuses a tail on a base whose digits or tail symbols
