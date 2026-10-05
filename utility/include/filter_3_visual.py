@@ -3,15 +3,15 @@
 """
 Purpose:
 	Filter Unicode characters by visual acceptability for terminal/editor use.
-	Reads characters from arguments or stdin (same format as filter_out_unicode_junk.py).
+	Reads characters from arguments or stdin (same format as filter_1_junk.py).
 	Outputs space-separated passing characters on one line.
 
 	Usage:
-		./filter_visual.py [--debug] [--debug-dir PATH] [chars ...]
-		echo "chars" | ./filter_visual.py [--debug] [--debug-dir PATH]
+		./filter_3_visual.py [--debug] [--debug-dir PATH] [chars ...]
+		echo "chars" | ./filter_3_visual.py [--debug] [--debug-dir PATH]
 
 	--debug:           writes unicode_visual_debug_<LO>-<HI>.png
-	--debug-dir PATH:  directory for debug PNG (default: directory of this script)
+	--debug-dir PATH:  directory for debug PNG (default: ~/var/unicode-visual-debug)
 
 Copyright (c) 2026 Bubbles
 Licensed under The MIT License (MIT). Full text at:
@@ -795,9 +795,11 @@ def _filter_chars(chars):
 def _parse_chars(text):
 	"""Parse space-separated text into a list of unique characters."""
 	chars = []
+	seen = set()
 	for token in text.split():
 		for c in token:
-			if c not in chars:
+			if c not in seen:
+				seen.add(c)
 				chars.append(c)
 	return chars
 

@@ -25,7 +25,6 @@ fMain(){
 	[[ -f "${pyScript3}" ]]     ||  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}").${FUNCNAME[0]}: Can't find Python script to run: '${pyScript3}'\n";return 1; }
 	which python3  &>/dev/null  ||  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}").${FUNCNAME[0]}: It appears 'python3' is not installed or symlinked.\n";return 1; }
 	which xclip    &>/dev/null  ||  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}").${FUNCNAME[0]}: It appears 'xclip' is not installed. Are you using Wayland instead of Xorg?\n";return 1; }
-	which eog      &>/dev/null  ||  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}").${FUNCNAME[0]}: It appears 'python3' is not installed or symlinked.\n";return 1; }
 
 	## Prepare
 	[[ -x "${pyScript1}" ]]   ||  chmod +x "${pyScript1}" 1>/dev/null
@@ -73,9 +72,15 @@ fMain(){
 	## Show results on CLI
 	fScr "${sResult3}01234ABCDefgh"
 
-	## "eog": Eye Of Gnome, simple image viewer.
-	local -r outputFile="$(ls -t "${HOME}/var/unicode-visual-debug/"*  | head -n 1)"
-	[[ -n "${outputFile}" ]]  &&  [[ -f "${outputFile}" ]]  &&  ( (nohup bash -c "eog '${outputFile}'" &>/dev/null) & disown )
+	## "eog": Eye Of Gnome, simple image viewer. Optional, and only where there's a desktop to show it on.
+	if [[ -z "${DISPLAY:-}${WAYLAND_DISPLAY:-}" ]]; then
+		echo "No display, so the debug image wasn't opened."
+	elif ! which eog &>/dev/null; then
+		echo "It appears 'eog' is not installed, so the debug image wasn't opened."
+	else
+		local -r outputFile="$(ls -t "${HOME}/var/unicode-visual-debug/"*  | head -n 1)"
+		[[ -n "${outputFile}" ]]  &&  [[ -f "${outputFile}" ]]  &&  ( (nohup bash -c "eog '${outputFile}'" &>/dev/null) & disown )
+	fi
 
 	echo
 }
@@ -90,7 +95,7 @@ fScr(){
 	local scrambled=""
 	while ((${#scrambled} < doLen)); do scrambled+="${sanitized}"; done
 	scrambled=$(echo "${scrambled}" | grep -o . | shuf | head -n ${doLen} | tr -d '\n')
-	echo -e "\nScrabled example:\n${scrambled}\n"
+	echo -e "\nScrambled example:\n${scrambled}\n"
 }
 
 

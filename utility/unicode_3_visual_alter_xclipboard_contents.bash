@@ -32,7 +32,7 @@ fMain(){
 	sleep 0.25
 
 	## Validate
-	[[ -n "$(tr -d '[:space:]' <<< "${clipInput}")" ]]   ||  { echo -e "\nWarting in $(basename "${BASH_SOURCE[0]}").${FUNCNAME[0]}: No text exists on the X clipboard.\n";return 1; }
+	[[ -n "$(tr -d '[:space:]' <<< "${clipInput}")" ]]   ||  { echo -e "\nWarning in $(basename "${BASH_SOURCE[0]}").${FUNCNAME[0]}: No text exists on the X clipboard.\n";return 1; }
 
 	echo
 
@@ -40,7 +40,9 @@ fMain(){
 	echo "  Count: $(( $(echo "${clipInput}" | tr -d ' ' | wc -m) -1))"
 	echo "  '${clipInput}'"
 
-	local sResult="$(python3  "${pyScript}"  "${clipInput}")"
+	## A failed filter must not empty the clipboard.
+	local sResult
+	sResult="$(python3  "${pyScript}"  "${clipInput}")"   ||  { echo -e "\nError in $(basename "${BASH_SOURCE[0]}").${FUNCNAME[0]}: '$(basename "${pyScript}")' failed. The clipboard was not changed.\n";return 1; }
 #	sResult="${sResult/'  '/}"
 	readonly sResult
 

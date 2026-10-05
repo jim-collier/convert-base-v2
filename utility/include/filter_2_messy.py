@@ -59,9 +59,10 @@ def _is_wide(c):
 
 def _parse_chars(text, fail_log=None):
 	chars = []
+	seen = set()
 	for token in text.split():
 		for c in token:
-			if c in chars:
+			if c in seen:
 				continue
 			cat = unicodedata.category(c)
 			# Skip combining marks (M*) and nonprinting space-like (Zs/Zl/Zp/Cf)
@@ -85,6 +86,7 @@ def _parse_chars(text, fail_log=None):
 					if fail_log is not None:
 						fail_log.append((code_point, c, 'FAIL:NFKD_ASCII', name))
 					continue
+			seen.add(c)
 			chars.append(c)
 	return chars
 
@@ -438,16 +440,11 @@ def extract(text, debug=False):
 	prev_result = result
 	result = _dedup_similar_adjacent(result)
 	if fail_log is not None:
-		kept = set()
-		for c in result:
-			kept.add(id(c))
-		# Use index tracking since same char can appear multiple times
-		result_set = list(result)
+		# _parse_chars already dropped repeats, so a set is enough here
+		kept = set(result)
 		for c in prev_result:
-			if c not in result_set:
+			if c not in kept:
 				fail_log.append((ord(c), c, 'FAIL:DEDUP_ADJACENT', unicodedata.name(c, '')))
-			else:
-				result_set.remove(c)
 
 	if debug and fail_log:
 		_print_fail_log(fail_log)

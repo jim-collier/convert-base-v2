@@ -221,7 +221,12 @@ class OdsAdapter(SpreadsheetAdapter):
 		self._sheet = sheet
 		# Expand rows into indexed grid: (1-based row, 1-based col) -> cell element
 		self._cells = {}
-		self._row_elements = {}  # 1-based row -> TableRow element
+		# 1-based row -> TableRow element. Every row of a repeated group maps to
+		# the group's one element, until a write splits that row out.
+		self._row_elements = {}
+		# A large repeated group, normally the empty rows to the sheet's end, is
+		# not expanded: (element, first row) of it, or None.
+		self._tail_group = None
 		self._max_row = 0
 		self._max_col = 0
 		raw_rows = sheet.getElementsByType(TableRow)
@@ -231,26 +236,87 @@ class OdsAdapter(SpreadsheetAdapter):
 			row_rep_n = int(row_rep) if row_rep else 1
 			# Only expand up to a reasonable limit for repeated empty rows
 			if row_rep_n > 1000:
+				self._tail_group = (raw_row, logical_row)
 				break
 			for _ in range(row_rep_n):
-				self._row_elements[logical_row] = raw_row
-				raw_cells = raw_row.getElementsByType(TableCell)
-				logical_col = 1
-				for raw_cell in raw_cells:
-					col_rep = raw_cell.getAttribute('numbercolumnsrepeated')
-					col_rep_n = int(col_rep) if col_rep else 1
-					# Only store non-empty cells (or first of repeated empties)
-					paragraphs = raw_cell.getElementsByType(P)
-					has_value = bool(paragraphs) or raw_cell.getAttribute('valuetype')
-					if has_value:
-						for k in range(col_rep_n):
-							self._cells[(logical_row, logical_col + k)] = raw_cell if k == 0 else None
-						if logical_col + col_rep_n - 1 > self._max_col:
-							self._max_col = logical_col + col_rep_n - 1
-					logical_col += col_rep_n
-				if logical_row > self._max_row:
-					self._max_row = logical_row
+				self._index_row(logical_row, raw_row)
 				logical_row += 1
+
+	def _index_row(self, logical_row, row_el):
+		self._row_elements[logical_row] = row_el
+		logical_col = 1
+		for raw_cell in row_el.getElementsByType(self._TableCell):
+			col_rep = raw_cell.getAttribute('numbercolumnsrepeated')
+			col_rep_n = int(col_rep) if col_rep else 1
+			# Only store non-empty cells. A repeated one has its value in every column it covers.
+			paragraphs = raw_cell.getElementsByType(self._P)
+			has_value = bool(paragraphs) or raw_cell.getAttribute('valuetype')
+			if has_value:
+				for k in range(col_rep_n):
+					self._cells[(logical_row, logical_col + k)] = raw_cell
+				if logical_col + col_rep_n - 1 > self._max_col:
+					self._max_col = logical_col + col_rep_n - 1
+			logical_col += col_rep_n
+		if logical_row > self._max_row:
+			self._max_row = logical_row
+
+	def _clone_element(self, node):
+		"""Deep copy of an odfpy node. odfpy has none of its own."""
+		from odf.element import Element, Text
+		if node.nodeType == node.TEXT_NODE:
+			return Text(node.data)
+		clone = Element(qname=node.qname, qattributes=dict(node.attributes), check_grammar=False)
+		for child in node.childNodes:
+			clone.appendChild(self._clone_element(child))
+		return clone
+
+	def _split_row_group(self, group_el, group_start, row, index_rest=True):
+		"""Split `row` out of a number-rows-repeated group into its own element, so
+		a write changes that row only. Returns (row element, element for the rows
+		after it or None)."""
+		group_n = int(group_el.getAttribute('numberrowsrepeated') or 1)
+		parent = group_el.parentNode
+		pieces = [(group_start, row - group_start), (row, 1), (row + 1, group_start + group_n - row - 1)]
+		made = []
+		for first, count in pieces:
+			if count < 1:
+				made.append(None)
+				continue
+			piece = self._clone_element(group_el)
+			if count > 1:
+				piece.setAttribute('numberrowsrepeated', str(count))
+			else:
+				piece.removeAttribute('numberrowsrepeated')
+			self._insert_before(parent, piece, group_el)
+			made.append(piece)
+		parent.removeChild(group_el)
+		before_el, row_el, after_el = made
+		for logical_row in range(group_start, row):
+			self._index_row(logical_row, before_el)
+		self._index_row(row, row_el)
+		if after_el is not None and index_rest:
+			for logical_row in range(row + 1, group_start + group_n):
+				self._index_row(logical_row, after_el)
+		return row_el, after_el
+
+	def _row_for_write(self, row):
+		"""The TableRow element for `row` alone, or None if the sheet has no such row yet."""
+		row_el = self._row_elements.get(row)
+		if row_el is not None:
+			if int(row_el.getAttribute('numberrowsrepeated') or 1) == 1:
+				return row_el
+			group_start = row
+			while self._row_elements.get(group_start - 1) is row_el:
+				group_start -= 1
+			row_el, _ = self._split_row_group(row_el, group_start, row)
+			return row_el
+		if self._tail_group is not None:
+			tail_el, tail_start = self._tail_group
+			if tail_start <= row < tail_start + int(tail_el.getAttribute('numberrowsrepeated') or 1):
+				row_el, after_el = self._split_row_group(tail_el, tail_start, row, index_rest=False)
+				self._tail_group = (after_el, row + 1) if after_el is not None else None
+				return row_el
+		return None
 
 	def _get_cell_text(self, cell_el):
 		if cell_el is None:
@@ -325,7 +391,7 @@ class OdsAdapter(SpreadsheetAdapter):
 	def set_cell_value(self, row, col, value):
 		from odf.table import TableCell, TableRow
 		from odf.text import P
-		row_el = self._row_elements.get(row)
+		row_el = self._row_for_write(row)
 		if row_el is None:
 			# Create a new row
 			row_el = TableRow()
