@@ -34,176 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
-	- ID: 2026100413480003
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Steps to reproduce:
-		- Define a 2048-symbol base with two-character digits, an 8-symbol tail and the qntm scheme, then encode bytes to it and decode them back.
-	- Incorrect behavior: the encode works, and the decode fails with `symbol "..." is not in the base`.
-	- Expected behavior: the base is refused when it is defined, or it round trips.
-	- Reproduced: 20261004, by the review, with a throwaway test in package `convertbase`. A config `tail:` field or `--to-tail` reaches it.
-	- Possible cause: `Finalize` accepts the tail, and the buffered big-base decoder reads one character at a time. The streaming path already demands one-character digits.
-	- Origin: `convert.go:1773` and `registry.go` Finalize, from 2757bd5 "Big-base binary interop" on 2026-07-06. Not seen by an earlier round. Confirmed.
-	- Related IDs: 2026100413480020
-	- Note: also reproduced 20261004 on the command. Five bytes encoded through `--to-symbols` and `--to-tail`, and decoding them failed both piped and as an argument.
-	- Actual cause: both binary decoders of a tail base read one character per digit. The streaming one is kept off such a base by its one-character gate, but the buffered one is not, and `Finalize` accepted the tail.
-	- Decisions:
-		- A tail now needs every digit and every tail symbol to be one character, checked in `Finalize`. That is the rule the streaming path already had, and a tail's whole point is that the base streams.
-		- Supporting longer digits was passed over. The tokenizer would have to tell a tail symbol from the start of a longer digit at the end of the input, for a case no built-in base has.
-	- Actual fix: `Finalize` refuses such a tail with an error naming the base and the offending digit or tail symbol. The config comments and the wide-symbols design doc say so. README and design.md don't describe tails.
-	- Verified: every built-in base and the default config still load. Every built-in tail base round trips. `go vet`, `golangci-lint`, `go test ./...` and the harness Binary/streaming section pass.
-	- Swept: every way a tail is set goes through `Finalize`: the built-ins, the config `tail:` field, `--from-tail`/`--to-tail` through `ApplyOptions`, and library callers. The browser and reactor modules take no tail. `decodeBigBaseNative` has no other caller.
-	- Branch: bigbase-tail
-	- Commit: 44ed0be
-	- Test case: `Erm5wwf` TestTailNeedsOneCharDigits, `Erm5wxB` "tail on two-character digits rejected" and `Erm5wxg` "config tail on two-character digits rejected". All three fail before the fix and pass after.
-
-- A tail layout with no tail symbols, such as from `--to-tail ','`, decodes bytes wrong at exit 0.
-	- ID: 2026100416041479
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Severity: High
-	- Note: raised from Low once the command was found to reach it. It blocks release, since the result is wrong bytes at exit 0.
-	- Opened: 20261004-160414
-	- Opened by: found while working 2026100413480003
-	- Target OS: Any
-	- Steps to reproduce:
-		- In Go, build a `Base` with `BinaryScheme` set to a tail scheme and no tail, then decode bytes from it.
-	- Incorrect behavior: fails with `symbol "..." is not in the base`, which doesn't say what is wrong.
-	- Expected behavior: `Finalize` refuses a tail scheme without a tail, naming the base.
-	- Reproduced: 20261004. The command reaches it too. `--to-tail ','` parses to no tail symbols but still sets the qntm layout, and 3, 7 and 10 bytes then decode to the wrong bytes with exit 0. A config `tail:` can't reach it, since the layout is set only when the tail has symbols.
-	- Actual cause: binary mode picks the tail codec from `BinaryScheme` alone, and nothing checked that a tail layout had a tail. A tail spec of only commas parses to an empty list with no error, and `ApplyOptions` set the layout anyway.
-	- Actual fix: `Finalize` refuses a tail layout with no tail symbols, naming the base and the layout, beside the one-character tail check. The command reports it the same way.
-	- Note: a config `tail:` of only commas is still ignored without a word, for the same parsing reason. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
-	- Verified: every built-in base still loads, and clearing a tail with an empty `--to-tail` still works on a tail base and a codec base. `go vet`, `golangci-lint`, `go test ./...` and the full harness in quick mode pass.
-	- Swept: every way a scheme is set. Built-ins all have a tail with a tail layout. The config sets one only with a nonempty tail. `ApplyOptions` clears the layout with an empty tail and sets it with a parsed one, which is now checked. The browser and reactor modules take no tail.
-	- Branch: digit-values
-	- Commit: fbf6380
-	- Test case: `ErmULmP` TestTailSchemeNeedsTail, for each tail layout and for a comma-only tail through `ApplyOptions`, and `ErmULmv` "comma-only tail rejected" on the command. Both fail before the fix and pass after.
-	- Acceptance signoff: open. The command now refuses an input it used to take, with new error text, and the bug turned out to give wrong bytes, not only a confusing error.
-	- Related IDs: 2026100417280514
-
-- `package.bash` deletes whatever directory `--out` names before it builds. (Code review 20261004 item 4)
-	- ID: 2026100413480004
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Needs local test suite run?: No. The cicd run through stage 6 passed on 20261004, with the harness at 572 of 572. Packaging made all 25 artifacts in a fresh, marked `lib/dist`.
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Steps to reproduce:
-		- `make release DIST=<a dir with other files in it>`
-	- Incorrect behavior: the directory is emptied, whatever was in it.
-	- Expected behavior: only a directory the script made or marked as its own is cleared. Anything else is refused.
-	- Reproduced: 20261004, by the review, with a fake `go` and a scratch dir.
-	- Origin: `package.bash:115`, from 9c40e8d "release packaging" on 2026-07-12. Not seen by an earlier round. Confirmed.
-	- Sweep: every `rm -rf` on a variable path in `cicd/` and `utility/`. `interop/fetch.bash:93` is one; see item 16.
-	- Actual cause: the script cleared `--out` with `rm -rf` before building, whatever it held. `make clean` did the same to `DIST`.
-	- Actual fix: a build marks the dir it makes with a hidden file. `package.bash` clears a dir only when it has the mark, takes over an empty one, and refuses anything else with a message. `make wasm` and `make reactor` mark the dir when they create it, and `make clean` follows the same rule. The mark stays out of `checksums.txt`, and the release workflow's `lib/dist/*` upload skips it as a dotfile.
-	- Swept: every `rm -r` in `cicd/`, `utility/`, `install.bash` and `lib/Makefile`. The trap removes in `package.bash`, `check-vendor.bash`, `interop/fetch.bash`, `test.bash`, `bench-encoders.bash`, `gen-screenshots.bash` and `install.bash` each take a dir the same script made with `mktemp -d`. `interop/fetch.bash:94` is fixed under item 16. `lib/Makefile` clean was the twin of this one and is fixed here. The other `rm` calls remove single files.
-	- Verified: 20261004, the three new checks fail on dev and pass on this branch. The packaging section ran with real builds: two full packages still rebuild to the same checksums, and the prerelease name checks pass. `make wasm` into a new dir marks it, and the next packaging run clears it. Shellcheck finds nothing new.
-	- Note: `make release` and `make clean` now stop on an old `lib/dist` with no mark, and say so. Trash it once.
-	- Branch: bash-traps
-	- Commit: 65ce2be
-	- Test case: harness checks `Erm3Sws` (an `--out` with other files is left alone), `Erm3SxT` (a marked dir is cleared and an empty one taken), `Erm3Syv` (`make clean`) and `Erm3SyD` (the mark is not in `checksums.txt`). The first three fail on dev. `Erm3SyD` fails when the mark is left in the checksum list.
-	- Acceptance signoff: open, since it changes what a build deletes.
-
-- Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
-	- ID: 2026100413480017
-	- Type: Enhancement
-	- Status: Waiting on signoff
-	- Priority: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Note: `255 16` takes about 68 ms, against 1 ms for `--version`. `NewRegistry` is about 53 ms of that, and `32768qntm` and `65536qntm` alone are about 48 ms.
-	- Note: the test harness makes about 5000 calls, so startup is over five minutes of each run. Scripts that call the command in a loop pay the same.
-	- Probable fix: keep built-ins as cheap specs and finalize each on first lookup, or on `--list`. Config bases still validate at load. A unit test that builds every built-in keeps catching bad data. Add a `NewRegistry` benchmark with a threshold.
-	- Origin: the registry design from ad488ce. The cost was noted in passing on 2026-08-02 and in G12, never filed. Confirmed by timing and pprof.
-	- Related IDs: 2026100413480018
-	- Done: each built-in keeps its spec and is parsed and checked the first time `Lookup` or `OrderedBases` reaches it. A lookup builds only the base it finds, and a miss builds none. `--list`, `--get-index-count` and `--by-index` build them all. `leftTokens` stops at the tokens it needs instead of splitting a whole alphabet. `NewRegistry` went from about 38 ms and 29 MB to 0.17 ms and 0.24 MB.
-	- Decisions:
-		- Config bases are still checked when the file loads, through `Register`, as before. No error compared config bases against built-ins before: a config name or alias that matches a built-in takes it over by design. So there was nothing to keep there, and the config errors and their line citations are unchanged.
-		- Library meaning: `NewRegistry` no longer checks the built-ins, so its error is always nil. It stays in the signature. A built-in that fails to build comes back as an error from `Lookup`, and `OrderedBases`, which has no error return, panics, like `mkSpec` already does on bad data. Only a broken `bases.go` can reach either, and `TestEveryBuiltinBuilds` fails on that. The library is already at v0.2.0 for the next release, so no new bump.
-		- Concurrency: one `sync.Once` per built-in. `Lookup` and `OrderedBases` are safe from several goroutines. `Register` and `LoadConfig` are not, as before. Both are documented on `Registry` and in the package doc.
-	- Verified: release build, 40 runs each, dev against this branch. `255 16` went from 58 ms to 1.5 ms, `--version` stayed at 1.0 ms, and `--list` went from 59 ms to 41 ms.
-	- Verified: `--list`, `--list-compat`, both together, `--get-index-count`, `--get-base-name` and `--show-symbols` and `--show-symbols-0` for every index, `--get-base-name` and a conversion for every listed name, and an unknown-name suggestion are byte-identical to dev. So are five config cases: a stolen alias, a shadowed built-in, and three load errors with their line citations. The name, size, raw flag, markers, digits and tail of every base `.bases()` lists match dev too.
-	- Verified: go vet, golangci-lint, `go test ./...`, the four new tests under `-race`, and the full `test.bash` with the performance section and packaging rebuilds, 569 of 569.
-	- Test case: `ErmQ6z6` TestEveryBuiltinBuilds fails on a duplicate digit put into base 2. `ErmQ6zb` TestLookupBuildsOnlyItsBase and `ErmQ70b` TestNewRegistryCost (at most 2 MiB and 10 ms) fail when `NewRegistry` builds every base. `ErmQ706` TestConcurrentLookup reports a data race under `-race` without the once. `BenchmarkNewRegistry` gives the number.
-	- Branch: lazy-bases
-	- Commit: f46614b
-
-- The dogfood stage reports a failed copy as installed. (Code review 20261004 item 11)
-	- ID: 2026100413480011
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Severity: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Incorrect behavior: when `cp` fails under `$HOME`, "OK: installed" prints anyway. Outside `$HOME` it runs `sudo` with no guard, which blocks a `-q` run on a password prompt.
-	- Expected behavior: a failed copy is an error. `sudo` only with `-n`, and never when unattended.
-	- Reproduced: 20261004, by the review, with the block in a scratch script.
-	- Origin: `cicd.bash:411-414`, from 9c40e8d on 2026-07-12. Not seen by an earlier round. Confirmed.
-	- Actual cause: the `cp` result was tested only together with the `$HOME` check, so under `$HOME` a failure went unseen, and outside it `sudo` could prompt.
-	- Actual fix: a failed copy ends the run with an error. Outside `$HOME`, an attended run tries `sudo -n` once, which never prompts. A `-y` or `-q` run doesn't try `sudo` at all.
-	- Swept: no other `sudo` in `cicd/`, `utility/` or `install.bash`, outside `legacy/`.
-	- Branch: cicd-fixes
-	- Commit: ffeed2e
-	- Test case: `ErmCp2J` "dogfood: a failed copy under HOME is an error", `ErmCp2K` "dogfood: an unattended run never calls sudo" and `ErmCp2L` "dogfood: an attended run tries only sudo -n". All three fail on dev and pass after.
-	- Acceptance signoff: open, since it changes when the pipeline uses sudo.
-
-- In `cicd.bash`, `-q` does the same as `-y`, and `--quick` doesn't reach the harness. (Code review 20261004 item 12)
-	- ID: 2026100413480012
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Severity: Low
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Incorrect behavior: `quiet` is set and never read, though the help says `-y` is "unattended but not quiet". The harness still runs its two packaging rebuilds, about 6 s each, under `--quick`.
-	- Expected behavior: `-q` cuts stage chatter or is merged into `-y`, and `--quick` skips the packaging rebuild check.
-	- Reproduced: 20261004, by the review. Shellcheck flags `quiet` as unused once the blanket disables are off.
-	- Origin: `cicd.bash:86` from a8d50ce on 2026-07-09. Not seen by an earlier round. Confirmed.
-	- Actual cause: nothing read `quiet`, and the harness call had no quick knob.
-	- Decisions:
-		- `-q` keeps its own meaning, since the help already sets it apart from `-y`. It drops the plan and the progress lines. Stage headers, results, warnings, errors and the output of each stage's tools still print.
-	- Actual fix: the plan and progress lines go through a helper that `-q` silences. Under `--quick` the engine passes `CICDTEST_QUICK=1`, and the harness skips the two packaging runs and lists their four checks as skipped.
-	- Note: a `-q` run still prints every harness and unit test line. Quieting those too would take a harness knob, and is left alone.
-	- Swept: every `fEcho_Clean` in `cicd.bash`. The ones left are spacing, the flamegraph path and hot spots, and the missing-utility notices.
-	- Verified: 20261004, the packaging section passes in full without the knob, and shows its four checks skipped with it.
-	- Branch: cicd-fixes
-	- Commit: ffeed2e
-	- Test case: `ErmCp2H` "--quick reaches the harness" and `ErmCp2I` "-q drops the plan and progress lines, not the stage results". Both fail on dev and pass after. The harness side of the skip has no check, since that would run the harness inside itself.
-	- Acceptance signoff: open, since what `-q` hides is a call on output.
-
-- macOS gets a universal binary for both amd64 and ARM.
-	- ID: 2026100313304792
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Apple silicon Mac. The Intel half passed on b26. Check `--version` and one conversion, and that Gatekeeper treats it the same as the per-arch build.
-	- Opened: 20261003-133047
-	- Opened by: JC
-	- Target OS: macOS
-	- Progress log:
-		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
-		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
-		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
-		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
-	- Decisions:
-		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
-		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
-	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
-	- Branch: mac-universal
-	- Commit: 22452c9
-	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
-	- Verified: 20261004, on an Intel Mac with macOS 15.8.1. The universal binary, the per-arch x86_64 one and the one from the universal `.tgz` all print the same version and build line. A hex to base-62 conversion and a bytes to base-64 one match the Linux build. Gatekeeper rejects the universal and per-arch builds the same way, unsigned, with and without the quarantine flag.
-
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002
 	- Type: Bug
@@ -422,6 +252,89 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Probable fix: when the backup no longer matches, write the old bytes under a new name.
 	- Origin: `configupgrade.go:157-161`, from 9acc437 on 2026-10-03. Not seen by an earlier round. Plausible.
 
+- A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
+	- ID: 2026100413480003
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- Define a 2048-symbol base with two-character digits, an 8-symbol tail and the qntm scheme, then encode bytes to it and decode them back.
+	- Incorrect behavior: the encode works, and the decode fails with `symbol "..." is not in the base`.
+	- Expected behavior: the base is refused when it is defined, or it round trips.
+	- Reproduced: 20261004, by the review, with a throwaway test in package `convertbase`. A config `tail:` field or `--to-tail` reaches it.
+	- Possible cause: `Finalize` accepts the tail, and the buffered big-base decoder reads one character at a time. The streaming path already demands one-character digits.
+	- Origin: `convert.go:1773` and `registry.go` Finalize, from 2757bd5 "Big-base binary interop" on 2026-07-06. Not seen by an earlier round. Confirmed.
+	- Related IDs: 2026100413480020
+	- Note: also reproduced 20261004 on the command. Five bytes encoded through `--to-symbols` and `--to-tail`, and decoding them failed both piped and as an argument.
+	- Actual cause: both binary decoders of a tail base read one character per digit. The streaming one is kept off such a base by its one-character gate, but the buffered one is not, and `Finalize` accepted the tail.
+	- Decisions:
+		- A tail now needs every digit and every tail symbol to be one character, checked in `Finalize`. That is the rule the streaming path already had, and a tail's whole point is that the base streams.
+		- Supporting longer digits was passed over. The tokenizer would have to tell a tail symbol from the start of a longer digit at the end of the input, for a case no built-in base has.
+	- Actual fix: `Finalize` refuses such a tail with an error naming the base and the offending digit or tail symbol. The config comments and the wide-symbols design doc say so. README and design.md don't describe tails.
+	- Verified: every built-in base and the default config still load. Every built-in tail base round trips. `go vet`, `golangci-lint`, `go test ./...` and the harness Binary/streaming section pass.
+	- Swept: every way a tail is set goes through `Finalize`: the built-ins, the config `tail:` field, `--from-tail`/`--to-tail` through `ApplyOptions`, and library callers. The browser and reactor modules take no tail. `decodeBigBaseNative` has no other caller.
+	- Branch: bigbase-tail
+	- Commit: 44ed0be
+	- Test case: `Erm5wwf` TestTailNeedsOneCharDigits, `Erm5wxB` "tail on two-character digits rejected" and `Erm5wxg` "config tail on two-character digits rejected". All three fail before the fix and pass after.
+	- Acceptance signoff: Closed on review: refusing at definition matches the streaming rule, and the error names the base and the digit.
+	- Closed: 20261004-182334
+
+- A tail layout with no tail symbols, such as from `--to-tail ','`, decodes bytes wrong at exit 0.
+	- ID: 2026100416041479
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Note: raised from Low once the command was found to reach it. It blocks release, since the result is wrong bytes at exit 0.
+	- Opened: 20261004-160414
+	- Opened by: found while working 2026100413480003
+	- Target OS: Any
+	- Steps to reproduce:
+		- In Go, build a `Base` with `BinaryScheme` set to a tail scheme and no tail, then decode bytes from it.
+	- Incorrect behavior: fails with `symbol "..." is not in the base`, which doesn't say what is wrong.
+	- Expected behavior: `Finalize` refuses a tail scheme without a tail, naming the base.
+	- Reproduced: 20261004. The command reaches it too. `--to-tail ','` parses to no tail symbols but still sets the qntm layout, and 3, 7 and 10 bytes then decode to the wrong bytes with exit 0. A config `tail:` can't reach it, since the layout is set only when the tail has symbols.
+	- Actual cause: binary mode picks the tail codec from `BinaryScheme` alone, and nothing checked that a tail layout had a tail. A tail spec of only commas parses to an empty list with no error, and `ApplyOptions` set the layout anyway.
+	- Actual fix: `Finalize` refuses a tail layout with no tail symbols, naming the base and the layout, beside the one-character tail check. The command reports it the same way.
+	- Note: a config `tail:` of only commas is still ignored without a word, for the same parsing reason. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
+	- Verified: every built-in base still loads, and clearing a tail with an empty `--to-tail` still works on a tail base and a codec base. `go vet`, `golangci-lint`, `go test ./...` and the full harness in quick mode pass.
+	- Swept: every way a scheme is set. Built-ins all have a tail with a tail layout. The config sets one only with a nonempty tail. `ApplyOptions` clears the layout with an empty tail and sets it with a parsed one, which is now checked. The browser and reactor modules take no tail.
+	- Branch: digit-values
+	- Commit: fbf6380
+	- Test case: `ErmULmP` TestTailSchemeNeedsTail, for each tail layout and for a comma-only tail through `ApplyOptions`, and `ErmULmv` "comma-only tail rejected" on the command. Both fail before the fix and pass after.
+	- Acceptance signoff: Closed on review: an error in place of wrong bytes at exit 0, naming the base and the layout.
+	- Related IDs: 2026100417280514
+	- Closed: 20261004-182334
+
+- `package.bash` deletes whatever directory `--out` names before it builds. (Code review 20261004 item 4)
+	- ID: 2026100413480004
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The cicd run through stage 6 passed on 20261004, with the harness at 572 of 572. Packaging made all 25 artifacts in a fresh, marked `lib/dist`.
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Steps to reproduce:
+		- `make release DIST=<a dir with other files in it>`
+	- Incorrect behavior: the directory is emptied, whatever was in it.
+	- Expected behavior: only a directory the script made or marked as its own is cleared. Anything else is refused.
+	- Reproduced: 20261004, by the review, with a fake `go` and a scratch dir.
+	- Origin: `package.bash:115`, from 9c40e8d "release packaging" on 2026-07-12. Not seen by an earlier round. Confirmed.
+	- Sweep: every `rm -rf` on a variable path in `cicd/` and `utility/`. `interop/fetch.bash:93` is one; see item 16.
+	- Actual cause: the script cleared `--out` with `rm -rf` before building, whatever it held. `make clean` did the same to `DIST`.
+	- Actual fix: a build marks the dir it makes with a hidden file. `package.bash` clears a dir only when it has the mark, takes over an empty one, and refuses anything else with a message. `make wasm` and `make reactor` mark the dir when they create it, and `make clean` follows the same rule. The mark stays out of `checksums.txt`, and the release workflow's `lib/dist/*` upload skips it as a dotfile.
+	- Swept: every `rm -r` in `cicd/`, `utility/`, `install.bash` and `lib/Makefile`. The trap removes in `package.bash`, `check-vendor.bash`, `interop/fetch.bash`, `test.bash`, `bench-encoders.bash`, `gen-screenshots.bash` and `install.bash` each take a dir the same script made with `mktemp -d`. `interop/fetch.bash:94` is fixed under item 16. `lib/Makefile` clean was the twin of this one and is fixed here. The other `rm` calls remove single files.
+	- Verified: 20261004, the three new checks fail on dev and pass on this branch. The packaging section ran with real builds: two full packages still rebuild to the same checksums, and the prerelease name checks pass. `make wasm` into a new dir marks it, and the next packaging run clears it. Shellcheck finds nothing new.
+	- Note: `make release` and `make clean` now stop on an old `lib/dist` with no mark, and say so. Trash it once.
+	- Branch: bash-traps
+	- Commit: 65ce2be
+	- Test case: harness checks `Erm3Sws` (an `--out` with other files is left alone), `Erm3SxT` (a marked dir is cleared and an empty one taken), `Erm3Syv` (`make clean`) and `Erm3SyD` (the mark is not in `checksums.txt`). The first three fail on dev. `Erm3SyD` fails when the mark is left in the checksum list.
+	- Acceptance signoff: Closed on review: the refusal says what to do, and a marked folder is the usual way a build tool knows its own output.
+	- Closed: 20261004-182334
+
 - A failed write of the result still exits 0. (Code review 20261004 item 1)
 	- ID: 2026100413480001
 	- Type: Bug
@@ -480,6 +393,33 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Erg4X7J` TestConfigRejectsNestedField and the "nested" case in `Em2MFrs` TestConfigErrorsCiteLines; `Erg4X7I` "config nested field rejected" in the harness.
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261003-150028
+
+- Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
+	- ID: 2026100413480017
+	- Type: Enhancement
+	- Status: Done
+	- Priority: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Note: `255 16` takes about 68 ms, against 1 ms for `--version`. `NewRegistry` is about 53 ms of that, and `32768qntm` and `65536qntm` alone are about 48 ms.
+	- Note: the test harness makes about 5000 calls, so startup is over five minutes of each run. Scripts that call the command in a loop pay the same.
+	- Probable fix: keep built-ins as cheap specs and finalize each on first lookup, or on `--list`. Config bases still validate at load. A unit test that builds every built-in keeps catching bad data. Add a `NewRegistry` benchmark with a threshold.
+	- Origin: the registry design from ad488ce. The cost was noted in passing on 2026-08-02 and in G12, never filed. Confirmed by timing and pprof.
+	- Related IDs: 2026100413480018
+	- Done: each built-in keeps its spec and is parsed and checked the first time `Lookup` or `OrderedBases` reaches it. A lookup builds only the base it finds, and a miss builds none. `--list`, `--get-index-count` and `--by-index` build them all. `leftTokens` stops at the tokens it needs instead of splitting a whole alphabet. `NewRegistry` went from about 38 ms and 29 MB to 0.17 ms and 0.24 MB.
+	- Decisions:
+		- Config bases are still checked when the file loads, through `Register`, as before. No error compared config bases against built-ins before: a config name or alias that matches a built-in takes it over by design. So there was nothing to keep there, and the config errors and their line citations are unchanged.
+		- Library meaning: `NewRegistry` no longer checks the built-ins, so its error is always nil. It stays in the signature. A built-in that fails to build comes back as an error from `Lookup`, and `OrderedBases`, which has no error return, panics, like `mkSpec` already does on bad data. Only a broken `bases.go` can reach either, and `TestEveryBuiltinBuilds` fails on that. The library is already at v0.2.0 for the next release, so no new bump.
+		- Concurrency: one `sync.Once` per built-in. `Lookup` and `OrderedBases` are safe from several goroutines. `Register` and `LoadConfig` are not, as before. Both are documented on `Registry` and in the package doc.
+	- Verified: release build, 40 runs each, dev against this branch. `255 16` went from 58 ms to 1.5 ms, `--version` stayed at 1.0 ms, and `--list` went from 59 ms to 41 ms.
+	- Verified: `--list`, `--list-compat`, both together, `--get-index-count`, `--get-base-name` and `--show-symbols` and `--show-symbols-0` for every index, `--get-base-name` and a conversion for every listed name, and an unknown-name suggestion are byte-identical to dev. So are five config cases: a stolen alias, a shadowed built-in, and three load errors with their line citations. The name, size, raw flag, markers, digits and tail of every base `.bases()` lists match dev too.
+	- Verified: go vet, golangci-lint, `go test ./...`, the four new tests under `-race`, and the full `test.bash` with the performance section and packaging rebuilds, 569 of 569.
+	- Test case: `ErmQ6z6` TestEveryBuiltinBuilds fails on a duplicate digit put into base 2. `ErmQ6zb` TestLookupBuildsOnlyItsBase and `ErmQ70b` TestNewRegistryCost (at most 2 MiB and 10 ms) fail when `NewRegistry` builds every base. `ErmQ706` TestConcurrentLookup reports a data race under `-race` without the once. `BenchmarkNewRegistry` gives the number.
+	- Branch: lazy-bases
+	- Commit: f46614b
+	- Acceptance signoff: Closed on review: lookups give the same output as before, and a broken built-in can only come from `bases.go`, which a test catches.
+	- Closed: 20261004-182334
 
 - One failing check can abort the test harness or lose its failure detail. (Code review 20261004 item 8)
 	- ID: 2026100413480008
@@ -804,6 +744,52 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
 
+- The dogfood stage reports a failed copy as installed. (Code review 20261004 item 11)
+	- ID: 2026100413480011
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior: when `cp` fails under `$HOME`, "OK: installed" prints anyway. Outside `$HOME` it runs `sudo` with no guard, which blocks a `-q` run on a password prompt.
+	- Expected behavior: a failed copy is an error. `sudo` only with `-n`, and never when unattended.
+	- Reproduced: 20261004, by the review, with the block in a scratch script.
+	- Origin: `cicd.bash:411-414`, from 9c40e8d on 2026-07-12. Not seen by an earlier round. Confirmed.
+	- Actual cause: the `cp` result was tested only together with the `$HOME` check, so under `$HOME` a failure went unseen, and outside it `sudo` could prompt.
+	- Actual fix: a failed copy ends the run with an error. Outside `$HOME`, an attended run tries `sudo -n` once, which never prompts. A `-y` or `-q` run doesn't try `sudo` at all.
+	- Swept: no other `sudo` in `cicd/`, `utility/` or `install.bash`, outside `legacy/`.
+	- Branch: cicd-fixes
+	- Commit: ffeed2e
+	- Test case: `ErmCp2J` "dogfood: a failed copy under HOME is an error", `ErmCp2K` "dogfood: an unattended run never calls sudo" and `ErmCp2L` "dogfood: an attended run tries only sudo -n". All three fail on dev and pass after.
+	- Acceptance signoff: Closed on review: `sudo -n` can't hang a run, and an unattended run never escalates.
+	- Closed: 20261004-182334
+
+- In `cicd.bash`, `-q` does the same as `-y`, and `--quick` doesn't reach the harness. (Code review 20261004 item 12)
+	- ID: 2026100413480012
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Incorrect behavior: `quiet` is set and never read, though the help says `-y` is "unattended but not quiet". The harness still runs its two packaging rebuilds, about 6 s each, under `--quick`.
+	- Expected behavior: `-q` cuts stage chatter or is merged into `-y`, and `--quick` skips the packaging rebuild check.
+	- Reproduced: 20261004, by the review. Shellcheck flags `quiet` as unused once the blanket disables are off.
+	- Origin: `cicd.bash:86` from a8d50ce on 2026-07-09. Not seen by an earlier round. Confirmed.
+	- Actual cause: nothing read `quiet`, and the harness call had no quick knob.
+	- Decisions:
+		- `-q` keeps its own meaning, since the help already sets it apart from `-y`. It drops the plan and the progress lines. Stage headers, results, warnings, errors and the output of each stage's tools still print.
+	- Actual fix: the plan and progress lines go through a helper that `-q` silences. Under `--quick` the engine passes `CICDTEST_QUICK=1`, and the harness skips the two packaging runs and lists their four checks as skipped.
+	- Note: a `-q` run still prints every harness and unit test line. Quieting those too would take a harness knob, and is left alone.
+	- Swept: every `fEcho_Clean` in `cicd.bash`. The ones left are spacing, the flamegraph path and hot spots, and the missing-utility notices.
+	- Verified: 20261004, the packaging section passes in full without the knob, and shows its four checks skipped with it.
+	- Branch: cicd-fixes
+	- Commit: ffeed2e
+	- Test case: `ErmCp2H` "--quick reaches the harness" and `ErmCp2I` "-q drops the plan and progress lines, not the stage results". Both fail on dev and pass after. The harness side of the skip has no check, since that would run the harness inside itself.
+	- Acceptance signoff: Closed on review: `-q` now differs from `-y` the way the help says. Quieting harness lines too can be its own item if wanted.
+	- Closed: 20261004-182334
+
 - A few Bash trap patterns are latent in the cicd scripts. (Code review 20261004 item 16)
 	- ID: 2026100413480016
 	- Type: Bug
@@ -947,6 +933,30 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: the same input gives the same output before and after.
 	- Test case: none, comments only, and the research scripts have no tests.
 	- Closed: 20261004-140028
+
+- macOS gets a universal binary for both amd64 and ARM.
+	- ID: 2026100313304792
+	- Type: Enhancement
+	- Status: Done
+	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Apple silicon Mac. The Intel half passed on b26. Check `--version` and one conversion, and that Gatekeeper treats it the same as the per-arch build.
+	- Opened: 20261003-133047
+	- Opened by: JC
+	- Target OS: macOS
+	- Progress log:
+		- 20261003: `package.bash` builds darwin/amd64 and darwin/arm64 as two separate tarballs now.
+		- Done: packaging adds `convert-base-v2-darwin-universal.tgz` and the bare `convert-base-v2-darwin-universal`. Both are in `checksums.txt`.
+		- Done: the new `cicd/utility/macho-fat` joins the two builds, since there is no lipo here. Slices are aligned the way lipo does it, 4K for x86_64 and 16K for arm64. It reads its output back and compares each slice to its input before writing.
+		- Note: the Go linker signs the arm64 build itself, ad hoc. The slice goes in unchanged, so the signature still matches. The x86_64 build is unsigned, as before.
+	- Decisions:
+		- The universal build is added, not swapped in. The per-arch macOS assets stay, so `install.bash` and old download links keep working, and the installer still fetches the per-arch build because it is half the size.
+		- The universal build is made only when both macOS builds were, so `--no-arm` skips it.
+	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
+	- Branch: mac-universal
+	- Commit: 22452c9
+	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
+	- Verified: 20261004, on an Intel Mac with macOS 15.8.1. The universal binary, the per-arch x86_64 one and the one from the universal `.tgz` all print the same version and build line. A hex to base-62 conversion and a bytes to base-64 one match the Linux build. Gatekeeper rejects the universal and per-arch builds the same way, unsigned, with and without the quarantine flag.
+	- Acceptance signoff: Closed on review: the arm64 slice is byte-identical to the per-arch build, and its signature's page hashes match in place. The Apple silicon run stays a check at the next beta.
+	- Closed: 20261004-182334
 
 - Support `--help`, `--about` and `--donate`, in a similar way as sister project shcl.
 	- ID: 2026100313304797
