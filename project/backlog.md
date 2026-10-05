@@ -34,6 +34,40 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- `--lower` and `--upper` turn off streaming, so a big piped file is held in memory. (Code review 20261005 item 1)
+	- ID: 2026100516265601
+	- Type: Bug
+	- Status: Queued
+	- Severity: Avg
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Steps to reproduce:
+		- `head -c 100000000 /dev/zero | convert-base-v2 --binary --to hex --lower -`
+	- Incorrect behavior: peak memory goes from 7 MB to 499 MB, about 5 times the input, and the run takes 4 times as long. The output is right.
+	- Expected behavior: constant memory, as the README says piped data gets. Lower case hex is a common ask, since `xxd` and `od` write it and `basenc` doesn't.
+	- Reproduced: 20261005, in a scratch home.
+	- Origin: `main.go:615`, from 106694e on 2026-07-06, which sent the case flags to the buffered path. G7 lists it as a known gap, but it was never filed. Not seen by an earlier round. Confirmed.
+	- Probable fix: flip case on each chunk as it is written. For a single-byte base that's a 256-entry table. `recaseDigits` already refuses a mixed-case base before anything is read.
+	- Sweep: the other cases G7 says still buffer. argv input, bytes to bytes and a big base with no tail have no streaming form, so this one is the only flag.
+
+- The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
+	- ID: 2026100516265606
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: the command and the reactor each try `StreamConvert`, then `StreamBytesRoute` with a `bytes` base they look up themselves, then two buffered `Convert` calls through `bytes`. A Go program that wants to encode a reader as base 64 has to know that order and what `handled` means.
+	- Requirements:
+		- One exported call that takes a reader, a writer, two bases and the byte-mode choice, and does all 3 steps.
+		- The command and the reactor both use it.
+	- Decisions:
+		- This joins the dispatch only. The streaming and buffered paths stay separate, per BxZNl-25.
+	- Note: the library is still v0, so the two current calls can be unexported in the same change, or kept as building blocks.
+	- Origin: a82807d, the library split, exported the command's dispatch pieces, and the reactor's `stream.go` copied their order. Not seen by an earlier round. Confirmed by reading.
+
 - shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
 	- ID: 2026100508035901
 	- Type: Bug
@@ -54,6 +88,77 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261005: left out of the round. Upstream is still at 0d4c174c with no 3.0.0 tag, and the bug isn't in its backlog yet.
 		- 20261005: filed in shcl's backlog as 2026100511212359, reproduced there at `0d1a491c`. Its `utf8Len` takes any byte that isn't a lead byte as the start of a 4-byte character, so the quote scan can step over the closing quote.
 
+- A flag that does nothing in the current mode gets an error, a note, or nothing at all. (Code review 20261005 item 2)
+	- ID: 2026100516265602
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Steps to reproduce:
+		- `printf hi | convert-base-v2 --binary --precision 5 --to 64 -`, and the same with `--to-neg '~'` or `--to-dec ','`.
+		- `convert-base-v2 --to-pad = --to 64 255`, which converts as a number.
+	- Incorrect behavior: all of these convert with no word. `--escape-controls` in byte mode and `--from-neg` on `bytes` are errors, and `--by-index` beside a conversion is a note. design.md refuses `--escape-controls` in byte mode because it "would be accepted and then do nothing", and the changelog says the same of padding that could never apply. The silent cases break that rule.
+	- Expected behavior: one rule for every flag in both modes, kept in design.md as a table with a row per flag.
+	- Note: an error on a flag that works today breaks any script that passes the same flags to every call, and stable behavior for scripts is a project goal. A stderr `note:` keeps them working. The errors that exist today can stay as they are.
+	- Note: the number-or-bytes note is the only stderr line that starts with `FYI:`. Every other one starts with `note:`.
+	- Origin: the flags date from ad488ce and later. The `--escape-controls` refusal is from 2efb8de on 2026-08-04, which wrote the rule. Not seen by an earlier round. Confirmed.
+	- Sweep: `--precision`, `--lower`, `--upper`, `--escape-controls` and `--no-newline`, and each side's neg, dec, pad and tail, in both modes.
+	- Note: changes what users see, so it closes at Waiting on signoff.
+
+- One flag after the NUMBER is reported as an unknown base. (Code review 20261005 item 3)
+	- ID: 2026100516265603
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Related IDs: 2026100313304797
+	- Target OS: Any
+	- Steps to reproduce:
+		- `convert-base-v2 255 --lower` and `convert-base-v2 255 --about`.
+		- `convert-base-v2 ff --from hex`.
+	- Incorrect behavior: the first two say `unknown base "--lower"` and `"--about"`. The third says `unexpected extra positional argument: "hex"`. With 2 positionals first, as in `255 16 --lower`, the hint that flags go first does show.
+	- Expected behavior: that hint whenever a positional after the NUMBER starts with `--`, or with `-` and a letter. No base name starts with `-`.
+	- Decisions:
+		- Flags still go before the NUMBER. Only the message changes.
+	- Origin: `checkPositionals` in `main.go:527`, from ad488ce. The hint came in 46b7e11 on 2026-07-10 for BxZNl-16, and checks only what follows OUTBASE. 2026100313304797 noted the `--about` case and left it. Confirmed.
+
+- design.md and the help describe the pipe rule and the query flags wrong. (Code review 20261005 item 4)
+	- ID: 2026100516265604
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Incorrect behavior:
+		- design.md says a pipe is read only when the input is `-`. With no NUMBER at all the pipe is read too, and the README's `some-command | convert-base-v2 --binary --to 64` depends on that. `-` is only needed to give OUTBASE as a positional.
+		- design.md and the help's "Base info" heading say each query flag prints one value. `--list` prints a table, and `--by-index` prints nothing, since it picks a base.
+		- The help lists `--show-symbols` and `--get-base-name` with no argument. They take the base as a positional, and ignore `--from hex` with "select a base by name/alias argument".
+		- On a fresh install the help says the default config "overrides built-in aliases", though it overrides none. It means the load order.
+	- Expected behavior: the docs say what the program does. Wording only.
+	- Reproduced: 20261005, each one run in a scratch home.
+	- Origin: the design.md lines are from 7643323 on 2026-07-13. Not seen by an earlier round. Confirmed.
+	- Test case: a harness case for a pipe with no NUMBER, if none exists yet. The help's query lines can be checked against the flag set.
+
+- Several exported doc comments describe older behavior. (Code review 20261005 item 5)
+	- ID: 2026100516265605
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Incorrect behavior:
+		- `Base.PadSymbol` says the URL and hex variants don't write padding. They do, as `basenc` does: `printf hi | convert-base-v2 --binary --to 32hex` writes `D1KG====`.
+		- `StreamConvert` says it streams up to 8 bits per digit. It also streams the multi-byte and tail bases.
+		- `StreamBytesRoute` says it turns down a big native base. It takes any base the wide path takes.
+	- Expected behavior: `go doc` matches the code, since it's the library's public reference.
+	- Origin: `PadSymbol` from 166d2c9 on 2026-07-06, before every RFC variant padded. The stream comments predate 24403a7 on 2026-07-25, and a82807d exported them as they were. The 20261004 round checked that exported names have comments, not what they say. Confirmed.
+	- Test case: none. Comments only.
+
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
 	- Type: Enhancement
@@ -68,6 +173,47 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261005: left out of the round. It stays a fix-when-touched rule, since a one-pass restyle of every script would be a big diff for little gain.
 	- Origin: several commits. Directive gap, filed against the 2026-10-04 directives.
+
+- A command line that can't be parsed exits 1, the same as a failed conversion. (Code review 20261005 item 7)
+	- ID: 2026100516265607
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: an unknown flag, a flag after the NUMBER and an extra positional all exit 1, like a bad digit. No arguments at all exits 2. Go's own flag package and most getopt tools use 2 for a usage error, so a script can tell a wrong call from input that won't convert.
+	- Requirements:
+		- Exit 2 for a command line that can't be parsed. 1 stays for a failed conversion.
+		- The help says which is which.
+	- Note: a script that tests for exactly 1 would see 2, so it goes in the changelog.
+	- Origin: 46b7e11 on 2026-07-10 took over flag errors to reword them, and they left by the generic exit 1. Confirmed.
+
+- The browser module's errors have no code, where the reactor's do. (Code review 20261005 item 8)
+	- ID: 2026100516265608
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: `convertBase.convert()` answers `{ok: false, error: "..."}`. The reactor gives the same failures a stable number from 0 to 7. A page that wants to act on an unknown base has to match English text.
+	- Requirements:
+		- Every failure gets a `code` with the reactor's numbers. The text stays.
+	- Origin: `lib/wasm/main.go` has answered with text only since it was added. Not seen by an earlier round. Confirmed by reading.
+
+- `SpecOpts` is exported, but only its own package uses it. (Code review 20261005 item 9)
+	- ID: 2026100516265609
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: it's a 4th way to write a marker, a string plus a disable flag, where `Base`, `Options` and the config all use unset, empty or a value. `go doc` lists it with the real API.
+	- Requirements:
+		- Unexport it. The library is still v0.
+	- Origin: c28004c on 2026-05-04, before the library split made the package public. No caller outside `lib/convertbase`. Confirmed.
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002
@@ -1939,6 +2085,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 ### Deferred
 
 ### Canceled
+
+- Code review 20261005, the interface pass.
+	- Decided against: base 10 as the default `from` and `to` in the browser and reactor modules. The library and both modules take explicit bases, and the default is a command convenience.
+	- Decided against: dropping reactor error codes 3 and 4, which a call by base name can't raise. The codes are a published ABI.
+	- Decided against: flags after the NUMBER. Flags first stands, and item 3 fixes only the message.
+	- Decided against: `32crockford` as a name. Names follow the base naming design doc, and `crockford` and `32c` both resolve.
+	- Decided against: renaming `-n` or `-N`, which differ only in case. `-n` matches `echo -n`.
+	- Decided against: byte mode by default between two power-of-two text bases. Settled in G8, and the stderr note covers it.
 
 - 🚫 Backwards compatible base '128v1compat' may have a subtly incorrect alphabet definition. (github #1)
 	- Cause: the v1 base-128 definition is a "word-safe" version, which base 256 and 288 are not. Base 128 should have been a subset of 256. When writing v2, an incorrect assumption was made about the base-128 structure instead of copying v1 verbatim. Because 128 is a power of two, the difference could be as small as a single character in some binary encodings.
