@@ -1856,6 +1856,18 @@ frrc=0; python3 "${meDir}/utility/flame-report.py" --file "${frDir}/flame_202601
 { ((frrc == 0)) && grep -qE '^  big-int, math/big convert\.*: 100\.0%$' "${CBT_OUT}"; } && _pass Ermz7AQ "flame-report counts the divide and conquer convert as big-int" \
 	|| _fail Ermz7AQ "flame-report counts the divide and conquer convert as big-int" "rc=${frrc} out=[$(head -8 "${CBT_OUT}" | tr '\n' ' ')] err=[$(tail -2 "${CBT_ERR}")]"
 
+## test-ids.py reads test.bash by pattern. An array of command words is not a
+## test call, while a call inside a subshell still is. It runs from a copy, so
+## the fixture can stand in for test.bash.
+tiDir="${CBT_TMP}/ti"; mkdir -p "${tiDir}/cicd/utility"
+cp "${meDir}/utility/test-ids.py" "${tiDir}/cicd/utility/"
+{
+	printf '%s\n' 'RUFF_CMD=(ruff check .)' 'scCmd=(check -x)' 'lintArgs+=(_fail --quiet)' '_pass Ermz7B4 "kept"'
+	printf '%s _pass Ermz7B5 "kept in a subshell" )\n' '('
+} >"${tiDir}/cicd/test.bash"
+tirc=0; tiOut="$(python3 "${tiDir}/cicd/utility/test-ids.py" check 2>&1)" || tirc=$?
+{ ((tirc == 0)) && [[ "${tiOut}" == "OK: 2 test IDs, all distinct" ]]; } && _pass Ermz7B5 "test-ids reads a bash array as no test call" \
+	|| _fail Ermz7B5 "test-ids reads a bash array as no test call" "rc=${tirc} out=[${tiOut}]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
