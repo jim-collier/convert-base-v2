@@ -251,134 +251,14 @@ func (s *dcState) formatLeaf(v *big.Int, buf []string, end int) int {
 //   - the negative marker, if present, must be at position 0 and occur exactly once;
 //   - the decimal marker, if present, must occur at most once.
 func Convert(input string, from, to *Base, precision int) (string, error) {
-	// Binary mode: use bit-packing, which is O(N) and preserves leading zero
-	// bytes naturally (padding lives in the low bits, not as digit-position
-	// leading zeros). Falling through to the big.Int path would be correct
-	// but quadratic - unusable on real files.
 	if from.Binary || to.Binary {
-		kIn := PowerOfTwoBits(len(from.Symbols))
-		kOut := PowerOfTwoBits(len(to.Symbols))
-		if kIn == 0 || kOut == 0 {
-			// The non-binary side isn't a power of two, so bit-packing doesn't
-			// apply. Only a defined binary-to-text codec (base45, ascii85, z85,
-			// base91) can carry raw bytes, each per its own spec; any other base
-			// has no byte-exact mapping and is rejected.
-			codec := to
-			if to.Binary {
-				codec = from
-			}
-			if codec.BinaryScheme == "" {
-				return "", fmt.Errorf("byte mode requires a power-of-2 base (2, 4, 8, ... 256) or a defined binary-to-text codec (base45, ascii85, z85, base91); base %q has %d digits and is neither", codec.Name(), len(codec.Symbols))
-			}
-			if from.Binary {
-				return encodeCodec(input, codec)
-			}
-			return decodeCodec(input, codec)
-		}
-		// The non-binary side's bit width decides the tail handling. Up to 8
-		// bits per digit, the plain bit-packed path already round-trips every
-		// length and matches the standard encodings, so it is left alone. Above
-		// 8 bits (base 2048, 32768, 65536) a zero-padded tail can add a whole
-		// byte the decoder can't distinguish from data, so those use a
-		// length-prefixed scheme that stays lossless at any length.
-		kBase := kOut
-		if to.Binary {
-			kBase = kIn
-		}
-		if kBase <= 8 {
-			// RFC base32/base64: strip padding on decode (lenient input), and
-			// emit it on encode for the strict variants that require it.
-			if to.Binary && from.PadSymbol != "" {
-				input = strings.TrimRight(input, from.PadSymbol)
-				// Only a trailing run is padding. A pad left anywhere else would
-				// fall through as an unrecognized byte, which names the character
-				// but not the actual mistake - and the streaming decoder already
-				// says it properly, so say the same thing here.
-				if strings.Contains(input, from.PadSymbol) {
-					return "", fmt.Errorf("cannot decode from %s: data after padding %q", from.Name(), from.PadSymbol)
-				}
-			}
-			out, err := convertBitPacked(input, from, to, kIn, kOut)
-			if err != nil {
-				return "", err
-			}
-			if from.Binary && to.PadEmit {
-				out = rfcPad(out, to)
-			}
-			return out, nil
-		}
-		// Above 8 bits per digit. If the non-binary base carries a published
-		// native scheme (2048, 32768, 65536), match it byte-for-byte using its
-		// secondary tail repertoire. Otherwise fall back to the generic
-		// length-prefixed packing, which round-trips any power-of-2 base.
-		big := to
-		if to.Binary {
-			big = from
-		}
-		if big.BinaryScheme != "" {
-			if from.Binary {
-				return encodeBigBaseNative(input, big), nil
-			}
-			return decodeBigBaseNative(input, big)
-		}
-		if from.Binary {
-			return encodeBinaryPrefixed(input, to, kOut), nil
-		}
-		return decodeBinaryPrefixed(input, from, kIn)
+		return convertBytes(input, from, to)
 	}
 
-	if input == "" {
-		return "", errors.New("empty input")
-	}
-	// Escaped control digits become their literal characters before anything
-	// else reads the string, so an escape behaves exactly like the character it
-	// names - markers included.
-	input, err := ExpandEscapes(input, from)
+	negative, intPart, fracPart, err := splitNumber(input, from)
 	if err != nil {
 		return "", err
 	}
-	negMark := from.NegSym()
-	decMark := from.DecSym()
-
-	// Validate negative marker usage.
-	negative := false
-	s := input
-	if negMark != "" {
-		firstAt := strings.Index(s, negMark)
-		if firstAt == 0 {
-			negative = true
-			s = s[len(negMark):]
-			if strings.Contains(s, negMark) {
-				return "", fmt.Errorf("input has more than one occurrence of negative marker %q", negMark)
-			}
-		} else if firstAt > 0 {
-			return "", fmt.Errorf("negative marker %q appears inside input, not at the start", negMark)
-		}
-	}
-
-	// Split at decimal marker (validate only one).
-	intPart, fracPart := s, ""
-	if decMark != "" {
-		first := strings.Index(s, decMark)
-		if first >= 0 {
-			rest := s[first+len(decMark):]
-			if strings.Contains(rest, decMark) {
-				return "", fmt.Errorf("input has more than one decimal marker %q", decMark)
-			}
-			intPart = s[:first]
-			fracPart = rest
-		}
-	}
-	// Checked before the zero fill below, or "." and "-." read as 0.
-	if intPart == "" && fracPart == "" {
-		return "", errors.New("no digits in input")
-	}
-	if intPart == "" {
-		// Treat ".5" as "0.5" by using the first digit symbol as zero.
-		intPart = from.Symbols[0]
-	}
-
-	// Tokenize the two parts separately.
 	intDigits, err := from.digitValues(intPart)
 	if err != nil {
 		return "", fmt.Errorf("integer part: %w", err)
@@ -388,78 +268,213 @@ func Convert(input string, from, to *Base, precision int) (string, error) {
 		return "", fmt.Errorf("fractional part: %w", err)
 	}
 
-	fromRadix := big.NewInt(int64(len(from.Symbols)))
-	toRadix := big.NewInt(int64(len(to.Symbols)))
-
-	// Integer part -> big.Int.
 	intVal := parseDigits(intDigits, from)
-
-	// Fractional part -> num/den. The denominator is one power, so square it up
-	// rather than multiplying the radix in once per digit.
-	fracNum := parseDigits(fracDigits, from)
-	fracDen := new(big.Int).Exp(fromRadix, big.NewInt(int64(len(fracDigits))), nil)
-
-	// Fractional part -> output base, rounded (half up) to at most `precision`
-	// digits. Rounding can carry into the integer part, so it is done before the
-	// integer is rendered. Truncating instead let simple round trips drift, e.g.
-	// 0.1 -> hex -> back came out 0.0999...9. A value smaller than one output
-	// digit rounds to nothing (no spurious "0.000" / "-0.000").
-	// Auto precision: one input frac digit carries log(fromBase) bits, one output
-	// digit holds log(toBase), so scale the input length by their ratio. The +1 is
-	// a rounding guard; trailing zeros are trimmed below. Bounded by input length,
-	// so no runaway - a short decimal input stays short in any base.
-	prec := precision
-	if prec < 0 {
-		if n := len(fracDigits); n == 0 {
-			prec = 0
-		} else {
-			ratio := math.Log(float64(len(from.Symbols))) / math.Log(float64(len(to.Symbols)))
-			prec = int(math.Ceil(float64(n)*ratio)) + 1
-		}
+	// Rounding can carry into the integer part, so the fraction goes first.
+	fracOut, carry := convertFraction(fracDigits, from, to, precision)
+	if carry {
+		intVal.Add(intVal, bigOne)
 	}
-
-	var fracOut []string
-	if fracNum.Sign() > 0 && prec > 0 {
-		scale := new(big.Int).Exp(toRadix, big.NewInt(int64(prec)), nil)
-		q := new(big.Int).Mul(fracNum, scale)
-		rem := new(big.Int)
-		q.QuoRem(q, fracDen, rem)
-		if new(big.Int).Lsh(rem, 1).Cmp(fracDen) >= 0 {
-			q.Add(q, bigOne)
-		}
-		if q.Cmp(scale) >= 0 {
-			intVal.Add(intVal, bigOne) // carried out of the fractional range
-			q.SetInt64(0)
-		}
-		if q.Sign() > 0 {
-			// Exactly prec digits: leading zeros kept (0.05 needs them),
-			// trailing ones trimmed.
-			digits := formatDigits(q, to, prec)
-			zero := to.Symbols[0]
-			end := prec
-			for end > 0 && digits[end-1] == zero {
-				end--
-			}
-			fracOut = digits[:end]
-		}
-	}
-
-	// Integer part -> output base.
 	intOut := formatDigits(intVal, to, 0)
 
-	// Assemble, using the OUTPUT base's markers.
 	isZero := intVal.Sign() == 0 && len(fracOut) == 0
-	if negative && !isZero {
-		if to.NegSym() == "" {
-			return "", &MissingMarkerError{Base: to.Name(), Marker: "negative"}
+	return joinNumber(negative && !isZero, intOut, fracOut, to)
+}
+
+// convertBytes is Convert's byte mode, where one side is raw bytes. It bit-packs,
+// which is O(N) and keeps leading zero bytes naturally (padding lives in the low
+// bits, not as digit-position leading zeros). The big.Int path would be correct
+// but quadratic - unusable on real files.
+func convertBytes(input string, from, to *Base) (string, error) {
+	kIn := PowerOfTwoBits(len(from.Symbols))
+	kOut := PowerOfTwoBits(len(to.Symbols))
+	// The non-binary side decides how the bytes are carried.
+	text, kText := to, kOut
+	if to.Binary {
+		text, kText = from, kIn
+	}
+	switch {
+	case kIn == 0 || kOut == 0:
+		return convertCodec(input, from, text)
+	case kText <= 8:
+		return convertSmallBits(input, from, to, kIn, kOut)
+	default:
+		return convertBigBits(input, from, to, text, kIn, kOut)
+	}
+}
+
+// convertCodec handles byte mode against a base that isn't a power of two, so
+// bit-packing doesn't apply. Only a defined binary-to-text codec (base45,
+// ascii85, z85, base91) can carry raw bytes, each per its own spec; any other
+// base has no byte-exact mapping and is rejected.
+func convertCodec(input string, from, codec *Base) (string, error) {
+	if codec.BinaryScheme == "" {
+		return "", fmt.Errorf("byte mode requires a power-of-2 base (2, 4, 8, ... 256) or a defined binary-to-text codec (base45, ascii85, z85, base91); base %q has %d digits and is neither", codec.Name(), len(codec.Symbols))
+	}
+	if from.Binary {
+		return encodeCodec(input, codec)
+	}
+	return decodeCodec(input, codec)
+}
+
+// convertSmallBits handles byte mode up to 8 bits per digit. The plain
+// bit-packed path already round-trips every length and matches the standard
+// encodings there, RFC base32/base64 padding included: it is stripped on decode
+// (lenient input) and emitted on encode for the strict variants that need it.
+func convertSmallBits(input string, from, to *Base, kIn, kOut int) (string, error) {
+	if to.Binary && from.PadSymbol != "" {
+		input = strings.TrimRight(input, from.PadSymbol)
+		// Only a trailing run is padding. A pad left anywhere else would
+		// fall through as an unrecognized byte, which names the character
+		// but not the actual mistake - and the streaming decoder already
+		// says it properly, so say the same thing here.
+		if strings.Contains(input, from.PadSymbol) {
+			return "", fmt.Errorf("cannot decode from %s: data after padding %q", from.Name(), from.PadSymbol)
 		}
+	}
+	out, err := convertBitPacked(input, from, to, kIn, kOut)
+	if err != nil {
+		return "", err
+	}
+	if from.Binary && to.PadEmit {
+		out = rfcPad(out, to)
+	}
+	return out, nil
+}
+
+// convertBigBits handles byte mode above 8 bits per digit (base 2048, 32768,
+// 65536), where a zero-padded tail can add a whole byte the decoder can't tell
+// from data. A base with a published native scheme matches it byte-for-byte
+// through its tail repertoire. Anything else falls back to the generic
+// length-prefixed packing, which stays lossless at any length.
+func convertBigBits(input string, from, to, text *Base, kIn, kOut int) (string, error) {
+	if text.BinaryScheme != "" {
+		if from.Binary {
+			return encodeBigBaseNative(input, text), nil
+		}
+		return decodeBigBaseNative(input, text)
+	}
+	if from.Binary {
+		return encodeBinaryPrefixed(input, to, kOut), nil
+	}
+	return decodeBinaryPrefixed(input, from, kIn)
+}
+
+// splitNumber checks the markers in a number and splits it into its sign,
+// integer part and fractional part. An empty integer part comes back as the
+// zero digit, so ".5" reads as "0.5".
+func splitNumber(input string, from *Base) (negative bool, intPart, fracPart string, err error) {
+	if input == "" {
+		return false, "", "", errors.New("empty input")
+	}
+	// Escaped control digits become their literal characters before anything
+	// else reads the string, so an escape behaves exactly like the character it
+	// names - markers included.
+	s, err := ExpandEscapes(input, from)
+	if err != nil {
+		return false, "", "", err
+	}
+
+	if negMark := from.NegSym(); negMark != "" {
+		firstAt := strings.Index(s, negMark)
+		if firstAt == 0 {
+			negative = true
+			s = s[len(negMark):]
+			if strings.Contains(s, negMark) {
+				return false, "", "", fmt.Errorf("input has more than one occurrence of negative marker %q", negMark)
+			}
+		} else if firstAt > 0 {
+			return false, "", "", fmt.Errorf("negative marker %q appears inside input, not at the start", negMark)
+		}
+	}
+
+	intPart = s
+	if decMark := from.DecSym(); decMark != "" {
+		if first := strings.Index(s, decMark); first >= 0 {
+			fracPart = s[first+len(decMark):]
+			if strings.Contains(fracPart, decMark) {
+				return false, "", "", fmt.Errorf("input has more than one decimal marker %q", decMark)
+			}
+			intPart = s[:first]
+		}
+	}
+	// Checked before the zero fill below, or "." and "-." read as 0.
+	if intPart == "" && fracPart == "" {
+		return false, "", "", errors.New("no digits in input")
+	}
+	if intPart == "" {
+		intPart = from.Symbols[0]
+	}
+	return negative, intPart, fracPart, nil
+}
+
+// convertFraction turns the fractional digits into the output base, rounded
+// (half up) to at most `precision` digits. Truncating instead let simple round
+// trips drift, e.g. 0.1 -> hex -> back came out 0.0999...9. A value smaller than
+// one output digit rounds to nothing (no spurious "0.000" / "-0.000"). carry
+// reports a round up out of the fractional range, which the integer part takes.
+func convertFraction(fracDigits []int, from, to *Base, precision int) (fracOut []string, carry bool) {
+	prec := fracPrecision(precision, len(fracDigits), from, to)
+	fracNum := parseDigits(fracDigits, from)
+	if fracNum.Sign() <= 0 || prec <= 0 {
+		return nil, false
+	}
+	// The denominator is one power, so square it up rather than multiplying the
+	// radix in once per digit.
+	fromRadix := big.NewInt(int64(len(from.Symbols)))
+	fracDen := new(big.Int).Exp(fromRadix, big.NewInt(int64(len(fracDigits))), nil)
+	toRadix := big.NewInt(int64(len(to.Symbols)))
+	scale := new(big.Int).Exp(toRadix, big.NewInt(int64(prec)), nil)
+
+	q := new(big.Int).Mul(fracNum, scale)
+	rem := new(big.Int)
+	q.QuoRem(q, fracDen, rem)
+	if new(big.Int).Lsh(rem, 1).Cmp(fracDen) >= 0 {
+		q.Add(q, bigOne)
+	}
+	if q.Cmp(scale) >= 0 {
+		return nil, true
+	}
+	if q.Sign() == 0 {
+		return nil, false
+	}
+	// Exactly prec digits: leading zeros kept (0.05 needs them), trailing ones
+	// trimmed.
+	digits := formatDigits(q, to, prec)
+	zero := to.Symbols[0]
+	end := prec
+	for end > 0 && digits[end-1] == zero {
+		end--
+	}
+	return digits[:end], false
+}
+
+// fracPrecision resolves auto precision. One input frac digit carries
+// log(fromBase) bits, one output digit holds log(toBase), so scale the input
+// length by their ratio. The +1 is a rounding guard; trailing zeros are trimmed
+// later. Bounded by input length, so no runaway - a short decimal input stays
+// short in any base.
+func fracPrecision(precision, nFrac int, from, to *Base) int {
+	if precision >= 0 {
+		return precision
+	}
+	if nFrac == 0 {
+		return 0
+	}
+	ratio := math.Log(float64(len(from.Symbols))) / math.Log(float64(len(to.Symbols)))
+	return int(math.Ceil(float64(nFrac)*ratio)) + 1
+}
+
+// joinNumber assembles the output digits with the output base's markers.
+func joinNumber(negative bool, intOut, fracOut []string, to *Base) (string, error) {
+	if negative && to.NegSym() == "" {
+		return "", &MissingMarkerError{Base: to.Name(), Marker: "negative"}
 	}
 	if len(fracOut) > 0 && to.DecSym() == "" {
 		return "", &MissingMarkerError{Base: to.Name(), Marker: "decimal"}
 	}
 
 	var sb strings.Builder
-	if negative && !isZero {
+	if negative {
 		sb.WriteString(to.NegSym())
 	}
 	for _, d := range intOut {
@@ -544,20 +559,13 @@ func convertBitPacked(input string, from, to *Base, kIn, kOut int) (string, erro
 		emit()
 	}
 
-	switch {
-	case from.Binary:
+	if from.Binary {
 		for i := 0; i < len(input); i++ {
 			feed(int(input[i]))
 		}
-	case from.allOneByte:
-		for i := 0; i < len(input); i++ {
-			v := from.byteValue[input[i]]
-			if v < 0 {
-				return "", fmt.Errorf("byte %#02x (%q) not in base %q", input[i], string(input[i]), from.Name())
-			}
-			feed(v)
-		}
-	default:
+	} else {
+		// Multi-byte digits only. One side is always raw bytes, so a one-byte
+		// source took decodeDigitsToBytes above.
 		// Tolerate line breaks the way the byte paths do, so wrapped multi-byte
 		// output reads back the same whether it arrives via argv or a pipe.
 		digits, err := from.digitValues(stripLineBreaks(input))
