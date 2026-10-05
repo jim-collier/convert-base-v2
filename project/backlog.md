@@ -45,6 +45,41 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: `Finalize` scores 117 on gocognit, and copies its case-flip block three times, one copy already different. `Convert` opens with 70 lines of byte-mode branching before the number path. `run()` is 440 lines with an `os.Exit(2)` inside.
 	- Note: alias flags are separate bools ORed at each use. `canLowercase` and `canUppercase` are copies. The `case from.allOneByte` arm in `convertBitPacked` can never be reached.
 	- Origin: mostly ad488ce, grown since. Not seen by an earlier round. Confirmed by gocognit and a coverage profile.
+	- Progress log:
+		- 20261005: split into 3 children, one per file, so each can be done and checked alone. This item closes when they do.
+
+- `Finalize` is hard to follow and copies its case-flip block 3 times. (Code review 20261004 item 23a)
+	- ID: 2026100507495201
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261005-074952
+	- Opened by: Code review 20261004
+	- Parent ID: 2026100413480023
+	- Target OS: Any
+	- Note: `registry.go` `Finalize` scores 117 on gocognit. One of the 3 case-flip copies already differs from the others.
+
+- `Convert` buries the number path under byte-mode branching, and `convertBitPacked` has a dead arm. (Code review 20261004 item 23b)
+	- ID: 2026100507495202
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261005-074952
+	- Opened by: Code review 20261004
+	- Parent ID: 2026100413480023
+	- Target OS: Any
+	- Note: `convert.go` `Convert` opens with 70 lines of byte-mode branching. The `case from.allOneByte` arm in `convertBitPacked` can never be reached.
+
+- `run()` is 440 lines, and the command's flag helpers repeat themselves. (Code review 20261004 item 23c)
+	- ID: 2026100507495203
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261005-074952
+	- Opened by: Code review 20261004
+	- Parent ID: 2026100413480023
+	- Target OS: Any
+	- Note: `main.go` `run()` has an `os.Exit(2)` inside it. Alias flags are separate bools ORed at each use, and `canLowercase` and `canUppercase` are copies.
 
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
@@ -57,6 +92,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: most harness and helper functions are not `fCamelCase`, many variables are snake_case, and private globals take one underscore. About 850 expansions are unbraced.
 	- Note: some files lack History or a `## Purpose` header, some have shellcheck disables mid-file, and a few print errors to stdout. `test.bash` groups output with `>>>` rather than the house section rule.
 	- Note: fix a file when it is next touched. `gfs-rotate.bash` is a shared copy, so leave it.
+	- Progress log:
+		- 20261005: left out of the round. It stays a fix-when-touched rule, since a one-pass restyle of every script would be a big diff for little gain.
 	- Origin: several commits. Directive gap, filed against the 2026-10-04 directives.
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
