@@ -164,11 +164,20 @@ func run() (err error) {
 	if note := upgradeConfigFile(etcConfigPath, now); note != "" {
 		fmt.Fprintln(os.Stderr, note)
 	}
+	// A config that will not load stops every run but --help, which shows why
+	// in its config section and prints the rest. Every other run stays strict,
+	// since a dropped file means converting with the wrong bases. Forgiven
+	// failures are kept too, so the help never calls a skipped file loaded.
+	helpAsked := asked.has("help")
+	configErrs := make(map[string]error)
 	// Nobody types the system path, so a copy that will not open at all just
 	// means there is no system config. A file that opens and will not parse
 	// still stops us, since that one was put there on purpose.
-	if err := reg.LoadConfig(etcConfigPath); err != nil && !convertbase.IsConfigUnreadable(err) {
-		return fmt.Errorf("config %s: %w", etcConfigPath, err)
+	if err := reg.LoadConfig(etcConfigPath); err != nil {
+		if !helpAsked && !convertbase.IsConfigUnreadable(err) {
+			return fmt.Errorf("config %s: %w", etcConfigPath, err)
+		}
+		configErrs[etcConfigPath] = err
 	}
 	// Only load user config if it's a different path (avoid double-registering
 	// if user explicitly set -config=/etc/...).
@@ -184,20 +193,24 @@ func run() (err error) {
 		// That forgiveness is only for the paths nobody typed; a typed
 		// --config still has to open.
 		f, openErr := os.Open(userPath)
-		if openErr != nil {
+		if openErr == nil {
+			_ = f.Close() // opened only to prove it opens; nothing was written
+		} else if !helpAsked {
 			return fmt.Errorf("config %s: %w", userPath, openErr)
 		}
-		_ = f.Close() // opened only to prove it opens; nothing was written
 	}
 	if userPath != "" && userPath != etcConfigPath {
 		// A missing default config path is fine, but if the user explicitly typed
 		// --config, a missing/unreadable file is almost certainly a typo - error
 		// instead of silently dropping their custom bases.
 		if configExplicit {
+			// Under --help the load below finds the same fault, and the help
+			// shows it.
 			if _, statErr := os.Stat(userPath); statErr != nil {
-				return fmt.Errorf("config %s: %w", userPath, statErr)
-			}
-			if note := explicitConfigNote(userPath); note != "" {
+				if !helpAsked {
+					return fmt.Errorf("config %s: %w", userPath, statErr)
+				}
+			} else if note := explicitConfigNote(userPath); note != "" {
 				fmt.Fprintln(os.Stderr, note)
 			}
 		} else if ensureUserConfig(userPath) {
@@ -212,11 +225,14 @@ func run() (err error) {
 		} else if note := upgradeConfigFile(userPath, now); note != "" {
 			fmt.Fprintln(os.Stderr, note)
 		}
-		// A typed --config already failed above if it was not readable, so the
-		// only unreadable file reaching here is the default path, same case as
-		// the system one.
-		if err := reg.LoadConfig(userPath); err != nil && (configExplicit || !convertbase.IsConfigUnreadable(err)) {
-			return fmt.Errorf("config %s: %w", userPath, err)
+		// Outside --help a typed --config already failed above if it was not
+		// readable, so the only unreadable file reaching here is the default
+		// path, same case as the system one.
+		if err := reg.LoadConfig(userPath); err != nil {
+			if !helpAsked && (configExplicit || !convertbase.IsConfigUnreadable(err)) {
+				return fmt.Errorf("config %s: %w", userPath, err)
+			}
+			configErrs[userPath] = err
 		}
 	}
 
@@ -224,7 +240,7 @@ func run() (err error) {
 	// goes to stdout (pipeable); the no-args error path below keeps stderr.
 	if len(asked) > 0 {
 		return printInfo(stdout, asked, func(w io.Writer) {
-			printHelp(w, reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
+			printHelp(w, reg, configErrs, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
 		})
 	}
 
@@ -431,7 +447,7 @@ func run() (err error) {
 	// No number and stdin is a terminal - nothing to do. This is the error path
 	// (exit 2), so help goes to stderr, leaving stdout clean.
 	if len(args) == 0 && !fromStdin {
-		printHelp(os.Stderr, reg, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
+		printHelp(os.Stderr, reg, configErrs, etcConfigPath, userPath, *fromName, *toName, *fromSymbols, *toSymbols)
 		os.Exit(2)
 	}
 
@@ -838,8 +854,9 @@ func userConfigPath() string {
 
 // printHelp prints the program's help text plus a contextual report on config
 // file visibility and, if the user passed any --from/--to/-*-symbols flags,
-// where each base would be resolved from in a real run.
-func printHelp(out io.Writer, reg *convertbase.Registry, etcPath, userPath, fromName, toName, fromSyms, toSyms string) {
+// where each base would be resolved from in a real run. configErrs has the
+// load failure for each config path that did not load.
+func printHelp(out io.Writer, reg *convertbase.Registry, configErrs map[string]error, etcPath, userPath, fromName, toName, fromSyms, toSyms string) {
 	printCopyright(out)
 	fmt.Fprint(out, `Convert an arbitrarily large number to/from arbitrary bases.
 
@@ -914,11 +931,17 @@ Program info (several in one run each print once, in order, then exit):
 			fmt.Fprintf(out, "  %-50s  %s\n", "("+label+": unset)", "")
 			return
 		}
-		status := "not found"
-		if _, err := os.Stat(path); err == nil {
-			status = "loaded"
+		err := configErrs[path]
+		switch {
+		case err == nil && pathLoaded(reg, path):
+			fmt.Fprintf(out, "  %-50s  [loaded]\n", path)
+		case err == nil:
+			fmt.Fprintf(out, "  %-50s  [not found]\n", path)
+		case convertbase.IsConfigUnreadable(err):
+			fmt.Fprintf(out, "  %-50s  [unreadable]\n", path)
+		default:
+			fmt.Fprintf(out, "  %-50s  [not loaded]\n      %v\n", path, err)
 		}
-		fmt.Fprintf(out, "  %-50s  [%s]\n", path, status)
 	}
 	describePath("system", etcPath)
 	if userPath == etcPath {

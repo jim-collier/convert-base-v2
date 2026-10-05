@@ -287,3 +287,54 @@ func TestConfigRejectsRawBlockValue(t *testing.T) {
 		})
 	}
 }
+
+// A lone "," is a separator, not the comma digit, so a spec of only commas is
+// empty. It used to parse to no symbols with no error, which left a config base
+// with no tail and gave --to-symbols a symbol count error. An empty field still
+// means none on purpose, and never reaches the parser.
+// Test ID: Ermubbp
+func TestSpecOnlyCommas(t *testing.T) {
+	for _, spec := range []string{",", ",,", ",,,,"} {
+		if syms, err := ParseSymbolSpec(spec); err == nil || !strings.Contains(err.Error(), "only commas") {
+			t.Errorf("spec %q: got %q, %v", spec, syms, err)
+		}
+	}
+	reg := newReg(t)
+	commas := ","
+	if _, err := ResolveBase(reg, "", ",", &Options{Label: "--to"}); err == nil || !strings.Contains(err.Error(), "--to-symbols: ") {
+		t.Errorf("comma-only symbols should name the flag, got %v", err)
+	}
+	if _, err := ApplyOptions(base(t, reg, "2048qntm"), &Options{Tail: &commas, Label: "--to"}); err == nil ||
+		!strings.Contains(err.Error(), "--to-tail: ") || !strings.Contains(err.Error(), "only commas") {
+		t.Errorf("comma-only tail should name the flag, got %v", err)
+	}
+	err := loadConfigText(t, "base: tl\n\tsymbols: 0123456789abcdef\n\ttail: \",\"\n##    Format   3\n")
+	if err == nil || !strings.Contains(err.Error(), `line 3: base "tl": tail: `) {
+		t.Errorf("comma-only config tail should name the field, got %v", err)
+	}
+	none := ""
+	if _, err := ApplyOptions(base(t, reg, "2048qntm"), &Options{Tail: &none}); err != nil {
+		t.Errorf("an empty tail still clears it: %v", err)
+	}
+}
+
+// A file whose second base is bad used to leave its first one registered.
+// --help goes on past a failed load, and listed that base as coming from it.
+// Test ID: ErmubcQ
+func TestLoadConfigAllOrNothing(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "partial.shcl")
+	text := "base: good1\n\tsymbols: wxyz\n\nbase: bad2\n\tsymbols: aa a\n##    Format   3\n"
+	if err := os.WriteFile(path, []byte(text), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	reg := newReg(t)
+	if err := reg.LoadConfig(path); err == nil {
+		t.Fatal("a config with a bad base loaded")
+	}
+	if b, err := reg.Lookup("good1"); err == nil {
+		t.Errorf("base from a failed config was registered, source %q", b.Source)
+	}
+	if len(reg.LoadedConfigs) != 0 {
+		t.Errorf("failed config listed as loaded: %v", reg.LoadedConfigs)
+	}
+}

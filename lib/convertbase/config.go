@@ -48,7 +48,8 @@ var configBaseFields = map[string]bool{
 // A missing file is not an error. Each base's Source is set to the full path.
 // Any other read failure comes back marked, for IsConfigUnreadable to sort out.
 // A file written for an older SHCL format is converted in memory first, as
-// UpgradeConfig does, and refused when that cannot be done safely.
+// UpgradeConfig does, and refused when that cannot be done safely. A file that
+// fails to load adds no bases at all.
 func (r *Registry) LoadConfig(path string) error {
 	if path == "" {
 		return nil
@@ -87,6 +88,10 @@ func (r *Registry) loadConfigText(path, text string) error {
 	if err := checkConfigFields(doc); err != nil {
 		return err
 	}
+	// Every base is checked before any is added, so a bad block late in the
+	// file leaves no bases from the good ones above it. --help goes on past a
+	// failed load, and would list those as coming from a file it calls broken.
+	bases := make([]*Base, 0, doc.Count("base"))
 	for i := 0; i < doc.Count("base"); i++ {
 		sel := fmt.Sprintf("base[#%d]", i)
 		b, err := configBase(doc, sel)
@@ -94,11 +99,15 @@ func (r *Registry) loadConfigText(path, text string) error {
 			return err
 		}
 		b.Source = path
-		if err := r.Register(b); err != nil {
-			// Registration errors already lead with the base name, so the
-			// block's line is all that is missing to place them in the file.
+		if err := b.check(); err != nil {
+			// These errors already lead with the base name, so the block's
+			// line is all that is missing to place them in the file.
 			return fmt.Errorf("%s%w", citeLine(doc, sel), err)
 		}
+		bases = append(bases, b)
+	}
+	for _, b := range bases {
+		r.add(b)
 	}
 	r.LoadedConfigs = append(r.LoadedConfigs, path)
 	return nil

@@ -115,6 +115,9 @@ func ResolveBase(reg *Registry, name, customSpec string, opts *Options) (*Base, 
 	if customSpec != "" {
 		symbols, err := ParseSymbolSpec(customSpec)
 		if err != nil {
+			if opts != nil && opts.Label != "" {
+				return nil, fmt.Errorf("%s: %w", opts.flag("symbols"), err)
+			}
 			return nil, err
 		}
 		source := "custom symbols"
