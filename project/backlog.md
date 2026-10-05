@@ -181,7 +181,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The reactor scans every open region for each pointer a host passes. (Code review 20261004 item 29)
 	- ID: 2026100413480029
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority: Low
 	- Opened: 20261004-134800
 	- Opened by: Code review 20261004
@@ -189,6 +189,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: a convert call took 67 us with no other allocations open, 948 us with 1,000 and 8.3 ms with 10,000.
 	- Probable fix: an exact lookup on the start pointer first, with the scan only for pointers into the middle of a region.
 	- Origin: `reactor/main.go:136-148`, from 36d7ccc on 2026-08-02. Not seen by an earlier round. Confirmed with a scratch reactor-host bench.
+	- Done: as the probable fix. A pointer to a region's start is found in the map at once. Only a pointer into the middle of a region still walks them all.
+	- Verified: 20261004. 25 converts took about 0.8 ms with no other regions open. With 10,000 open they took 38 ms before and 0.8 ms after, 46 times as long against 1.1. go vet, golangci-lint, `go test ./...` and `make reactor` clean.
+	- Test case: `Ern7YaC`, reactor-host `--regions`. It fails when a convert with 10,000 regions open takes over 3 times as long as with none. It failed at 44 to 46 times before the fix and passed at 1.1 after, run through the harness section too. reactor-host `Elmd2Y4` now also passes an interior pointer, and a length past a region's end from its start and from its middle.
+	- Branch: go-lows
+	- Acceptance signoff: Self-closed: did what the item asked, and its test fails before and passes after.
+	- Closed: 20261004-201000
 
 - A config migration can lose an edit made to the original during the backup. (Code review 20261004 item 30)
 	- ID: 2026100413480030

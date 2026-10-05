@@ -60,6 +60,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A prerelease `.deb` or `.rpm` is named with a `.` where its version has a `~`, such as `convert-base-v2_3.1.0.beta1_amd64.deb`. That is the name GitHub serves it under, so it matches `checksums.txt`. The version inside the package keeps the `~`, so a beta still sorts below its final release.
 
+- Reactor: a call no longer slows down with the number of regions the host holds open. With 10,000 open, a conversion took over 40 times as long.
+
 ### Fixed
 
 - A config field indented under another field, such as `decimal:` under `negative:`, was never read, and an empty field above it still switched its marker off. The base was built wrong with no error. It is refused now, naming the base, the field and the line.

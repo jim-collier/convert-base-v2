@@ -1362,13 +1362,19 @@ REACTOR_HOST_DIR="${meDir}/utility/reactor-host"
 REACTOR_WASM="${CBT_TMP}/convert-base-reactor.wasm"
 goMinor="$(go env GOVERSION 2>/dev/null | sed -E 's/^go1\.([0-9]+).*$/\1/' || true)"
 if [[ ! "${goMinor}" =~ ^[0-9]+$ ]] || ((goMinor < 24)); then
-	_warn Elmd2Y4 "reactor module skipped: needs a Go 1.24+ toolchain (have $(go env GOVERSION 2>/dev/null || echo none))"
+	_warn "Elmd2Y4 Ern7YaC" "reactor module skipped: needs a Go 1.24+ toolchain (have $(go env GOVERSION 2>/dev/null || echo none))"
 elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "${REACTOR_WASM}" ./reactor) >"${CBT_ERR}" 2>&1; then
 	_fail Elmd2Y4 "reactor module build" "$(tail -2 "${CBT_ERR}")"
 elif ! (cd "${REACTOR_HOST_DIR}" && go build -o "${CBT_TMP}/reactor-host" .) >"${CBT_ERR}" 2>&1; then
-	_warn Elmd2Y4 "reactor ABI skipped: host harness would not build (wazero not cached and offline?)"
+	_warn "Elmd2Y4 Ern7YaC" "reactor ABI skipped: host harness would not build (wazero not cached and offline?)"
 elif "${CBT_TMP}/reactor-host" "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; then
 	_pass Elmd2Y4 "reactor ABI (exports, conversions, metadata, streams, errors, leak loops)"
+	## A call's cost must not grow with the regions a host holds open.
+	if "${CBT_TMP}/reactor-host" --regions "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; then
+		_pass Ern7YaC "reactor call cost with 10,000 regions open"
+	else
+		_fail Ern7YaC "reactor call cost with 10,000 regions open" "$(tail -1 "${CBT_ERR}")"
+	fi
 else
 	_fail Elmd2Y4 "reactor ABI" "$(tail -1 "${CBT_ERR}")"
 fi

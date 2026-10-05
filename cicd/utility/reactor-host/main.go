@@ -12,7 +12,8 @@
 // --batch reads one conversion request per stdin line (FROM <tab> TO <tab>
 // PRECISION <tab> HEX(VALUE), answering "ok" <tab> HEX(RESULT) or "err", the
 // module-driver protocol), and --stream FROM TO [CHUNK] pipes stdin to stdout
-// through the streaming ABI.
+// through the streaming ABI. --regions times a conversion with no other
+// regions open and with many, and fails when the second is much slower.
 package main
 
 import (
@@ -22,9 +23,11 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
@@ -56,10 +59,12 @@ func main() {
 	}
 	usageOK := (mode == "" && len(args) == 1) ||
 		(mode == "batch" && len(args) == 1) ||
+		(mode == "regions" && len(args) == 1) ||
 		(mode == "stream" && (len(args) == 3 || len(args) == 4))
 	if !usageOK {
 		fmt.Fprintln(os.Stderr, "usage: reactor-host MODULE.wasm\n"+
 			"       reactor-host --batch MODULE.wasm\n"+
+			"       reactor-host --regions MODULE.wasm\n"+
 			"       reactor-host --stream MODULE.wasm FROM TO [CHUNK]")
 		os.Exit(2)
 	}
@@ -85,6 +90,8 @@ func main() {
 	switch mode {
 	case "batch":
 		h.batch()
+	case "regions":
+		h.regions()
 	case "stream":
 		chunk := 4096
 		if len(args) == 4 {
@@ -147,6 +154,46 @@ func (h *host) batch() {
 	}
 	if err := out.Flush(); err != nil {
 		fatal("batch: stdout: %v", err)
+	}
+}
+
+// regions checks that a call's cost does not grow with the number of regions
+// the host holds open. Each pointer a call passes used to be found by a walk
+// of every open region, so 10,000 of them made a conversion over 40 times
+// slower. The fastest of many batches is compared, so a busy machine only
+// widens the margin.
+func (h *host) regions() {
+	const held, limit = 10000, 3.0
+	timed := func() time.Duration {
+		best := time.Duration(math.MaxInt64)
+		for round := 0; round < 40; round++ {
+			start := time.Now()
+			for i := 0; i < 25; i++ {
+				if _, code := h.convert("10", "62", "1234567890", -1); code != errNone {
+					fatal("regions: convert code %d", code)
+				}
+			}
+			best = min(best, time.Since(start))
+		}
+		return best
+	}
+	timed() // warm up
+	alone := timed()
+	open := make([]uint64, held)
+	for i := range open {
+		if open[i] = h.call("alloc", 16); open[i] == 0 {
+			fatal("regions: alloc failed: %s", h.lastError())
+		}
+	}
+	crowded := timed()
+	h.freeAll(open...)
+	if n := h.call("region_count"); n != 0 {
+		fatal("regions: region_count %d after freeing, want 0", n)
+	}
+	ratio := float64(crowded) / float64(alone)
+	fmt.Printf("reactor-host: 25 converts took %v alone, %v with %d regions open (%.2fx)\n", alone, crowded, held, ratio)
+	if ratio > limit {
+		fatal("with %d regions open a convert took %.1f times as long, limit %.1f", held, ratio, limit)
 	}
 }
 
@@ -363,6 +410,20 @@ func (h *host) run() {
 		fatal("lookup with wild pointer: code %d, want %d", code, errBadArg)
 	}
 	p := h.call("alloc", 8)
+	if !h.mod.Memory().Write(uint32(p), []byte("xx16yyyy")) {
+		fatal("memory write at %d failed", p)
+	}
+	// A pointer into the middle of a region is legal, and a length past its
+	// end is not, even from the region's own start.
+	if code := h.calli32("lookup", p+2, 2); code != errNone {
+		fatal("lookup through an interior pointer: code %d (%s)", code, h.lastError())
+	}
+	if code := h.calli32("lookup", p, 9); code != errBadArg {
+		fatal("lookup running past its region: code %d, want %d", code, errBadArg)
+	}
+	if code := h.calli32("lookup", p+6, 3); code != errBadArg {
+		fatal("interior lookup running past its region: code %d, want %d", code, errBadArg)
+	}
 	if h.calli32("free", p) != errNone {
 		fatal("free of fresh region failed")
 	}

@@ -134,9 +134,16 @@ func packRegion(s string) uint64 {
 // regions. Requiring the range to sit inside a region catches a stale or
 // misplaced pointer at the call instead of reading whatever the Go heap holds
 // there. A zero length is a legal empty string.
+//
+// Hosts nearly always pass a region's own start, which the map finds at once.
+// Only a pointer into the middle of one walks them all, and a host holding
+// thousands open made every call pay for that walk.
 func hostBytes(ptr, n uint32) ([]byte, bool) {
 	if n == 0 {
 		return nil, true
+	}
+	if buf, ok := regions[ptr]; ok && uint64(n) <= uint64(len(buf)) {
+		return buf[:n], true
 	}
 	for base, buf := range regions {
 		if ptr >= base && uint64(ptr)+uint64(n) <= uint64(base)+uint64(len(buf)) {
