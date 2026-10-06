@@ -41,8 +41,12 @@
 //
 // # Streaming
 //
-// [StreamConvert] encodes or decodes between a reader and a writer in constant
-// memory, whatever the input size. It reports whether it took the conversion;
-// a base it cannot stream falls back to [Convert], which buffers.
-// [StreamBytesRoute] chains two stages for a text-to-text byte re-encoding.
+// [ConvertStream] encodes or decodes raw bytes between a reader and a writer,
+// or re-encodes the bytes behind one text base's digits in another. The
+// power-of-2 bases run in constant memory, whatever the input size. A pair
+// that can't stream, such as a codec, is read whole and converted once.
+//
+//	b64, err := reg.Lookup("64")
+//	raw, err := reg.Lookup("bytes")
+//	err = convertbase.ConvertStream(os.Stdin, os.Stdout, raw, b64, false)
 package convertbase

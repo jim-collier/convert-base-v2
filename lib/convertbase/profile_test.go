@@ -63,7 +63,7 @@ func BenchmarkProfile(b *testing.B) {
 			b.Fatal(err)
 		}
 		// Stage 2: streaming codec throughput (raw bytes -> base64url).
-		if _, err := StreamConvert(strings.NewReader(blob), io.Discard, bytesBase, base64u); err != nil {
+		if _, err := streamConvert(strings.NewReader(blob), io.Discard, bytesBase, base64u); err != nil {
 			b.Fatal(err)
 		}
 	}

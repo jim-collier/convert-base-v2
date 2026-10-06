@@ -74,6 +74,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `--help` shows the base argument that `--get-base-name`, `--show-symbols` and `--show-symbols-0` take, and the pipe form with no NUMBER.
 
+- Library: `ConvertStream` does the whole piped byte mode in one call. It takes a reader, a writer, two bases and the `--binary` choice, streams when the pair can, and reads the input whole when it can't. It replaces `StreamConvert` and `StreamBytesRoute`, which are private now, and so is `SpecOpts`. A program that called any of the three needs a change. The library is still v0, so its API can still change like this.
+
 ### Fixed
 
 - A config field indented under another field, such as `decimal:` under `negative:`, was never read, and an empty field above it still switched its marker off. The base was built wrong with no error. It is refused now, naming the base, the field and the line.
@@ -103,6 +105,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `--lower` and `--upper` on piped input read the whole input into memory first, about 5 times its size, so a 100 MB file to lower-case hex peaked near 500 MB. They stream now, in constant memory like the plain encode, with the same output as before.
 
 - `--lower` and `--upper` also changed the case of a custom base's pad and tail symbols, so `--to-pad P --lower` wrote `p` and the same base could not read it back. The pad and tail are written as the base defines them now. A digit that would recase into the base's pad, a tail symbol or a marker gets an error instead, the same as mixed-case digits. Built-in bases are unchanged.
+
+- Reactor: a stream between two text bases that can't stream end to end, such as base64 to base91, refused input that ended in padding and a line break. One trailing line break is dropped now, as the command does.
 
 ### Other work
 

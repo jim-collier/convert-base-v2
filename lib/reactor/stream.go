@@ -36,7 +36,8 @@ var (
 	streams      = map[uint32]*stream{}
 	nextStreamID uint32
 
-	// The raw-byte base, resolved once; every stream routes through or ends at it.
+	// The raw-byte base, resolved once. stream_new converts against it to word
+	// a refusal the way the library does.
 	bytesBase *convertbase.Base
 )
 
@@ -69,50 +70,18 @@ func (o *streamOut) take() uint64 {
 	return packed
 }
 
-// runStream is the converter goroutine. It tries the library's streaming
-// paths first and falls back to buffering the whole input for the pairs that
-// cannot stream, so every raw-capable pair works through one API. On exit it
-// closes the read side, so a writer blocked mid-stream fails fast instead of
-// hanging forever.
+// runStream is the converter goroutine. The library streams what it can and
+// buffers the rest, so every raw-capable pair works through one call. On exit
+// it closes the read side, so a writer blocked mid-stream fails fast instead
+// of hanging forever.
 func runStream(s *stream, pr *io.PipeReader, from, to *convertbase.Base) {
-	handled, err := convertbase.StreamConvert(pr, s.out, from, to)
-	if !handled && err == nil && !from.Binary && !to.Binary {
-		handled, err = convertbase.StreamBytesRoute(pr, s.out, from, to, bytesBase)
-	}
-	if !handled && err == nil {
-		err = bufferedStream(pr, s.out, from, to)
-	}
+	err := convertbase.ConvertStream(pr, s.out, from, to, true)
 	if err != nil {
 		pr.CloseWithError(err)
 	} else {
 		pr.Close()
 	}
 	s.done <- err
-}
-
-// bufferedStream is the fallback for pairs the streaming paths decline: read
-// everything, convert once, emit once. This is what the command does for the
-// same pairs, so a codec stream is correct, just not constant-memory.
-func bufferedStream(pr io.Reader, w io.Writer, from, to *convertbase.Base) error {
-	data, err := io.ReadAll(pr)
-	if err != nil {
-		return err
-	}
-	var out string
-	if from.Binary || to.Binary {
-		out, err = convertbase.Convert(string(data), from, to, -1)
-	} else {
-		var mid string
-		mid, err = convertbase.Convert(string(data), from, bytesBase, -1)
-		if err == nil {
-			out, err = convertbase.Convert(mid, bytesBase, to, -1)
-		}
-	}
-	if err != nil {
-		return err
-	}
-	_, err = w.Write([]byte(out))
-	return err
 }
 
 // openStream resolves a handle, with the same BadArg reporting everywhere.

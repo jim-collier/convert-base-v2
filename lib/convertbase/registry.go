@@ -69,10 +69,11 @@ type Base struct {
 	BinaryScheme string
 
 	// PadSymbol is the RFC-style padding character (e.g. "=") for base32/base64.
-	// When set, binary decode strips a trailing run of it (lenient input). When
-	// PadEmit is also true, binary encode pads its output up to the encoding's
-	// group boundary. Set only on the strict RFC variants that require padding;
-	// the URL/hex variants accept it but don't emit it.
+	// When set, binary decode strips a trailing run of it, and accepts input
+	// with or without one. When PadEmit is also true, binary encode pads its
+	// output up to the encoding's group boundary. Every built-in RFC 4648
+	// variant sets both, URL and hex alphabets included, as basenc does.
+	// Number output is never padded.
 	PadSymbol string
 	PadEmit   bool
 

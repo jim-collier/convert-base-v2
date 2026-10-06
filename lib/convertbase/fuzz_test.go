@@ -101,12 +101,12 @@ func FuzzStreamRoundTrip(f *testing.F) {
 		}
 		for _, to := range targets {
 			var enc bytes.Buffer
-			handled, err := StreamConvert(bytes.NewReader(data), &enc, bytesBase, to)
+			handled, err := streamConvert(bytes.NewReader(data), &enc, bytesBase, to)
 			if err != nil || !handled {
 				t.Skipf("encode not handled/streamed for %s (err=%v)", to.Name(), err)
 			}
 			var dec bytes.Buffer
-			handled, err = StreamConvert(bytes.NewReader(enc.Bytes()), &dec, to, bytesBase)
+			handled, err = streamConvert(bytes.NewReader(enc.Bytes()), &dec, to, bytesBase)
 			if err != nil {
 				t.Fatalf("decode failed for %d-byte input via %s: %v", len(data), to.Name(), err)
 			}

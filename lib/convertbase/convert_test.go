@@ -247,7 +247,7 @@ func TestBigBaseDecodeAllocs(t *testing.T) {
 	}
 }
 
-// Streaming benchmarks exercise the CLI's actual pipe path (StreamConvert) with
+// Streaming benchmarks exercise the CLI's actual pipe path (streamConvert) with
 // no real I/O: a bytes.Reader in, io.Discard out. This is what a `cat file | ...`
 // invocation runs.
 func benchStream(b *testing.B, fromName, toName, input string) {
@@ -256,8 +256,8 @@ func benchStream(b *testing.B, fromName, toName, input string) {
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if ok, err := StreamConvert(bytes.NewReader([]byte(input)), io.Discard, from, to); !ok || err != nil {
-			b.Fatalf("StreamConvert ok=%v err=%v", ok, err)
+		if ok, err := streamConvert(bytes.NewReader([]byte(input)), io.Discard, from, to); !ok || err != nil {
+			b.Fatalf("streamConvert ok=%v err=%v", ok, err)
 		}
 	}
 }

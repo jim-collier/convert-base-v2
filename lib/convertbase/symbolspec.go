@@ -27,7 +27,7 @@ const placeholders = string(phSpace) + string(phTab) + string(phNewline)
 //
 // A spec is symbols and nothing else. Negative, decimal, and padding markers are
 // set alongside it - by the --from-*/--to-* flags on the command line, by the
-// negative/decimal/pad fields in a config file, or by SpecOpts in bases.go.
+// negative/decimal/pad fields in a config file, or by specOpts in bases.go.
 //
 //	Rules:
 //	  - Every token is a digit symbol, in order.

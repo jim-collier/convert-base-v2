@@ -13,6 +13,7 @@ import (
 	"math"
 	"math/big"
 	"strings"
+	"sync"
 	"unicode/utf8"
 )
 
@@ -664,14 +665,83 @@ func decodeDigitsToBytes(input string, from *Base, kIn int) (string, error) {
 	return string(out), nil
 }
 
-// StreamConvert handles the binary bit-packed conversions (raw bytes <-> a
-// single-byte-per-digit power-of-2 base, up to 8 bits per digit) by streaming
-// straight from r to w, holding neither the whole input nor the whole output in
-// memory. It returns handled=false, without writing anything, for any conversion
-// it can't stream, so the caller falls back to the buffered Convert. This is the
-// base64/base32/base16 hot path; it borrows the streaming + byte-aligned tricks
-// the system encoders use (base64's 3-bytes->4-chars, generalized to any k).
-func StreamConvert(r io.Reader, w io.Writer, from, to *Base) (bool, error) {
+// ConvertStream reads r and writes the conversion to w, for raw bytes or for
+// digits that stand for raw bytes. It is the command's piped byte mode.
+//
+// One side may be the bytes base, so r holds raw bytes or w gets them. With
+// two text bases, binary must be true: the from digits are decoded to bytes,
+// and those bytes are encoded in to, as basenc would. With binary false that
+// pair is a number, which can't stream, so ConvertStream refuses it; use
+// [Convert]. binary changes nothing when a side is already bytes.
+//
+// A power-of-2 base with one character per digit streams in constant memory.
+// Above 8 bits per digit it also needs tail symbols, which the built-in large
+// bases have. Any other pair, the codecs mainly, reads all of r and then
+// writes the whole answer, the same one Convert gives. Line breaks in text
+// input are skipped. Text output gets no trailing newline.
+func ConvertStream(r io.Reader, w io.Writer, from, to *Base, binary bool) error {
+	viaBytes := !from.Binary && !to.Binary
+	if viaBytes && !binary {
+		return fmt.Errorf("neither %q nor %q is bytes, so this is a number conversion: use Convert, or set binary to re-encode the bytes the digits stand for", from.Name(), to.Name())
+	}
+	var handled bool
+	var err error
+	if viaBytes {
+		handled, err = streamBytesRoute(r, w, from, to, rawBytes())
+	} else {
+		handled, err = streamConvert(r, w, from, to)
+	}
+	if handled || err != nil {
+		return err
+	}
+	return convertBuffered(r, w, from, to, viaBytes)
+}
+
+// rawBytes is the bytes base ConvertStream routes two text bases through. It
+// is the package's own, so no registry has to be passed in for it.
+var rawBytes = sync.OnceValue(func() *Base {
+	b := bytesBase()
+	if err := b.Finalize(); err != nil {
+		panic("bytes base: " + err.Error()) // built-in data, so a source bug
+	}
+	return b
+})
+
+// convertBuffered is ConvertStream's fallback for a pair that can't stream.
+// One trailing line break is framing, not data, unless from has a newline
+// digit, the same rule the command uses for any piped number.
+func convertBuffered(r io.Reader, w io.Writer, from, to *Base, viaBytes bool) error {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return err
+	}
+	in := string(data)
+	if !from.HasByteDigit('\n') {
+		in = strings.TrimSuffix(in, "\n")
+		in = strings.TrimSuffix(in, "\r")
+	}
+	if viaBytes {
+		if in, err = Convert(in, from, rawBytes(), -1); err != nil {
+			return err
+		}
+		from = rawBytes()
+	}
+	out, err := Convert(in, from, to, -1)
+	if err != nil {
+		return err
+	}
+	_, err = io.WriteString(w, out)
+	return err
+}
+
+// streamConvert handles the bit-packed conversions between raw bytes and a
+// power-of-2 base by streaming straight from r to w, holding neither the
+// whole input nor the whole output. Single-byte digits up to 8 bits take the
+// byte-table path, the base64/base32/base16 hot path. Any other base with
+// one rune per digit takes the wide path, which covers the multi-byte
+// alphabets and the large bases with a tail. It returns handled=false,
+// having read and written nothing, for a pair it can't stream.
+func streamConvert(r io.Reader, w io.Writer, from, to *Base) (bool, error) {
 	kIn := PowerOfTwoBits(len(from.Symbols))
 	kOut := PowerOfTwoBits(len(to.Symbols))
 	if kIn == 0 || kOut == 0 {
@@ -701,24 +771,24 @@ func StreamConvert(r io.Reader, w io.Writer, from, to *Base) (bool, error) {
 	return false, nil
 }
 
-// StreamBytesRoute is the streaming core of --binary for two text bases: decode
-// from-digits into raw bytes, then encode those bytes into to-digits, chaining
-// the two optimized single-byte streaming stages through an in-process pipe so
-// nothing buffers the whole input. Returns handled=false (caller falls back to
-// the buffered route) if either leg isn't a streamable single-byte power-of-2
-// base - e.g. a big native base or a multi-byte pad symbol.
-func StreamBytesRoute(r io.Reader, w io.Writer, from, to, bytes *Base) (bool, error) {
+// streamBytesRoute is the streaming core of --binary for two text bases:
+// decode from-digits into raw bytes, then encode those bytes into to-digits,
+// chaining two streamConvert stages through an in-process pipe so nothing
+// buffers the whole input. Either leg may be a byte-table base or a wide one.
+// Returns handled=false, having read nothing, when a leg can't stream at all,
+// such as a codec or a large base with no tail.
+func streamBytesRoute(r io.Reader, w io.Writer, from, to, bytes *Base) (bool, error) {
 	if !streamableByteLeg(from) || !streamableByteLeg(to) {
 		return false, nil
 	}
 	pr, pw := io.Pipe()
 	errc := make(chan error, 1)
 	go func() {
-		_, err := StreamConvert(r, pw, from, bytes) // digits -> raw bytes
+		_, err := streamConvert(r, pw, from, bytes) // digits -> raw bytes
 		pw.CloseWithError(err)
 		errc <- err
 	}()
-	_, encErr := StreamConvert(pr, w, bytes, to) // raw bytes -> digits
+	_, encErr := streamConvert(pr, w, bytes, to) // raw bytes -> digits
 	if encErr != nil {
 		pr.CloseWithError(encErr) // unblock a decoder still writing
 	}
@@ -730,7 +800,7 @@ func StreamBytesRoute(r io.Reader, w io.Writer, from, to, bytes *Base) (bool, er
 }
 
 // streamableByteLeg reports whether a text base can carry one leg of the
-// StreamBytesRoute pipe: either a single-byte-per-digit power-of-2 base (k in
+// streamBytesRoute pipe: either a single-byte-per-digit power-of-2 base (k in
 // 1..8) with no multi-byte pad symbol, or anything the wide path can serve. The
 // two legs are independent, so a wide base can pair with a byte one.
 func streamableByteLeg(b *Base) bool {
