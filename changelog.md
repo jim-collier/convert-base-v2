@@ -64,7 +64,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Reactor: a call no longer slows down with the number of regions the host holds open. With 10,000 open, a conversion took over 40 times as long.
 
-- A command line that can't be parsed exits 2 now, where it used to exit 1. That covers an unknown flag or a bad flag value, a flag after the NUMBER, an extra argument, and `--get-base-name` or `--show-symbols` with no base. A failed conversion still exits 1, and no arguments at all still exits 2. A script that tests for exit 1 on these will see 2. `--help` lists the exit codes.
+- A command line that can't be parsed exits 2 now, where it used to exit 1. That covers an unknown flag or a bad flag value such as `--precision foo`, a flag after the NUMBER, an extra argument, and `--get-base-name` or `--show-symbols` with no base. Flags that can't go together exit 2 as well: `--binary` with `--number`, `--lower` with `--upper`, and `--escape-controls` in byte mode. A failed conversion still exits 1, and so does a value the base can't take, such as `--lower` on a base with both cases of a letter. No arguments at all still exits 2. A script that tests for exit 1 on these will see 2. `--help` lists the exit codes.
+
+- A flag that does nothing in the run gets one `note:` line on stderr, and the run goes on. Examples are `--precision` or `--to-neg` in byte mode, `--to-pad` on a number conversion, `-n` when the output is raw bytes, and any conversion flag beside a query flag such as `--show-symbols`. Before, a few of these were refused, one got a note, and the rest were ignored without a word. The ones refused before still are. Every note is printed before any input is read, so streaming is unchanged. design.md has the rule for each flag in a table.
+
+- A query flag refuses an argument it has no use for, with exit 2. `--show-symbols hex --lower` used to print the symbols and drop `--lower`, and `--list foo` dropped `foo`.
+
+- The note for two power-of-2 text bases converted as a number starts with `note:` now, like every other one, rather than `FYI:`. The `--by-index` note reads like the other unused-flag notes.
 
 - `--help` shows the base argument that `--get-base-name`, `--show-symbols` and `--show-symbols-0` take, and the pipe form with no NUMBER.
 
