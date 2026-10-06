@@ -16,6 +16,7 @@
 	- [Language and stack](#language-and-stack)
 	- [Code organization](#code-organization)
 	- [CLI contract](#cli-contract)
+		- [Flags by mode](#flags-by-mode)
 - [Key design decisions](#key-design-decisions)
 - [CI/CD and release flow](#cicd-and-release-flow)
 
@@ -90,6 +91,61 @@ Inside the package:
 - Query flags (`--list`, `--show-symbols`, and friends) print and exit, so scripts can read the base set from the program itself. `--get-base-name` and `--show-symbols` take the base as a positional argument, or from `--by-index`, which only picks a base.
 
 - The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` stays one bare line for scripts, such as `v3.1.0 build dbrk8`, or the version alone when the build was not stamped. Only the help reports on the config files, so the others print before any config is read.
+
+#### Flags by mode
+
+This is the rule for a flag that does nothing in the run it's given to. It gets one line on stderr, `note: --FLAG does nothing ...`, and the run goes on. Scripts often pass the same flags to every call, and an error would break them where a note does not. A flag that was refused before this rule stays refused.
+
+- Number mode is a conversion of a value. Byte mode is `--binary`, or `bytes` as either base. A query is one of `--list`, `--list-compat`, `--get-index-count`, `--get-base-name`, `--show-symbols` and `--show-symbols-0`.
+
+- Notes are worked out from the flags and the two bases before any input is read, and go to stderr only, so a stream and its output stay as they were. Each one prints once a run.
+
+- Refused is a usage error, exit 2. A value the chosen base can't take exits 1, as an unknown base does. Examples are `--lower` on a base with both cases of one letter, a pad on base 10, and any marker on `bytes`.
+
+- A dash means the flag can't be given in that mode, since it picks the mode itself.
+
+- `--list` and `--list-compat` print together. Any other two queries run the one higher in the table, and the other gets a note.
+
+- `--binary` and `--number` get no note beside a query. The README suggests them as shell aliases, so they come along on every call.
+
+- The program info flags print and exit before any other flag is looked at, so nothing gets a note there.
+
+- A query refuses an argument it has no use for, with exit 2: anything after the BASE, a BASE given with `--by-index`, or any argument to a query that takes no BASE.
+
+| Flag                      | Number mode                  | Byte mode                                        | Query
+| :---                      | :---                         | :---                                             | :---
+| `--from`                  | Used                         | Used                                             | Note
+| `--to`                    | Used                         | Used                                             | Note
+| `--from-symbols`          | Used                         | Used                                             | Note
+| `--to-symbols`            | Used                         | Used                                             | Note
+| `--from-neg`              | Used                         | Note, unless `--from-symbols` has `-` as a digit | Note
+| `--from-dec`              | Used                         | Note, unless `--from-symbols` has `.` as a digit | Note
+| `--from-pad`              | Note                         | Used                                             | Note
+| `--from-tail`             | Note                         | Used                                             | Note
+| `--to-neg`                | Used                         | Note, unless `--to-symbols` has `-` as a digit   | Note
+| `--to-dec`                | Used                         | Note, unless `--to-symbols` has `.` as a digit   | Note
+| `--to-pad`                | Note                         | Used                                             | Note
+| `--to-tail`               | Note                         | Used                                             | Note
+| `--binary`, `--bin`, `-b` | -                            | Used                                             | No note
+| `--number`, `--num`, `-N` | Used                         | Note; refused with `--binary`                    | No note
+| `--precision`             | Used                         | Note                                             | Note
+| `--lower`                 | Used; refused with `--upper` | Used; refused with `--upper`                     | Note
+| `--upper`                 | Used; refused with `--lower` | Used; refused with `--lower`                     | Note
+| `--escape-controls`       | Used                         | Refused                                          | Used by `--show-symbols`, else note
+| `--no-newline`, `-n`      | Used                         | Used, or note when the output is `bytes`         | Note
+| `--list`                  | -                            | -                                                | Used
+| `--list-compat`           | -                            | -                                                | Used
+| `--get-index-count`       | -                            | -                                                | Used, or note when a query above it runs
+| `--get-base-name`         | -                            | -                                                | Used, or note when a query above it runs
+| `--show-symbols-0`        | -                            | -                                                | Used, or note when a query above it runs
+| `--show-symbols`          | -                            | -                                                | Used, or note when a query above it runs
+| `--by-index`              | Note                         | Note                                             | Used by the three that take a BASE, else note
+| `--config`                | Used                         | Used                                             | Used
+| `--help`, `-h`            | Prints and exits             | Prints and exits                                 | Prints and exits
+| `--examples`              | Prints and exits             | Prints and exits                                 | Prints and exits
+| `--version`, `-v`, `-V`   | Prints and exits             | Prints and exits                                 | Prints and exits
+| `--about`                 | Prints and exits             | Prints and exits                                 | Prints and exits
+| `--donate`                | Prints and exits             | Prints and exits                                 | Prints and exits
 
 ## Key design decisions
 

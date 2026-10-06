@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -134,12 +135,8 @@ func run() (err error) {
 	if len(f.asked) > 0 {
 		return printInfo(stdout, f.asked, help)
 	}
-	if f.list || f.listCompat {
-		printLists(stdout, reg, f.list, f.listCompat)
-		return nil
-	}
-	if f.getIndexCount || f.getBaseName || f.showSymbols || f.showSymbols0 {
-		return printBaseQuery(stdout, reg, f)
+	if q := f.query(); q != "" {
+		return runQuery(stdout, reg, f, q)
 	}
 
 	c, err := planConversion(reg, f)
@@ -152,6 +149,9 @@ func run() (err error) {
 		help(os.Stderr)
 		return exitStatus(exitUsage)
 	}
+	// Every note is known before a byte of input is read, so a stream starts
+	// with them already out of the way.
+	printNotes(c.notes)
 	return c.run(stdout, reg)
 }
 
@@ -173,6 +173,7 @@ type cliFlags struct {
 	byIndex                int
 	configFile             string
 	configExplicit         bool // --config was typed, not defaulted
+	precisionSet           bool
 	asked                  infoAsks
 	fromMarkers, toMarkers sideFlags
 	args                   []string // positionals: NUMBER or "-", then OUTBASE
@@ -243,8 +244,11 @@ func parseFlags(args []string) (*cliFlags, error) {
 		return nil, usageError{improveFlagError(err)}
 	}
 	fs.Visit(func(fl *flag.Flag) {
-		if fl.Name == "config" {
+		switch fl.Name {
+		case "config":
 			f.configExplicit = true
+		case "precision":
+			f.precisionSet = true
 		}
 	})
 	f.args = fs.Args()
@@ -384,22 +388,103 @@ func printLists(out io.Writer, reg *convertbase.Registry, everyday, compat bool)
 	}
 }
 
-// printBaseQuery answers the base-introspection flags. Each prints one thing,
-// like --list, so scripts can enumerate bases (count, name-by-index, symbols)
-// without parsing the human-readable --list table.
-func printBaseQuery(out *bufio.Writer, reg *convertbase.Registry, f *cliFlags) error {
-	if f.getIndexCount {
-		fmt.Fprintln(out, len(reg.OrderedBases()))
-		return nil
+// query names the query flag that runs, or "" for a conversion. --list and
+// --list-compat print together; otherwise the first in this order wins.
+func (f *cliFlags) query() string {
+	switch {
+	case f.list:
+		return "list"
+	case f.listCompat:
+		return "list-compat"
+	case f.getIndexCount:
+		return "get-index-count"
+	case f.getBaseName:
+		return "get-base-name"
+	case f.showSymbols0:
+		return "show-symbols-0"
+	case f.showSymbols:
+		return "show-symbols"
 	}
-	posName := ""
-	if len(f.args) >= 1 {
-		posName = f.args[0]
-	}
-	b, err := selectBase(reg, f.byIndex, posName)
-	if err != nil {
+	return ""
+}
+
+func takesBase(query string) bool {
+	return query == "get-base-name" || query == "show-symbols" || query == "show-symbols-0"
+}
+
+// runQuery answers the query flags, which print and exit, so scripts can read
+// the base set (count, name by index, symbols) without parsing --list.
+func runQuery(out *bufio.Writer, reg *convertbase.Registry, f *cliFlags, q string) error {
+	if err := checkQueryArgs(f, q); err != nil {
 		return err
 	}
+	var b *convertbase.Base
+	if takesBase(q) {
+		posName := ""
+		if len(f.args) >= 1 {
+			posName = f.args[0]
+		}
+		var err error
+		if b, err = selectBase(reg, f.byIndex, posName); err != nil {
+			return err
+		}
+	}
+	printNotes(idleNotes(f, func(name string) string { return queryIdle(q, name) }))
+	switch q {
+	case "list", "list-compat":
+		printLists(out, reg, f.list, f.listCompat)
+	case "get-index-count":
+		fmt.Fprintln(out, len(reg.OrderedBases()))
+	default:
+		printBaseQuery(out, b, f)
+	}
+	return nil
+}
+
+// checkQueryArgs refuses an argument the query has no use for. Nothing past
+// the BASE was ever read, so `--show-symbols hex --lower` printed hex's
+// symbols and dropped the flag.
+func checkQueryArgs(f *cliFlags, q string) error {
+	allowed, what := 0, "no arguments"
+	switch {
+	case takesBase(q) && f.byIndex >= 0:
+		what = "no BASE argument with --by-index"
+	case takesBase(q):
+		allowed, what = 1, "one BASE"
+	}
+	if len(f.args) <= allowed {
+		return nil
+	}
+	return usageError{fmt.Errorf("unexpected extra argument %q: --%s takes %s (see --help)", f.args[allowed], q, what)}
+}
+
+// queryIdle is where a flag does nothing beside query q, or "" if it is used.
+func queryIdle(q, name string) string {
+	switch name {
+	case q, "config":
+		return ""
+	case "list-compat":
+		if q == "list" {
+			return ""
+		}
+	case "binary", "number":
+		// The README suggests these as shell aliases, so they come along on
+		// every call, queries included.
+		return ""
+	case "by-index":
+		if takesBase(q) {
+			return ""
+		}
+	case "escape-controls":
+		if q == "show-symbols" {
+			return ""
+		}
+	}
+	return "with --" + q
+}
+
+// printBaseQuery prints a query about one base.
+func printBaseQuery(out *bufio.Writer, b *convertbase.Base, f *cliFlags) {
 	switch {
 	case f.getBaseName:
 		fmt.Fprintln(out, b.Name())
@@ -422,7 +507,69 @@ func printBaseQuery(out *bufio.Writer, reg *convertbase.Registry, f *cliFlags) e
 		}
 		out.WriteString("\n")
 	}
-	return nil
+}
+
+// given lists the flags set for this run by long name, in the help's order. A
+// bool turned back off with =false is not set.
+func (f *cliFlags) given() []string {
+	var on []string
+	add := func(name string, set bool) {
+		if set {
+			on = append(on, name)
+		}
+	}
+	add("from", f.fromName != "")
+	add("to", f.toName != "")
+	add("from-symbols", f.fromSymbols != "")
+	add("to-symbols", f.toSymbols != "")
+	for _, m := range []*sideFlags{&f.fromMarkers, &f.toMarkers} {
+		side := strings.TrimPrefix(m.prefix, "--")
+		add(side+"-neg", m.neg.set)
+		add(side+"-dec", m.dec.set)
+		add(side+"-pad", m.pad.set)
+		add(side+"-tail", m.tail.set)
+	}
+	add("binary", f.binary)
+	add("number", f.number)
+	add("precision", f.precisionSet)
+	add("lower", f.lower)
+	add("upper", f.upper)
+	add("escape-controls", f.escapeCtrl)
+	add("no-newline", f.noNewline)
+	add("list", f.list)
+	add("list-compat", f.listCompat)
+	add("get-index-count", f.getIndexCount)
+	add("get-base-name", f.getBaseName)
+	add("show-symbols", f.showSymbols)
+	add("show-symbols-0", f.showSymbols0)
+	add("by-index", f.byIndex >= 0)
+	add("config", f.configExplicit)
+	return on
+}
+
+// idleNotes has one note for each flag given that does nothing in this run.
+// why says where it does nothing, or "" where it does something. The rule is
+// the "Flags by mode" table in design.md.
+func idleNotes(f *cliFlags, why func(name string) string) []string {
+	var notes []string
+	for _, name := range f.given() {
+		if where := why(name); where != "" {
+			notes = append(notes, fmt.Sprintf("note: --%s does nothing %s", name, where))
+		}
+	}
+	return notes
+}
+
+// printNotes writes each note once. Scripts that pass the same flags to every
+// call get one line per flag, not a repeat.
+func printNotes(notes []string) {
+	seen := make(map[string]bool, len(notes))
+	for _, n := range notes {
+		if !seen[n] {
+			seen[n] = true
+			fmt.Fprintln(os.Stderr, n)
+		}
+	}
 }
 
 // conversion is a number conversion, worked out from the flags and positionals
@@ -433,36 +580,42 @@ type conversion struct {
 	bytes     *convertbase.Base // set when --binary routes two text bases through bytes
 	fromStdin bool
 	precision int
+	notes     []string // stderr notes, printed once planning is done
+}
+
+func (c *conversion) note(format string, a ...any) {
+	c.notes = append(c.notes, "note: "+fmt.Sprintf(format, a...))
+}
+
+// byteMode is a byte conversion: --binary, or the bytes base on a side.
+func (c *conversion) byteMode() bool {
+	return c.f.binary || c.from.Binary || c.to.Binary
 }
 
 // planConversion resolves both bases and checks the flags against them. The
 // checks run in a fixed order, so the same mistake always gets the same error.
 func planConversion(reg *convertbase.Registry, f *cliFlags) (*conversion, error) {
-	// A command line that can't be parsed is refused before any note prints.
+	// A command line that can't be parsed is refused before any base is
+	// looked up.
 	if err := checkPositionals(reg, f); err != nil {
 		return nil, err
 	}
-
-	// --by-index only selects a base for the query flags. Reaching here with it
-	// set means a normal conversion, where it does nothing - say so rather than
-	// silently ignoring it.
-	if f.byIndex >= 0 {
-		fmt.Fprintf(os.Stderr, "note: --by-index is ignored here; it only picks a base for --get-base-name / --show-symbols\n")
+	if err := checkFlagPairs(f); err != nil {
+		return nil, err
+	}
+	c := &conversion{f: f}
+	var err error
+	if c.precision, err = parsePrecision(f.precision); err != nil {
+		return nil, usageError{err}
 	}
 
-	// Mode flags up front: an omitted base defaults to bytes under --binary
-	// (so `--from hex --binary` implies `--to bytes`), else to base 10.
-	if f.binary && f.number {
-		return nil, errors.New("choose either --binary or --number, not both")
-	}
+	// An omitted base defaults to bytes under --binary (so `--from hex
+	// --binary` implies `--to bytes`), else to base 10.
 	defaultBase := "10"
 	if f.binary {
 		defaultBase = "bytes"
 	}
-
-	c := &conversion{f: f}
-	var err error
-	if c.from, err = resolveInputBase(reg, f, defaultBase); err != nil {
+	if c.from, err = c.resolveInputBase(reg, defaultBase); err != nil {
 		return nil, err
 	}
 
@@ -474,24 +627,77 @@ func planConversion(reg *convertbase.Registry, f *cliFlags) (*conversion, error)
 	args := f.args
 	c.fromStdin = (len(args) >= 1 && args[0] == "-") || (len(args) == 0 && !isTerminal(os.Stdin))
 
-	outName := outputBaseName(reg, f, defaultBase)
-	notePipeIgnored(reg, args, c.fromStdin)
+	outName := c.outputBaseName(reg, defaultBase)
+	c.notePipeIgnored(reg)
 	if c.to, err = convertbase.ResolveBase(reg, outName, f.toSymbols, f.toMarkers.options()); err != nil {
 		return nil, fmt.Errorf("output base: %w", err)
 	}
 
-	if c.precision, err = parsePrecision(f.precision); err != nil {
+	if err := c.checkOutputFlags(); err != nil {
 		return nil, err
 	}
-	if err := checkOutputFlags(f, c.from, c.to); err != nil {
-		return nil, err
-	}
+	c.notes = append(c.notes, idleNotes(f, c.idle)...)
+	c.noteNumberReading()
 	return c, nil
+}
+
+// checkFlagPairs refuses flags that can't go together, whatever the bases.
+func checkFlagPairs(f *cliFlags) error {
+	if f.binary && f.number {
+		return usageError{errors.New("choose either --binary or --number, not both")}
+	}
+	if f.lower && f.upper {
+		return usageError{errors.New("choose either --lower or --upper, not both")}
+	}
+	return nil
+}
+
+// idle is where a flag does nothing in this conversion, or "" if it is used.
+func (c *conversion) idle(name string) string {
+	byteMode := c.byteMode()
+	switch name {
+	case "precision", "number":
+		if byteMode {
+			return "in byte mode"
+		}
+	case "no-newline":
+		if c.to.Binary {
+			return "when the output is raw bytes"
+		}
+	case "from-neg", "from-dec", "to-neg", "to-dec":
+		if byteMode && !c.markerFreesDigit(name) {
+			return "in byte mode"
+		}
+	case "from-pad", "from-tail", "to-pad", "to-tail":
+		if !byteMode {
+			return "in number mode"
+		}
+	case "by-index":
+		return "here; it only picks a base for --get-base-name and --show-symbols"
+	}
+	return ""
+}
+
+// markerFreesDigit is a marker flag on a custom alphabet that has the default
+// marker as a digit. The alphabet can't be built until the marker moves, so
+// the flag does its job even where markers are never written.
+func (c *conversion) markerFreesDigit(name string) bool {
+	side, kind, _ := strings.Cut(name, "-")
+	spec, b := c.f.fromSymbols, c.from
+	if side == "to" {
+		spec, b = c.f.toSymbols, c.to
+	}
+	def := "-"
+	if kind == "dec" {
+		def = "."
+	}
+	return spec != "" && slices.Contains(b.Symbols, def)
 }
 
 // resolveInputBase resolves the input side; an unspecified one falls back to
 // defaultBase.
-func resolveInputBase(reg *convertbase.Registry, f *cliFlags, defaultBase string) (*convertbase.Base, error) {
+func (c *conversion) resolveInputBase(reg *convertbase.Registry, defaultBase string) (*convertbase.Base, error) {
+	f := c.f
 	name := f.fromName
 	if name == "" && f.fromSymbols == "" {
 		name = defaultBase
@@ -499,7 +705,7 @@ func resolveInputBase(reg *convertbase.Registry, f *cliFlags, defaultBase string
 	// Conflicting input selectors: --from-symbols silently wins over --from. Say
 	// so, so a script mistake isn't masked (note to stderr; stdout stays clean).
 	if f.fromSymbols != "" && f.fromName != "" {
-		fmt.Fprintf(os.Stderr, "note: --from-symbols overrides --from %q\n", f.fromName)
+		c.note("--from-symbols overrides --from %q", f.fromName)
 	}
 	from, err := convertbase.ResolveBase(reg, name, f.fromSymbols, f.fromMarkers.options())
 	if err != nil {
@@ -512,7 +718,8 @@ func resolveInputBase(reg *convertbase.Registry, f *cliFlags, defaultBase string
 // (args[1], after NUMBER or "-"), and defaultBase is used if neither is set. It
 // doesn't depend on the number, so the streaming path can be chosen before a
 // byte is read.
-func outputBaseName(reg *convertbase.Registry, f *cliFlags, defaultBase string) (name string) {
+func (c *conversion) outputBaseName(reg *convertbase.Registry, defaultBase string) (name string) {
+	f := c.f
 	posOut := ""
 	if len(f.args) >= 2 {
 		posOut = f.args[1]
@@ -535,9 +742,9 @@ func outputBaseName(reg *convertbase.Registry, f *cliFlags, defaultBase string) 
 		if other == "" {
 			other = posOut
 		}
-		fmt.Fprintf(os.Stderr, "note: --to-symbols overrides output base %q\n", other)
+		c.note("--to-symbols overrides output base %q", other)
 	case f.toName != "" && posOut != "" && !sameBase(reg, f.toName, posOut):
-		fmt.Fprintf(os.Stderr, "note: --to %q overrides positional output base %q\n", f.toName, posOut)
+		c.note("--to %q overrides positional output base %q", f.toName, posOut)
 	}
 	return name
 }
@@ -600,12 +807,13 @@ func isBoolFlag(fl *flag.Flag) bool {
 // ordinary read-loop case) does not trip this. Whether the pipe actually holds
 // data is deliberately not tested: finding out means reading it, and that is
 // the one thing this path must not do.
-func notePipeIgnored(reg *convertbase.Registry, args []string, fromStdin bool) {
-	if fromStdin || len(args) != 1 || !isNamedPipe(os.Stdin) {
+func (c *conversion) notePipeIgnored(reg *convertbase.Registry) {
+	args := c.f.args
+	if c.fromStdin || len(args) != 1 || !isNamedPipe(os.Stdin) {
 		return
 	}
 	if _, err := reg.Lookup(args[0]); err == nil {
-		fmt.Fprintf(os.Stderr, "note: reading %q as the NUMBER, not the output base; stdin (piped) was ignored. To convert piped input, use: something | %s - %s\n",
+		c.note("reading %q as the NUMBER, not the output base; stdin (piped) was ignored. To convert piped input, use: something | %s - %s",
 			args[0], filepath.Base(os.Args[0]), args[0])
 	}
 }
@@ -628,9 +836,15 @@ func parsePrecision(s string) (int, error) {
 }
 
 // checkOutputFlags refuses the output flags that can't apply to these bases.
-func checkOutputFlags(f *cliFlags, from, to *convertbase.Base) error {
-	if f.lower && f.upper {
-		return errors.New("choose either --lower or --upper, not both")
+// One the mode refuses is a usage error. One the output base's digits can't
+// take exits 1, as an unknown base does.
+func (c *conversion) checkOutputFlags() error {
+	f, to := c.f, c.to
+	// Escapes are a text notation, so they only reach the number path. Byte mode
+	// writes raw bytes or a fixed codec alphabet, where the flag would be
+	// accepted and then do nothing.
+	if f.escapeCtrl && c.byteMode() {
+		return usageError{errors.New("--escape-controls applies to number conversions only, not byte mode")}
 	}
 	// --lower/--upper: error out if the output base has mixed-case digits
 	// (previously silently ignored; now strict, per user preference).
@@ -650,12 +864,6 @@ func checkOutputFlags(f *cliFlags, from, to *convertbase.Base) error {
 			return fmt.Errorf("%s is invalid for output base %q: %s digit %q gives its %s", cf.flag, to.Name(), cf.verb, digit, what)
 		}
 	}
-	// Escapes are a text notation, so they only reach the number path. Byte mode
-	// writes raw bytes or a fixed codec alphabet, where the flag would be
-	// accepted and then do nothing.
-	if f.escapeCtrl && (f.binary || from.Binary || to.Binary) {
-		return errors.New("--escape-controls applies to number conversions only, not byte mode")
-	}
 	return nil
 }
 
@@ -669,8 +877,6 @@ func (c *conversion) run(stdout *bufio.Writer, reg *convertbase.Registry) error 
 			return err
 		}
 	}
-	c.noteNumberReading()
-
 	if c.fromStdin {
 		handled, err := c.stream(stdout)
 		if err != nil || handled {
@@ -689,7 +895,7 @@ func (c *conversion) noteNumberReading() {
 		return
 	}
 	if convertbase.PowerOfTwoBits(len(c.from.Symbols)) > 0 && convertbase.PowerOfTwoBits(len(c.to.Symbols)) > 0 {
-		fmt.Fprintln(os.Stderr, "FYI: Converted as a positional notation number (assumed '--number' flag). If you meant to do binary encode/decode, add the --binary flag.")
+		c.note("converted as a positional notation number (assumed '--number' flag). If you meant to do binary encode/decode, add the --binary flag.")
 	}
 }
 
@@ -1309,11 +1515,13 @@ Program info (several in one run each print once, in order, then exit):
 
 Exit status:
   0                    Success
-  1                    The conversion failed, such as an unknown base, a digit
-                       not in the base, or a failed write
-  2                    The command line could not be parsed, such as an unknown
-                       flag, a flag after the NUMBER or an extra argument, or
-                       no NUMBER or BASE was given
+  1                    The conversion failed, such as an unknown base, a value
+                       the base can't take, a digit not in the base, or a
+                       failed write
+  2                    The command line could not be used, such as an unknown
+                       flag or a bad flag value, flags that can't go together,
+                       a flag after the NUMBER or an extra argument, or no
+                       NUMBER or BASE was given
 
 `, userConfigPath())
 

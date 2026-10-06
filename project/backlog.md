@@ -141,6 +141,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261005: exit 2 for any command line that can't be parsed: an unknown flag, a value the flag parser refuses (`--by-index x`), `-123` with no `--`, a flag after the NUMBER, an extra positional, `--get-base-name` or `--show-symbols` with no base, and no arguments at all. A best guess, open to review.
 		- 20261005: an unknown base name stays 1. It's input that won't convert, and nothing in the code treated it as usage.
 		- 20261005: checks that run after parsing also stay 1: `--precision foo`, `--binary` with `--number`, `--lower` with `--upper`, and `--escape-controls` in byte mode. Open to review: they could move to 2 too.
+	- Progress log:
+		- 20261005: the open question is answered by 2026100516265602. `--precision foo`, `--binary` with `--number`, `--lower` with `--upper` and `--escape-controls` in byte mode exit 2 now, and the help and changelog say so. A value the base can't take stays 1.
 	- Actual fix: a `usageError` type exits 2 from `main`. Flag parse errors, the positional checks and the missing query base use it. The help gets an "Exit status" block. The changelog says a script testing for 1 will see 2.
 	- Swept: `cicd/test.bash`, the helper scripts, README and design.md. Nothing expected exit 1 on these cases, so no test changed. The browser module and reactor keep their own codes, as 2026100516265608 covers them.
 	- Verified: 20261005, ErssdDk fails all 7 cases on dev, at exit 1, and passes on the branch. ErssdER passes both ways.
@@ -199,7 +201,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - A flag that does nothing in the current mode gets an error, a note, or nothing at all. (Code review 20261005 item 2)
 	- ID: 2026100516265602
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on signoff
+	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. The command's Go tests and the harness sections from "CLI surface" through "Control-character escapes" were run.
 	- Severity: Low
 	- Opened: 20261005-162656
 	- Opened by: Code review 20261005
@@ -215,7 +218,23 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Sweep: `--precision`, `--lower`, `--upper`, `--escape-controls` and `--no-newline`, and each side's neg, dec, pad and tail, in both modes.
 	- Decisions:
 		- 20261005: a flag that is accepted today and does nothing in the current mode gets a stderr `note:` and the run goes on. Flags refused today stay refused.
+		- 20261005: errors about the flags themselves exit 2, as usage errors: `--precision foo`, `--binary` with `--number`, `--lower` with `--upper`, and `--escape-controls` in byte mode. Errors about the input stay 1. A best guess, open to review.
+		- 20261005: a conversion flag given with a query flag gets the same note. An argument after the query's base is a usage error, unless that breaks a documented use.
 	- Note: changes what users see, so it closes at Waiting on signoff.
+	- Reproduced: 20261005, on dev. Every case in the steps converts with exit 0 and nothing on stderr. `--show-symbols hex --lower` and `--list foo` drop the extra argument the same way.
+	- Against: 2026100516265607's decision that checks run after parsing stay at exit 1. That one was left open to review, and the second decision here answers it.
+	- Actual fix: one rule for every flag, in a new "Flags by mode" table in design.md, with a row per flag and a column each for number mode, byte mode and the query flags.
+		- A flag that does nothing in the run gets one line, `note: --FLAG does nothing ...`, once a run. The notes are worked out from the flags and bases before any input is read and print before the conversion starts, so streaming is unchanged.
+		- In byte mode, `--precision`, `--number`, and each side's neg and dec get the note. A neg or dec flag on a custom alphabet that has `-` or `.` as a digit doesn't, since the alphabet can't be built without it. `-n` gets it when the output is raw bytes.
+		- In number mode, each side's pad and tail get the note. `--by-index` gets it in both.
+		- Beside a query flag, every conversion flag gets it, except `--escape-controls` with `--show-symbols`, where it works. `--binary` and `--number` get none there, since the README suggests them as shell aliases. Two query flags run the first one and note the other, except `--list` with `--list-compat`, which print together.
+		- A query refuses an argument after its base, a base given with `--by-index`, and any argument to a query that takes no base, with exit 2. No documented use breaks: the README, `--examples`, the demo scenario, the screenshot script and the harness never pass one.
+		- The flag-pair and mode refusals exit 2, per the decision. A value the base can't take, such as `--lower` on a mixed-case base, a pad on base 10 or a marker on `bytes`, stays 1, as an unknown base does. The help's Exit status block and the changelog entry for 2026100516265607 say so.
+		- The number-or-bytes note starts with `note:` now. The `--by-index` note reads like the rest, so harness check EjeBOHS now looks for "--by-index does nothing" rather than "--by-index is ignored", with a comment giving the reason.
+	- Swept: every flag the parser takes, in number, byte and query mode. `TestIdleFlagNotes` fails for a flag with no case in a mode it can be given in, and `TestDesignTableListsEveryFlag` for a flag with no row in the table. `FYI:` appears in no test or doc; the only other hits are code comments in `bases.go`. The scripts that run the binary, `gen-bases-table.py`, `gen-screenshots.bash` and the demo scenario, hit no new note or exit 2. The browser module and reactor take no flags.
+	- Verified: 20261005, the new harness checks fail on dev, 23 in all (ErsveGw, ErswATd, ErswAUX, ErswAVN and the reworded EjeBOHS), and the sections run pass 409 of 409 on the branch. ErswASw passes both ways, as a guard. The Go rule test fails when the byte mode note for `--precision` or the `--by-index` note is taken out. `go vet`, golangci-lint and the command's Go tests pass, and the wasip1 and Windows builds compile.
+	- Branch: idle-flags
+	- Test case: Go `TestIdleFlagNotes` ErsveFb (every flag in every mode) and `TestDesignTableListsEveryFlag` ErsveGF. Harness ErswATd (one note, same output, 12 cases), ErswAUX (a 3 MB stream is unchanged, one note per flag), ErswAVN (the number-or-bytes note starts with `note:`), ErsveGw (8 refusals exit 2) and ErswASw (3 base refusals stay 1).
 
 - Several exported doc comments describe older behavior. (Code review 20261005 item 5)
 	- ID: 2026100516265605

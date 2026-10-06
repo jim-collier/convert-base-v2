@@ -261,9 +261,11 @@ if [[ -r "${README_MD}" ]]; then
 else
 	_warn ElWMN5U "README bases table not checked: no readable file at ${README_MD}"
 fi
-## --by-index outside a query mode is ignored, with a stderr note.
+## --by-index outside a query mode is ignored, with a stderr note. The note
+## reads like every other unused flag's since 2026100516265602, so the wording
+## checked changed from "--by-index is ignored".
 _run --by-index 3 255 16
-{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"--by-index is ignored"* ]]; } && _pass EjeBOHS "--by-index note in conversion mode" || _fail EjeBOHS "--by-index note in conversion mode" "rc=$_rc out=[$_out] err=[$_err]"
+{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"--by-index does nothing"* ]]; } && _pass EjeBOHS "--by-index note in conversion mode" || _fail EjeBOHS "--by-index note in conversion mode" "rc=$_rc out=[$_out] err=[$_err]"
 
 ## Base-introspection query flags (used by the full-coverage fuzz below).
 _run --get-index-count
@@ -611,6 +613,43 @@ for ca in "255 nope" "255 -5" "--from 2 9" "--from 16 --to 64 --binary FFF"; do
 	read -ra caArgs <<<"$ca"; _run "${caArgs[@]}"
 	((_rc == 1)) && _pass ErssdER "failed conversion exits 1: ${ca}" || _fail ErssdER "failed conversion exits 1: ${ca}" "rc=$_rc err=[$_err]"
 done
+
+## Flags that can't go together, or that the mode refuses, are usage errors too.
+## So is an argument a query has no use for, which used to be dropped.
+for ua in "--precision foo 255" "--binary --number --from 16 --to 64 dead" "--lower --upper 255" "--escape-controls --binary --from 16 --to 64 dead" \
+	"--show-symbols hex --lower" "--list foo" "--get-index-count 3" "--by-index 3 --show-symbols hex"; do
+	read -ra uaArgs <<<"$ua"; _run "${uaArgs[@]}"
+	{ ((_rc == 2)) && [[ "$_err" == error:* ]]; } && _pass ErsveGw "refused flags exit 2: ${ua}" || _fail ErsveGw "refused flags exit 2: ${ua}" "rc=$_rc out=[$_out] err=[$_err]"
+done
+## A value the chosen base can't take stays exit 1, as an unknown base does.
+printf 'hi' >"${CBT_TMP}/idle_in"
+for ca in "--lower --to 62 255" "--to-pad = --to 10 255" "--from bytes --from-neg x --to 64 -"; do
+	read -ra caArgs <<<"$ca"; _run_in "${CBT_TMP}/idle_in" "${caArgs[@]}"
+	((_rc == 1)) && _pass ErswASw "base refuses the flag, exit 1: ${ca}" || _fail ErswASw "base refuses the flag, exit 1: ${ca}" "rc=$_rc err=[$_err]"
+done
+
+## A flag that does nothing in the run gets one note on stderr, and the output
+## is what it is without the flag (design.md, "Flags by mode").
+for ic in "--precision 5|--binary --from 16 --to 64 dead" "--to-neg ~|--binary --from 16 --to 64 dead" "--from-dec ,|--binary --from 16 --to 64 dead" \
+	"--to-pad =|--to 64 255" "--to-tail=|--to 2048tz 255" "--number|--from bytes --to 64 -" "--no-newline|--binary --from 16 dead" \
+	"--by-index 3|255 16" "--lower|--show-symbols hex" "--escape-controls|--get-base-name keyboard" "--from 16|--get-index-count" "--get-base-name|--list"; do
+	read -ra icFlag <<<"${ic%%|*}"; read -ra icArgs <<<"${ic#*|}"
+	_run_in "${CBT_TMP}/idle_in" "${icArgs[@]}"; icWant="$_out"; icErr="$_err"
+	_run_in "${CBT_TMP}/idle_in" "${icFlag[@]}" "${icArgs[@]}"
+	{ ((_rc == 0)) && [[ -z "$icErr" ]] && [[ "$_out" == "$icWant" ]] && [[ "$_err" == "note: ${icFlag[0]%%=*} does nothing "* ]] && [[ "$_err" != *$'\n'* ]]; } \
+		&& _pass ErswATd "unused flag gets one note: ${ic%%|*} with ${ic#*|}" \
+		|| _fail ErswATd "unused flag gets one note: ${ic%%|*} with ${ic#*|}" "rc=$_rc out=[$_out] want=[$icWant] err=[$_err] err-without=[$icErr]"
+done
+## The notes print before the stream starts, once each, and leave it alone.
+head -c 3000000 /dev/urandom >"${CBT_TMP}/idle_big"
+"${TIMEOUT[@]}" "${EXE}" --from bytes --to 64 <"${CBT_TMP}/idle_big" >"${CBT_TMP}/idle_plain" 2>/dev/null || true
+_rc=0; "${TIMEOUT[@]}" "${EXE}" --precision 3 --to-neg '~' --to-neg '~' --from bytes --to 64 <"${CBT_TMP}/idle_big" >"${CBT_TMP}/idle_noted" 2>"${CBT_ERR}" || _rc=$?
+{ ((_rc == 0)) && cmp -s "${CBT_TMP}/idle_plain" "${CBT_TMP}/idle_noted" && [[ "$(<"${CBT_ERR}")" == $'note: --to-neg does nothing in byte mode\nnote: --precision does nothing in byte mode' ]]; } \
+	&& _pass ErswAUX "stream output unchanged by unused flags, one note each" \
+	|| _fail ErswAUX "stream output unchanged by unused flags, one note each" "rc=$_rc err=[$(<"${CBT_ERR}")]"
+## Every stderr note starts with "note:", the number-or-bytes one included.
+_run --from 16 --to 64 deadbeef
+[[ "$_err" == "note: "* ]] && _pass ErswAVN "number-or-bytes note starts with note:" || _fail ErswAVN "number-or-bytes note starts with note:" "err=[$_err]"
 
 ## Conflicting base selectors: still convert, but emit a stderr note (BxZNl-17).
 _run --to 16 255 8
