@@ -108,6 +108,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `--lower` and `--upper` also changed the case of a custom base's pad and tail symbols, so `--to-pad P --lower` wrote `p` and the same base could not read it back. The pad and tail are written as the base defines them now. A digit that would recase into the base's pad, a tail symbol or a marker gets an error instead, the same as mixed-case digits. Built-in bases are unchanged.
 
+- `--lower` and `--upper` recased digits that the same base then couldn't read, or read as another digit. A multi-letter digit `Ab` came out as `ab`, and Greek `α` as `Α`. Input takes either case only for one-letter ASCII digits, so the flags are refused now on a base where recasing a digit gives something else, with exit 1, naming the flag, the base and the digit. A digit the flag leaves alone, such as a CJK one or punctuation, doesn't count. Of the built-in bases, only `48ws_compat_v1` is affected: it refuses `--upper` now.
+
 - Reactor: a stream between two text bases that can't stream end to end, such as base64 to base91, refused input that ended in padding and a line break. One trailing line break is dropped now, as the command does.
 
 ### Other work

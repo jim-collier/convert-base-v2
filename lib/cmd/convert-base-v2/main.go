@@ -199,8 +199,8 @@ func parseFlags(args []string) (*cliFlags, error) {
 	fs.StringVar(&f.fromSymbols, "from-symbols", "", "custom input base: the digit symbols, whitespace-delimited")
 	fs.StringVar(&f.toSymbols, "to-symbols", "", "custom output base (same form)")
 	fs.StringVar(&f.precision, "precision", "auto", "max fractional digits, or 'auto' to match the input's precision")
-	fs.BoolVar(&f.lower, "lower", false, "lowercase output (errors if output base has mixed-case digits)")
-	fs.BoolVar(&f.upper, "upper", false, "uppercase output (errors if output base has mixed-case digits)")
+	fs.BoolVar(&f.lower, "lower", false, "lowercase output (errors if the output base can't read its digits back in lower case)")
+	fs.BoolVar(&f.upper, "upper", false, "uppercase output (errors if the output base can't read its digits back in upper case)")
 	fs.BoolVar(&f.escapeCtrl, "escape-controls", false, "write control-character digits as named escapes (⊳LF, ⊳TAB, ...); input accepts them either way")
 	fs.BoolVar(&f.noNewline, "no-newline", false, "do not append a trailing newline to text output (like echo -n)")
 	fs.BoolVar(&f.noNewline, "n", false, "alias for -no-newline")
@@ -847,7 +847,8 @@ func (c *conversion) checkOutputFlags() error {
 		return usageError{errors.New("--escape-controls applies to number conversions only, not byte mode")}
 	}
 	// --lower/--upper: error out if the output base has mixed-case digits
-	// (previously silently ignored; now strict, per user preference).
+	// (previously silently ignored; now strict, per user preference), or any
+	// recased digit the same base wouldn't read back as itself.
 	for _, cf := range []struct {
 		on     bool
 		flag   string
@@ -862,6 +863,9 @@ func (c *conversion) checkOutputFlags() error {
 		}
 		if digit, what := recaseClash(to, cf.recase); what != "" {
 			return fmt.Errorf("%s is invalid for output base %q: %s digit %q gives its %s", cf.flag, to.Name(), cf.verb, digit, what)
+		}
+		if digit, recased := recaseUnreadable(to, cf.recase); digit != "" {
+			return fmt.Errorf("%s is invalid for output base %q: %s digit %q gives %q, which that base can't read back", cf.flag, to.Name(), cf.verb, digit, recased)
 		}
 	}
 	return nil
@@ -1381,6 +1385,24 @@ func recaseClash(b *convertbase.Base, recase func(string) string) (digit, what s
 	return "", ""
 }
 
+// recaseUnreadable finds a digit whose recased form the base itself doesn't
+// read back as that digit, and returns both. Input takes the other case of a
+// one-letter ASCII digit only, so this is a longer digit or one from another
+// script, and a digit recase leaves alone never counts (2026100519520001).
+// Uses the base's own tokenizer, so it follows the reader's rule.
+func recaseUnreadable(b *convertbase.Base, recase func(string) string) (digit, recased string) {
+	for _, s := range b.Symbols {
+		r := recase(s)
+		if r == s {
+			continue
+		}
+		if back, err := b.Tokenize(r); err != nil || len(back) != 1 || back[0] != s {
+			return s, r
+		}
+	}
+	return "", ""
+}
+
 // canRecase reports whether recasing the output's digits with recase keeps
 // them a valid representation. False when the base has both cases of the same
 // letter as digits (mixed-case digits), since recasing would collide them.
@@ -1477,7 +1499,7 @@ Conversion mode:
   --binary, --bin, -b  Treat both sides as raw bytes (encode/decode like basenc)
   --number, --num, -N  Treat input as a positional notation number (default)
   --precision N|auto   Max fractional digits, or auto to match input  [default auto]
-  --lower / --upper    Force output case (errors on mixed-case digit bases)
+  --lower / --upper    Force output case (errors if the base can't read it back)
   --escape-controls    Write control-character digits as ⊳LF, ⊳TAB, ⊳CR, ...
                        Input accepts those and the raw characters, mixed, always.
   --no-newline, -n     Omit trailing newline on text output (like echo -n)

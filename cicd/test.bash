@@ -943,13 +943,14 @@ check EizUJEC errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --
 
 ## --lower/--upper on piped input give the same bytes as recasing the plain
 ## encode afterward, on the byte path, the --binary route and the wide path.
-## The Greek base is one 2-byte rune per digit, so it takes the wide path.
+## The Greek base is one 2-byte rune per digit, so it would take the wide path,
+## but it's refused before reading since 2026100519520001.
 csrc="${CBT_TMP}/case_src"; c64="${CBT_TMP}/case_64"; cout="${CBT_TMP}/case_out"; cwant="${CBT_TMP}/case_want"
 head -c 300001 /dev/urandom >"$csrc"
 "${TIMEOUT[@]}" "${EXE}" --from bytes --to 64 -n <"$csrc" >"$c64" 2>/dev/null || true
-GREEK_UP="Α Β Γ Δ Ε Ζ Η Θ Ι Κ Λ Μ Ν Ξ Ο Π"; GREEK_LO="α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π"
+GREEK_UP="Α Β Γ Δ Ε Ζ Η Θ Ι Κ Λ Μ Ν Ξ Ο Π"
 for ccase in hex-lower 32c-upper binary-lower greek-lower; do
-	rc1=0
+	rc1=0; crefuse=0
 	case "$ccase" in
 		hex-lower)
 			"${EXE}" --from bytes --to hex -n <"$csrc" 2>/dev/null | tr 'A-F' 'a-f' >"$cwant" || true
@@ -961,10 +962,17 @@ for ccase in hex-lower 32c-upper binary-lower greek-lower; do
 			"${EXE}" --from bytes --to hex -n <"$csrc" 2>/dev/null | tr 'A-F' 'a-f' >"$cwant" || true
 			"${TIMEOUT[@]}" "${EXE}" --binary --from 64 --to hex --lower -n <"$c64" >"$cout" 2>"${CBT_ERR}" || rc1=$? ;;
 		greek-lower)
-			"${EXE}" --from bytes --to-symbols "$GREEK_LO" -n <"$csrc" >"$cwant" 2>/dev/null || true
+			## Refused now: lower-case Greek doesn't read back as these digits (2026100519520001).
+			crefuse=1
 			"${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$GREEK_UP" --lower -n <"$csrc" >"$cout" 2>"${CBT_ERR}" || rc1=$? ;;
 	esac
-	{ ((rc1 == 0)) && [[ -s "$cwant" ]] && cmp -s "$cwant" "$cout"; } && _pass Ersmg3G "case flag on a stream matches recased output (${ccase})" || _fail Ersmg3G "case flag on a stream matches recased output (${ccase})" "rc=${rc1} err=[$(<"${CBT_ERR}")]"
+	if ((crefuse)); then
+		cok=0; { ((rc1 == 1)) && [[ ! -s "$cout" ]] && grep -qF "can't read back" "${CBT_ERR}"; } && cok=1
+	else
+		cok=0; { ((rc1 == 0)) && [[ -s "$cwant" ]] && cmp -s "$cwant" "$cout"; } && cok=1
+	fi
+	clabel="case flag on a stream matches recased output (${ccase})"; ((crefuse)) && clabel="case flag on a stream refused (${ccase})"
+	((cok)) && _pass Ersmg3G "$clabel" || _fail Ersmg3G "$clabel" "rc=${rc1} err=[$(<"${CBT_ERR}")]"
 done
 
 ## The case flags used to drop to the buffered path, about 5 times the input in
@@ -990,35 +998,42 @@ fi
 ## --lower/--upper recase digits only. A pad or tail symbol stays as the base
 ## spells it, piped or on argv, or the same base can't read the output back.
 ## The answer is the plain encode through a base whose digits are already
-## recased, with the same pad or tail. Greek is 2 bytes a digit; CJK has no case,
-## so only the tail can change there.
+## recased, with the same pad or tail. CJK has no case, so only the tail can
+## change there. Greek is refused since 2026100519520001, since upper-case Greek
+## doesn't read back as the lower-case digits.
 LATIN32="0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O Q R S T U V W"
 GREEK8_LO="α β γ δ ε ζ η θ"; GREEK8_UP="Α Β Γ Δ Ε Ζ Η Θ"
 for kcase in latin-pad latin-pad-dec greek-pad cjk-tail; do
-	kin="a"; kread=()
+	kin="a"; kread=(); krefuse=0; kback=""; kback2=""
 	case "$kcase" in
 		latin-pad)     kflags=(--to-symbols "$LATIN32" --to-pad P --lower); kref=(--to-symbols "${LATIN32,,}" --to-pad P)
 		               kread=(--from-symbols "$LATIN32" --from-pad P) ;;
 		latin-pad-dec) kflags=(--to-symbols "$LATIN32" --to-pad P --to-dec P --lower); kref=(--to-symbols "${LATIN32,,}" --to-pad P --to-dec P)
 		               kread=(--from-symbols "$LATIN32" --from-pad P --from-dec P) ;;
-		greek-pad)     kflags=(--to-symbols "$GREEK8_LO" --to-pad ω --upper); kref=(--to-symbols "$GREEK8_UP" --to-pad ω) ;;
+		greek-pad)     krefuse=1; kflags=(--to-symbols "$GREEK8_LO" --to-pad ω --upper) ;;
 		cjk-tail)      kin="abcdefgh"; kflags=(--to-symbols "$SYM512" --to-tail "x y" --upper); kref=(--to-symbols "$SYM512" --to-tail "x y")
 		               kread=(--from-symbols "$SYM512" --from-tail "x y") ;;
 	esac
-	kwant=$("${EXE}" --from bytes "${kref[@]}" "$kin" 2>/dev/null || true)
 	kpipe=$(printf '%s' "$kin" | "${TIMEOUT[@]}" "${EXE}" --from bytes "${kflags[@]}" 2>"${CBT_ERR}" || true)
 	kargv=$("${TIMEOUT[@]}" "${EXE}" --from bytes "${kflags[@]}" "$kin" 2>>"${CBT_ERR}" || true)
-	## Read back through the base itself where its digits take either case, and
-	## through the recased base everywhere.
-	kback=$(printf '%s' "$kpipe" | "${TIMEOUT[@]}" "${EXE}" "${kref[@]/--to/--from}" --to bytes -n 2>>"${CBT_ERR}" || true)
-	if ((${#kread[@]})); then
-		kback2=$(printf '%s' "$kargv" | "${TIMEOUT[@]}" "${EXE}" "${kread[@]}" --to bytes -n 2>>"${CBT_ERR}" || true)
+	kok=0
+	if ((krefuse)); then
+		kwant="refused"
+		[[ -z "$kpipe" && -z "$kargv" && "$(grep -cF "can't read back" "${CBT_ERR}" || true)" == 2 ]] && kok=1
 	else
-		kback2="$kin"
+		kwant=$("${EXE}" --from bytes "${kref[@]}" "$kin" 2>/dev/null || true)
+		## Read back through the base itself where its digits take either case, and
+		## through the recased base everywhere.
+		kback=$(printf '%s' "$kpipe" | "${TIMEOUT[@]}" "${EXE}" "${kref[@]/--to/--from}" --to bytes -n 2>>"${CBT_ERR}" || true)
+		if ((${#kread[@]})); then
+			kback2=$(printf '%s' "$kargv" | "${TIMEOUT[@]}" "${EXE}" "${kread[@]}" --to bytes -n 2>>"${CBT_ERR}" || true)
+		else
+			kback2="$kin"
+		fi
+		[[ -n "$kwant" && "$kpipe" == "$kwant" && "$kargv" == "$kwant" && "$kback" == "$kin" && "$kback2" == "$kin" ]] && kok=1
 	fi
-	{ [[ -n "$kwant" && "$kpipe" == "$kwant" && "$kargv" == "$kwant" && "$kback" == "$kin" && "$kback2" == "$kin" ]]; } \
-		&& _pass ErsqAZ3 "case flag leaves pad and tail alone (${kcase})" \
-		|| _fail ErsqAZ3 "case flag leaves pad and tail alone (${kcase})" "want='${kwant}' pipe='${kpipe}' argv='${kargv}' back='${kback}' back2='${kback2}' err=[$(<"${CBT_ERR}")]"
+	klabel="case flag leaves pad and tail alone (${kcase})"; ((krefuse)) && klabel="case flag refused (${kcase})"
+	((kok)) && _pass ErsqAZ3 "$klabel" || _fail ErsqAZ3 "$klabel" "want='${kwant}' pipe='${kpipe}' argv='${kargv}' back='${kback}' back2='${kback2}' err=[$(<"${CBT_ERR}")]"
 done
 ## A digit that recases into the pad, a tail symbol or a marker would read back
 ## as that instead, so the flag is refused, the same as for mixed-case digits.
@@ -1029,6 +1044,30 @@ for kcase in pad tail marker; do
 		marker) kwant='negative marker'; kflags=(--to-symbols "$GREEK8_UP" --to-neg β --lower -- -9) ;;
 	esac
 	check ErsqAZh errmsg "case flag refused when a digit recases into the ${kcase}" "$kwant" -- "${kflags[@]}"
+done
+## Input takes the other case only for one-letter ASCII digits, so recasing a
+## longer digit or one from another script writes what the same base can't read
+## back, or reads as some other digit (long s uppercases to S). Refused with
+## exit 1 before any input is read (2026100519520001).
+printf 'hi' >"${CBT_TMP}/rb_in"
+for rcase in multi-letter greek greek-pipe long-s; do
+	case "$rcase" in
+		multi-letter) rwant='--lower is invalid for output base "custom(4)": lowercasing digit "Ab" gives "ab"'; rargs=(--to-symbols "Ab Cd Ef Gh" --lower 9) ;;
+		greek)        rwant='--upper is invalid for output base "custom(4)": uppercasing digit "α" gives "Α"';  rargs=(--to-symbols "α β γ δ" --upper 9) ;;
+		greek-pipe)   rwant='--lower is invalid for output base "custom(16)": lowercasing digit "Α" gives "α"'; rargs=(--from bytes --to-symbols "$GREEK_UP" --lower) ;;
+		long-s)       rwant='--upper is invalid for output base "custom(2)": uppercasing digit "ſ" gives "S"';  rargs=(--to-symbols "s ſ" --upper 3) ;;
+	esac
+	_run_in "${CBT_TMP}/rb_in" "${rargs[@]}"
+	{ ((_rc == 1)) && [[ -z "$_out" && "$_err" == *"$rwant"* ]]; } && _pass ErvpHV2 "case flag refused where the base can't read the digit back (${rcase})" \
+		|| _fail ErvpHV2 "case flag refused where the base can't read the digit back (${rcase})" "rc=$_rc out=[$_out] err=[$_err] want-substr=[$rwant]"
+done
+## A digit the flag leaves as it is doesn't count: uncased multi-letter digits,
+## CJK, and CJK beside one-letter ASCII digits all still recase and read back.
+for rsyms in "0! 1! 2! 3!" "一 二 三 四" "a b 一 二"; do
+	rout=$("${TIMEOUT[@]}" "${EXE}" --to-symbols "$rsyms" --upper 9 2>"${CBT_ERR}" || true)
+	rback=$("${TIMEOUT[@]}" "${EXE}" --from-symbols "$rsyms" --to 10 "${rout:-x}" 2>>"${CBT_ERR}" || true)
+	[[ -n "$rout" && "$rback" == 9 ]] && _pass ErvpHVf "case flag kept where every recased digit reads back (${rsyms})" \
+		|| _fail ErvpHVf "case flag kept where every recased digit reads back (${rsyms})" "out='${rout}' back='${rback}' err=[$(<"${CBT_ERR}")]"
 done
 
 

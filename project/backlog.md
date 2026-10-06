@@ -37,7 +37,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `--lower` and `--upper` on a base with multi-letter or non-ASCII digits write output the same base can't read back.
 	- ID: 2026100519520001
 	- Type: Bug
-	- Status: Waiting for answers
+	- Status: Testing
 	- Severity: Low
 	- Opened: 20261005-195200
 	- Opened by: Backlog round 20261005, found while working 2026100519145001
@@ -46,11 +46,22 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Steps to reproduce:
 		- `convert-base-v2 --to-symbols "Ab Cd Ef Gh" --lower 9` writes `efcd`, and `--from-symbols "Ab Cd Ef Gh" efcd` fails to tokenize.
 		- `--to-symbols "α β γ δ" --upper 9` writes `ΓΒ`, which the same base refuses too.
-	- Reproduced: 20261005.
-	- Possible cause: input takes either case only for one-letter ASCII digits, while the flags recase any digit.
+	- Reproduced: 20261005. Again 20261006, plus `--to-symbols "s ſ" --upper 3` writes `SS`, which reads back as 0.
+	- Actual cause: input takes either case only for one-letter ASCII digits, while the flags recase any digit. The checks before only looked for a recased digit that is another digit, the pad, a tail symbol or a marker.
 	- Note: the harness case `Ersmg3G` (greek-lower) relies on `--lower` working on a Greek base, so refusing the flag there would change a tested behavior. Either refuse it for such bases or read those digits in either case.
 	- Progress log:
 		- 20261005: left for an answer. Refuse `--lower` and `--upper` on a base whose digits the reader takes in one case only, or read every such digit in either case when no two digits differ only by case?
+		- 20261006: answered, see Decisions. Started.
+	- Decisions:
+		- 20261006: refuse `--lower` and `--upper` on a base whose recased digits the same base can't read back.
+	- Actual fix: `checkOutputFlags` recases each digit of the output base and reads it back through that base's own tokenizer. If it doesn't come back as the same digit, the flag is refused with exit 1, naming the flag, the base, the digit and what it turns into. A digit the flag leaves as it is is skipped, so CJK and punctuation digits still work. It runs before any input is read, so the streamed and buffered paths both get it. Help, flag usage and design.md "Flags by mode" say so.
+	- Note: of the built-in and compatibility bases, only `48ws_compat_v1` changes: it refuses `--upper` now, since its `ʞ` uppercases to a digit it can't read. Every other base is accepted or refused with each flag as before.
+	- Swept: the case flags only exist in the command, and `checkOutputFlags` is the one place they're checked. The browser and reactor builds have none. README, `--examples` and the demo scenario use no case flag on a non-ASCII or multi-letter base.
+	- Branch: case-readback
+	- Test case: `ErvpHV2` "case flag refused where the base can't read the digit back": a multi-letter base and a Greek base on argv, a Greek base piped, and `s ſ` with `--upper`. Failed all 4 before the fix and passes after.
+		- `ErvpHVf` "case flag kept where every recased digit reads back": uncased multi-letter, CJK, and CJK beside ASCII letters. Passes before and after.
+		- `Ervq3zH` TestCaseFlagOutputReadsBack: every built-in base and 6 custom ones, both flags. Where a flag is allowed, all the digits recased and run together read back as the same digits, on the number and byte paths. It also pins which custom ones are refused. Failed with the new check turned off, on `48ws_compat_v1` and 5 custom cases, and passes with it.
+		- Changed expectation: `Ersmg3G` greek-lower and `ErsqAZ3` greek-pad now expect the refusal, with a comment giving this ID. The other cases in both loops are as they were.
 
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
