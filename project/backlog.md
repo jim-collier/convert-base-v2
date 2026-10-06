@@ -105,6 +105,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the number-or-bytes note is the only stderr line that starts with `FYI:`. Every other one starts with `note:`.
 	- Origin: the flags date from ad488ce and later. The `--escape-controls` refusal is from 2efb8de on 2026-08-04, which wrote the rule. Not seen by an earlier round. Confirmed.
 	- Sweep: `--precision`, `--lower`, `--upper`, `--escape-controls` and `--no-newline`, and each side's neg, dec, pad and tail, in both modes.
+	- Decisions:
+		- 20261005: a flag that is accepted today and does nothing in the current mode gets a stderr `note:` and the run goes on. Flags refused today stay refused.
 	- Note: changes what users see, so it closes at Waiting on signoff.
 
 - One flag after the NUMBER is reported as an unknown base. (Code review 20261005 item 3)
