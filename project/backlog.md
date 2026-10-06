@@ -184,6 +184,22 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- `ErsqAZh` "case flag refused when a digit recases into the ...": pad, tail and negative marker. Failed all 3 before and passes after.
 		- `ErsqAaO` TestRecaseWriterKeepsPadAndTail: every chunk split of samples with kept ASCII, non-ASCII and U+FFFD runes. Fails with the kept set ignored.
 
+- `--lower` and `--upper` on a base with multi-letter or non-ASCII digits write output the same base can't read back.
+	- ID: 2026100519520001
+	- Type: Bug
+	- Status: Queued
+	- Severity: Low
+	- Opened: 20261005-195200
+	- Opened by: Backlog round 20261005, found while working 2026100519145001
+	- Related IDs: 2026100519145001
+	- Target OS: Any
+	- Steps to reproduce:
+		- `convert-base-v2 --to-symbols "Ab Cd Ef Gh" --lower 9` writes `efcd`, and `--from-symbols "Ab Cd Ef Gh" efcd` fails to tokenize.
+		- `--to-symbols "α β γ δ" --upper 9` writes `ΓΒ`, which the same base refuses too.
+	- Reproduced: 20261005.
+	- Possible cause: input takes either case only for one-letter ASCII digits, while the flags recase any digit.
+	- Note: the harness case `Ersmg3G` (greek-lower) relies on `--lower` working on a Greek base, so refusing the flag there would change a tested behavior. Either refuse it for such bases or read those digits in either case.
+
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
 	- Type: Enhancement
