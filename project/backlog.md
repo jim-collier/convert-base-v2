@@ -34,23 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
-	- ID: 2026100516265606
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Note: the command and the reactor each try `StreamConvert`, then `StreamBytesRoute` with a `bytes` base they look up themselves, then two buffered `Convert` calls through `bytes`. A Go program that wants to encode a reader as base 64 has to know that order and what `handled` means.
-	- Requirements:
-		- One exported call that takes a reader, a writer, two bases and the byte-mode choice, and does all 3 steps.
-		- The command and the reactor both use it.
-	- Decisions:
-		- This joins the dispatch only. The streaming and buffered paths stay separate, per BxZNl-25.
-	- Note: the library is still v0, so the two current calls can be unexported in the same change, or kept as building blocks.
-	- Origin: a82807d, the library split, exported the command's dispatch pieces, and the reactor's `stream.go` copied their order. Not seen by an earlier round. Confirmed by reading.
-
 - shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
 	- ID: 2026100508035901
 	- Type: Bug
@@ -80,6 +63,23 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: shcl-utf8
 	- Commit: a3a4f3e
 	- Test case: `ErsoOAI` TestConfigInvalidUTF8InQuotes, and harness `ErsoOAv` "config invalid UTF-8 digit mid-quote refused". Both fail before the re-pin and pass after.
+
+- The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
+	- ID: 2026100516265606
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: the command and the reactor each try `StreamConvert`, then `StreamBytesRoute` with a `bytes` base they look up themselves, then two buffered `Convert` calls through `bytes`. A Go program that wants to encode a reader as base 64 has to know that order and what `handled` means.
+	- Requirements:
+		- One exported call that takes a reader, a writer, two bases and the byte-mode choice, and does all 3 steps.
+		- The command and the reactor both use it.
+	- Decisions:
+		- This joins the dispatch only. The streaming and buffered paths stay separate, per BxZNl-25.
+	- Note: the library is still v0, so the two current calls can be unexported in the same change, or kept as building blocks.
+	- Origin: a82807d, the library split, exported the command's dispatch pieces, and the reactor's `stream.go` copied their order. Not seen by an earlier round. Confirmed by reading.
 
 - A flag that does nothing in the current mode gets an error, a note, or nothing at all. (Code review 20261005 item 2)
 	- ID: 2026100516265602
