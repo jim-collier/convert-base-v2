@@ -338,3 +338,28 @@ func TestLoadConfigAllOrNothing(t *testing.T) {
 		t.Errorf("failed config listed as loaded: %v", reg.LoadedConfigs)
 	}
 }
+
+// A stray byte inside a quoted value used to make shcl skip the closing quote,
+// so the file failed as E017 and never reached the digit check. These are the
+// spellings that did that (2026100508035901).
+// Test ID: ErsoOAI
+func TestConfigInvalidUTF8InQuotes(t *testing.T) {
+	cases := []struct{ value, want string }{
+		{`"a b ` + "\x80" + ` c"`, `digit "\x80" at index 2`},
+		{`"a b ` + "\xff" + ` c"`, `digit "\xff" at index 2`},
+		{`"a` + "\x80" + ` b"`, `digit "a\x80" at index 0`},
+		{`"b ` + "\x80" + `"`, `digit "\x80" at index 1`},
+	}
+	for _, c := range cases {
+		t.Run(c.want, func(t *testing.T) {
+			text := "base: badutf\n\tsymbols: " + c.value + "\n" + shcl.FormatLine + "\n"
+			err := loadConfigText(t, text)
+			if err == nil {
+				t.Fatal("loaded")
+			}
+			if want := `base "badutf": ` + c.want + " is not valid UTF-8"; !strings.Contains(err.Error(), want) {
+				t.Fatalf("got %v, want %s", err, want)
+			}
+		})
+	}
+}

@@ -54,7 +54,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
 	- ID: 2026100508035901
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes. A full `cicd/test.bash` run on the new shcl pin. The config sections, `go test ./...` and the vendor check already pass.
 	- Severity: Low
 	- Opened: 20261005-080359
 	- Opened by: Backlog round 20261005, found while working 2026100507565201
@@ -70,6 +71,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261005: left out of the round. Upstream is still at 0d4c174c with no 3.0.0 tag, and the bug isn't in its backlog yet.
 		- 20261005: filed in shcl's backlog as 2026100511212359, reproduced there at `0d1a491c`. Its `utf8Len` takes any byte that isn't a lead byte as the start of a 4-byte character, so the quote scan can step over the closing quote.
+		- 20261005: fixed upstream in shcl commit d9f38a4a, on its dev branch. Still no 3.0.0 tag, so the copy moves to the dev tip, 2317df56.
+		- 20261005: a bare `tail: ,` or `tail: , ,` still reads as no tail on the new pin, the same as `tail:`. A quoted `","` is still refused as only commas. shcl's backlog has no item for it.
+	- Actual cause: shcl's quote scan, not this project. See the progress log.
+	- Actual fix: `lib/shcl/shcl.go` refreshed from shcl's dev branch, and the pin moved with it. The value now parses, and `Finalize` refuses the bad digit with this project's own invalid UTF-8 message.
+	- Note: the refresh also brings about 15 other upstream changes, mostly kept lines, setters and migration counts. Both `UpgradeConfig` workarounds are still needed on the new pin.
+	- Verified: the new Go test and harness check fail on the old pin with the unterminated quote error and pass on the new one. `go vet`, golangci-lint, `go test ./...`, the browser and reactor builds, the vendor check, and the Config file and Config migration harness sections pass.
+	- Branch: shcl-utf8
+	- Test case: `ErsoOAI` TestConfigInvalidUTF8InQuotes, and harness `ErsoOAv` "config invalid UTF-8 digit mid-quote refused". Both fail before the re-pin and pass after.
 
 - A flag that does nothing in the current mode gets an error, a note, or nothing at all. (Code review 20261005 item 2)
 	- ID: 2026100516265602

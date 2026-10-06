@@ -868,6 +868,9 @@ _run_in "${CBT_TMP}/hi.bin" --from bytes --to-symbols $'\x80 \x81 \xc3\xa9 \xc3\
 _assert Erq3i2u errmsg "invalid UTF-8 digit refused" 'base "custom(4)": digit "\x80" at index 0 is not valid UTF-8'
 printf -- 'base: cfgbadutf\n\tsymbols: "\xff a b c"\n##    Format   3\n' >"${CBT_TMP}/bad-utf8.shcl"
 check Erq3i3e errmsg "config invalid UTF-8 digit refused" 'base "cfgbadutf": digit "\xff" at index 0 is not valid UTF-8' -- --config "${CBT_TMP}/bad-utf8.shcl" 5 16
+## A stray byte later in the quotes made shcl skip the closing quote (E017).
+printf -- 'base: cfgbadutf\n\tsymbols: "a b \x80 c"\n##    Format   3\n' >"${CBT_TMP}/bad-utf8-mid.shcl"
+check ErsoOAv errmsg "config invalid UTF-8 digit mid-quote refused" 'base "cfgbadutf": digit "\x80" at index 2 is not valid UTF-8' -- --config "${CBT_TMP}/bad-utf8-mid.shcl" 5 16
 
 ## Same tail declared in a config file rather than on the command line.
 tailcfg="${CBT_TMP}/tail.shcl"

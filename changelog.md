@@ -86,7 +86,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `--help` stopped at a config file that would not load, and listed one it could not open as `[loaded]`. Its config section now marks such a file `[unreadable]`, or `[not loaded]` with the error under it, and the rest of the help prints. Any other run still stops at the error. Library: a config file that fails to load adds no bases, where before the ones above the fault stayed.
 
-- A custom base with a digit that isn't valid UTF-8, such as `--to-symbols $'\x80 \x81 é è'`, was accepted, and its streamed output was then refused by its own streaming decode. Such a digit is refused now, naming the base and the digit, and so are tail symbols, a pad and markers that aren't valid UTF-8. The `bytes` base is unchanged. Library: `Finalize` returns the error.
+- A custom base with a digit that isn't valid UTF-8, such as `--to-symbols $'\x80 \x81 é è'`, was accepted, and its streamed output was then refused by its own streaming decode. Such a digit is refused now, naming the base and the digit, and so are tail symbols, a pad and markers that aren't valid UTF-8. In a config file, such a byte inside quotes could fail as an unterminated quote instead; it gets the same message now. The `bytes` base is unchanged. Library: `Finalize` returns the error.
 
 - `--lower` and `--upper` on piped input read the whole input into memory first, about 5 times its size, so a 100 MB file to lower-case hex peaked near 500 MB. They stream now, in constant memory like the plain encode, with the same output as before.
 
