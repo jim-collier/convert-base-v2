@@ -64,6 +64,91 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- `ErsqAZh` "case flag refused when a digit recases into the ...": pad, tail and negative marker. Failed all 3 before and passes after.
 		- `ErsqAaO` TestRecaseWriterKeepsPadAndTail: every chunk split of samples with kept ASCII, non-ASCII and U+FFFD runes. Fails with the kept set ignored.
 
+- One flag after the NUMBER is reported as an unknown base. (Code review 20261005 item 3)
+	- ID: 2026100516265603
+	- Type: Bug
+	- Status: Waiting on signoff
+	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. The command's Go tests and the harness sections through "Errors and robustness" were run.
+	- Severity: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Related IDs: 2026100313304797
+	- Target OS: Any
+	- Steps to reproduce:
+		- `convert-base-v2 255 --lower` and `convert-base-v2 255 --about`.
+		- `convert-base-v2 ff --from hex`.
+	- Incorrect behavior: the first two say `unknown base "--lower"` and `"--about"`. The third says `unexpected extra positional argument: "hex"`. With 2 positionals first, as in `255 16 --lower`, the hint that flags go first does show.
+	- Expected behavior: that hint whenever a positional after the NUMBER starts with `--`, or with `-` and a letter. No base name starts with `-`.
+	- Decisions:
+		- Flags still go before the NUMBER. Only the message changes.
+	- Origin: `checkPositionals` in `main.go:527`, from ad488ce. The hint came in 46b7e11 on 2026-07-10 for BxZNl-16, and checks only what follows OUTBASE. 2026100313304797 noted the `--about` case and left it. Confirmed.
+	- Reproduced: 20261005, all three on dev.
+	- Against: BxZNl-16, flags go before the NUMBER. Kept: the hint text and the `--` hint for `-123` are unchanged.
+	- Actual fix: a positional after the NUMBER that is `--` and anything, or `-` and a letter, gets the flags-first hint, whether it sits where OUTBASE goes or after it. A value flag shows its value in the example, as in `--from hex NUMBER BASE`. The check runs first, before any base is looked up or any note prints.
+		- `-5` there is still read as a base, so it gets the unknown base error. A config base whose name starts with `-` still works as OUTBASE, since a name that resolves is never taken for a flag. No built-in name or alias starts with `-`.
+		- With `--to` given, a flag after the NUMBER used to be dropped with a `--to overrides positional output base` note and exit 0. It's refused now like the rest, since the flag was never applied.
+		- A third positional `-3` now says "unexpected extra positional argument" instead of the flags hint, since it reads as a number.
+	- Swept: both positional slots in `checkPositionals`. Query flags (`--show-symbols hex --lower`) still ignore anything after the base. That's left for 2026100516265602, which covers flags that do nothing in a mode.
+	- Verified: 20261005, ErssdCS fails 3 of its 4 cases on dev and passes on the branch. ErssdD7 and ErsskLV pass both ways, as guards.
+	- Branch: cli-usage
+	- Commit: 5f318c3
+	- Test case: ErssdCS (flag after the NUMBER, 4 cases), ErssdD7 (`255 -5` stays an unknown base), ErsskLV (config base named `-x`), Go `TestNoBuiltinBaseLooksLikeFlag` ErsskKs.
+	- Acceptance signoff:
+
+- design.md and the help describe the pipe rule and the query flags wrong. (Code review 20261005 item 4)
+	- ID: 2026100516265604
+	- Type: Bug
+	- Status: Waiting on signoff
+	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. The command's Go tests and the harness sections through "Errors and robustness" were run.
+	- Severity: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Incorrect behavior:
+		- design.md says a pipe is read only when the input is `-`. With no NUMBER at all the pipe is read too, and the README's `some-command | convert-base-v2 --binary --to 64` depends on that. `-` is only needed to give OUTBASE as a positional.
+		- design.md and the help's "Base info" heading say each query flag prints one value. `--list` prints a table, and `--by-index` prints nothing, since it picks a base.
+		- The help lists `--show-symbols` and `--get-base-name` with no argument. They take the base as a positional, and ignore `--from hex` with "select a base by name/alias argument".
+		- On a fresh install the help says the default config "overrides built-in aliases", though it overrides none. It means the load order.
+	- Expected behavior: the docs say what the program does. Wording only.
+	- Reproduced: 20261005, each one run in a scratch home.
+	- Origin: the design.md lines are from 7643323 on 2026-07-13. Not seen by an earlier round. Confirmed.
+	- Actual fix: design.md now says the pipe is read for `-` or when there is no NUMBER, and that `-` is only needed to give OUTBASE as a positional. Its query flag line says they print and exit, and that the base comes from a positional or `--by-index`. The rest of that section is unchanged.
+		- The help's usage block shows the pipe form with no NUMBER, and says flags go before the NUMBER. "Base info" says print, then exit, and `--get-base-name`, `--show-symbols` and `--show-symbols-0` show `BASE`. `--by-index` says it stands in for `BASE`.
+		- The config line now says a name defined in the file takes precedence over built-in, rather than that it overrides built-in aliases.
+	- Swept: design.md CLI contract, the help text, the README (it makes neither claim), and the code comments that state the pipe rule, which were already right.
+	- Verified: 20261005, `TestHelpListsEveryFlag` fails on the old help, which has no `BASE` arguments, and when a flag is missing from it. It passes on the branch. The pipe with no NUMBER was already pinned by the pipecheck cases (EjeCdXo for number mode, EjU6h0j for `--binary`).
+	- Branch: cli-usage
+	- Commit: 5f318c3
+	- Test case: Go `TestHelpListsEveryFlag` ErsskKE: every flag the parser takes is in the help, and the base-picking query flags show `BASE`. The pipe rule is pinned by EjeCdXo and EjU6h0j.
+	- Acceptance signoff:
+
+- A command line that can't be parsed exits 1, the same as a failed conversion. (Code review 20261005 item 7)
+	- ID: 2026100516265607
+	- Type: Enhancement
+	- Status: Waiting on signoff
+	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. The command's Go tests and the harness sections through "Errors and robustness" were run.
+	- Priority: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: an unknown flag, a flag after the NUMBER and an extra positional all exit 1, like a bad digit. No arguments at all exits 2. Go's own flag package and most getopt tools use 2 for a usage error, so a script can tell a wrong call from input that won't convert.
+	- Requirements:
+		- Exit 2 for a command line that can't be parsed. 1 stays for a failed conversion.
+		- The help says which is which.
+	- Note: a script that tests for exactly 1 would see 2, so it goes in the changelog.
+	- Origin: 46b7e11 on 2026-07-10 took over flag errors to reword them, and they left by the generic exit 1. Confirmed.
+	- Decisions:
+		- 20261005: exit 2 for any command line that can't be parsed: an unknown flag, a value the flag parser refuses (`--by-index x`), `-123` with no `--`, a flag after the NUMBER, an extra positional, `--get-base-name` or `--show-symbols` with no base, and no arguments at all. A best guess, open to review.
+		- 20261005: an unknown base name stays 1. It's input that won't convert, and nothing in the code treated it as usage.
+		- 20261005: checks that run after parsing also stay 1: `--precision foo`, `--binary` with `--number`, `--lower` with `--upper`, and `--escape-controls` in byte mode. Open to review: they could move to 2 too.
+	- Actual fix: a `usageError` type exits 2 from `main`. Flag parse errors, the positional checks and the missing query base use it. The help gets an "Exit status" block. The changelog says a script testing for 1 will see 2.
+	- Swept: `cicd/test.bash`, the helper scripts, README and design.md. Nothing expected exit 1 on these cases, so no test changed. The browser module and reactor keep their own codes, as 2026100516265608 covers them.
+	- Verified: 20261005, ErssdDk fails all 7 cases on dev, at exit 1, and passes on the branch. ErssdER passes both ways.
+	- Branch: cli-usage
+	- Commit: 5f318c3
+	- Test case: ErssdDk (7 usage errors exit 2 with an `error:` line), ErssdER (4 failed conversions still exit 1). Eje9ui2 already pins exit 2 with no arguments.
+	- Acceptance signoff:
+
 - shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
 	- ID: 2026100508035901
 	- Type: Bug
@@ -132,42 +217,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261005: a flag that is accepted today and does nothing in the current mode gets a stderr `note:` and the run goes on. Flags refused today stay refused.
 	- Note: changes what users see, so it closes at Waiting on signoff.
 
-- One flag after the NUMBER is reported as an unknown base. (Code review 20261005 item 3)
-	- ID: 2026100516265603
-	- Type: Bug
-	- Status: Queued
-	- Severity: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Related IDs: 2026100313304797
-	- Target OS: Any
-	- Steps to reproduce:
-		- `convert-base-v2 255 --lower` and `convert-base-v2 255 --about`.
-		- `convert-base-v2 ff --from hex`.
-	- Incorrect behavior: the first two say `unknown base "--lower"` and `"--about"`. The third says `unexpected extra positional argument: "hex"`. With 2 positionals first, as in `255 16 --lower`, the hint that flags go first does show.
-	- Expected behavior: that hint whenever a positional after the NUMBER starts with `--`, or with `-` and a letter. No base name starts with `-`.
-	- Decisions:
-		- Flags still go before the NUMBER. Only the message changes.
-	- Origin: `checkPositionals` in `main.go:527`, from ad488ce. The hint came in 46b7e11 on 2026-07-10 for BxZNl-16, and checks only what follows OUTBASE. 2026100313304797 noted the `--about` case and left it. Confirmed.
-
-- design.md and the help describe the pipe rule and the query flags wrong. (Code review 20261005 item 4)
-	- ID: 2026100516265604
-	- Type: Bug
-	- Status: Queued
-	- Severity: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Incorrect behavior:
-		- design.md says a pipe is read only when the input is `-`. With no NUMBER at all the pipe is read too, and the README's `some-command | convert-base-v2 --binary --to 64` depends on that. `-` is only needed to give OUTBASE as a positional.
-		- design.md and the help's "Base info" heading say each query flag prints one value. `--list` prints a table, and `--by-index` prints nothing, since it picks a base.
-		- The help lists `--show-symbols` and `--get-base-name` with no argument. They take the base as a positional, and ignore `--from hex` with "select a base by name/alias argument".
-		- On a fresh install the help says the default config "overrides built-in aliases", though it overrides none. It means the load order.
-	- Expected behavior: the docs say what the program does. Wording only.
-	- Reproduced: 20261005, each one run in a scratch home.
-	- Origin: the design.md lines are from 7643323 on 2026-07-13. Not seen by an earlier round. Confirmed.
-	- Test case: a harness case for a pipe with no NUMBER, if none exists yet. The help's query lines can be checked against the flag set.
-
 - Several exported doc comments describe older behavior. (Code review 20261005 item 5)
 	- ID: 2026100516265605
 	- Type: Bug
@@ -214,21 +263,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261005: left out of the round. It stays a fix-when-touched rule, since a one-pass restyle of every script would be a big diff for little gain.
 	- Origin: several commits. Directive gap, filed against the 2026-10-04 directives.
-
-- A command line that can't be parsed exits 1, the same as a failed conversion. (Code review 20261005 item 7)
-	- ID: 2026100516265607
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Note: an unknown flag, a flag after the NUMBER and an extra positional all exit 1, like a bad digit. No arguments at all exits 2. Go's own flag package and most getopt tools use 2 for a usage error, so a script can tell a wrong call from input that won't convert.
-	- Requirements:
-		- Exit 2 for a command line that can't be parsed. 1 stays for a failed conversion.
-		- The help says which is which.
-	- Note: a script that tests for exactly 1 would see 2, so it goes in the changelog.
-	- Origin: 46b7e11 on 2026-07-10 took over flag errors to reword them, and they left by the generic exit 1. Confirmed.
 
 - The browser module's errors have no code, where the reactor's do. (Code review 20261005 item 8)
 	- ID: 2026100516265608

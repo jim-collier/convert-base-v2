@@ -12,10 +12,13 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
 	"unicode/utf8"
+
+	"github.com/jim-collier/convert-base-v2/lib/convertbase"
 )
 
 func parseInfo(t *testing.T, args ...string) infoAsks {
@@ -262,6 +265,64 @@ func TestRecaseWriterMatchesWholeRecase(t *testing.T) {
 					t.Errorf("upper=%v %q in chunks of %d: got %q, want %q", upper, s, size, got.String(), want)
 				}
 			}
+		}
+	}
+}
+
+// The help names every flag the parser takes, and the query flags that pick a
+// base show it as an argument.
+// Test ID: ErsskKE
+func TestHelpListsEveryFlag(t *testing.T) {
+	f, err := parseFlags(nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	reg, err := convertbase.NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	var help strings.Builder
+	printHelp(&help, reg, nil, etcConfigPath, "", "", "", "", "")
+	text := help.String()
+	f.fs.VisitAll(func(fl *flag.Flag) {
+		name := "--" + fl.Name
+		if len(fl.Name) == 1 {
+			name = "-" + fl.Name
+		}
+		if !regexp.MustCompile(`(^|[\s,])` + regexp.QuoteMeta(name) + `([\s,]|$)`).MatchString(text) {
+			t.Errorf("help does not list %s", name)
+		}
+	})
+	for _, q := range []string{"--get-base-name", "--show-symbols", "--show-symbols-0"} {
+		if !strings.Contains(text, "\n  "+q+" BASE") {
+			t.Errorf("help lists %s without its BASE argument", q)
+		}
+	}
+}
+
+// A positional after the NUMBER that looks like a flag gets the flags-first
+// hint, so no built-in base may look like one.
+// Test ID: ErsskKs
+func TestNoBuiltinBaseLooksLikeFlag(t *testing.T) {
+	reg, err := convertbase.NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, b := range reg.OrderedBases() {
+		for _, a := range b.Aliases {
+			if looksLikeFlag(a) {
+				t.Errorf("base %q alias %q looks like a flag", b.Name(), a)
+			}
+		}
+	}
+	for _, s := range []string{"-5", "-123", "-.5", "-", "5"} {
+		if looksLikeFlag(s) {
+			t.Errorf("%q reads as a flag", s)
+		}
+	}
+	for _, s := range []string{"--lower", "--", "-x", "-N", "--5"} {
+		if !looksLikeFlag(s) {
+			t.Errorf("%q does not read as a flag", s)
 		}
 	}
 }
