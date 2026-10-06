@@ -34,6 +34,36 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- `--lower` and `--upper` recase a pad or tail symbol, so the output can't be read back.
+	- ID: 2026100519145001
+	- Type: Bug
+	- Status: Waiting on signoff
+	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. Only the Go tests for the command and library and the case, pad and tail harness sections were run.
+	- Severity: Low
+	- Opened: 20261005-191450
+	- Opened by: Backlog round 20261005, found while working 2026100516265601
+	- Related IDs: 2026100516265601
+	- Target OS: Any
+	- Steps to reproduce:
+		- `printf a | convert-base-v2 --from bytes --to-symbols "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O Q R S T U V W" --to-pad P --lower` writes `c4pppppp`.
+		- Reading that back with the same symbols and `--from-pad P` fails on `p`.
+		- Adding `--to-dec P` gives `c4Pppppp` in the buffered path, since the first `P` is taken for the decimal marker.
+	- Expected behavior: the flags change digits only, as they already do for markers, or a pad or tail with a cased letter is refused with the flag.
+	- Reproduced: 20261005, in a scratch home, both before and after 2026100516265601.
+	- Origin: `canRecase` and `recaseDigits` look at the digits and markers only. Built-in pads and tails have no case, so only a user-defined base can hit it. Confirmed.
+	- Note: `Finalize` also lets a pad equal the decimal marker.
+		- That reads back fine both ways, so it isn't a bug. The pad is only used in byte mode and the markers only in number mode. Checked with pad and decimal marker both `P`: byte encode and decode round trip, and `10.5` round trips as `APG`. Only the buffered recase mixed them up, and this fix removes that.
+	- Decisions:
+		- 20261005: the case flags change digits only, as they already did for the markers. Pad and tail symbols are written as the base defines them, and the flags aren't refused for a cased pad or tail. A best guess, open to review.
+		- 20261005: a digit that the flag would recase into the pad, a tail symbol or a marker is refused, the same as mixed-case digits, since the same base would read it as that symbol. Only a non-ASCII or multi-letter digit can hit it, since `Finalize` already keeps one-letter ASCII flips clear of those.
+	- Actual fix: piped output skips the pad and tail characters when it recases. Buffered byte-mode output goes through the same writer, so both give the same bytes, and number-mode output keeps the marker-aware recase. `checkOutputFlags` refuses the digit clash above, naming the digit and what it would turn into.
+	- Swept: every recase site in `main.go` (`recaseWriter`, `recaseDigits`, the buffered and streamed callers, `checkOutputFlags`). The browser and reactor builds have no case flags. Built-in bases have no cased pad or tail, so their output is unchanged.
+	- Branch: recase-pad
+	- Commit: 24afe1f
+	- Test case: `ErsqAZ3` "case flag leaves pad and tail alone": a one-byte digit base with a pad, the same with the decimal marker equal to the pad, a 2-byte Greek base with a pad and a CJK base with a tail, piped and on argv, each read back by the same base. Failed all 4 before the fix and passes after.
+		- `ErsqAZh` "case flag refused when a digit recases into the ...": pad, tail and negative marker. Failed all 3 before and passes after.
+		- `ErsqAaO` TestRecaseWriterKeepsPadAndTail: every chunk split of samples with kept ASCII, non-ASCII and U+FFFD runes. Fails with the kept set ignored.
+
 - shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
 	- ID: 2026100508035901
 	- Type: Bug
@@ -153,36 +183,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Expected behavior: `go doc` matches the code, since it's the library's public reference.
 	- Origin: `PadSymbol` from 166d2c9 on 2026-07-06, before every RFC variant padded. The stream comments predate 24403a7 on 2026-07-25, and a82807d exported them as they were. The 20261004 round checked that exported names have comments, not what they say. Confirmed.
 	- Test case: none. Comments only.
-
-- `--lower` and `--upper` recase a pad or tail symbol, so the output can't be read back.
-	- ID: 2026100519145001
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. Only the Go tests for the command and library and the case, pad and tail harness sections were run.
-	- Severity: Low
-	- Opened: 20261005-191450
-	- Opened by: Backlog round 20261005, found while working 2026100516265601
-	- Related IDs: 2026100516265601
-	- Target OS: Any
-	- Steps to reproduce:
-		- `printf a | convert-base-v2 --from bytes --to-symbols "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O Q R S T U V W" --to-pad P --lower` writes `c4pppppp`.
-		- Reading that back with the same symbols and `--from-pad P` fails on `p`.
-		- Adding `--to-dec P` gives `c4Pppppp` in the buffered path, since the first `P` is taken for the decimal marker.
-	- Expected behavior: the flags change digits only, as they already do for markers, or a pad or tail with a cased letter is refused with the flag.
-	- Reproduced: 20261005, in a scratch home, both before and after 2026100516265601.
-	- Origin: `canRecase` and `recaseDigits` look at the digits and markers only. Built-in pads and tails have no case, so only a user-defined base can hit it. Confirmed.
-	- Note: `Finalize` also lets a pad equal the decimal marker.
-		- That reads back fine both ways, so it isn't a bug. The pad is only used in byte mode and the markers only in number mode. Checked with pad and decimal marker both `P`: byte encode and decode round trip, and `10.5` round trips as `APG`. Only the buffered recase mixed them up, and this fix removes that.
-	- Decisions:
-		- 20261005: the case flags change digits only, as they already did for the markers. Pad and tail symbols are written as the base defines them, and the flags aren't refused for a cased pad or tail. A best guess, open to review.
-		- 20261005: a digit that the flag would recase into the pad, a tail symbol or a marker is refused, the same as mixed-case digits, since the same base would read it as that symbol. Only a non-ASCII or multi-letter digit can hit it, since `Finalize` already keeps one-letter ASCII flips clear of those.
-	- Actual fix: piped output skips the pad and tail characters when it recases. Buffered byte-mode output goes through the same writer, so both give the same bytes, and number-mode output keeps the marker-aware recase. `checkOutputFlags` refuses the digit clash above, naming the digit and what it would turn into.
-	- Swept: every recase site in `main.go` (`recaseWriter`, `recaseDigits`, the buffered and streamed callers, `checkOutputFlags`). The browser and reactor builds have no case flags. Built-in bases have no cased pad or tail, so their output is unchanged.
-	- Branch: recase-pad
-	- Commit: 24afe1f
-	- Test case: `ErsqAZ3` "case flag leaves pad and tail alone": a one-byte digit base with a pad, the same with the decimal marker equal to the pad, a 2-byte Greek base with a pad and a CJK base with a tail, piped and on argv, each read back by the same base. Failed all 4 before the fix and passes after.
-		- `ErsqAZh` "case flag refused when a digit recases into the ...": pad, tail and negative marker. Failed all 3 before and passes after.
-		- `ErsqAaO` TestRecaseWriterKeepsPadAndTail: every chunk split of samples with kept ASCII, non-ASCII and U+FFFD runes. Fails with the kept set ignored.
 
 - `--lower` and `--upper` on a base with multi-letter or non-ASCII digits write output the same base can't read back.
 	- ID: 2026100519520001
