@@ -157,7 +157,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `--lower` and `--upper` recase a pad or tail symbol, so the output can't be read back.
 	- ID: 2026100519145001
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on signoff
+	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. Only the Go tests for the command and library and the case, pad and tail harness sections were run.
 	- Severity: Low
 	- Opened: 20261005-191450
 	- Opened by: Backlog round 20261005, found while working 2026100516265601
@@ -171,6 +172,16 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Reproduced: 20261005, in a scratch home, both before and after 2026100516265601.
 	- Origin: `canRecase` and `recaseDigits` look at the digits and markers only. Built-in pads and tails have no case, so only a user-defined base can hit it. Confirmed.
 	- Note: `Finalize` also lets a pad equal the decimal marker.
+		- That reads back fine both ways, so it isn't a bug. The pad is only used in byte mode and the markers only in number mode. Checked with pad and decimal marker both `P`: byte encode and decode round trip, and `10.5` round trips as `APG`. Only the buffered recase mixed them up, and this fix removes that.
+	- Decisions:
+		- 20261005: the case flags change digits only, as they already did for the markers. Pad and tail symbols are written as the base defines them, and the flags aren't refused for a cased pad or tail. A best guess, open to review.
+		- 20261005: a digit that the flag would recase into the pad, a tail symbol or a marker is refused, the same as mixed-case digits, since the same base would read it as that symbol. Only a non-ASCII or multi-letter digit can hit it, since `Finalize` already keeps one-letter ASCII flips clear of those.
+	- Actual fix: piped output skips the pad and tail characters when it recases. Buffered byte-mode output goes through the same writer, so both give the same bytes, and number-mode output keeps the marker-aware recase. `checkOutputFlags` refuses the digit clash above, naming the digit and what it would turn into.
+	- Swept: every recase site in `main.go` (`recaseWriter`, `recaseDigits`, the buffered and streamed callers, `checkOutputFlags`). The browser and reactor builds have no case flags. Built-in bases have no cased pad or tail, so their output is unchanged.
+	- Branch: recase-pad
+	- Test case: `ErsqAZ3` "case flag leaves pad and tail alone": a one-byte digit base with a pad, the same with the decimal marker equal to the pad, a 2-byte Greek base with a pad and a CJK base with a tail, piped and on argv, each read back by the same base. Failed all 4 before the fix and passes after.
+		- `ErsqAZh` "case flag refused when a digit recases into the ...": pad, tail and negative marker. Failed all 3 before and passes after.
+		- `ErsqAaO` TestRecaseWriterKeepsPadAndTail: every chunk split of samples with kept ASCII, non-ASCII and U+FFFD runes. Fails with the kept set ignored.
 
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
