@@ -234,6 +234,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every flag the parser takes, in number, byte and query mode. `TestIdleFlagNotes` fails for a flag with no case in a mode it can be given in, and `TestDesignTableListsEveryFlag` for a flag with no row in the table. `FYI:` appears in no test or doc; the only other hits are code comments in `bases.go`. The scripts that run the binary, `gen-bases-table.py`, `gen-screenshots.bash` and the demo scenario, hit no new note or exit 2. The browser module and reactor take no flags.
 	- Verified: 20261005, the new harness checks fail on dev, 23 in all (ErsveGw, ErswATd, ErswAUX, ErswAVN and the reworded EjeBOHS), and the sections run pass 409 of 409 on the branch. ErswASw passes both ways, as a guard. The Go rule test fails when the byte mode note for `--precision` or the `--by-index` note is taken out. `go vet`, golangci-lint and the command's Go tests pass, and the wasip1 and Windows builds compile.
 	- Branch: idle-flags
+	- Commit: 29c24ed
 	- Test case: Go `TestIdleFlagNotes` ErsveFb (every flag in every mode) and `TestDesignTableListsEveryFlag` ErsveGF. Harness ErswATd (one note, same output, 12 cases), ErswAUX (a 3 MB stream is unchanged, one note per flag), ErswAVN (the number-or-bytes note starts with `note:`), ErsveGw (8 refusals exit 2) and ErswASw (3 base refusals stay 1).
 
 - Several exported doc comments describe older behavior. (Code review 20261005 item 5)
