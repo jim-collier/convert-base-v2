@@ -658,7 +658,7 @@ func TestWrappedBinaryDecode(t *testing.T) {
 				t.Errorf("buffered decode %s wrap %d did not recover the blob", name, width)
 			}
 			var streamed bytes.Buffer
-			ok, err := StreamConvert(strings.NewReader(wrapped), &streamed, to, bytesB)
+			ok, err := streamConvert(strings.NewReader(wrapped), &streamed, to, bytesB)
 			if err != nil {
 				t.Errorf("stream decode %s wrap %d: %v", name, width, err)
 				continue
@@ -756,13 +756,13 @@ func TestUserDefinedTail(t *testing.T) {
 			t.Fatal(err)
 		}
 		var se, sd bytes.Buffer
-		if ok, err := StreamConvert(bytes.NewReader(blob), &se, bytesB, withTail); err != nil || !ok {
+		if ok, err := streamConvert(bytes.NewReader(blob), &se, bytesB, withTail); err != nil || !ok {
 			t.Fatalf("stream encode %d bytes: ok=%v err=%v", n, ok, err)
 		}
 		if se.String() != enc {
 			t.Errorf("stream encode differs from buffered at %d bytes", n)
 		}
-		if ok, err := StreamConvert(strings.NewReader(enc), &sd, withTail, bytesB); err != nil || !ok {
+		if ok, err := streamConvert(strings.NewReader(enc), &sd, withTail, bytesB); err != nil || !ok {
 			t.Fatalf("stream decode %d bytes: ok=%v err=%v", n, ok, err)
 		}
 		if sd.String() != string(blob) {
@@ -981,7 +981,7 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 				t.Fatalf("buffered encode %s len %d: %v", name, n, err)
 			}
 			var streamEnc bytes.Buffer
-			ok, err := StreamConvert(bytes.NewReader(blob), &streamEnc, bytesB, to)
+			ok, err := streamConvert(bytes.NewReader(blob), &streamEnc, bytesB, to)
 			if err != nil {
 				t.Fatalf("stream encode %s len %d: %v", name, n, err)
 			}
@@ -1002,7 +1002,7 @@ func TestStreamBufferedEquivalence(t *testing.T) {
 				t.Fatalf("buffered decode %s len %d: %v", name, n, err)
 			}
 			var streamDec bytes.Buffer
-			ok, err = StreamConvert(strings.NewReader(bufEnc), &streamDec, to, bytesB)
+			ok, err = streamConvert(strings.NewReader(bufEnc), &streamDec, to, bytesB)
 			if err != nil {
 				t.Fatalf("stream decode %s len %d: %v", name, n, err)
 			}
@@ -1035,7 +1035,7 @@ func TestStreamReadErrorIsReported(t *testing.T) {
 	for _, name := range []string{"64", "16", "2048tz", "65536qntm"} {
 		b := base(t, reg, name)
 		var enc bytes.Buffer
-		if _, err := StreamConvert(strings.NewReader("hello, world"), &enc, bin, b); err != nil {
+		if _, err := streamConvert(strings.NewReader("hello, world"), &enc, bin, b); err != nil {
 			t.Fatalf("%s: encode: %v", name, err)
 		}
 		legs := []struct {
@@ -1048,13 +1048,93 @@ func TestStreamReadErrorIsReported(t *testing.T) {
 		}
 		for _, leg := range legs {
 			r := io.MultiReader(strings.NewReader(leg.src), iotest.ErrReader(boom))
-			handled, err := StreamConvert(r, io.Discard, leg.from, leg.to)
+			handled, err := streamConvert(r, io.Discard, leg.from, leg.to)
 			if !handled {
 				t.Errorf("%s %s: not streamed", name, leg.dir)
 			} else if !errors.Is(err, boom) {
 				t.Errorf("%s %s: read error came back as %v", name, leg.dir, err)
 			}
 		}
+	}
+}
+
+// ConvertStream takes each pair down the right one of its 3 steps: a direct
+// stream, the stream through bytes, or the buffered fallback. A read that
+// fails after 1 MB tells them apart, since only a stream has written by then.
+// Test ID: ErsydPF
+func TestConvertStream(t *testing.T) {
+	reg := newReg(t)
+	bin := base(t, reg, "bytes")
+	rng := rand.New(rand.NewSource(7))
+	blob := make([]byte, 1<<20)
+	rng.Read(blob)
+	boom := errors.New("disk on fire")
+
+	// encodeOf is what the input looks like in a text base.
+	encodeOf := func(b *Base) string {
+		if b.Binary {
+			return string(blob)
+		}
+		s, err := Convert(string(blob), bin, b, -1)
+		if err != nil {
+			t.Fatalf("encode blob to %s: %v", b.Name(), err)
+		}
+		return s
+	}
+	cases := []struct {
+		from, to string
+		binary   bool
+		streams  bool
+	}{
+		{"bytes", "64", false, true},
+		{"64", "bytes", false, true},
+		{"bytes", "64", true, true}, // binary is moot with a bytes side
+		{"bytes", "2048qntm", false, true},
+		{"2048qntm", "bytes", false, true},
+		{"16", "64", true, true},
+		{"64", "2048qntm", true, true},
+		{"bytes", "base91", false, false},
+		{"base91", "bytes", false, false},
+		{"16", "base91", true, false},
+		{"base91", "64", true, false},
+	}
+	for _, tc := range cases {
+		name := tc.from + "->" + tc.to
+		from, to := base(t, reg, tc.from), base(t, reg, tc.to)
+		in, want := encodeOf(from), encodeOf(to)
+
+		var got bytes.Buffer
+		if err := ConvertStream(strings.NewReader(in), &got, from, to, tc.binary); err != nil {
+			t.Errorf("%s: %v", name, err)
+		} else if got.String() != want {
+			t.Errorf("%s: output differs from Convert (%d bytes, want %d)", name, got.Len(), len(want))
+		}
+
+		got.Reset()
+		r := io.MultiReader(strings.NewReader(in), iotest.ErrReader(boom))
+		err := ConvertStream(r, &got, from, to, tc.binary)
+		if !errors.Is(err, boom) {
+			t.Errorf("%s: read error came back as %v", name, err)
+		}
+		if streamed := got.Len() > 0; streamed != tc.streams {
+			t.Errorf("%s: streamed=%v, want %v", name, streamed, tc.streams)
+		}
+	}
+
+	// The buffered step drops one trailing line break, as the stream decoders
+	// skip line breaks. Without it, padding then a newline is refused.
+	b91, b64 := base(t, reg, "base91"), base(t, reg, "64")
+	var got bytes.Buffer
+	if err := ConvertStream(strings.NewReader("aGk=\n"), &got, b64, b91, true); err != nil {
+		t.Errorf("trailing newline on a buffered pair: %v", err)
+	} else if want, _ := Convert("hi", bin, b91, -1); got.String() != want {
+		t.Errorf("trailing newline on a buffered pair: got %q, want %q", got.String(), want)
+	}
+
+	// Two text bases without binary are a number, which doesn't stream.
+	got.Reset()
+	if err := ConvertStream(strings.NewReader("ff"), &got, base(t, reg, "16"), b64, false); err == nil || got.Len() > 0 {
+		t.Errorf("number pair: err=%v, wrote %q", err, got.String())
 	}
 }
 

@@ -293,6 +293,8 @@ The split was smaller than expected. Only nine identifiers crossed the line, all
 
 The public surface is `Convert`, `StreamConvert`, `StreamBytesRoute`, `Registry` with `NewRegistry`, `Lookup`, `Register`, `LoadConfig`, `OrderedBases` and `Print`, `Base` with `Finalize`, `Name`, `NegSym`, `DecSym`, `RawCodec`, `Tokenize` and `HasByteDigit`, `Options` with `Apply`, plus `ApplyOptions`, `ResolveBase`, `ParseSymbolSpec`, `SpecOpts` and `PowerOfTwoBits`.
 
+Later, on 2026-10-05: the two stream calls became one, `ConvertStream`, which also does the buffered fallback, so a caller no longer repeats the command's order of tries. `SpecOpts` went private, since only `bases.go` used it.
+
 Verification: gofmt clean, `go vet ./...` clean, `go test ./...` passes, the harness at 357 of 357, and the three fuzz targets and the profiler benchmark run from their new home. Every command-line output was compared against a binary built before the change - help, examples, both listings, the index count, a dozen conversions, and the error paths that carry a flag name through the new options type. All identical apart from the version string, which differs only because the reference binary was stamped from a git description.
 
 ## Package name

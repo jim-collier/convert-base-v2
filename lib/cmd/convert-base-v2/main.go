@@ -877,11 +877,8 @@ func (c *conversion) run(stdout *bufio.Writer, reg *convertbase.Registry) error 
 			return err
 		}
 	}
-	if c.fromStdin {
-		handled, err := c.stream(stdout)
-		if err != nil || handled {
-			return err
-		}
+	if c.fromStdin && c.byteMode() {
+		return c.stream(stdout)
 	}
 	return c.convertBuffered(stdout)
 }
@@ -899,28 +896,23 @@ func (c *conversion) noteNumberReading() {
 	}
 }
 
-// stream is the fast path for the bit-packed conversions: stdin straight to
-// stdout with no whole-file buffering. handled is false when the pair can't
-// stream. The streams write os.Stdout themselves and return their own write
-// errors; nothing is in the stdout buffer yet, so the order holds.
-func (c *conversion) stream(stdout *bufio.Writer) (handled bool, err error) {
+// stream is piped byte mode, stdin to stdout through the library, which
+// streams every pair it can and buffers the rest. It writes os.Stdout itself
+// and returns its own write errors; nothing is in the stdout buffer yet, so
+// the order holds.
+func (c *conversion) stream(stdout *bufio.Writer) error {
 	var out io.Writer = os.Stdout
 	var rw *recaseWriter
 	if c.f.lower || c.f.upper {
 		rw = newRecaseWriter(os.Stdout, c.f.upper, keptRunes(c.to)...)
 		out = rw
 	}
-	if c.bytes != nil {
-		handled, err = convertbase.StreamBytesRoute(os.Stdin, out, c.from, c.to, c.bytes)
-	} else {
-		handled, err = convertbase.StreamConvert(os.Stdin, out, c.from, c.to)
-	}
-	if err != nil || !handled {
-		return handled, err
+	if err := convertbase.ConvertStream(os.Stdin, out, c.from, c.to, c.f.binary); err != nil {
+		return err
 	}
 	if rw != nil {
 		if err := rw.flush(); err != nil {
-			return true, err
+			return err
 		}
 	}
 	// Text output normally ends in a newline (as the buffered path's
@@ -928,7 +920,7 @@ func (c *conversion) stream(stdout *bufio.Writer) (handled bool, err error) {
 	if !c.to.Binary && !c.f.noNewline {
 		fmt.Fprintln(stdout)
 	}
-	return true, nil
+	return nil
 }
 
 // convertBuffered reads the whole number (from stdin or argv), converts, emits.
