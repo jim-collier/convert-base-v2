@@ -271,6 +271,58 @@ func TestRecaseWriterMatchesWholeRecase(t *testing.T) {
 	}
 }
 
+// Wherever a case flag is allowed, every digit of the base, recased and run
+// together, reads back as the same digits through that base, on the number
+// path and the byte path. Built-ins, plus custom ones where only one-letter
+// ASCII digits or uncased ones are allowed.
+// Test ID: Ervq3zH
+func TestCaseFlagOutputReadsBack(t *testing.T) {
+	reg, err := convertbase.NewRegistry()
+	if err != nil {
+		t.Fatal(err)
+	}
+	type refusal struct{ lower, upper bool }
+	want := map[*convertbase.Base]refusal{}
+	bases := reg.OrderedBases()
+	for _, cb := range []struct {
+		spec string
+		refusal
+	}{
+		{"Ab Cd Ef Gh", refusal{true, true}},
+		{"α β γ δ", refusal{false, true}},
+		{"s ſ", refusal{false, true}},
+		{"ab cd \u212a", refusal{true, true}},
+		{"a b 一 二", refusal{false, false}},
+		{"0! 1! 2! 3!", refusal{false, false}},
+	} {
+		b, err := convertbase.ResolveBase(reg, "", cb.spec, nil)
+		if err != nil {
+			t.Fatalf("%q: %v", cb.spec, err)
+		}
+		want[b] = cb.refusal
+		bases = append(bases, b)
+	}
+	for _, b := range bases {
+		for _, upper := range []bool{false, true} {
+			c := &conversion{f: &cliFlags{lower: !upper, upper: upper}, to: b}
+			err := c.checkOutputFlags()
+			if w, custom := want[b]; custom && (err != nil) != (upper && w.upper || !upper && w.lower) {
+				t.Errorf("%q upper=%v: got %v, want refused=%v", b.Symbols, upper, err, upper && w.upper || !upper && w.lower)
+			}
+			if err != nil {
+				continue
+			}
+			all := strings.Join(b.Symbols, "")
+			for path, out := range map[string]string{"number": recaseDigits(all, b, upper), "byte": recaseBytePath(all, b, upper)} {
+				back, err := b.Tokenize(out)
+				if err != nil || !slices.Equal(back, b.Symbols) {
+					t.Errorf("%s upper=%v %s path: allowed, but %q doesn't read back (%v)", b.Name(), upper, path, out, err)
+				}
+			}
+		}
+	}
+}
+
 // The help names every flag the parser takes, and the query flags that pick a
 // base show it as an argument.
 // Test ID: ErsskKE

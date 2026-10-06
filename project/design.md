@@ -102,6 +102,8 @@ This is the rule for a flag that does nothing in the run it's given to. It gets 
 
 - Refused is a usage error, exit 2. A value the chosen base can't take exits 1, as an unknown base does. Examples are `--lower` on a base with both cases of one letter, a pad on base 10, and any marker on `bytes`.
 
+- `--lower` and `--upper` exit 1 on an output base that wouldn't read every recased digit back as that same digit. That covers a base with both cases of one letter, a digit that recases into the pad, a tail symbol or a marker, and a digit input takes in one case only. Input takes either case only for one-letter ASCII digits, so the last is a multi-letter digit or a cased one from another script, such as Greek. A digit the flag leaves as it is never counts. The error names the flag, the base and one such digit.
+
 - A dash means the flag can't be given in that mode, since it picks the mode itself.
 
 - `--list` and `--list-compat` print together. Any other two queries run the one higher in the table, and the other gets a note.
