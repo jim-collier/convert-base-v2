@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"github.com/jim-collier/convert-base-v2/lib/convertbase"
 )
@@ -612,9 +613,7 @@ func (c *conversion) run(stdout *bufio.Writer, reg *convertbase.Registry) error 
 	}
 	c.noteNumberReading()
 
-	// --lower/--upper would need per-chunk rewriting, so they fall through to
-	// the buffered path.
-	if c.fromStdin && !c.f.lower && !c.f.upper {
+	if c.fromStdin {
 		handled, err := c.stream(stdout)
 		if err != nil || handled {
 			return err
@@ -641,13 +640,24 @@ func (c *conversion) noteNumberReading() {
 // stream. The streams write os.Stdout themselves and return their own write
 // errors; nothing is in the stdout buffer yet, so the order holds.
 func (c *conversion) stream(stdout *bufio.Writer) (handled bool, err error) {
+	var out io.Writer = os.Stdout
+	var rw *recaseWriter
+	if c.f.lower || c.f.upper {
+		rw = newRecaseWriter(os.Stdout, c.f.upper)
+		out = rw
+	}
 	if c.bytes != nil {
-		handled, err = convertbase.StreamBytesRoute(os.Stdin, os.Stdout, c.from, c.to, c.bytes)
+		handled, err = convertbase.StreamBytesRoute(os.Stdin, out, c.from, c.to, c.bytes)
 	} else {
-		handled, err = convertbase.StreamConvert(os.Stdin, os.Stdout, c.from, c.to)
+		handled, err = convertbase.StreamConvert(os.Stdin, out, c.from, c.to)
 	}
 	if err != nil || !handled {
 		return handled, err
+	}
+	if rw != nil {
+		if err := rw.flush(); err != nil {
+			return true, err
+		}
 	}
 	// Text output normally ends in a newline (as the buffered path's
 	// Println does); no-newline and binary output stay byte-exact.
@@ -946,6 +956,83 @@ func recaseDigits(s string, b *convertbase.Base, upper bool) string {
 		}
 	}
 	return prefix + recase(s)
+}
+
+// recaseWriter is --lower/--upper for streamed output. A stream writes only
+// digits, pad and tail symbols, never a marker, so recasing all of it gives
+// what recaseDigits gives the buffered result. A rune split across two writes
+// waits for its last byte, since recasing half of one turns it into U+FFFD.
+type recaseWriter struct {
+	w      io.Writer
+	recase func(string) string
+	ascii  [utf8.RuneSelf]byte
+	carry  []byte
+	buf    []byte
+}
+
+func newRecaseWriter(w io.Writer, upper bool) *recaseWriter {
+	rw := &recaseWriter{w: w, recase: strings.ToLower}
+	if upper {
+		rw.recase = strings.ToUpper
+	}
+	for i := range rw.ascii {
+		rw.ascii[i] = rw.recase(string(rune(i)))[0]
+	}
+	return rw
+}
+
+func (rw *recaseWriter) Write(p []byte) (int, error) {
+	n := len(p)
+	if len(rw.carry) > 0 {
+		p = append(rw.carry, p...)
+		rw.carry = nil
+	}
+	whole := len(p)
+	for i := len(p) - 1; i >= 0 && i >= len(p)-utf8.UTFMax; i-- {
+		if utf8.RuneStart(p[i]) {
+			if !utf8.FullRune(p[i:]) {
+				whole = i
+			}
+			break
+		}
+	}
+	if whole < len(p) {
+		rw.carry = append([]byte(nil), p[whole:]...)
+	}
+	if err := rw.emit(p[:whole]); err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+
+// flush writes a rune the stream ended in the middle of.
+func (rw *recaseWriter) flush() error {
+	if len(rw.carry) == 0 {
+		return nil
+	}
+	err := rw.emit(rw.carry)
+	rw.carry = nil
+	return err
+}
+
+func (rw *recaseWriter) emit(p []byte) error {
+	if len(p) == 0 {
+		return nil
+	}
+	if cap(rw.buf) < len(p) {
+		rw.buf = make([]byte, len(p))
+	}
+	out := rw.buf[:len(p)]
+	for i, b := range p {
+		if b >= utf8.RuneSelf {
+			out = append(out[:i], rw.recase(string(p[i:]))...)
+			break
+		}
+		out[i] = rw.ascii[b]
+	}
+	rw.buf = out
+	_, err := rw.w.Write(out)
+	return err
 }
 
 // canRecase reports whether recasing the output's digits with recase keeps
