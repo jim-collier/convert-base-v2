@@ -12,8 +12,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
+	"slices"
 	"strings"
 	"testing"
+	"unicode/utf8"
 )
 
 func parseInfo(t *testing.T, args ...string) infoAsks {
@@ -174,6 +176,52 @@ func TestFlagAliasesShareOneValue(t *testing.T) {
 		}
 		if got := c.get(f); got != c.want {
 			t.Errorf("%q: got %v, want %v", c.args, got, c.want)
+		}
+	}
+}
+
+// Pad and tail symbols pass through the case flags untouched, on either side of
+// a chunk split, and everything else recases as before.
+// Test ID: ErsqAaO
+func TestRecaseWriterKeepsPadAndTail(t *testing.T) {
+	keep := []rune{'P', 'ω', 'x', '�'}
+	samples := []string{
+		"c4PPPPPP",
+		"deadPbeefP",
+		"αβγωωΩω",
+		"仂侉伛X乆x",
+		"ab\xffP�q",
+		"ПpPΩωxX",
+	}
+	for _, upper := range []bool{false, true} {
+		for _, s := range samples {
+			var want strings.Builder
+			for i, w := 0, 0; i < len(s); i += w {
+				r, size := utf8.DecodeRuneInString(s[i:])
+				w = size
+				if slices.Contains(keep, r) && (r != utf8.RuneError || size > 1) {
+					want.WriteString(s[i : i+size])
+				} else if upper {
+					want.WriteString(strings.ToUpper(s[i : i+size]))
+				} else {
+					want.WriteString(strings.ToLower(s[i : i+size]))
+				}
+			}
+			for size := 1; size <= len(s)+1; size++ {
+				var got strings.Builder
+				rw := newRecaseWriter(&got, upper, keep...)
+				for i := 0; i < len(s); i += size {
+					if _, err := rw.Write([]byte(s[i:min(i+size, len(s))])); err != nil {
+						t.Fatal(err)
+					}
+				}
+				if err := rw.flush(); err != nil {
+					t.Fatal(err)
+				}
+				if got.String() != want.String() {
+					t.Errorf("upper=%v %q in chunks of %d: got %q, want %q", upper, s, size, got.String(), want.String())
+				}
+			}
 		}
 	}
 }

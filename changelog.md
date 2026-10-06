@@ -90,6 +90,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `--lower` and `--upper` on piped input read the whole input into memory first, about 5 times its size, so a 100 MB file to lower-case hex peaked near 500 MB. They stream now, in constant memory like the plain encode, with the same output as before.
 
+- `--lower` and `--upper` also changed the case of a custom base's pad and tail symbols, so `--to-pad P --lower` wrote `p` and the same base could not read it back. The pad and tail are written as the base defines them now. A digit that would recase into the base's pad, a tail symbol or a marker gets an error instead, the same as mixed-case digits. Built-in bases are unchanged.
+
 ### Other work
 
 - The pipeline's lint stage checks the Bash scripts with shellcheck and the Python tools with ruff, set up by `.shellcheckrc` and `pyproject.toml`. A finding stops the run. A few copied-in and one-off research scripts are left out.  [20261004]

@@ -928,6 +928,50 @@ else
 	_warn "Ersmg45" "case flag memory ceiling: no /usr/bin/time"
 fi
 
+## --lower/--upper recase digits only. A pad or tail symbol stays as the base
+## spells it, piped or on argv, or the same base can't read the output back.
+## The answer is the plain encode through a base whose digits are already
+## recased, with the same pad or tail. Greek is 2 bytes a digit; CJK has no case,
+## so only the tail can change there.
+LATIN32="0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O Q R S T U V W"
+GREEK8_LO="α β γ δ ε ζ η θ"; GREEK8_UP="Α Β Γ Δ Ε Ζ Η Θ"
+for kcase in latin-pad latin-pad-dec greek-pad cjk-tail; do
+	kin="a"; kread=()
+	case "$kcase" in
+		latin-pad)     kflags=(--to-symbols "$LATIN32" --to-pad P --lower); kref=(--to-symbols "${LATIN32,,}" --to-pad P)
+		               kread=(--from-symbols "$LATIN32" --from-pad P) ;;
+		latin-pad-dec) kflags=(--to-symbols "$LATIN32" --to-pad P --to-dec P --lower); kref=(--to-symbols "${LATIN32,,}" --to-pad P --to-dec P)
+		               kread=(--from-symbols "$LATIN32" --from-pad P --from-dec P) ;;
+		greek-pad)     kflags=(--to-symbols "$GREEK8_LO" --to-pad ω --upper); kref=(--to-symbols "$GREEK8_UP" --to-pad ω) ;;
+		cjk-tail)      kin="abcdefgh"; kflags=(--to-symbols "$SYM512" --to-tail "x y" --upper); kref=(--to-symbols "$SYM512" --to-tail "x y")
+		               kread=(--from-symbols "$SYM512" --from-tail "x y") ;;
+	esac
+	kwant=$("${EXE}" --from bytes "${kref[@]}" "$kin" 2>/dev/null || true)
+	kpipe=$(printf '%s' "$kin" | "${TIMEOUT[@]}" "${EXE}" --from bytes "${kflags[@]}" 2>"${CBT_ERR}" || true)
+	kargv=$("${TIMEOUT[@]}" "${EXE}" --from bytes "${kflags[@]}" "$kin" 2>>"${CBT_ERR}" || true)
+	## Read back through the base itself where its digits take either case, and
+	## through the recased base everywhere.
+	kback=$(printf '%s' "$kpipe" | "${TIMEOUT[@]}" "${EXE}" "${kref[@]/--to/--from}" --to bytes -n 2>>"${CBT_ERR}" || true)
+	if ((${#kread[@]})); then
+		kback2=$(printf '%s' "$kargv" | "${TIMEOUT[@]}" "${EXE}" "${kread[@]}" --to bytes -n 2>>"${CBT_ERR}" || true)
+	else
+		kback2="$kin"
+	fi
+	{ [[ -n "$kwant" && "$kpipe" == "$kwant" && "$kargv" == "$kwant" && "$kback" == "$kin" && "$kback2" == "$kin" ]]; } \
+		&& _pass ErsqAZ3 "case flag leaves pad and tail alone (${kcase})" \
+		|| _fail ErsqAZ3 "case flag leaves pad and tail alone (${kcase})" "want='${kwant}' pipe='${kpipe}' argv='${kargv}' back='${kback}' back2='${kback2}' err=[$(<"${CBT_ERR}")]"
+done
+## A digit that recases into the pad, a tail symbol or a marker would read back
+## as that instead, so the flag is refused, the same as for mixed-case digits.
+for kcase in pad tail marker; do
+	case "$kcase" in
+		pad)    kwant='padding symbol';  kflags=(--from bytes --to-symbols "$GREEK8_LO" --to-pad Α --upper a) ;;
+		tail)   kwant='tail symbol';     kflags=(--from bytes --to-symbols "${SYM512/一 /ж }" --to-tail "Ж y" --upper abcdefgh) ;;
+		marker) kwant='negative marker'; kflags=(--to-symbols "$GREEK8_UP" --to-neg β --lower -- -9) ;;
+	esac
+	check ErsqAZh errmsg "case flag refused when a digit recases into the ${kcase}" "$kwant" -- "${kflags[@]}"
+done
+
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## --binary: byte re-encoding between two text bases (like basenc)

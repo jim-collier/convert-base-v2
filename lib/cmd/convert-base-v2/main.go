@@ -586,11 +586,21 @@ func checkOutputFlags(f *cliFlags, from, to *convertbase.Base) error {
 	}
 	// --lower/--upper: error out if the output base has mixed-case digits
 	// (previously silently ignored; now strict, per user preference).
-	if f.lower && !canRecase(to, strings.ToLower) {
-		return fmt.Errorf("--lower is invalid for mixed-case output base %q: lowercasing its digits would change their meaning", to.Name())
-	}
-	if f.upper && !canRecase(to, strings.ToUpper) {
-		return fmt.Errorf("--upper is invalid for mixed-case output base %q: uppercasing its digits would change their meaning", to.Name())
+	for _, cf := range []struct {
+		on     bool
+		flag   string
+		verb   string
+		recase func(string) string
+	}{{f.lower, "--lower", "lowercasing", strings.ToLower}, {f.upper, "--upper", "uppercasing", strings.ToUpper}} {
+		if !cf.on {
+			continue
+		}
+		if !canRecase(to, cf.recase) {
+			return fmt.Errorf("%s is invalid for mixed-case output base %q: %s its digits would change their meaning", cf.flag, to.Name(), cf.verb)
+		}
+		if digit, what := recaseClash(to, cf.recase); what != "" {
+			return fmt.Errorf("%s is invalid for output base %q: %s digit %q gives its %s", cf.flag, to.Name(), cf.verb, digit, what)
+		}
 	}
 	// Escapes are a text notation, so they only reach the number path. Byte mode
 	// writes raw bytes or a fixed codec alphabet, where the flag would be
@@ -643,7 +653,7 @@ func (c *conversion) stream(stdout *bufio.Writer) (handled bool, err error) {
 	var out io.Writer = os.Stdout
 	var rw *recaseWriter
 	if c.f.lower || c.f.upper {
-		rw = newRecaseWriter(os.Stdout, c.f.upper)
+		rw = newRecaseWriter(os.Stdout, c.f.upper, keptRunes(c.to)...)
 		out = rw
 	}
 	if c.bytes != nil {
@@ -684,7 +694,11 @@ func (c *conversion) convertBuffered(stdout *bufio.Writer) error {
 		return err
 	}
 	if c.f.lower || c.f.upper {
-		result = recaseDigits(result, c.to, c.f.upper)
+		if c.bytes != nil || c.from.Binary || c.to.Binary {
+			result = recaseBytePath(result, c.to, c.f.upper)
+		} else {
+			result = recaseDigits(result, c.to, c.f.upper)
+		}
 	}
 	if c.f.escapeCtrl {
 		result = convertbase.EscapeControls(result, c.to)
@@ -958,25 +972,61 @@ func recaseDigits(s string, b *convertbase.Base, upper bool) string {
 	return prefix + recase(s)
 }
 
-// recaseWriter is --lower/--upper for streamed output. A stream writes only
-// digits, pad and tail symbols, never a marker, so recasing all of it gives
-// what recaseDigits gives the buffered result. A rune split across two writes
-// waits for its last byte, since recasing half of one turns it into U+FFFD.
+// recaseBytePath is --lower/--upper for buffered byte-path output, which has
+// no markers. It goes through the same writer as a stream so both give the
+// same bytes.
+func recaseBytePath(s string, b *convertbase.Base, upper bool) string {
+	var out strings.Builder
+	rw := newRecaseWriter(&out, upper, keptRunes(b)...)
+	// A strings.Builder write can't fail.
+	_, _ = rw.Write([]byte(s))
+	_ = rw.flush()
+	return out.String()
+}
+
+// keptRunes are the pad and tail symbols, which the case flags leave alone.
+// They aren't digits, so a recased one is no symbol of the base at all.
+// Finalize makes each of them one character.
+func keptRunes(b *convertbase.Base) []rune {
+	var keep []rune
+	for _, s := range append([]string{b.PadSymbol}, b.TailSymbols...) {
+		if r, size := utf8.DecodeRuneInString(s); size > 0 && size == len(s) {
+			keep = append(keep, r)
+		}
+	}
+	return keep
+}
+
+// recaseWriter is --lower/--upper for byte-path output. That output is digits,
+// pad and tail symbols, never a marker, and in a stream every one of them is a
+// single character, so the kept runes are exactly the pad and tail. A rune
+// split across two writes waits for its last byte, since recasing half of one
+// turns it into U+FFFD.
 type recaseWriter struct {
 	w      io.Writer
 	recase func(string) string
 	ascii  [utf8.RuneSelf]byte
+	keep   map[rune]bool
 	carry  []byte
 	buf    []byte
 }
 
-func newRecaseWriter(w io.Writer, upper bool) *recaseWriter {
+func newRecaseWriter(w io.Writer, upper bool, keep ...rune) *recaseWriter {
 	rw := &recaseWriter{w: w, recase: strings.ToLower}
 	if upper {
 		rw.recase = strings.ToUpper
 	}
 	for i := range rw.ascii {
 		rw.ascii[i] = rw.recase(string(rune(i)))[0]
+	}
+	if len(keep) > 0 {
+		rw.keep = make(map[rune]bool, len(keep))
+	}
+	for _, r := range keep {
+		rw.keep[r] = true
+		if r < utf8.RuneSelf {
+			rw.ascii[r] = byte(r)
+		}
 	}
 	return rw
 }
@@ -1025,7 +1075,7 @@ func (rw *recaseWriter) emit(p []byte) error {
 	out := rw.buf[:len(p)]
 	for i, b := range p {
 		if b >= utf8.RuneSelf {
-			out = append(out[:i], rw.recase(string(p[i:]))...)
+			out = rw.recaseWide(out[:i], p[i:])
 			break
 		}
 		out[i] = rw.ascii[b]
@@ -1033,6 +1083,56 @@ func (rw *recaseWriter) emit(p []byte) error {
 	rw.buf = out
 	_, err := rw.w.Write(out)
 	return err
+}
+
+// recaseWide appends p recased to out, leaving the kept runes as they are.
+// Everything between two kept runes goes through recase whole, which gives the
+// same bytes as recasing it rune by rune, invalid bytes included.
+func (rw *recaseWriter) recaseWide(out, p []byte) []byte {
+	if len(rw.keep) == 0 {
+		return append(out, rw.recase(string(p))...)
+	}
+	from := 0
+	for i := 0; i < len(p); {
+		r, size := utf8.DecodeRune(p[i:])
+		// size 1 is an invalid byte, not a kept U+FFFD.
+		if rw.keep[r] && (r != utf8.RuneError || size > 1) {
+			out = append(out, rw.recase(string(p[from:i]))...)
+			out = append(out, p[i:i+size]...)
+			from = i + size
+		}
+		i += size
+	}
+	return append(out, rw.recase(string(p[from:]))...)
+}
+
+// recaseClash finds a digit that recase turns into the pad, a tail symbol or a
+// marker, which the same base would then read as that instead. Finalize keeps
+// the case flip of a one-letter ASCII digit clear of all of those, so it takes
+// another script or a longer digit to hit this. what is empty when nothing
+// clashes.
+func recaseClash(b *convertbase.Base, recase func(string) string) (digit, what string) {
+	others := map[string]string{}
+	if neg := b.NegSym(); neg != "" {
+		others[neg] = "negative marker"
+	}
+	if dec := b.DecSym(); dec != "" {
+		others[dec] = "decimal marker"
+	}
+	for _, t := range b.TailSymbols {
+		others[t] = "tail symbol"
+	}
+	if b.PadSymbol != "" {
+		others[b.PadSymbol] = "padding symbol"
+	}
+	for _, s := range b.Symbols {
+		if r := recase(s); r != s {
+			if what, hit := others[r]; hit {
+				return s, what
+			}
+		}
+	}
+	return "", ""
 }
 
 // canRecase reports whether recasing the output's digits with recase keeps
