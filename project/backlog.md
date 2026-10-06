@@ -190,6 +190,34 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: ErssdDk (7 usage errors exit 2 with an `error:` line), ErssdER (4 failed conversions still exit 1). Eje9ui2 already pins exit 2 with no arguments.
 	- Acceptance signoff:
 
+- The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
+	- ID: 2026100516265606
+	- Type: Enhancement
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes, a full `cicd/test.bash`. The Errors, Binary / streaming, `--binary` byte mode, Keyboard, Control-character, Reactor, Browser, Frontend parity and Performance sections passed, 333 of 333.
+	- Priority: Avg
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: the command and the reactor each try `StreamConvert`, then `StreamBytesRoute` with a `bytes` base they look up themselves, then two buffered `Convert` calls through `bytes`. A Go program that wants to encode a reader as base 64 has to know that order and what `handled` means.
+	- Requirements:
+		- One exported call that takes a reader, a writer, two bases and the byte-mode choice, and does all 3 steps.
+		- The command and the reactor both use it.
+	- Decisions:
+		- This joins the dispatch only. The streaming and buffered paths stay separate, per BxZNl-25.
+	- Note: the library is still v0, so the two current calls can be unexported in the same change, or kept as building blocks.
+	- Origin: a82807d, the library split, exported the command's dispatch pieces, and the reactor's `stream.go` copied their order. Not seen by an earlier round. Confirmed by reading.
+	- Against: BxZNl-25. Only the dispatch is joined. The stream and buffered paths stay separate, and TestStreamBufferedEquivalence still compares them.
+	- Done: `ConvertStream` takes a reader, a writer, two bases and the `--binary` choice. It tries the stream, then the stream through `bytes`, then the buffered route, and looks up `bytes` itself. The command's piped byte mode and the reactor's streams both call it.
+	- Done: `StreamConvert` and `StreamBytesRoute` are private now, since nothing outside the package calls them. Two text bases without `binary` are refused with a pointer to `Convert`.
+	- Done: the buffered step drops one trailing line break, as the command's piped input always did. The reactor didn't, so base64 to base91 with padding and a newline failed there. It works now.
+	- Note: argv input in byte mode still goes through the command's own two `Convert` calls, since there's no reader.
+	- Swept: `StreamConvert`, `StreamBytesRoute` and `bufferedStream` repo-wide. The callers were main.go, the reactor and in-package tests. `lib/wasm`, the module driver, reactor-host and both READMEs name neither. The 2 design docs that list the public surface got a note.
+	- Verified: piped output, exit code and stderr match a build of dev for 29 cases: single-byte, tail base, bytes route, codec fallback, case flags, errors, empty input and a full disk. Peak memory matches within run-to-run noise. Reactor stream output matches its dev build on 100 MB and 20 MB inputs. go vet on 4 targets, golangci-lint and go test pass.
+	- Test case: `ErsydPF` TestConvertStream. A read error after 1 MB shows which step each pair took. It fails with either stream step skipped, and with the line break drop removed.
+	- Branch: stream-api
+	- Commit: 46ddb9a
+
 - shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
 	- ID: 2026100508035901
 	- Type: Bug
@@ -219,56 +247,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: shcl-utf8
 	- Commit: a3a4f3e
 	- Test case: `ErsoOAI` TestConfigInvalidUTF8InQuotes, and harness `ErsoOAv` "config invalid UTF-8 digit mid-quote refused". Both fail before the re-pin and pass after.
-
-- The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
-	- ID: 2026100516265606
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes, a full `cicd/test.bash`. The Errors, Binary / streaming, `--binary` byte mode, Keyboard, Control-character, Reactor, Browser, Frontend parity and Performance sections passed, 333 of 333.
-	- Priority: Avg
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Note: the command and the reactor each try `StreamConvert`, then `StreamBytesRoute` with a `bytes` base they look up themselves, then two buffered `Convert` calls through `bytes`. A Go program that wants to encode a reader as base 64 has to know that order and what `handled` means.
-	- Requirements:
-		- One exported call that takes a reader, a writer, two bases and the byte-mode choice, and does all 3 steps.
-		- The command and the reactor both use it.
-	- Decisions:
-		- This joins the dispatch only. The streaming and buffered paths stay separate, per BxZNl-25.
-	- Note: the library is still v0, so the two current calls can be unexported in the same change, or kept as building blocks.
-	- Origin: a82807d, the library split, exported the command's dispatch pieces, and the reactor's `stream.go` copied their order. Not seen by an earlier round. Confirmed by reading.
-	- Against: BxZNl-25. Only the dispatch is joined. The stream and buffered paths stay separate, and TestStreamBufferedEquivalence still compares them.
-	- Done: `ConvertStream` takes a reader, a writer, two bases and the `--binary` choice. It tries the stream, then the stream through `bytes`, then the buffered route, and looks up `bytes` itself. The command's piped byte mode and the reactor's streams both call it.
-	- Done: `StreamConvert` and `StreamBytesRoute` are private now, since nothing outside the package calls them. Two text bases without `binary` are refused with a pointer to `Convert`.
-	- Done: the buffered step drops one trailing line break, as the command's piped input always did. The reactor didn't, so base64 to base91 with padding and a newline failed there. It works now.
-	- Note: argv input in byte mode still goes through the command's own two `Convert` calls, since there's no reader.
-	- Swept: `StreamConvert`, `StreamBytesRoute` and `bufferedStream` repo-wide. The callers were main.go, the reactor and in-package tests. `lib/wasm`, the module driver, reactor-host and both READMEs name neither. The 2 design docs that list the public surface got a note.
-	- Verified: piped output, exit code and stderr match a build of dev for 29 cases: single-byte, tail base, bytes route, codec fallback, case flags, errors, empty input and a full disk. Peak memory matches within run-to-run noise. Reactor stream output matches its dev build on 100 MB and 20 MB inputs. go vet on 4 targets, golangci-lint and go test pass.
-	- Test case: `ErsydPF` TestConvertStream. A read error after 1 MB shows which step each pair took. It fails with either stream step skipped, and with the line break drop removed.
-	- Branch: stream-api
-	- Commit: 46ddb9a
-
-- Several exported doc comments describe older behavior. (Code review 20261005 item 5)
-	- ID: 2026100516265605
-	- Type: Bug
-	- Status: Done
-	- Severity: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Incorrect behavior:
-		- `Base.PadSymbol` says the URL and hex variants don't write padding. They do, as `basenc` does: `printf hi | convert-base-v2 --binary --to 32hex` writes `D1KG====`.
-		- `StreamConvert` says it streams up to 8 bits per digit. It also streams the multi-byte and tail bases.
-		- `StreamBytesRoute` says it turns down a big native base. It takes any base the wide path takes.
-	- Expected behavior: `go doc` matches the code, since it's the library's public reference.
-	- Origin: `PadSymbol` from 166d2c9 on 2026-07-06, before every RFC variant padded. The stream comments predate 24403a7 on 2026-07-25, and a82807d exported them as they were. The 20261004 round checked that exported names have comments, not what they say. Confirmed.
-	- Actual fix: `PadSymbol` says every RFC 4648 variant pads binary output. `ConvertStream` took over from the two stream calls, with a comment that matches the code, and the private `streamConvert` and `streamBytesRoute` comments name the wide path and the tail bases. The package overview and the `specOpts` pad comment had the same old claims.
-	- Swept: `go doc` on `Base.PadSymbol`, `ConvertStream` and the package, and a grep for "don't emit" and "up to 8 bits" in the library.
-	- Test case: none. Comments only.
-	- Branch: stream-api
-	- Commit: 46ddb9a
-	- Acceptance signoff: Self-closed: mechanical. The comments now match the code.
-	- Closed: 20261005-201024
 
 - `--lower` and `--upper` on a base with multi-letter or non-ASCII digits write output the same base can't read back.
 	- ID: 2026100519520001
@@ -313,26 +291,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Requirements:
 		- Every failure gets a `code` with the reactor's numbers. The text stays.
 	- Origin: `lib/wasm/main.go` has answered with text only since it was added. Not seen by an earlier round. Confirmed by reading.
-
-- `SpecOpts` is exported, but only its own package uses it. (Code review 20261005 item 9)
-	- ID: 2026100516265609
-	- Type: Enhancement
-	- Status: Waiting on signoff
-	- Priority: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Note: it's a 4th way to write a marker, a string plus a disable flag, where `Base`, `Options` and the config all use unset, empty or a value. `go doc` lists it with the real API.
-	- Requirements:
-		- Unexport it. The library is still v0.
-	- Origin: c28004c on 2026-05-04, before the library split made the package public. No caller outside `lib/convertbase`. Confirmed.
-	- Against: 2026100413480024 kept `SpecOpts` exported, to be dropped only in a release that says so. The changelog says so now, under Changed.
-	- Done: `SpecOpts` is `specOpts`. Only `bases.go` and one comment in `symbolspec.go` named it.
-	- Swept: `SpecOpts` repo-wide. The 2 design docs that list the public surface got a note. The 20260503 design doc is history and stays as written.
-	- Verified: build, go vet, golangci-lint and go test pass.
-	- Test case: none. A rename with no behavior, so the build is the check.
-	- Branch: stream-api
-	- Commit: 46ddb9a
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002
@@ -928,6 +886,28 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
 
+- Several exported doc comments describe older behavior. (Code review 20261005 item 5)
+	- ID: 2026100516265605
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Incorrect behavior:
+		- `Base.PadSymbol` says the URL and hex variants don't write padding. They do, as `basenc` does: `printf hi | convert-base-v2 --binary --to 32hex` writes `D1KG====`.
+		- `StreamConvert` says it streams up to 8 bits per digit. It also streams the multi-byte and tail bases.
+		- `StreamBytesRoute` says it turns down a big native base. It takes any base the wide path takes.
+	- Expected behavior: `go doc` matches the code, since it's the library's public reference.
+	- Origin: `PadSymbol` from 166d2c9 on 2026-07-06, before every RFC variant padded. The stream comments predate 24403a7 on 2026-07-25, and a82807d exported them as they were. The 20261004 round checked that exported names have comments, not what they say. Confirmed.
+	- Actual fix: `PadSymbol` says every RFC 4648 variant pads binary output. `ConvertStream` took over from the two stream calls, with a comment that matches the code, and the private `streamConvert` and `streamBytesRoute` comments name the wide path and the tail bases. The package overview and the `specOpts` pad comment had the same old claims.
+	- Swept: `go doc` on `Base.PadSymbol`, `ConvertStream` and the package, and a grep for "don't emit" and "up to 8 bits" in the library.
+	- Test case: none. Comments only.
+	- Branch: stream-api
+	- Commit: 46ddb9a
+	- Acceptance signoff: Self-closed: mechanical. The comments now match the code.
+	- Closed: 20261005-201024
+
 - A symbol spec of only commas parses to no symbols without an error.
 	- ID: 2026100417280514
 	- Type: Bug
@@ -1303,6 +1283,28 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Erq3i1c` TestFinalizeRefusesInvalidUTF8, `Erq3i2I` TestRuneTableKeysAreDigits over every built-in base, and harness `Erq3i2u` "invalid UTF-8 digit refused" and `Erq3i3e` "config invalid UTF-8 digit refused". All 4 fail before the fix and pass after.
 	- Acceptance signoff: Self-closed. The tests fail before the fix and pass after, and the wider refusal of tail, pad and markers follows the same reason as the digits.
 	- Closed: 20261005-084420
+
+- `SpecOpts` is exported, but only its own package uses it. (Code review 20261005 item 9)
+	- ID: 2026100516265609
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: it's a 4th way to write a marker, a string plus a disable flag, where `Base`, `Options` and the config all use unset, empty or a value. `go doc` lists it with the real API.
+	- Requirements:
+		- Unexport it. The library is still v0.
+	- Origin: c28004c on 2026-05-04, before the library split made the package public. No caller outside `lib/convertbase`. Confirmed.
+	- Against: 2026100413480024 kept `SpecOpts` exported, to be dropped only in a release that says so. The changelog says so now, under Changed.
+	- Done: `SpecOpts` is `specOpts`. Only `bases.go` and one comment in `symbolspec.go` named it.
+	- Swept: `SpecOpts` repo-wide. The 2 design docs that list the public surface got a note. The 20260503 design doc is history and stays as written.
+	- Verified: build, go vet, golangci-lint and go test pass.
+	- Test case: none. A rename with no behavior, so the build is the check.
+	- Branch: stream-api
+	- Commit: 46ddb9a
+	- Acceptance signoff: Self-closed: the release note 2026100413480024 asked for is in the changelog, and nothing outside the package used it.
+	- Closed: 20261005-201127
 
 - There is no public code style guide or contributing.md. (Code review 20261004 item 28)
 	- ID: 2026100413480028
