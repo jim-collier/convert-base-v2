@@ -12,8 +12,10 @@
 // --batch reads one conversion request per stdin line (FROM <tab> TO <tab>
 // PRECISION <tab> HEX(VALUE), answering "ok" <tab> HEX(RESULT) or "err", the
 // module-driver protocol), and --stream FROM TO [CHUNK] pipes stdin to stdout
-// through the streaming ABI. --regions times a conversion with no other
-// regions open and with many, and fails when the second is much slower.
+// through the streaming ABI. --batch-codes is --batch with "err" <tab> CODE,
+// which holds the browser module to the reactor's error codes. --regions
+// times a conversion with no other regions open and with many, and fails when
+// the second is much slower.
 package main
 
 import (
@@ -58,12 +60,13 @@ func main() {
 		mode, args = strings.TrimPrefix(args[0], "--"), args[1:]
 	}
 	usageOK := (mode == "" && len(args) == 1) ||
-		(mode == "batch" && len(args) == 1) ||
+		((mode == "batch" || mode == "batch-codes") && len(args) == 1) ||
 		(mode == "regions" && len(args) == 1) ||
 		(mode == "stream" && (len(args) == 3 || len(args) == 4))
 	if !usageOK {
 		fmt.Fprintln(os.Stderr, "usage: reactor-host MODULE.wasm\n"+
 			"       reactor-host --batch MODULE.wasm\n"+
+			"       reactor-host --batch-codes MODULE.wasm\n"+
 			"       reactor-host --regions MODULE.wasm\n"+
 			"       reactor-host --stream MODULE.wasm FROM TO [CHUNK]")
 		os.Exit(2)
@@ -89,7 +92,9 @@ func main() {
 	h := &host{ctx: ctx, mod: mod}
 	switch mode {
 	case "batch":
-		h.batch()
+		h.batch(false)
+	case "batch-codes":
+		h.batch(true)
 	case "regions":
 		h.regions()
 	case "stream":
@@ -121,7 +126,7 @@ func main() {
 
 // batch answers module-driver protocol requests through the module's one-shot
 // convert, one reply line per request line.
-func (h *host) batch() {
+func (h *host) batch(withCodes bool) {
 	in := bufio.NewScanner(os.Stdin)
 	in.Buffer(make([]byte, 0, 1<<20), 1<<20)
 	out := bufio.NewWriter(os.Stdout)
@@ -143,9 +148,12 @@ func (h *host) batch() {
 			fatal("batch: bad value hex %q: %v", f[3], err)
 		}
 		res, code := h.convert(f[0], f[1], string(value), prec)
-		if code != errNone {
+		switch {
+		case code != errNone && withCodes:
+			fmt.Fprintf(out, "err\t%d\n", code)
+		case code != errNone:
 			fmt.Fprintln(out, "err")
-		} else {
+		default:
 			fmt.Fprintf(out, "ok\t%s\n", hex.EncodeToString([]byte(res)))
 		}
 	}

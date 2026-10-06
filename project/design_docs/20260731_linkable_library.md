@@ -231,7 +231,7 @@ Two builds for different purposes.
 
 `GOOS=wasip1` builds the whole command. WASI hands it real standard input and output, so streaming works with no adapter at all - none of the three workarounds sketched for the C boundary are needed, because the boundary simply is not there. It runs under Wasmtime, Wazero, Node, and the WebAssembly edge platforms, and one file runs on every architecture.
 
-`GOOS=js` builds a small entry point in `lib/wasm/` that exposes the library to a page as `convertBase.convert()` and `convertBase.bases()`. It returns a result object rather than throwing, because a bad base name is ordinary input in that setting.
+`GOOS=js` builds a small entry point in `lib/wasm/` that exposes the library to a page as `convertBase.convert()` and `convertBase.bases()`. It returns a result object rather than throwing, because a bad base name is ordinary input in that setting. A failure has a `code` beside its text, with the same numbers the reactor module uses.
 
 Licensing differs between them on purpose. The WASI build is the command, so it stays GPL. The browser module compiles into somebody else's page, so it is Apache-2.0 like the library it wraps; GPL there would defeat the point of publishing it.
 

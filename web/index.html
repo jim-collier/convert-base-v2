@@ -196,6 +196,8 @@
 			from:  fromEl.value,
 			to:    toEl.value,
 		});
+		// res.code is the reactor's error number, for a page that wants to
+		// act on a failure. This one only shows the text.
 		outEl.classList.toggle("error", !res.ok);
 		outEl.textContent = res.ok ? res.value : res.error;
 	}

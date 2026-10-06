@@ -270,7 +270,12 @@ The [demo page](https://jim-collier.github.io/convert-base-v2/) is the whole lib
 ```js
 const res = convertBase.convert({value: "255", from: "10", to: "16"});
 // { ok: true, value: "FF" }
+
+convertBase.convert({value: "255", from: "10", to: "hexx"});
+// { ok: false, error: 'unknown base "hexx"; did you mean "hex"?', code: 1 }
 ```
+
+A failure comes back as a result, not an exception. Its `code` is the same number the [reactor module](lib/reactor/README.md#error-codes) gives for the same failure, so a page can act on one without matching the text.
 
 Serve the two files next to your page and it works offline, on static hosting, with no backend.
 

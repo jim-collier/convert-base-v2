@@ -59,6 +59,7 @@ The catch is that "runs under WebAssembly" and "can be called as a library" are 
 - `make web` builds a browser module from `lib/wasm/`, into `web/convert-base.wasm`, plus the loader Go requires.
 	- It exposes `convertBase.convert()`, `convertBase.bases()` and `convertBase.version` on `window`.
 	- It returns a result object rather than throwing, because a bad base name is ordinary input on a page.
+	- A failure has a `code` beside its `error` text, with the reactor's numbers. Both modules get them from `lib/internal/errcode`.
 	- `main` must not return, or the callbacks are torn down. That is what the `select {}` is for.
 	- It is Apache-2.0, like the library, because it compiles into someone else's page.
 

@@ -1568,7 +1568,7 @@ goRoot="$(go env GOROOT 2>/dev/null || true)"
 wasmExec="${goRoot}/lib/wasm/go_js_wasm_exec"
 [[ -x "$wasmExec" ]] || wasmExec="${goRoot}/misc/wasm/go_js_wasm_exec"
 if ! command -v node >/dev/null 2>&1 || [[ ! -x "$wasmExec" ]]; then
-	_warn "ErkSf4j ErkSf4h ErkSf4i" "browser module tests skipped: needs node and Go's go_js_wasm_exec"
+	_warn "ErkSf4j ErkSf4h ErkSf4i Ert2MSr" "browser module tests skipped: needs node and Go's go_js_wasm_exec"
 else
 	bwrc=0
 	(cd "${meDir}/../lib" && env -i PATH="$PATH" HOME="$HOME" GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)" \
@@ -1578,7 +1578,7 @@ fi
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-## Frontend parity: the Go module and the reactor against the command
+## Frontend parity: the Go module, the reactor and the browser module against the command
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Conversion behavior lives in the library, but each frontend has its own
 ## resolve-and-call plumbing, so the same requests run through all three: the
@@ -1588,13 +1588,14 @@ fi
 ## fractional value; a base that can't represent one must refuse it in all
 ## three places, so agreement covers the error cases too. The compat and
 ## interop suites stay on the command alone on purpose: parity here extends
-## what they establish to the other two frontends transitively.
+## what they establish to the other frontends transitively. The browser
+## module joins at the end, and is held to the reactor's error codes as well.
 section "Frontend parity"
 MODDRV_DIR="${meDir}/utility/module-driver"
 MODDRV="${CBT_TMP}/module-driver"
 RHOST="${CBT_TMP}/reactor-host"
 if ! go env GOVERSION >/dev/null 2>&1; then
-	_warn "EloQXv6 EloQXv7 EloQXv8 EloQXv9" "frontend parity skipped: needs a Go toolchain"
+	_warn "EloQXv6 EloQXv7 EloQXv8 EloQXv9 Ert30AN Ert2MTh" "frontend parity skipped: needs a Go toolchain"
 elif ! (cd "${MODDRV_DIR}" && go build -o "${MODDRV}" .) >"${CBT_ERR}" 2>&1; then
 	_fail EloQXv6 "module driver build" "$(tail -2 "${CBT_ERR}")"
 else
@@ -1674,6 +1675,49 @@ else
 		done
 	else
 		_warn "EloQXv8 EloQXv9" "reactor parity skipped: reactor module or host not built"
+	fi
+	## Browser parity: the same requests through convertBase.convert(), the
+	## call a page makes, under node. Its answers must match the command's, and
+	## its answers and error codes the reactor's. A few failures the reactor can
+	## also be given are added, so each code they reach is compared. Codes 3
+	## and 4 need a symbol spec, which the reactor doesn't take; the browser
+	## module's own tests (Ert2MSr) cover those.
+	BROWSER_WASM="${CBT_TMP}/convert-base.wasm"
+	wasmExecJs="${goRoot}/lib/wasm/wasm_exec.js"
+	[[ -f "$wasmExecJs" ]] || wasmExecJs="${goRoot}/misc/wasm/wasm_exec.js"
+	if ! command -v node >/dev/null 2>&1 || [[ ! -f "$wasmExecJs" ]]; then
+		_warn "Ert30AN Ert2MTh" "browser parity skipped: needs node and Go's wasm_exec.js"
+	elif ! (cd "${meDir}/../lib" && GOOS=js GOARCH=wasm go build -trimpath -o "${BROWSER_WASM}" ./wasm) >"${CBT_ERR}" 2>&1; then
+		_fail Ert30AN "browser module build" "$(tail -2 "${CBT_ERR}")"
+	else
+		pcreq="${CBT_TMP}/parity_creq"; pbro="${CBT_TMP}/parity_bro"; prea="${CBT_TMP}/parity_rea"
+		cp "$preq" "$pcreq"
+		for pcase in "hexx|16|-1|1" "10|hexx|-1|1" "10|38hostname|-1|-5" "10|16|-1|12z" "10|16|-1|" "10|16|100001|1" "|16|-1|1"; do
+			IFS='|' read -r pfrom pto pprec pval <<<"$pcase"
+			printf '%s\t%s\t%s\t%s\n' "$pfrom" "$pto" "$pprec" "$(printf '%s' "$pval" | xxd -p | tr -d '\n')" >>"$pcreq"
+		done
+		if ! node "${meDir}/utility/browser-driver.js" "$wasmExecJs" "${BROWSER_WASM}" <"$pcreq" >"$pbro" 2>"${CBT_ERR}"; then
+			_fail Ert30AN "browser driver run" "$(tail -1 "${CBT_ERR}")"
+		else
+			## The command gives no code, so the browser's are dropped for this one.
+			head -n "$pn" "$pbro" | sed -E 's/^err\t.*$/err/' | cmp -s "$pcli" - && _pass Ert30AN "browser answers match the command (${pn} cases)" || _fail Ert30AN "browser answers match the command" "first diff: $(head -n "$pn" "$pbro" | sed -E 's/^err\t.*$/err/' | diff "$pcli" - | head -3 | tr '\n' ' ')"
+			if [[ ! -x "$RHOST" || ! -s "$REACTOR_WASM" ]]; then
+				_warn "Ert2MTh" "browser error code parity skipped: reactor module or host not built"
+			elif ! "$RHOST" --batch-codes "$REACTOR_WASM" <"$pcreq" >"$prea" 2>"${CBT_ERR}"; then
+				_fail Ert2MTh "reactor batch-codes run" "$(tail -1 "${CBT_ERR}")"
+			else
+				## A missing code kind means the added cases stopped reaching it,
+				## and the comparison would pass without looking at it.
+				pkinds="$(awk -F'\t' '$1 == "err" { print $2 }' "$prea" | sort -un | tr '\n' ' ')"
+				if ! cmp -s "$prea" "$pbro"; then
+					_fail Ert2MTh "browser answers and error codes match the reactor" "first diff: $(diff "$prea" "$pbro" | head -3 | tr '\n' ' ')"
+				elif [[ "$pkinds" != "1 2 5 6 " ]]; then
+					_fail Ert2MTh "browser answers and error codes match the reactor" "codes reached: ${pkinds:-none}, want 1 2 5 6"
+				else
+					_pass Ert2MTh "browser answers and error codes match the reactor ($(wc -l <"$pcreq") cases, codes ${pkinds% })"
+				fi
+			fi
+		fi
 	fi
 fi
 

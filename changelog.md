@@ -38,6 +38,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Library: `UpgradeConfig` converts the text of a config file written for an older SHCL format, so it loads to the same bases. `LoadConfig` uses it. The library is now v0.2.0.
 
+- Browser module: a failed `convertBase.convert()` has a `code` beside its `error` text, with the same numbers the reactor module uses, such as 1 for an unknown base.
+
 ### Changed
 
 - `--help`, `--examples`, `--version`, `--about` and `--donate` can be combined, and each prints once, in the order given. Before, the first one checked won and the rest were ignored.
