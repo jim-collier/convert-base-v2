@@ -179,6 +179,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Actual fix: piped output skips the pad and tail characters when it recases. Buffered byte-mode output goes through the same writer, so both give the same bytes, and number-mode output keeps the marker-aware recase. `checkOutputFlags` refuses the digit clash above, naming the digit and what it would turn into.
 	- Swept: every recase site in `main.go` (`recaseWriter`, `recaseDigits`, the buffered and streamed callers, `checkOutputFlags`). The browser and reactor builds have no case flags. Built-in bases have no cased pad or tail, so their output is unchanged.
 	- Branch: recase-pad
+	- Commit: 24afe1f
 	- Test case: `ErsqAZ3` "case flag leaves pad and tail alone": a one-byte digit base with a pad, the same with the decimal marker equal to the pad, a 2-byte Greek base with a pad and a CJK base with a tail, piped and on argv, each read back by the same base. Failed all 4 before the fix and passes after.
 		- `ErsqAZh` "case flag refused when a digit recases into the ...": pad, tail and negative marker. Failed all 3 before and passes after.
 		- `ErsqAaO` TestRecaseWriterKeepsPadAndTail: every chunk split of samples with kept ASCII, non-ASCII and U+FFFD runes. Fails with the kept set ignored.
