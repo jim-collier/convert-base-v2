@@ -88,6 +88,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A custom base with a digit that isn't valid UTF-8, such as `--to-symbols $'\x80 \x81 é è'`, was accepted, and its streamed output was then refused by its own streaming decode. Such a digit is refused now, naming the base and the digit, and so are tail symbols, a pad and markers that aren't valid UTF-8. The `bytes` base is unchanged. Library: `Finalize` returns the error.
 
+- `--lower` and `--upper` on piped input read the whole input into memory first, about 5 times its size, so a 100 MB file to lower-case hex peaked near 500 MB. They stream now, in constant memory like the plain encode, with the same output as before.
+
 ### Other work
 
 - The pipeline's lint stage checks the Bash scripts with shellcheck and the Python tools with ruff, set up by `.shellcheckrc` and `pyproject.toml`. A finding stops the run. A few copied-in and one-off research scripts are left out.  [20261004]

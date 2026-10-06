@@ -177,3 +177,43 @@ func TestFlagAliasesShareOneValue(t *testing.T) {
 		}
 	}
 }
+
+// A stream can split a multi-byte digit across two writes. Every split of every
+// sample has to give the same bytes as recasing the whole thing at once.
+// Test ID: Ersmg4k
+func TestRecaseWriterMatchesWholeRecase(t *testing.T) {
+	samples := []string{
+		"DEADbeef0123=",
+		"ΑΒΓΔαβγδ",
+		"ЖжЯя日本Ééİıẞßǅ",
+		"x\U0001F600Y\U00010400\U00010428",
+		"ab\xc3",
+		"\xe2\x82Ab\xffC",
+		"",
+	}
+	for _, upper := range []bool{false, true} {
+		recase := strings.ToLower
+		if upper {
+			recase = strings.ToUpper
+		}
+		for _, s := range samples {
+			want := recase(s)
+			for size := 1; size <= len(s)+1; size++ {
+				var got strings.Builder
+				rw := newRecaseWriter(&got, upper)
+				for i := 0; i < len(s); i += size {
+					chunk := []byte(s[i:min(i+size, len(s))])
+					if n, err := rw.Write(chunk); err != nil || n != len(chunk) {
+						t.Fatalf("Write(%q) = %d, %v", chunk, n, err)
+					}
+				}
+				if err := rw.flush(); err != nil {
+					t.Fatal(err)
+				}
+				if got.String() != want {
+					t.Errorf("upper=%v %q in chunks of %d: got %q, want %q", upper, s, size, got.String(), want)
+				}
+			}
+		}
+	}
+}

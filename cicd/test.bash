@@ -879,6 +879,52 @@ cfgrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --fro
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
 check EizUJEC errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to bytes ABC
 
+## --lower/--upper on piped input give the same bytes as recasing the plain
+## encode afterward, on the byte path, the --binary route and the wide path.
+## The Greek base is one 2-byte rune per digit, so it takes the wide path.
+csrc="${CBT_TMP}/case_src"; c64="${CBT_TMP}/case_64"; cout="${CBT_TMP}/case_out"; cwant="${CBT_TMP}/case_want"
+head -c 300001 /dev/urandom >"$csrc"
+"${TIMEOUT[@]}" "${EXE}" --from bytes --to 64 -n <"$csrc" >"$c64" 2>/dev/null || true
+GREEK_UP="Α Β Γ Δ Ε Ζ Η Θ Ι Κ Λ Μ Ν Ξ Ο Π"; GREEK_LO="α β γ δ ε ζ η θ ι κ λ μ ν ξ ο π"
+for ccase in hex-lower 32c-upper binary-lower greek-lower; do
+	rc1=0
+	case "$ccase" in
+		hex-lower)
+			"${EXE}" --from bytes --to hex -n <"$csrc" 2>/dev/null | tr 'A-F' 'a-f' >"$cwant" || true
+			"${TIMEOUT[@]}" "${EXE}" --from bytes --to hex --lower -n <"$csrc" >"$cout" 2>"${CBT_ERR}" || rc1=$? ;;
+		32c-upper)
+			"${EXE}" --from bytes --to 32c -n <"$csrc" 2>/dev/null | tr '[:lower:]' '[:upper:]' >"$cwant" || true
+			"${TIMEOUT[@]}" "${EXE}" --from bytes --to 32c --upper -n <"$csrc" >"$cout" 2>"${CBT_ERR}" || rc1=$? ;;
+		binary-lower)
+			"${EXE}" --from bytes --to hex -n <"$csrc" 2>/dev/null | tr 'A-F' 'a-f' >"$cwant" || true
+			"${TIMEOUT[@]}" "${EXE}" --binary --from 64 --to hex --lower -n <"$c64" >"$cout" 2>"${CBT_ERR}" || rc1=$? ;;
+		greek-lower)
+			"${EXE}" --from bytes --to-symbols "$GREEK_LO" -n <"$csrc" >"$cwant" 2>/dev/null || true
+			"${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$GREEK_UP" --lower -n <"$csrc" >"$cout" 2>"${CBT_ERR}" || rc1=$? ;;
+	esac
+	{ ((rc1 == 0)) && [[ -s "$cwant" ]] && cmp -s "$cwant" "$cout"; } && _pass Ersmg3G "case flag on a stream matches recased output (${ccase})" || _fail Ersmg3G "case flag on a stream matches recased output (${ccase})" "rc=${rc1} err=[$(<"${CBT_ERR}")]"
+done
+
+## The case flags used to drop to the buffered path, about 5 times the input in
+## memory, with the right output, so only a memory ceiling sees it.
+if [[ -x /usr/bin/time ]]; then
+	cprof="${CBT_TMP}/case_prof"; case_mib=32; case_ceiling=65536 # KiB
+	for cflags in "--from bytes --to hex --lower" "--from bytes --to 32c --upper" "--binary --from 64 --to hex --lower"; do
+		cpeak=""
+		if [[ "$cflags" == --binary* ]]; then
+			head -c "$((case_mib * 1024 * 1024))" /dev/zero | "${EXE}" --from bytes --to 64 -n 2>/dev/null \
+				| /usr/bin/time -o "$cprof" -f '%M' "${EXE}" $cflags >/dev/null 2>&1 || true
+		else
+			head -c "$((case_mib * 1024 * 1024))" /dev/zero | /usr/bin/time -o "$cprof" -f '%M' "${EXE}" $cflags >/dev/null 2>&1 || true
+		fi
+		[[ -s "$cprof" ]] && cpeak=$(tail -1 "$cprof")
+		{ [[ "$cpeak" =~ ^[0-9]+$ ]] && ((cpeak < case_ceiling)); } && _pass Ersmg45 "case flag streams in constant memory (${cflags}, peak ${cpeak} KiB)" || _fail Ersmg45 "case flag streams in constant memory (${cflags})" "${case_mib} MiB in, peak ${cpeak:-?} KiB, ceiling ${case_ceiling}"
+		: >"$cprof"
+	done
+else
+	_warn "Ersmg45" "case flag memory ceiling: no /usr/bin/time"
+fi
+
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## --binary: byte re-encoding between two text bases (like basenc)
