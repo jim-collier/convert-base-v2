@@ -34,36 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- `--lower` and `--upper` turn off streaming, so a big piped file is held in memory. (Code review 20261005 item 1)
-	- ID: 2026100516265601
-	- Type: Bug
-	- Status: Done
-	- Needs local test suite run?: No. The cmd tests and the harness sections for basic conversions, case flags, streaming and byte mode pass.
-	- Severity: Avg
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Steps to reproduce:
-		- `head -c 100000000 /dev/zero | convert-base-v2 --binary --to hex --lower -`
-	- Incorrect behavior: peak memory goes from 7 MB to 499 MB, about 5 times the input, and the run takes 4 times as long. The output is right.
-	- Expected behavior: constant memory, as the README says piped data gets. Lower case hex is a common ask, since `xxd` and `od` write it and `basenc` doesn't.
-	- Reproduced: 20261005, in a scratch home.
-	- Origin: `main.go:615`, from 106694e on 2026-07-06, which sent the case flags to the buffered path. G7 lists it as a known gap, but it was never filed. Not seen by an earlier round. Confirmed.
-	- Probable fix: flip case on each chunk as it is written. For a single-byte base that's a 256-entry table. `recaseDigits` already refuses a mixed-case base before anything is read.
-	- Sweep: the other cases G7 says still buffer. argv input, bytes to bytes and a big base with no tail have no streaming form, so this one is the only flag.
-	- Actual cause: `run()` skipped the stream when either case flag was set, since the recase was done on the whole result string.
-	- Actual fix: the stream writes through a small writer that recases each chunk as it goes, with a 128-entry table for ASCII. A multi-byte digit split across two chunks waits for its last byte. Streamed output has no markers, so recasing all of it gives the buffered bytes.
-	- Verified: 20261005, a 100 MB file to lower-case hex gives the same bytes as before, at 4 MB peak instead of about 500, in 0.3 s against 0.18 s with no flag. go vet, golangci-lint and the cmd tests pass.
-	- Swept: both stream calls, `StreamConvert` and `StreamBytesRoute`, go through the writer, so the byte, wide and `--binary` paths all stream with a case flag. The reactor and browser modules have no case flags. The other buffered cases have no streaming form, as the Sweep line says.
-	- Note: a pad or tail symbol with a letter in it gets recased too, as it always did in the buffered path, and then won't decode. That is filed as 2026100519145001.
-	- Branch: case-stream
-	- Commit: ae1c431
-	- Test case: `Ersmg45` "case flag streams in constant memory", hex `--lower`, 32c `--upper` and `--binary` 64 to hex `--lower` on 32 MiB, under a 64 MiB ceiling. It failed all 3 before the fix, at 160 to 180 MiB, and passes after at under 6 MiB.
-		- `Ersmg3G` "case flag on a stream matches recased output": byte path, `--binary` route and a 2-byte Greek base on the wide path match the plain encode recased. It passed before too, through the buffered path.
-		- `Ersmg4k` TestRecaseWriterMatchesWholeRecase: every chunk split of mixed-script samples matches recasing the whole string. It fails with the split-rune carry taken out.
-	- Acceptance signoff: Self-closed: reproduced, test failed before and passes after, sweep answered.
-	- Closed: 20261005-191450
-
 - The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
 	- ID: 2026100516265606
 	- Type: Enhancement
@@ -457,6 +427,36 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: f46614b
 	- Acceptance signoff: Closed on review: lookups give the same output as before, and a broken built-in can only come from `bases.go`, which a test catches.
 	- Closed: 20261004-182334
+
+- `--lower` and `--upper` turn off streaming, so a big piped file is held in memory. (Code review 20261005 item 1)
+	- ID: 2026100516265601
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The cmd tests and the harness sections for basic conversions, case flags, streaming and byte mode pass.
+	- Severity: Avg
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Steps to reproduce:
+		- `head -c 100000000 /dev/zero | convert-base-v2 --binary --to hex --lower -`
+	- Incorrect behavior: peak memory goes from 7 MB to 499 MB, about 5 times the input, and the run takes 4 times as long. The output is right.
+	- Expected behavior: constant memory, as the README says piped data gets. Lower case hex is a common ask, since `xxd` and `od` write it and `basenc` doesn't.
+	- Reproduced: 20261005, in a scratch home.
+	- Origin: `main.go:615`, from 106694e on 2026-07-06, which sent the case flags to the buffered path. G7 lists it as a known gap, but it was never filed. Not seen by an earlier round. Confirmed.
+	- Probable fix: flip case on each chunk as it is written. For a single-byte base that's a 256-entry table. `recaseDigits` already refuses a mixed-case base before anything is read.
+	- Sweep: the other cases G7 says still buffer. argv input, bytes to bytes and a big base with no tail have no streaming form, so this one is the only flag.
+	- Actual cause: `run()` skipped the stream when either case flag was set, since the recase was done on the whole result string.
+	- Actual fix: the stream writes through a small writer that recases each chunk as it goes, with a 128-entry table for ASCII. A multi-byte digit split across two chunks waits for its last byte. Streamed output has no markers, so recasing all of it gives the buffered bytes.
+	- Verified: 20261005, a 100 MB file to lower-case hex gives the same bytes as before, at 4 MB peak instead of about 500, in 0.3 s against 0.18 s with no flag. go vet, golangci-lint and the cmd tests pass.
+	- Swept: both stream calls, `StreamConvert` and `StreamBytesRoute`, go through the writer, so the byte, wide and `--binary` paths all stream with a case flag. The reactor and browser modules have no case flags. The other buffered cases have no streaming form, as the Sweep line says.
+	- Note: a pad or tail symbol with a letter in it gets recased too, as it always did in the buffered path, and then won't decode. That is filed as 2026100519145001.
+	- Branch: case-stream
+	- Commit: ae1c431
+	- Test case: `Ersmg45` "case flag streams in constant memory", hex `--lower`, 32c `--upper` and `--binary` 64 to hex `--lower` on 32 MiB, under a 64 MiB ceiling. It failed all 3 before the fix, at 160 to 180 MiB, and passes after at under 6 MiB.
+		- `Ersmg3G` "case flag on a stream matches recased output": byte path, `--binary` route and a 2-byte Greek base on the wide path match the plain encode recased. It passed before too, through the buffered path.
+		- `Ersmg4k` TestRecaseWriterMatchesWholeRecase: every chunk split of mixed-script samples matches recasing the whole string. It fails with the split-rune carry taken out.
+	- Acceptance signoff: Self-closed: reproduced, test failed before and passes after, sweep answered.
+	- Closed: 20261005-191450
 
 - One failing check can abort the test harness or lose its failure detail. (Code review 20261004 item 8)
 	- ID: 2026100413480008
