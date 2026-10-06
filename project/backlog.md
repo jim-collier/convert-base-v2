@@ -921,6 +921,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 27146f0
 	- Test case: Go `Ermubbp` TestSpecOnlyCommas, and harness `ErmufVw` (`--to-tail`), `ErmufXE` (`--to-symbols`) and `ErmufYc` (config `tail`). All fail before the fix and pass after.
 	- Acceptance signoff: 20261005. The next shcl release should handle a bare comma. Check `tail: ,` again after the re-pin.
+	- Closed: 20261005-065102
 
 - `filter_2_messy.py` crashes on six Arabic ligatures.
 	- ID: 2026100419493125
@@ -1371,6 +1372,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 7fcc945
 	- Test case: none, docs only. The harness has no link check.
 	- Acceptance signoff: 20261005.
+	- Closed: 20261005-065102
 
 - The harness repeats calls and forks that one pass could do. (Code review 20261004 item 27)
 	- ID: 2026100413480027
