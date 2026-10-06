@@ -34,250 +34,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- `--lower` and `--upper` recase a pad or tail symbol, so the output can't be read back.
-	- ID: 2026100519145001
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. Only the Go tests for the command and library and the case, pad and tail harness sections were run.
-	- Severity: Low
-	- Opened: 20261005-191450
-	- Opened by: Backlog round 20261005, found while working 2026100516265601
-	- Related IDs: 2026100516265601
-	- Target OS: Any
-	- Steps to reproduce:
-		- `printf a | convert-base-v2 --from bytes --to-symbols "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O Q R S T U V W" --to-pad P --lower` writes `c4pppppp`.
-		- Reading that back with the same symbols and `--from-pad P` fails on `p`.
-		- Adding `--to-dec P` gives `c4Pppppp` in the buffered path, since the first `P` is taken for the decimal marker.
-	- Expected behavior: the flags change digits only, as they already do for markers, or a pad or tail with a cased letter is refused with the flag.
-	- Reproduced: 20261005, in a scratch home, both before and after 2026100516265601.
-	- Origin: `canRecase` and `recaseDigits` look at the digits and markers only. Built-in pads and tails have no case, so only a user-defined base can hit it. Confirmed.
-	- Note: `Finalize` also lets a pad equal the decimal marker.
-		- That reads back fine both ways, so it isn't a bug. The pad is only used in byte mode and the markers only in number mode. Checked with pad and decimal marker both `P`: byte encode and decode round trip, and `10.5` round trips as `APG`. Only the buffered recase mixed them up, and this fix removes that.
-	- Decisions:
-		- 20261005: the case flags change digits only, as they already did for the markers. Pad and tail symbols are written as the base defines them, and the flags aren't refused for a cased pad or tail. A best guess, open to review.
-		- 20261005: a digit that the flag would recase into the pad, a tail symbol or a marker is refused, the same as mixed-case digits, since the same base would read it as that symbol. Only a non-ASCII or multi-letter digit can hit it, since `Finalize` already keeps one-letter ASCII flips clear of those.
-	- Actual fix: piped output skips the pad and tail characters when it recases. Buffered byte-mode output goes through the same writer, so both give the same bytes, and number-mode output keeps the marker-aware recase. `checkOutputFlags` refuses the digit clash above, naming the digit and what it would turn into.
-	- Swept: every recase site in `main.go` (`recaseWriter`, `recaseDigits`, the buffered and streamed callers, `checkOutputFlags`). The browser and reactor builds have no case flags. Built-in bases have no cased pad or tail, so their output is unchanged.
-	- Branch: recase-pad
-	- Commit: 24afe1f
-	- Test case: `ErsqAZ3` "case flag leaves pad and tail alone": a one-byte digit base with a pad, the same with the decimal marker equal to the pad, a 2-byte Greek base with a pad and a CJK base with a tail, piped and on argv, each read back by the same base. Failed all 4 before the fix and passes after.
-		- `ErsqAZh` "case flag refused when a digit recases into the ...": pad, tail and negative marker. Failed all 3 before and passes after.
-		- `ErsqAaO` TestRecaseWriterKeepsPadAndTail: every chunk split of samples with kept ASCII, non-ASCII and U+FFFD runes. Fails with the kept set ignored.
-
-- One flag after the NUMBER is reported as an unknown base. (Code review 20261005 item 3)
-	- ID: 2026100516265603
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. The command's Go tests and the harness sections through "Errors and robustness" were run.
-	- Severity: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Related IDs: 2026100313304797
-	- Target OS: Any
-	- Steps to reproduce:
-		- `convert-base-v2 255 --lower` and `convert-base-v2 255 --about`.
-		- `convert-base-v2 ff --from hex`.
-	- Incorrect behavior: the first two say `unknown base "--lower"` and `"--about"`. The third says `unexpected extra positional argument: "hex"`. With 2 positionals first, as in `255 16 --lower`, the hint that flags go first does show.
-	- Expected behavior: that hint whenever a positional after the NUMBER starts with `--`, or with `-` and a letter. No base name starts with `-`.
-	- Decisions:
-		- Flags still go before the NUMBER. Only the message changes.
-	- Origin: `checkPositionals` in `main.go:527`, from ad488ce. The hint came in 46b7e11 on 2026-07-10 for BxZNl-16, and checks only what follows OUTBASE. 2026100313304797 noted the `--about` case and left it. Confirmed.
-	- Reproduced: 20261005, all three on dev.
-	- Against: BxZNl-16, flags go before the NUMBER. Kept: the hint text and the `--` hint for `-123` are unchanged.
-	- Actual fix: a positional after the NUMBER that is `--` and anything, or `-` and a letter, gets the flags-first hint, whether it sits where OUTBASE goes or after it. A value flag shows its value in the example, as in `--from hex NUMBER BASE`. The check runs first, before any base is looked up or any note prints.
-		- `-5` there is still read as a base, so it gets the unknown base error. A config base whose name starts with `-` still works as OUTBASE, since a name that resolves is never taken for a flag. No built-in name or alias starts with `-`.
-		- With `--to` given, a flag after the NUMBER used to be dropped with a `--to overrides positional output base` note and exit 0. It's refused now like the rest, since the flag was never applied.
-		- A third positional `-3` now says "unexpected extra positional argument" instead of the flags hint, since it reads as a number.
-	- Swept: both positional slots in `checkPositionals`. Query flags (`--show-symbols hex --lower`) still ignore anything after the base. That's left for 2026100516265602, which covers flags that do nothing in a mode.
-	- Verified: 20261005, ErssdCS fails 3 of its 4 cases on dev and passes on the branch. ErssdD7 and ErsskLV pass both ways, as guards.
-	- Branch: cli-usage
-	- Commit: 5f318c3
-	- Test case: ErssdCS (flag after the NUMBER, 4 cases), ErssdD7 (`255 -5` stays an unknown base), ErsskLV (config base named `-x`), Go `TestNoBuiltinBaseLooksLikeFlag` ErsskKs.
-	- Acceptance signoff:
-
-- design.md and the help describe the pipe rule and the query flags wrong. (Code review 20261005 item 4)
-	- ID: 2026100516265604
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. The command's Go tests and the harness sections through "Errors and robustness" were run.
-	- Severity: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Incorrect behavior:
-		- design.md says a pipe is read only when the input is `-`. With no NUMBER at all the pipe is read too, and the README's `some-command | convert-base-v2 --binary --to 64` depends on that. `-` is only needed to give OUTBASE as a positional.
-		- design.md and the help's "Base info" heading say each query flag prints one value. `--list` prints a table, and `--by-index` prints nothing, since it picks a base.
-		- The help lists `--show-symbols` and `--get-base-name` with no argument. They take the base as a positional, and ignore `--from hex` with "select a base by name/alias argument".
-		- On a fresh install the help says the default config "overrides built-in aliases", though it overrides none. It means the load order.
-	- Expected behavior: the docs say what the program does. Wording only.
-	- Reproduced: 20261005, each one run in a scratch home.
-	- Origin: the design.md lines are from 7643323 on 2026-07-13. Not seen by an earlier round. Confirmed.
-	- Actual fix: design.md now says the pipe is read for `-` or when there is no NUMBER, and that `-` is only needed to give OUTBASE as a positional. Its query flag line says they print and exit, and that the base comes from a positional or `--by-index`. The rest of that section is unchanged.
-		- The help's usage block shows the pipe form with no NUMBER, and says flags go before the NUMBER. "Base info" says print, then exit, and `--get-base-name`, `--show-symbols` and `--show-symbols-0` show `BASE`. `--by-index` says it stands in for `BASE`.
-		- The config line now says a name defined in the file takes precedence over built-in, rather than that it overrides built-in aliases.
-	- Swept: design.md CLI contract, the help text, the README (it makes neither claim), and the code comments that state the pipe rule, which were already right.
-	- Verified: 20261005, `TestHelpListsEveryFlag` fails on the old help, which has no `BASE` arguments, and when a flag is missing from it. It passes on the branch. The pipe with no NUMBER was already pinned by the pipecheck cases (EjeCdXo for number mode, EjU6h0j for `--binary`).
-	- Branch: cli-usage
-	- Commit: 5f318c3
-	- Test case: Go `TestHelpListsEveryFlag` ErsskKE: every flag the parser takes is in the help, and the base-picking query flags show `BASE`. The pipe rule is pinned by EjeCdXo and EjU6h0j.
-	- Acceptance signoff:
-
-- A flag that does nothing in the current mode gets an error, a note, or nothing at all. (Code review 20261005 item 2)
-	- ID: 2026100516265602
-	- Type: Bug
-	- Status: Waiting on signoff
-	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. The command's Go tests and the harness sections from "CLI surface" through "Control-character escapes" were run.
-	- Severity: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Steps to reproduce:
-		- `printf hi | convert-base-v2 --binary --precision 5 --to 64 -`, and the same with `--to-neg '~'` or `--to-dec ','`.
-		- `convert-base-v2 --to-pad = --to 64 255`, which converts as a number.
-	- Incorrect behavior: all of these convert with no word. `--escape-controls` in byte mode and `--from-neg` on `bytes` are errors, and `--by-index` beside a conversion is a note. design.md refuses `--escape-controls` in byte mode because it "would be accepted and then do nothing", and the changelog says the same of padding that could never apply. The silent cases break that rule.
-	- Expected behavior: one rule for every flag in both modes, kept in design.md as a table with a row per flag.
-	- Note: an error on a flag that works today breaks any script that passes the same flags to every call, and stable behavior for scripts is a project goal. A stderr `note:` keeps them working. The errors that exist today can stay as they are.
-	- Note: the number-or-bytes note is the only stderr line that starts with `FYI:`. Every other one starts with `note:`.
-	- Origin: the flags date from ad488ce and later. The `--escape-controls` refusal is from 2efb8de on 2026-08-04, which wrote the rule. Not seen by an earlier round. Confirmed.
-	- Sweep: `--precision`, `--lower`, `--upper`, `--escape-controls` and `--no-newline`, and each side's neg, dec, pad and tail, in both modes.
-	- Decisions:
-		- 20261005: a flag that is accepted today and does nothing in the current mode gets a stderr `note:` and the run goes on. Flags refused today stay refused.
-		- 20261005: errors about the flags themselves exit 2, as usage errors: `--precision foo`, `--binary` with `--number`, `--lower` with `--upper`, and `--escape-controls` in byte mode. Errors about the input stay 1. A best guess, open to review.
-		- 20261005: a conversion flag given with a query flag gets the same note. An argument after the query's base is a usage error, unless that breaks a documented use.
-	- Note: changes what users see, so it closes at Waiting on signoff.
-	- Reproduced: 20261005, on dev. Every case in the steps converts with exit 0 and nothing on stderr. `--show-symbols hex --lower` and `--list foo` drop the extra argument the same way.
-	- Against: 2026100516265607's decision that checks run after parsing stay at exit 1. That one was left open to review, and the second decision here answers it.
-	- Actual fix: one rule for every flag, in a new "Flags by mode" table in design.md, with a row per flag and a column each for number mode, byte mode and the query flags.
-		- A flag that does nothing in the run gets one line, `note: --FLAG does nothing ...`, once a run. The notes are worked out from the flags and bases before any input is read and print before the conversion starts, so streaming is unchanged.
-		- In byte mode, `--precision`, `--number`, and each side's neg and dec get the note. A neg or dec flag on a custom alphabet that has `-` or `.` as a digit doesn't, since the alphabet can't be built without it. `-n` gets it when the output is raw bytes.
-		- In number mode, each side's pad and tail get the note. `--by-index` gets it in both.
-		- Beside a query flag, every conversion flag gets it, except `--escape-controls` with `--show-symbols`, where it works. `--binary` and `--number` get none there, since the README suggests them as shell aliases. Two query flags run the first one and note the other, except `--list` with `--list-compat`, which print together.
-		- A query refuses an argument after its base, a base given with `--by-index`, and any argument to a query that takes no base, with exit 2. No documented use breaks: the README, `--examples`, the demo scenario, the screenshot script and the harness never pass one.
-		- The flag-pair and mode refusals exit 2, per the decision. A value the base can't take, such as `--lower` on a mixed-case base, a pad on base 10 or a marker on `bytes`, stays 1, as an unknown base does. The help's Exit status block and the changelog entry for 2026100516265607 say so.
-		- The number-or-bytes note starts with `note:` now. The `--by-index` note reads like the rest, so harness check EjeBOHS now looks for "--by-index does nothing" rather than "--by-index is ignored", with a comment giving the reason.
-	- Swept: every flag the parser takes, in number, byte and query mode. `TestIdleFlagNotes` fails for a flag with no case in a mode it can be given in, and `TestDesignTableListsEveryFlag` for a flag with no row in the table. `FYI:` appears in no test or doc; the only other hits are code comments in `bases.go`. The scripts that run the binary, `gen-bases-table.py`, `gen-screenshots.bash` and the demo scenario, hit no new note or exit 2. The browser module and reactor take no flags.
-	- Verified: 20261005, the new harness checks fail on dev, 23 in all (ErsveGw, ErswATd, ErswAUX, ErswAVN and the reworded EjeBOHS), and the sections run pass 409 of 409 on the branch. ErswASw passes both ways, as a guard. The Go rule test fails when the byte mode note for `--precision` or the `--by-index` note is taken out. `go vet`, golangci-lint and the command's Go tests pass, and the wasip1 and Windows builds compile.
-	- Branch: idle-flags
-	- Commit: 29c24ed
-	- Test case: Go `TestIdleFlagNotes` ErsveFb (every flag in every mode) and `TestDesignTableListsEveryFlag` ErsveGF. Harness ErswATd (one note, same output, 12 cases), ErswAUX (a 3 MB stream is unchanged, one note per flag), ErswAVN (the number-or-bytes note starts with `note:`), ErsveGw (8 refusals exit 2) and ErswASw (3 base refusals stay 1).
-
-- A command line that can't be parsed exits 1, the same as a failed conversion. (Code review 20261005 item 7)
-	- ID: 2026100516265607
-	- Type: Enhancement
-	- Status: Waiting on signoff
-	- Needs local test suite run?: Yes, a full `cicd/test.bash` run. The command's Go tests and the harness sections through "Errors and robustness" were run.
-	- Priority: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Note: an unknown flag, a flag after the NUMBER and an extra positional all exit 1, like a bad digit. No arguments at all exits 2. Go's own flag package and most getopt tools use 2 for a usage error, so a script can tell a wrong call from input that won't convert.
-	- Requirements:
-		- Exit 2 for a command line that can't be parsed. 1 stays for a failed conversion.
-		- The help says which is which.
-	- Note: a script that tests for exactly 1 would see 2, so it goes in the changelog.
-	- Origin: 46b7e11 on 2026-07-10 took over flag errors to reword them, and they left by the generic exit 1. Confirmed.
-	- Decisions:
-		- 20261005: exit 2 for any command line that can't be parsed: an unknown flag, a value the flag parser refuses (`--by-index x`), `-123` with no `--`, a flag after the NUMBER, an extra positional, `--get-base-name` or `--show-symbols` with no base, and no arguments at all. A best guess, open to review.
-		- 20261005: an unknown base name stays 1. It's input that won't convert, and nothing in the code treated it as usage.
-		- 20261005: checks that run after parsing also stay 1: `--precision foo`, `--binary` with `--number`, `--lower` with `--upper`, and `--escape-controls` in byte mode. Open to review: they could move to 2 too.
-	- Progress log:
-		- 20261005: the open question is answered by 2026100516265602. `--precision foo`, `--binary` with `--number`, `--lower` with `--upper` and `--escape-controls` in byte mode exit 2 now, and the help and changelog say so. A value the base can't take stays 1.
-	- Actual fix: a `usageError` type exits 2 from `main`. Flag parse errors, the positional checks and the missing query base use it. The help gets an "Exit status" block. The changelog says a script testing for 1 will see 2.
-	- Swept: `cicd/test.bash`, the helper scripts, README and design.md. Nothing expected exit 1 on these cases, so no test changed. The browser module and reactor keep their own codes, as 2026100516265608 covers them.
-	- Verified: 20261005, ErssdDk fails all 7 cases on dev, at exit 1, and passes on the branch. ErssdER passes both ways.
-	- Branch: cli-usage
-	- Commit: 5f318c3
-	- Test case: ErssdDk (7 usage errors exit 2 with an `error:` line), ErssdER (4 failed conversions still exit 1). Eje9ui2 already pins exit 2 with no arguments.
-	- Acceptance signoff:
-
-- The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
-	- ID: 2026100516265606
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes, a full `cicd/test.bash`. The Errors, Binary / streaming, `--binary` byte mode, Keyboard, Control-character, Reactor, Browser, Frontend parity and Performance sections passed, 333 of 333.
-	- Priority: Avg
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Note: the command and the reactor each try `StreamConvert`, then `StreamBytesRoute` with a `bytes` base they look up themselves, then two buffered `Convert` calls through `bytes`. A Go program that wants to encode a reader as base 64 has to know that order and what `handled` means.
-	- Requirements:
-		- One exported call that takes a reader, a writer, two bases and the byte-mode choice, and does all 3 steps.
-		- The command and the reactor both use it.
-	- Decisions:
-		- This joins the dispatch only. The streaming and buffered paths stay separate, per BxZNl-25.
-	- Note: the library is still v0, so the two current calls can be unexported in the same change, or kept as building blocks.
-	- Origin: a82807d, the library split, exported the command's dispatch pieces, and the reactor's `stream.go` copied their order. Not seen by an earlier round. Confirmed by reading.
-	- Against: BxZNl-25. Only the dispatch is joined. The stream and buffered paths stay separate, and TestStreamBufferedEquivalence still compares them.
-	- Done: `ConvertStream` takes a reader, a writer, two bases and the `--binary` choice. It tries the stream, then the stream through `bytes`, then the buffered route, and looks up `bytes` itself. The command's piped byte mode and the reactor's streams both call it.
-	- Done: `StreamConvert` and `StreamBytesRoute` are private now, since nothing outside the package calls them. Two text bases without `binary` are refused with a pointer to `Convert`.
-	- Done: the buffered step drops one trailing line break, as the command's piped input always did. The reactor didn't, so base64 to base91 with padding and a newline failed there. It works now.
-	- Note: argv input in byte mode still goes through the command's own two `Convert` calls, since there's no reader.
-	- Swept: `StreamConvert`, `StreamBytesRoute` and `bufferedStream` repo-wide. The callers were main.go, the reactor and in-package tests. `lib/wasm`, the module driver, reactor-host and both READMEs name neither. The 2 design docs that list the public surface got a note.
-	- Verified: piped output, exit code and stderr match a build of dev for 29 cases: single-byte, tail base, bytes route, codec fallback, case flags, errors, empty input and a full disk. Peak memory matches within run-to-run noise. Reactor stream output matches its dev build on 100 MB and 20 MB inputs. go vet on 4 targets, golangci-lint and go test pass.
-	- Test case: `ErsydPF` TestConvertStream. A read error after 1 MB shows which step each pair took. It fails with either stream step skipped, and with the line break drop removed.
-	- Branch: stream-api
-	- Commit: 46ddb9a
-
-- shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
-	- ID: 2026100508035901
-	- Type: Bug
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes. A full `cicd/test.bash` run on the new shcl pin. The config sections, `go test ./...` and the vendor check already pass.
-	- Severity: Low
-	- Opened: 20261005-080359
-	- Opened by: Backlog round 20261005, found while working 2026100507565201
-	- Related IDs: 2026100507565201, shcl 2026100511212359
-	- Target OS: Any
-	- Steps to reproduce:
-		- Parse `base:` then a tab and `symbols: "a b \x80 c"`, with a real `\x80` byte, under strict mode. `\xff` in the same place does the same.
-		- `"\x80"` and `"a\x80 b"` fail too, so the space has nothing to do with it.
-	- Incorrect behavior: `line 2: E017 unterminated quote in value`. `"\xff a b c"` and `"a b \xe9 c"` parse fine.
-	- Expected behavior: the value parses, or a parse error that names the bad byte. This project then refuses the digit itself.
-	- Reproduced: 20261005, with both the vendored copy and the upstream shcl tree at 0d4c174c. Rough edge, not a silent wrong answer: the config is still refused, only with the wrong message.
-	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here. Check again after the 3.0.0 re-pin.
-	- Progress log:
-		- 20261005: left out of the round. Upstream is still at 0d4c174c with no 3.0.0 tag, and the bug isn't in its backlog yet.
-		- 20261005: filed in shcl's backlog as 2026100511212359, reproduced there at `0d1a491c`. Its `utf8Len` takes any byte that isn't a lead byte as the start of a 4-byte character, so the quote scan can step over the closing quote.
-		- 20261005: fixed upstream in shcl commit d9f38a4a, on its dev branch. Still no 3.0.0 tag, so the copy moves to the dev tip, 2317df56.
-		- 20261005: a bare `tail: ,` or `tail: , ,` still reads as no tail on the new pin, the same as `tail:`. A quoted `","` is still refused as only commas. shcl's backlog has no item for it.
-	- Actual cause: shcl's quote scan, not this project. See the progress log.
-	- Actual fix: `lib/shcl/shcl.go` refreshed from shcl's dev branch, and the pin moved with it. The value now parses, and `Finalize` refuses the bad digit with this project's own invalid UTF-8 message.
-	- Note: the refresh also brings about 15 other upstream changes, mostly kept lines, setters and migration counts. Both `UpgradeConfig` workarounds are still needed on the new pin.
-	- Verified: the new Go test and harness check fail on the old pin with the unterminated quote error and pass on the new one. `go vet`, golangci-lint, `go test ./...`, the browser and reactor builds, the vendor check, and the Config file and Config migration harness sections pass.
-	- Branch: shcl-utf8
-	- Commit: a3a4f3e
-	- Test case: `ErsoOAI` TestConfigInvalidUTF8InQuotes, and harness `ErsoOAv` "config invalid UTF-8 digit mid-quote refused". Both fail before the re-pin and pass after.
-
-- The browser module's errors have no code, where the reactor's do. (Code review 20261005 item 8)
-	- ID: 2026100516265608
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes, a full `cicd/test.bash`. The Reactor, Browser and Frontend parity sections passed, 45 of 45. Then signoff on the README wording.
-	- Priority: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Note: `convertBase.convert()` answers `{ok: false, error: "..."}`. The reactor gives the same failures a stable number from 0 to 7. A page that wants to act on an unknown base has to match English text.
-	- Requirements:
-		- Every failure gets a `code` with the reactor's numbers. The text stays.
-	- Origin: `lib/wasm/main.go` has answered with text only since it was added. Not seen by an earlier round. Confirmed by reading.
-	- Decisions:
-		- The codes and the error-to-code mapping moved to a new internal package, `lib/internal/errcode`, which both modules import. It is Apache-2.0 and needs nothing past Go 1.21. Not in `convertbase`, so the library's API and version stay as they are.
-		- The reactor's numbers and README table are unchanged.
-		- A call that isn't one options object, a precision outside 0 to 100000 and a value that is NaN or infinite get 6, BadArg. Library errors get the code the reactor gives them.
-		- A good result has no `code`, as before.
-	- Done: every failure from `convert()` has `code` beside `error`. `bases()` can't fail. A registry that fails to build still only logs to the console, since there is no result to put a code in. README, the reactor README, both design docs and the demo page JS mention `code`.
-	- Swept: every `fail(` in `lib/wasm/main.go`, and the reactor's `classify`, which now calls the shared mapping.
-	- Verified: Ert2MSr and Ert2MTh fail on dev's browser module and pass on the branch. Ert2MTh also fails when the added cases stop reaching code 6. `make web`, `make reactor`, `go vet`, staticcheck and golangci-lint are clean.
-	- Branch: web-codes
-	- Commit: 3ab36a1
-	- Test case: Ert2MTh (browser answers and codes match the reactor over the parity requests plus added failures, reaching codes 1, 2, 5 and 6), Ert2MSr (every browser failure kind has its code, 3 and 4 included, which the reactor can't be given), Ert2MSA (each code from a real library error, and the reactor README table), Ert30AN (browser answers match the command).
-	- Acceptance signoff:
-
 - `--lower` and `--upper` on a base with multi-letter or non-ASCII digits write output the same base can't read back.
 	- ID: 2026100519520001
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting for answers
 	- Severity: Low
 	- Opened: 20261005-195200
 	- Opened by: Backlog round 20261005, found while working 2026100519145001
@@ -289,6 +49,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Reproduced: 20261005.
 	- Possible cause: input takes either case only for one-letter ASCII digits, while the flags recase any digit.
 	- Note: the harness case `Ersmg3G` (greek-lower) relies on `--lower` working on a Greek base, so refusing the flag there would change a tested behavior. Either refuse it for such bases or read those digits in either case.
+	- Progress log:
+		- 20261005: left for an answer. Refuse `--lower` and `--upper` on a base whose digits the reader takes in one case only, or read every such digit in either case when no two digits differ only by case?
 
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
@@ -721,6 +483,36 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
 
+- The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
+	- ID: 2026100516265606
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 654 of 654 on dev at 4007898, and hosted CI passed there.
+	- Priority: Avg
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: the command and the reactor each try `StreamConvert`, then `StreamBytesRoute` with a `bytes` base they look up themselves, then two buffered `Convert` calls through `bytes`. A Go program that wants to encode a reader as base 64 has to know that order and what `handled` means.
+	- Requirements:
+		- One exported call that takes a reader, a writer, two bases and the byte-mode choice, and does all 3 steps.
+		- The command and the reactor both use it.
+	- Decisions:
+		- This joins the dispatch only. The streaming and buffered paths stay separate, per BxZNl-25.
+	- Note: the library is still v0, so the two current calls can be unexported in the same change, or kept as building blocks.
+	- Origin: a82807d, the library split, exported the command's dispatch pieces, and the reactor's `stream.go` copied their order. Not seen by an earlier round. Confirmed by reading.
+	- Against: BxZNl-25. Only the dispatch is joined. The stream and buffered paths stay separate, and TestStreamBufferedEquivalence still compares them.
+	- Done: `ConvertStream` takes a reader, a writer, two bases and the `--binary` choice. It tries the stream, then the stream through `bytes`, then the buffered route, and looks up `bytes` itself. The command's piped byte mode and the reactor's streams both call it.
+	- Done: `StreamConvert` and `StreamBytesRoute` are private now, since nothing outside the package calls them. Two text bases without `binary` are refused with a pointer to `Convert`.
+	- Done: the buffered step drops one trailing line break, as the command's piped input always did. The reactor didn't, so base64 to base91 with padding and a newline failed there. It works now.
+	- Note: argv input in byte mode still goes through the command's own two `Convert` calls, since there's no reader.
+	- Swept: `StreamConvert`, `StreamBytesRoute` and `bufferedStream` repo-wide. The callers were main.go, the reactor and in-package tests. `lib/wasm`, the module driver, reactor-host and both READMEs name neither. The 2 design docs that list the public surface got a note.
+	- Verified: piped output, exit code and stderr match a build of dev for 29 cases: single-byte, tail base, bytes route, codec fallback, case flags, errors, empty input and a full disk. Peak memory matches within run-to-run noise. Reactor stream output matches its dev build on 100 MB and 20 MB inputs. go vet on 4 targets, golangci-lint and go test pass.
+	- Test case: `ErsydPF` TestConvertStream. A read error after 1 MB shows which step each pair took. It fails with either stream step skipped, and with the line break drop removed.
+	- Branch: stream-api
+	- Commit: 46ddb9a
+	- Acceptance signoff: Self-closed: output and memory match the old routes, its test covers all 3 steps, and the full suite passed.
+	- Closed: 20261005-203040
+
 - The lint stage checks Go only. Shellcheck and ruff don't run, and nothing configures them. (Code review 20261004 item 22)
 	- ID: 2026100413480022
 	- Type: Enhancement
@@ -898,6 +690,171 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next release. The table renders, every link downloads, and the notes end with the build line.
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
+
+- `--lower` and `--upper` recase a pad or tail symbol, so the output can't be read back.
+	- ID: 2026100519145001
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 654 of 654 on dev at 4007898, and hosted CI passed there.
+	- Severity: Low
+	- Opened: 20261005-191450
+	- Opened by: Backlog round 20261005, found while working 2026100516265601
+	- Related IDs: 2026100516265601
+	- Target OS: Any
+	- Steps to reproduce:
+		- `printf a | convert-base-v2 --from bytes --to-symbols "0 1 2 3 4 5 6 7 8 9 A B C D E F G H I J K L M N O Q R S T U V W" --to-pad P --lower` writes `c4pppppp`.
+		- Reading that back with the same symbols and `--from-pad P` fails on `p`.
+		- Adding `--to-dec P` gives `c4Pppppp` in the buffered path, since the first `P` is taken for the decimal marker.
+	- Expected behavior: the flags change digits only, as they already do for markers, or a pad or tail with a cased letter is refused with the flag.
+	- Reproduced: 20261005, in a scratch home, both before and after 2026100516265601.
+	- Origin: `canRecase` and `recaseDigits` look at the digits and markers only. Built-in pads and tails have no case, so only a user-defined base can hit it. Confirmed.
+	- Note: `Finalize` also lets a pad equal the decimal marker.
+		- That reads back fine both ways, so it isn't a bug. The pad is only used in byte mode and the markers only in number mode. Checked with pad and decimal marker both `P`: byte encode and decode round trip, and `10.5` round trips as `APG`. Only the buffered recase mixed them up, and this fix removes that.
+	- Decisions:
+		- 20261005: the case flags change digits only, as they already did for the markers. Pad and tail symbols are written as the base defines them, and the flags aren't refused for a cased pad or tail. A best guess, open to review.
+		- 20261005: a digit that the flag would recase into the pad, a tail symbol or a marker is refused, the same as mixed-case digits, since the same base would read it as that symbol. Only a non-ASCII or multi-letter digit can hit it, since `Finalize` already keeps one-letter ASCII flips clear of those.
+	- Actual fix: piped output skips the pad and tail characters when it recases. Buffered byte-mode output goes through the same writer, so both give the same bytes, and number-mode output keeps the marker-aware recase. `checkOutputFlags` refuses the digit clash above, naming the digit and what it would turn into.
+	- Swept: every recase site in `main.go` (`recaseWriter`, `recaseDigits`, the buffered and streamed callers, `checkOutputFlags`). The browser and reactor builds have no case flags. Built-in bases have no cased pad or tail, so their output is unchanged.
+	- Branch: recase-pad
+	- Commit: 24afe1f
+	- Test case: `ErsqAZ3` "case flag leaves pad and tail alone": a one-byte digit base with a pad, the same with the decimal marker equal to the pad, a 2-byte Greek base with a pad and a CJK base with a tail, piped and on argv, each read back by the same base. Failed all 4 before the fix and passes after.
+		- `ErsqAZh` "case flag refused when a digit recases into the ...": pad, tail and negative marker. Failed all 3 before and passes after.
+		- `ErsqAaO` TestRecaseWriterKeepsPadAndTail: every chunk split of samples with kept ASCII, non-ASCII and U+FFFD runes. Fails with the kept set ignored.
+	- Acceptance signoff: Self-closed: digits only matches how the flags already treat markers, its tests failed before and pass after, and the full suite passed.
+	- Closed: 20261005-203040
+
+- One flag after the NUMBER is reported as an unknown base. (Code review 20261005 item 3)
+	- ID: 2026100516265603
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 654 of 654 on dev at 4007898, and hosted CI passed there.
+	- Severity: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Related IDs: 2026100313304797
+	- Target OS: Any
+	- Steps to reproduce:
+		- `convert-base-v2 255 --lower` and `convert-base-v2 255 --about`.
+		- `convert-base-v2 ff --from hex`.
+	- Incorrect behavior: the first two say `unknown base "--lower"` and `"--about"`. The third says `unexpected extra positional argument: "hex"`. With 2 positionals first, as in `255 16 --lower`, the hint that flags go first does show.
+	- Expected behavior: that hint whenever a positional after the NUMBER starts with `--`, or with `-` and a letter. No base name starts with `-`.
+	- Decisions:
+		- Flags still go before the NUMBER. Only the message changes.
+	- Origin: `checkPositionals` in `main.go:527`, from ad488ce. The hint came in 46b7e11 on 2026-07-10 for BxZNl-16, and checks only what follows OUTBASE. 2026100313304797 noted the `--about` case and left it. Confirmed.
+	- Reproduced: 20261005, all three on dev.
+	- Against: BxZNl-16, flags go before the NUMBER. Kept: the hint text and the `--` hint for `-123` are unchanged.
+	- Actual fix: a positional after the NUMBER that is `--` and anything, or `-` and a letter, gets the flags-first hint, whether it sits where OUTBASE goes or after it. A value flag shows its value in the example, as in `--from hex NUMBER BASE`. The check runs first, before any base is looked up or any note prints.
+		- `-5` there is still read as a base, so it gets the unknown base error. A config base whose name starts with `-` still works as OUTBASE, since a name that resolves is never taken for a flag. No built-in name or alias starts with `-`.
+		- With `--to` given, a flag after the NUMBER used to be dropped with a `--to overrides positional output base` note and exit 0. It's refused now like the rest, since the flag was never applied.
+		- A third positional `-3` now says "unexpected extra positional argument" instead of the flags hint, since it reads as a number.
+	- Swept: both positional slots in `checkPositionals`. Query flags (`--show-symbols hex --lower`) still ignore anything after the base. That's left for 2026100516265602, which covers flags that do nothing in a mode.
+	- Verified: 20261005, ErssdCS fails 3 of its 4 cases on dev and passes on the branch. ErssdD7 and ErsskLV pass both ways, as guards.
+	- Branch: cli-usage
+	- Commit: 5f318c3
+	- Test case: ErssdCS (flag after the NUMBER, 4 cases), ErssdD7 (`255 -5` stays an unknown base), ErsskLV (config base named `-x`), Go `TestNoBuiltinBaseLooksLikeFlag` ErsskKs.
+	- Acceptance signoff: Self-closed: message only, flags-first stands, its tests failed before and pass after, and the full suite passed.
+	- Closed: 20261005-203040
+
+- design.md and the help describe the pipe rule and the query flags wrong. (Code review 20261005 item 4)
+	- ID: 2026100516265604
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 654 of 654 on dev at 4007898, and hosted CI passed there.
+	- Severity: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Incorrect behavior:
+		- design.md says a pipe is read only when the input is `-`. With no NUMBER at all the pipe is read too, and the README's `some-command | convert-base-v2 --binary --to 64` depends on that. `-` is only needed to give OUTBASE as a positional.
+		- design.md and the help's "Base info" heading say each query flag prints one value. `--list` prints a table, and `--by-index` prints nothing, since it picks a base.
+		- The help lists `--show-symbols` and `--get-base-name` with no argument. They take the base as a positional, and ignore `--from hex` with "select a base by name/alias argument".
+		- On a fresh install the help says the default config "overrides built-in aliases", though it overrides none. It means the load order.
+	- Expected behavior: the docs say what the program does. Wording only.
+	- Reproduced: 20261005, each one run in a scratch home.
+	- Origin: the design.md lines are from 7643323 on 2026-07-13. Not seen by an earlier round. Confirmed.
+	- Actual fix: design.md now says the pipe is read for `-` or when there is no NUMBER, and that `-` is only needed to give OUTBASE as a positional. Its query flag line says they print and exit, and that the base comes from a positional or `--by-index`. The rest of that section is unchanged.
+		- The help's usage block shows the pipe form with no NUMBER, and says flags go before the NUMBER. "Base info" says print, then exit, and `--get-base-name`, `--show-symbols` and `--show-symbols-0` show `BASE`. `--by-index` says it stands in for `BASE`.
+		- The config line now says a name defined in the file takes precedence over built-in, rather than that it overrides built-in aliases.
+	- Swept: design.md CLI contract, the help text, the README (it makes neither claim), and the code comments that state the pipe rule, which were already right.
+	- Verified: 20261005, `TestHelpListsEveryFlag` fails on the old help, which has no `BASE` arguments, and when a flag is missing from it. It passes on the branch. The pipe with no NUMBER was already pinned by the pipecheck cases (EjeCdXo for number mode, EjU6h0j for `--binary`).
+	- Branch: cli-usage
+	- Commit: 5f318c3
+	- Test case: Go `TestHelpListsEveryFlag` ErsskKE: every flag the parser takes is in the help, and the base-picking query flags show `BASE`. The pipe rule is pinned by EjeCdXo and EjU6h0j.
+	- Acceptance signoff: Self-closed: wording matches what the program does, and the full suite passed.
+	- Closed: 20261005-203040
+
+- A flag that does nothing in the current mode gets an error, a note, or nothing at all. (Code review 20261005 item 2)
+	- ID: 2026100516265602
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 654 of 654 on dev at 4007898, and hosted CI passed there.
+	- Severity: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Steps to reproduce:
+		- `printf hi | convert-base-v2 --binary --precision 5 --to 64 -`, and the same with `--to-neg '~'` or `--to-dec ','`.
+		- `convert-base-v2 --to-pad = --to 64 255`, which converts as a number.
+	- Incorrect behavior: all of these convert with no word. `--escape-controls` in byte mode and `--from-neg` on `bytes` are errors, and `--by-index` beside a conversion is a note. design.md refuses `--escape-controls` in byte mode because it "would be accepted and then do nothing", and the changelog says the same of padding that could never apply. The silent cases break that rule.
+	- Expected behavior: one rule for every flag in both modes, kept in design.md as a table with a row per flag.
+	- Note: an error on a flag that works today breaks any script that passes the same flags to every call, and stable behavior for scripts is a project goal. A stderr `note:` keeps them working. The errors that exist today can stay as they are.
+	- Note: the number-or-bytes note is the only stderr line that starts with `FYI:`. Every other one starts with `note:`.
+	- Origin: the flags date from ad488ce and later. The `--escape-controls` refusal is from 2efb8de on 2026-08-04, which wrote the rule. Not seen by an earlier round. Confirmed.
+	- Sweep: `--precision`, `--lower`, `--upper`, `--escape-controls` and `--no-newline`, and each side's neg, dec, pad and tail, in both modes.
+	- Decisions:
+		- 20261005: a flag that is accepted today and does nothing in the current mode gets a stderr `note:` and the run goes on. Flags refused today stay refused.
+		- 20261005: errors about the flags themselves exit 2, as usage errors: `--precision foo`, `--binary` with `--number`, `--lower` with `--upper`, and `--escape-controls` in byte mode. Errors about the input stay 1. A best guess, open to review.
+		- 20261005: a conversion flag given with a query flag gets the same note. An argument after the query's base is a usage error, unless that breaks a documented use.
+	- Note: changes what users see, so it closes at Waiting on signoff.
+	- Reproduced: 20261005, on dev. Every case in the steps converts with exit 0 and nothing on stderr. `--show-symbols hex --lower` and `--list foo` drop the extra argument the same way.
+	- Against: 2026100516265607's decision that checks run after parsing stay at exit 1. That one was left open to review, and the second decision here answers it.
+	- Actual fix: one rule for every flag, in a new "Flags by mode" table in design.md, with a row per flag and a column each for number mode, byte mode and the query flags.
+		- A flag that does nothing in the run gets one line, `note: --FLAG does nothing ...`, once a run. The notes are worked out from the flags and bases before any input is read and print before the conversion starts, so streaming is unchanged.
+		- In byte mode, `--precision`, `--number`, and each side's neg and dec get the note. A neg or dec flag on a custom alphabet that has `-` or `.` as a digit doesn't, since the alphabet can't be built without it. `-n` gets it when the output is raw bytes.
+		- In number mode, each side's pad and tail get the note. `--by-index` gets it in both.
+		- Beside a query flag, every conversion flag gets it, except `--escape-controls` with `--show-symbols`, where it works. `--binary` and `--number` get none there, since the README suggests them as shell aliases. Two query flags run the first one and note the other, except `--list` with `--list-compat`, which print together.
+		- A query refuses an argument after its base, a base given with `--by-index`, and any argument to a query that takes no base, with exit 2. No documented use breaks: the README, `--examples`, the demo scenario, the screenshot script and the harness never pass one.
+		- The flag-pair and mode refusals exit 2, per the decision. A value the base can't take, such as `--lower` on a mixed-case base, a pad on base 10 or a marker on `bytes`, stays 1, as an unknown base does. The help's Exit status block and the changelog entry for 2026100516265607 say so.
+		- The number-or-bytes note starts with `note:` now. The `--by-index` note reads like the rest, so harness check EjeBOHS now looks for "--by-index does nothing" rather than "--by-index is ignored", with a comment giving the reason.
+	- Swept: every flag the parser takes, in number, byte and query mode. `TestIdleFlagNotes` fails for a flag with no case in a mode it can be given in, and `TestDesignTableListsEveryFlag` for a flag with no row in the table. `FYI:` appears in no test or doc; the only other hits are code comments in `bases.go`. The scripts that run the binary, `gen-bases-table.py`, `gen-screenshots.bash` and the demo scenario, hit no new note or exit 2. The browser module and reactor take no flags.
+	- Verified: 20261005, the new harness checks fail on dev, 23 in all (ErsveGw, ErswATd, ErswAUX, ErswAVN and the reworded EjeBOHS), and the sections run pass 409 of 409 on the branch. ErswASw passes both ways, as a guard. The Go rule test fails when the byte mode note for `--precision` or the `--by-index` note is taken out. `go vet`, golangci-lint and the command's Go tests pass, and the wasip1 and Windows builds compile.
+	- Branch: idle-flags
+	- Commit: 29c24ed
+	- Test case: Go `TestIdleFlagNotes` ErsveFb (every flag in every mode) and `TestDesignTableListsEveryFlag` ErsveGF. Harness ErswATd (one note, same output, 12 cases), ErswAUX (a 3 MB stream is unchanged, one note per flag), ErswAVN (the number-or-bytes note starts with `note:`), ErsveGw (8 refusals exit 2) and ErswASw (3 base refusals stay 1).
+	- Acceptance signoff: Self-closed: follows the 20261005 decision, the table is checked against the flag set, and the full suite passed.
+	- Closed: 20261005-203040
+
+- shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
+	- ID: 2026100508035901
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 654 of 654 on dev at 4007898, and hosted CI passed there.
+	- Severity: Low
+	- Opened: 20261005-080359
+	- Opened by: Backlog round 20261005, found while working 2026100507565201
+	- Related IDs: 2026100507565201, shcl 2026100511212359
+	- Target OS: Any
+	- Steps to reproduce:
+		- Parse `base:` then a tab and `symbols: "a b \x80 c"`, with a real `\x80` byte, under strict mode. `\xff` in the same place does the same.
+		- `"\x80"` and `"a\x80 b"` fail too, so the space has nothing to do with it.
+	- Incorrect behavior: `line 2: E017 unterminated quote in value`. `"\xff a b c"` and `"a b \xe9 c"` parse fine.
+	- Expected behavior: the value parses, or a parse error that names the bad byte. This project then refuses the digit itself.
+	- Reproduced: 20261005, with both the vendored copy and the upstream shcl tree at 0d4c174c. Rough edge, not a silent wrong answer: the config is still refused, only with the wrong message.
+	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here. Check again after the 3.0.0 re-pin.
+	- Progress log:
+		- 20261005: left out of the round. Upstream is still at 0d4c174c with no 3.0.0 tag, and the bug isn't in its backlog yet.
+		- 20261005: filed in shcl's backlog as 2026100511212359, reproduced there at `0d1a491c`. Its `utf8Len` takes any byte that isn't a lead byte as the start of a 4-byte character, so the quote scan can step over the closing quote.
+		- 20261005: fixed upstream in shcl commit d9f38a4a, on its dev branch. Still no 3.0.0 tag, so the copy moves to the dev tip, 2317df56.
+		- 20261005: a bare `tail: ,` or `tail: , ,` still reads as no tail on the new pin, the same as `tail:`. A quoted `","` is still refused as only commas. shcl's backlog has no item for it.
+	- Actual cause: shcl's quote scan, not this project. See the progress log.
+	- Actual fix: `lib/shcl/shcl.go` refreshed from shcl's dev branch, and the pin moved with it. The value now parses, and `Finalize` refuses the bad digit with this project's own invalid UTF-8 message.
+	- Note: the refresh also brings about 15 other upstream changes, mostly kept lines, setters and migration counts. Both `UpgradeConfig` workarounds are still needed on the new pin.
+	- Verified: the new Go test and harness check fail on the old pin with the unterminated quote error and pass on the new one. `go vet`, golangci-lint, `go test ./...`, the browser and reactor builds, the vendor check, and the Config file and Config migration harness sections pass.
+	- Branch: shcl-utf8
+	- Commit: a3a4f3e
+	- Test case: `ErsoOAI` TestConfigInvalidUTF8InQuotes, and harness `ErsoOAv` "config invalid UTF-8 digit mid-quote refused". Both fail before the re-pin and pass after.
+	- Acceptance signoff: Self-closed: reproduced, its tests failed on the old pin and pass on the new one, and the full suite passed.
+	- Closed: 20261005-203040
 
 - Several exported doc comments describe older behavior. (Code review 20261005 item 5)
 	- ID: 2026100516265605
@@ -1296,6 +1253,63 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Erq3i1c` TestFinalizeRefusesInvalidUTF8, `Erq3i2I` TestRuneTableKeysAreDigits over every built-in base, and harness `Erq3i2u` "invalid UTF-8 digit refused" and `Erq3i3e` "config invalid UTF-8 digit refused". All 4 fail before the fix and pass after.
 	- Acceptance signoff: Self-closed. The tests fail before the fix and pass after, and the wider refusal of tail, pad and markers follows the same reason as the digits.
 	- Closed: 20261005-084420
+
+- A command line that can't be parsed exits 1, the same as a failed conversion. (Code review 20261005 item 7)
+	- ID: 2026100516265607
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 654 of 654 on dev at 4007898, and hosted CI passed there.
+	- Priority: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: an unknown flag, a flag after the NUMBER and an extra positional all exit 1, like a bad digit. No arguments at all exits 2. Go's own flag package and most getopt tools use 2 for a usage error, so a script can tell a wrong call from input that won't convert.
+	- Requirements:
+		- Exit 2 for a command line that can't be parsed. 1 stays for a failed conversion.
+		- The help says which is which.
+	- Note: a script that tests for exactly 1 would see 2, so it goes in the changelog.
+	- Origin: 46b7e11 on 2026-07-10 took over flag errors to reword them, and they left by the generic exit 1. Confirmed.
+	- Decisions:
+		- 20261005: exit 2 for any command line that can't be parsed: an unknown flag, a value the flag parser refuses (`--by-index x`), `-123` with no `--`, a flag after the NUMBER, an extra positional, `--get-base-name` or `--show-symbols` with no base, and no arguments at all. A best guess, open to review.
+		- 20261005: an unknown base name stays 1. It's input that won't convert, and nothing in the code treated it as usage.
+		- 20261005: checks that run after parsing also stay 1: `--precision foo`, `--binary` with `--number`, `--lower` with `--upper`, and `--escape-controls` in byte mode. Open to review: they could move to 2 too.
+	- Progress log:
+		- 20261005: the open question is answered by 2026100516265602. `--precision foo`, `--binary` with `--number`, `--lower` with `--upper` and `--escape-controls` in byte mode exit 2 now, and the help and changelog say so. A value the base can't take stays 1.
+	- Actual fix: a `usageError` type exits 2 from `main`. Flag parse errors, the positional checks and the missing query base use it. The help gets an "Exit status" block. The changelog says a script testing for 1 will see 2.
+	- Swept: `cicd/test.bash`, the helper scripts, README and design.md. Nothing expected exit 1 on these cases, so no test changed. The browser module and reactor keep their own codes, as 2026100516265608 covers them.
+	- Verified: 20261005, ErssdDk fails all 7 cases on dev, at exit 1, and passes on the branch. ErssdER passes both ways.
+	- Branch: cli-usage
+	- Commit: 5f318c3
+	- Test case: ErssdDk (7 usage errors exit 2 with an `error:` line), ErssdER (4 failed conversions still exit 1). Eje9ui2 already pins exit 2 with no arguments.
+	- Acceptance signoff: Self-closed: does what the item asked, the changelog warns scripts, and the full suite passed.
+	- Closed: 20261005-203040
+
+- The browser module's errors have no code, where the reactor's do. (Code review 20261005 item 8)
+	- ID: 2026100516265608
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 654 of 654 on dev at 4007898, and hosted CI passed there.
+	- Priority: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: `convertBase.convert()` answers `{ok: false, error: "..."}`. The reactor gives the same failures a stable number from 0 to 7. A page that wants to act on an unknown base has to match English text.
+	- Requirements:
+		- Every failure gets a `code` with the reactor's numbers. The text stays.
+	- Origin: `lib/wasm/main.go` has answered with text only since it was added. Not seen by an earlier round. Confirmed by reading.
+	- Decisions:
+		- The codes and the error-to-code mapping moved to a new internal package, `lib/internal/errcode`, which both modules import. It is Apache-2.0 and needs nothing past Go 1.21. Not in `convertbase`, so the library's API and version stay as they are.
+		- The reactor's numbers and README table are unchanged.
+		- A call that isn't one options object, a precision outside 0 to 100000 and a value that is NaN or infinite get 6, BadArg. Library errors get the code the reactor gives them.
+		- A good result has no `code`, as before.
+	- Done: every failure from `convert()` has `code` beside `error`. `bases()` can't fail. A registry that fails to build still only logs to the console, since there is no result to put a code in. README, the reactor README, both design docs and the demo page JS mention `code`.
+	- Swept: every `fail(` in `lib/wasm/main.go`, and the reactor's `classify`, which now calls the shared mapping.
+	- Verified: Ert2MSr and Ert2MTh fail on dev's browser module and pass on the branch. Ert2MTh also fails when the added cases stop reaching code 6. `make web`, `make reactor`, `go vet`, staticcheck and golangci-lint are clean.
+	- Branch: web-codes
+	- Commit: 3ab36a1
+	- Test case: Ert2MTh (browser answers and codes match the reactor over the parity requests plus added failures, reaching codes 1, 2, 5 and 6), Ert2MSr (every browser failure kind has its code, 3 and 4 included, which the reactor can't be given), Ert2MSA (each code from a real library error, and the reactor README table), Ert30AN (browser answers match the command).
+	- Acceptance signoff: Self-closed: codes match the reactor's for every failure, its tests failed before and pass after, and the full suite passed.
+	- Closed: 20261005-203040
 
 - `SpecOpts` is exported, but only its own package uses it. (Code review 20261005 item 9)
 	- ID: 2026100516265609
