@@ -64,6 +64,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Reactor: a call no longer slows down with the number of regions the host holds open. With 10,000 open, a conversion took over 40 times as long.
 
+- A command line that can't be parsed exits 2 now, where it used to exit 1. That covers an unknown flag or a bad flag value, a flag after the NUMBER, an extra argument, and `--get-base-name` or `--show-symbols` with no base. A failed conversion still exits 1, and no arguments at all still exits 2. A script that tests for exit 1 on these will see 2. `--help` lists the exit codes.
+
+- `--help` shows the base argument that `--get-base-name`, `--show-symbols` and `--show-symbols-0` take, and the pipe form with no NUMBER.
+
 ### Fixed
 
 - A config field indented under another field, such as `decimal:` under `negative:`, was never read, and an empty field above it still switched its marker off. The base was built wrong with no error. It is refused now, naming the base, the field and the line.
@@ -77,6 +81,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - `.` and `-.` converted to `0`. They have no digits, so they get the same `no digits in input` error as an empty value. `.5` and `5.` still read as numbers.
 
 - `make release` and `make clean` emptied whatever directory `DIST` named. They now clear only a directory a build made, and refuse one that holds other files.
+
+- A flag typed after the NUMBER, as in `convert-base-v2 255 --lower`, was reported as an unknown base, and `ff --from hex` as an extra argument. Both now get the hint that flags go before the NUMBER, as `255 16 --lower` already did. With `--to` given, such a flag used to be dropped with only a note.
 
 - The install script stopped with no message when the release had no tag or `checksums.txt` had no line for the download. It now says which.
 

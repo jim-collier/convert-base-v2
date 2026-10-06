@@ -49,14 +49,27 @@ func main() {
 		os.Exit(int(status))
 	}
 	fmt.Fprintf(os.Stderr, "error: %v\n", hintErr(err))
+	var usage usageError
+	if errors.As(err, &usage) {
+		os.Exit(exitUsage)
+	}
 	os.Exit(1)
 }
+
+// A command line that can't be parsed exits 2, as Go's flag package and getopt
+// tools do, so a script can tell a wrong call from input that won't convert.
+const exitUsage = 2
 
 // exitStatus ends the run with that exit code and no message, for a run that
 // has already said what went wrong.
 type exitStatus int
 
 func (s exitStatus) Error() string { return fmt.Sprintf("exit status %d", int(s)) }
+
+// usageError is a command line that can't be parsed. It exits exitUsage.
+type usageError struct{ error }
+
+func (e usageError) Unwrap() error { return e.error }
 
 // hintErr appends the command's own pointers to library errors the library
 // states neutrally (it has no idea flags exist). Every wrap on the way up is
@@ -137,7 +150,7 @@ func run() (err error) {
 	// (exit 2), so help goes to stderr, leaving stdout clean.
 	if len(f.args) == 0 && !c.fromStdin {
 		help(os.Stderr)
-		return exitStatus(2)
+		return exitStatus(exitUsage)
 	}
 	return c.run(stdout, reg)
 }
@@ -163,6 +176,7 @@ type cliFlags struct {
 	asked                  infoAsks
 	fromMarkers, toMarkers sideFlags
 	args                   []string // positionals: NUMBER or "-", then OUTBASE
+	fs                     *flag.FlagSet
 }
 
 func parseFlags(args []string) (*cliFlags, error) {
@@ -177,6 +191,7 @@ func parseFlags(args []string) (*cliFlags, error) {
 	fs := flag.NewFlagSet(os.Args[0], flag.ContinueOnError)
 	fs.SetOutput(io.Discard) // we print our own message
 	fs.Usage = func() {}     // no-op; we print help manually
+	f.fs = fs
 
 	fs.StringVar(&f.fromName, "from", "", "input base name/alias (e.g. 10, hex, 64url); default 10")
 	fs.StringVar(&f.toName, "to", "", "output base name/alias; default 10; also accepted as a positional arg")
@@ -225,7 +240,7 @@ func parseFlags(args []string) (*cliFlags, error) {
 	fs.Var(&f.toMarkers.tail, "to-tail", "tail symbols for a >8-bit output base in binary mode")
 
 	if err := fs.Parse(args); err != nil {
-		return nil, improveFlagError(err)
+		return nil, usageError{improveFlagError(err)}
 	}
 	fs.Visit(func(fl *flag.Flag) {
 		if fl.Name == "config" {
@@ -423,6 +438,11 @@ type conversion struct {
 // planConversion resolves both bases and checks the flags against them. The
 // checks run in a fixed order, so the same mistake always gets the same error.
 func planConversion(reg *convertbase.Registry, f *cliFlags) (*conversion, error) {
+	// A command line that can't be parsed is refused before any note prints.
+	if err := checkPositionals(reg, f); err != nil {
+		return nil, err
+	}
+
 	// --by-index only selects a base for the query flags. Reaching here with it
 	// set means a normal conversion, where it does nothing - say so rather than
 	// silently ignoring it.
@@ -454,10 +474,7 @@ func planConversion(reg *convertbase.Registry, f *cliFlags) (*conversion, error)
 	args := f.args
 	c.fromStdin = (len(args) >= 1 && args[0] == "-") || (len(args) == 0 && !isTerminal(os.Stdin))
 
-	outName, posOut := outputBaseName(reg, f, defaultBase)
-	if err := checkPositionals(args, posOut); err != nil {
-		return nil, err
-	}
+	outName := outputBaseName(reg, f, defaultBase)
 	notePipeIgnored(reg, args, c.fromStdin)
 	if c.to, err = convertbase.ResolveBase(reg, outName, f.toSymbols, f.toMarkers.options()); err != nil {
 		return nil, fmt.Errorf("output base: %w", err)
@@ -494,8 +511,9 @@ func resolveInputBase(reg *convertbase.Registry, f *cliFlags, defaultBase string
 // outputBaseName picks the OUTBASE name: the --to flag wins over the positional
 // (args[1], after NUMBER or "-"), and defaultBase is used if neither is set. It
 // doesn't depend on the number, so the streaming path can be chosen before a
-// byte is read. posOut is the positional OUTBASE, or "".
-func outputBaseName(reg *convertbase.Registry, f *cliFlags, defaultBase string) (name, posOut string) {
+// byte is read.
+func outputBaseName(reg *convertbase.Registry, f *cliFlags, defaultBase string) (name string) {
+	posOut := ""
 	if len(f.args) >= 2 {
 		posOut = f.args[1]
 	}
@@ -521,28 +539,58 @@ func outputBaseName(reg *convertbase.Registry, f *cliFlags, defaultBase string) 
 	case f.toName != "" && posOut != "" && !sameBase(reg, f.toName, posOut):
 		fmt.Fprintf(os.Stderr, "note: --to %q overrides positional output base %q\n", f.toName, posOut)
 	}
-	return name, posOut
+	return name
 }
 
-// checkPositionals refuses anything past NUMBER (or "-") and OUTBASE.
-func checkPositionals(args []string, posOut string) error {
-	expected := 0
-	if len(args) >= 1 {
-		expected = 1 // NUMBER or "-"
+// checkPositionals refuses a flag typed after the NUMBER, and anything past
+// NUMBER (or "-") and OUTBASE. Flag parsing stops at the first non-flag, so a
+// flag after the NUMBER is left here as a positional and was never seen.
+func checkPositionals(reg *convertbase.Registry, f *cliFlags) error {
+	args := f.args
+	if len(args) >= 2 && looksLikeFlag(args[1]) {
+		// A config may name a base "-x"; a real base is never a misplaced flag.
+		if _, err := reg.Lookup(args[1]); err != nil {
+			return flagAfterNumber(f.fs, args[1:])
+		}
 	}
-	if posOut != "" {
-		expected++
-	}
-	if len(args) <= expected {
+	if len(args) <= 2 {
 		return nil
 	}
-	extra := args[expected]
-	// A leftover that looks like a flag means the user put flags after the
-	// NUMBER; flag parsing stops at the first non-flag, so they were never seen.
-	if strings.HasPrefix(extra, "-") && extra != "-" {
-		return fmt.Errorf("flags must come before the NUMBER: move %q ahead of it, e.g. %s %s NUMBER BASE (see --help)", extra, filepath.Base(os.Args[0]), extra)
+	extra := args[2]
+	if looksLikeFlag(extra) {
+		return flagAfterNumber(f.fs, args[2:])
 	}
-	return fmt.Errorf("unexpected extra positional argument: %q (see --help for usage)", extra)
+	return usageError{fmt.Errorf("unexpected extra positional argument: %q (see --help for usage)", extra)}
+}
+
+// looksLikeFlag is "--" and anything after it, or "-" and a letter. "-5" is a
+// negative number, never a flag, so it gets no flag hint.
+func looksLikeFlag(s string) bool {
+	if strings.HasPrefix(s, "--") {
+		return true
+	}
+	return len(s) >= 2 && s[0] == '-' && (s[1] >= 'a' && s[1] <= 'z' || s[1] >= 'A' && s[1] <= 'Z')
+}
+
+// flagAfterNumber names the first misplaced flag in rest, with its value in the
+// example when it takes one.
+func flagAfterNumber(fs *flag.FlagSet, rest []string) error {
+	tok := rest[0]
+	example := tok
+	name, _, hasValue := strings.Cut(strings.TrimLeft(tok, "-"), "=")
+	if fl := fs.Lookup(name); fl != nil && !hasValue && !isBoolFlag(fl) {
+		if len(rest) >= 2 {
+			example += " " + rest[1]
+		} else {
+			example += " VALUE"
+		}
+	}
+	return usageError{fmt.Errorf("flags must come before the NUMBER: move %q ahead of it, e.g. %s %s NUMBER BASE (see --help)", tok, filepath.Base(os.Args[0]), example)}
+}
+
+func isBoolFlag(fl *flag.Flag) bool {
+	b, ok := fl.Value.(interface{ IsBoolFlag() bool })
+	return ok && b.IsBoolFlag()
 }
 
 // notePipeIgnored kills the silent-wrong-output trap: `echo 255 | prog 16` reads
@@ -859,7 +907,7 @@ func selectBase(reg *convertbase.Registry, byIndex int, name string) (*convertba
 		return ordered[byIndex], nil
 	}
 	if name == "" {
-		return nil, errors.New("select a base by name/alias argument or --by-index=N")
+		return nil, usageError{errors.New("select a base by name/alias argument or --by-index=N")}
 	}
 	return reg.Lookup(name)
 }
@@ -1196,9 +1244,12 @@ func printHelp(out io.Writer, reg *convertbase.Registry, configErrs map[string]e
 Usage:
   convert-base-v2 [flags] NUMBER [OUTBASE]
   convert-base-v2 [flags] - [OUTBASE]              # read NUMBER from stdin
-  something | convert-base-v2 [flags] - [OUTBASE]  # read NUMBER from stdin (a
-                                                   # positional NUMBER always wins,
-                                                   # so use - to read the pipe)
+  something | convert-base-v2 [flags]              # read NUMBER from the pipe
+  something | convert-base-v2 [flags] - [OUTBASE]  # same, with OUTBASE as an
+                                                   # argument (a NUMBER argument
+                                                   # always wins over the pipe)
+
+Flags go before the NUMBER.
 
 If --from is unset, input base defaults to 10. If neither --to nor OUTBASE is
 given, output base also defaults to 10.
@@ -1233,14 +1284,16 @@ Conversion mode:
                        Input accepts those and the raw characters, mixed, always.
   --no-newline, -n     Omit trailing newline on text output (like echo -n)
 
-Base info (each prints one value, then exits):
+Base info (print, then exit; BASE is a base name/alias argument):
   --list               List all known bases
   --list-compat        List only the v1/v1b compatibility bases
   --get-index-count    Print how many bases are defined
-  --get-base-name      Print a base's canonical name
-  --show-symbols       Print a base's symbols, concatenated
-  --show-symbols-0     Like --show-symbols but NUL-separated (machine-readable)
-  --by-index N         Select the base by its INDEX column in --list (0-based)
+  --get-base-name BASE Print a base's canonical name
+  --show-symbols BASE  Print a base's symbols, concatenated
+  --show-symbols-0 BASE
+                       Like --show-symbols but NUL-separated (machine-readable)
+  --by-index N         Pick the base by its INDEX column in --list (0-based),
+                       in place of BASE
 
 Other:
   --config FILE        User SHCL config; /etc is always tried too. Written with
@@ -1253,6 +1306,14 @@ Program info (several in one run each print once, in order, then exit):
   --version, -v, -V    Print version and build number
   --about              Print version, copyright, license and project home
   --donate             Print ways to support the project
+
+Exit status:
+  0                    Success
+  1                    The conversion failed, such as an unknown base, a digit
+                       not in the base, or a failed write
+  2                    The command line could not be parsed, such as an unknown
+                       flag, a flag after the NUMBER or an extra argument, or
+                       no NUMBER or BASE was given
 
 `, userConfigPath())
 
@@ -1287,11 +1348,11 @@ Program info (several in one run each print once, in order, then exit):
 	userLoaded := userPath != "" && userPath != etcPath && pathLoaded(reg, userPath)
 	switch {
 	case etcLoaded && userLoaded:
-		fmt.Fprintf(out, "  -> %s takes precedence over %s (and both override built-in).\n", userPath, etcPath)
+		fmt.Fprintf(out, "  -> %s takes precedence over %s (and both over built-in).\n", userPath, etcPath)
 	case etcLoaded:
-		fmt.Fprintf(out, "  -> %s overrides built-in aliases.\n", etcPath)
+		fmt.Fprintf(out, "  -> a name defined in %s takes precedence over built-in.\n", etcPath)
 	case userLoaded:
-		fmt.Fprintf(out, "  -> %s overrides built-in aliases.\n", userPath)
+		fmt.Fprintf(out, "  -> a name defined in %s takes precedence over built-in.\n", userPath)
 	}
 
 	fmt.Fprintln(out, "  (optional user-specified flags)")

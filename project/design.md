@@ -81,13 +81,13 @@ Inside the package:
 
 ### CLI contract
 
-- Usage is `convert-base-v2 [flags] NUMBER [OUTBASE]`. A positional `NUMBER` always wins, so a pipe is read only when the input is `-`.
+- Usage is `convert-base-v2 [flags] NUMBER [OUTBASE]`. A positional `NUMBER` always wins, so a pipe is read only when the input is `-` or there is no `NUMBER` at all. The `-` is needed only to give `OUTBASE` as a positional.
 
 - If `--from` is unset the input base is 10. If neither `--to` nor a positional `OUTBASE` is given, the output base is 10 too. Under `--binary`, an omitted side defaults to `bytes`.
 
 - Conflicting selectors (for example `--to` and a different positional base) do not silently pick one. They emit a note on stderr and follow a documented precedence.
 
-- Query flags (`--list`, `--show-symbols`, and friends) each print one value and exit, so scripts can read the base set from the program itself.
+- Query flags (`--list`, `--show-symbols`, and friends) print and exit, so scripts can read the base set from the program itself. `--get-base-name` and `--show-symbols` take the base as a positional argument, or from `--by-index`, which only picks a base.
 
 - The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` stays one bare line for scripts, such as `v3.1.0 build dbrk8`, or the version alone when the build was not stamped. Only the help reports on the config files, so the others print before any config is read.
 

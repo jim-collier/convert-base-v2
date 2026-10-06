@@ -591,6 +591,26 @@ check EizUJE4 err   "multiple decimals"     -                                   
 check EizUJE5 err   "double negative"       -                                     -- -- --5 16
 ## A decimal marker with no digits on either side is not zero.
 for nd in . -.; do check ErlzAd6 errmsg "no digits: '${nd}'" 'no digits in input' -- --from 10 --to 16 -- "$nd"; done
+## A flag typed after the NUMBER is named as one, not read as OUTBASE or as an
+## extra argument. "-" and a digit is a negative number, so it gets no flag hint,
+## and a config base whose name starts with "-" still works as OUTBASE.
+for fa in "255 --lower" "255 --about" "ff --from hex" "255 16 --lower"; do
+	read -ra faArgs <<<"$fa"
+	check ErssdCS errmsg "flag after number: ${fa}" 'flags must come before' -- "${faArgs[@]}"
+done
+check ErssdD7 errmsg "negative-looking OUTBASE is a base" 'unknown base' -- 255 -5
+printf 'base: dashy\n\taliases: -x\n\tsymbols: A B C D\n##    Format   3\n' >"${CBT_TMP}/dashy.shcl"
+check ErsskLV eq "config base named -x is no flag" CB -- --config "${CBT_TMP}/dashy.shcl" 9 -x
+
+## A command line that can't be parsed exits 2. Input that won't convert exits 1.
+for ua in "--lowr 255 16" "255 --lower" "ff --from hex" "1 2 3" "-123 16" "--by-index x --show-symbols" "--show-symbols"; do
+	read -ra uaArgs <<<"$ua"; _run "${uaArgs[@]}"
+	{ ((_rc == 2)) && [[ "$_err" == error:* ]]; } && _pass ErssdDk "usage error exits 2: ${ua}" || _fail ErssdDk "usage error exits 2: ${ua}" "rc=$_rc err=[$_err]"
+done
+for ca in "255 nope" "255 -5" "--from 2 9" "--from 16 --to 64 --binary FFF"; do
+	read -ra caArgs <<<"$ca"; _run "${caArgs[@]}"
+	((_rc == 1)) && _pass ErssdER "failed conversion exits 1: ${ca}" || _fail ErssdER "failed conversion exits 1: ${ca}" "rc=$_rc err=[$_err]"
+done
 
 ## Conflicting base selectors: still convert, but emit a stderr note (BxZNl-17).
 _run --to 16 255 8
