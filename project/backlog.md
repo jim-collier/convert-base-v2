@@ -37,7 +37,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `--lower` and `--upper` on a base with multi-letter or non-ASCII digits write output the same base can't read back.
 	- ID: 2026100519520001
 	- Type: Bug
-	- Status: Testing
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 661 of 661 on case-readback at d78a437, perf section included, and the command's Go tests pass.
 	- Severity: Low
 	- Opened: 20261005-195200
 	- Opened by: Backlog round 20261005, found while working 2026100519145001
@@ -58,10 +59,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: of the built-in and compatibility bases, only `48ws_compat_v1` changes: it refuses `--upper` now, since its `ʞ` uppercases to a digit it can't read. Every other base is accepted or refused with each flag as before.
 	- Swept: the case flags only exist in the command, and `checkOutputFlags` is the one place they're checked. The browser and reactor builds have none. README, `--examples` and the demo scenario use no case flag on a non-ASCII or multi-letter base.
 	- Branch: case-readback
+	- Commit: d78a437
 	- Test case: `ErvpHV2` "case flag refused where the base can't read the digit back": a multi-letter base and a Greek base on argv, a Greek base piped, and `s ſ` with `--upper`. Failed all 4 before the fix and passes after.
 		- `ErvpHVf` "case flag kept where every recased digit reads back": uncased multi-letter, CJK, and CJK beside ASCII letters. Passes before and after.
-		- `Ervq3zH` TestCaseFlagOutputReadsBack: every built-in base and 6 custom ones, both flags. Where a flag is allowed, all the digits recased and run together read back as the same digits, on the number and byte paths. It also pins which custom ones are refused. Failed with the new check turned off, on `48ws_compat_v1` and 5 custom cases, and passes with it.
+		- `Ervq3zH` TestCaseFlagOutputReadsBack: every built-in base and 6 custom ones, both flags. Where a flag is allowed, all the digits recased and run together read back as the same digits, on the number and byte paths. It also pins which custom ones are refused. Failed with the new check turned off, on `48ws_compat_v1` and the 4 cased custom bases, and passes with it.
 		- Changed expectation: `Ersmg3G` greek-lower and `ErsqAZ3` greek-pad now expect the refusal, with a comment giving this ID. The other cases in both loops are as they were.
+	- Acceptance signoff: Self-closed: the fix does what the decision asked, its tests failed before and pass after, and the full suite passed.
+	- Closed: 20261006-075220
 
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
