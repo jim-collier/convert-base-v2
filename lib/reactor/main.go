@@ -28,24 +28,24 @@
 package main
 
 import (
-	"errors"
 	"strconv"
 	"unsafe"
 
 	"github.com/jim-collier/convert-base-v2/lib/convertbase"
+	"github.com/jim-collier/convert-base-v2/lib/internal/errcode"
 )
 
-// Stable numeric error codes, part of the ABI contract. Add at the end only;
-// hosts map these to their own handling and a renumber would break them.
+// Stable numeric error codes, part of the ABI contract. They live in errcode
+// so the browser module reports the same numbers.
 const (
-	errNone          = 0
-	errUnknownBase   = 1 // base name or alias resolves to nothing
-	errMissingMarker = 2 // output base lacks a sign or decimal marker the value needs
-	errMarkerDefault = 3 // default marker collides with a digit
-	errRetiredToken  = 4 // symbol spec carried a retired neg=/dec=/pad= token
-	errBadInput      = 5 // any other conversion or parse failure
-	errBadArg        = 6 // bad pointer, length, size, or precision from the host
-	errInternal      = 7 // registry failed to initialize
+	errNone          = errcode.None
+	errUnknownBase   = errcode.UnknownBase
+	errMissingMarker = errcode.MissingMarker
+	errMarkerDefault = errcode.MarkerDefault
+	errRetiredToken  = errcode.RetiredToken
+	errBadInput      = errcode.BadInput
+	errBadArg        = errcode.BadArg
+	errInternal      = errcode.Internal
 )
 
 // Fractional digits cost quadratic time and the module runs synchronously
@@ -89,23 +89,7 @@ func setErr(code int32, msg string) {
 }
 
 // classify maps the library's typed errors onto the ABI codes.
-func classify(err error) int32 {
-	var ub *convertbase.UnknownBaseError
-	var mm *convertbase.MissingMarkerError
-	var md *convertbase.MarkerDefaultError
-	var rt *convertbase.RetiredTokenError
-	switch {
-	case errors.As(err, &ub):
-		return errUnknownBase
-	case errors.As(err, &mm):
-		return errMissingMarker
-	case errors.As(err, &md):
-		return errMarkerDefault
-	case errors.As(err, &rt):
-		return errRetiredToken
-	}
-	return errBadInput
-}
+func classify(err error) int32 { return errcode.Of(err) }
 
 func ready() bool {
 	if regErr != nil {

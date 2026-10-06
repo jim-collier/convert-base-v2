@@ -22,6 +22,7 @@ import (
 	"syscall/js"
 
 	"github.com/jim-collier/convert-base-v2/lib/convertbase"
+	"github.com/jim-collier/convert-base-v2/lib/internal/errcode"
 )
 
 // The command and the reactor cap precision at the same value.
@@ -46,21 +47,23 @@ func main() {
 }
 
 // convert takes one options object and always answers with one, rather than
-// throwing: a bad base name is ordinary user input here, not an exception.
+// throwing: a bad base name is ordinary user input here, not an exception. A
+// failure has the reactor's error code beside its text, so a page can act on it
+// without matching English.
 func convert(reg *convertbase.Registry) func(js.Value, []js.Value) any {
 	return func(_ js.Value, args []js.Value) any {
 		if len(args) != 1 || args[0].Type() != js.TypeObject {
-			return fail("convert() takes one options object")
+			return fail(errcode.BadArg, "convert() takes one options object")
 		}
 		opt := args[0]
 
 		from, err := convertbase.ResolveBase(reg, str(opt, "from"), str(opt, "fromSymbols"), nil)
 		if err != nil {
-			return fail(err.Error())
+			return failErr(err)
 		}
 		to, err := convertbase.ResolveBase(reg, str(opt, "to"), str(opt, "toSymbols"), nil)
 		if err != nil {
-			return fail(err.Error())
+			return failErr(err)
 		}
 
 		precision := -1 // negative means auto, same default the command uses
@@ -70,7 +73,7 @@ func convert(reg *convertbase.Registry) func(js.Value, []js.Value) any {
 			// has no Ctrl-C. The check also catches NaN and infinities.
 			f := p.Float()
 			if f != math.Trunc(f) || f < 0 || f > maxPrecision {
-				return fail("precision must be a whole number from 0 to " + strconv.Itoa(maxPrecision))
+				return fail(errcode.BadArg, "precision must be a whole number from 0 to "+strconv.Itoa(maxPrecision))
 			}
 			precision = int(f)
 		}
@@ -83,14 +86,14 @@ func convert(reg *convertbase.Registry) func(js.Value, []js.Value) any {
 			// reported as an unrecognized digit.
 			f := v.Float()
 			if math.IsNaN(f) || math.IsInf(f, 0) {
-				return fail("value must be a finite number, or a string")
+				return fail(errcode.BadArg, "value must be a finite number, or a string")
 			}
 			value = strconv.FormatFloat(f, 'f', -1, 64)
 		}
 
 		out, err := convertbase.Convert(value, from, to, precision)
 		if err != nil {
-			return fail(err.Error())
+			return failErr(err)
 		}
 		return map[string]any{"ok": true, "value": out}
 	}
@@ -127,4 +130,8 @@ func str(o js.Value, key string) string {
 	return ""
 }
 
-func fail(msg string) any { return map[string]any{"ok": false, "error": msg} }
+func fail(code int32, msg string) any {
+	return map[string]any{"ok": false, "error": msg, "code": int(code)}
+}
+
+func failErr(err error) any { return fail(errcode.Of(err), err.Error()) }

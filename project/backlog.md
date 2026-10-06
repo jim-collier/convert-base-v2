@@ -248,6 +248,32 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: a3a4f3e
 	- Test case: `ErsoOAI` TestConfigInvalidUTF8InQuotes, and harness `ErsoOAv` "config invalid UTF-8 digit mid-quote refused". Both fail before the re-pin and pass after.
 
+- The browser module's errors have no code, where the reactor's do. (Code review 20261005 item 8)
+	- ID: 2026100516265608
+	- Type: Enhancement
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes, a full `cicd/test.bash`. The Reactor, Browser and Frontend parity sections passed, 45 of 45. Then signoff on the README wording.
+	- Priority: Low
+	- Opened: 20261005-162656
+	- Opened by: Code review 20261005
+	- Target OS: Any
+	- Note: `convertBase.convert()` answers `{ok: false, error: "..."}`. The reactor gives the same failures a stable number from 0 to 7. A page that wants to act on an unknown base has to match English text.
+	- Requirements:
+		- Every failure gets a `code` with the reactor's numbers. The text stays.
+	- Origin: `lib/wasm/main.go` has answered with text only since it was added. Not seen by an earlier round. Confirmed by reading.
+	- Decisions:
+		- The codes and the error-to-code mapping moved to a new internal package, `lib/internal/errcode`, which both modules import. It is Apache-2.0 and needs nothing past Go 1.21. Not in `convertbase`, so the library's API and version stay as they are.
+		- The reactor's numbers and README table are unchanged.
+		- A call that isn't one options object, a precision outside 0 to 100000 and a value that is NaN or infinite get 6, BadArg. Library errors get the code the reactor gives them.
+		- A good result has no `code`, as before.
+	- Done: every failure from `convert()` has `code` beside `error`. `bases()` can't fail. A registry that fails to build still only logs to the console, since there is no result to put a code in. README, the reactor README, both design docs and the demo page JS mention `code`.
+	- Swept: every `fail(` in `lib/wasm/main.go`, and the reactor's `classify`, which now calls the shared mapping.
+	- Verified: Ert2MSr and Ert2MTh fail on dev's browser module and pass on the branch. Ert2MTh also fails when the added cases stop reaching code 6. `make web`, `make reactor`, `go vet`, staticcheck and golangci-lint are clean.
+	- Branch: web-codes
+	- Commit: 3ab36a1
+	- Test case: Ert2MTh (browser answers and codes match the reactor over the parity requests plus added failures, reaching codes 1, 2, 5 and 6), Ert2MSr (every browser failure kind has its code, 3 and 4 included, which the reactor can't be given), Ert2MSA (each code from a real library error, and the reactor README table), Ert30AN (browser answers match the command).
+	- Acceptance signoff:
+
 - `--lower` and `--upper` on a base with multi-letter or non-ASCII digits write output the same base can't read back.
 	- ID: 2026100519520001
 	- Type: Bug
@@ -278,19 +304,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261005: left out of the round. It stays a fix-when-touched rule, since a one-pass restyle of every script would be a big diff for little gain.
 	- Origin: several commits. Directive gap, filed against the 2026-10-04 directives.
-
-- The browser module's errors have no code, where the reactor's do. (Code review 20261005 item 8)
-	- ID: 2026100516265608
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Low
-	- Opened: 20261005-162656
-	- Opened by: Code review 20261005
-	- Target OS: Any
-	- Note: `convertBase.convert()` answers `{ok: false, error: "..."}`. The reactor gives the same failures a stable number from 0 to 7. A page that wants to act on an unknown base has to match English text.
-	- Requirements:
-		- Every failure gets a `code` with the reactor's numbers. The text stays.
-	- Origin: `lib/wasm/main.go` has answered with text only since it was added. Not seen by an earlier round. Confirmed by reading.
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002

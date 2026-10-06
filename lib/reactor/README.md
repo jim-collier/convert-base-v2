@@ -58,6 +58,8 @@ Pairs the library streams natively, which is the power-of-two bases including th
 
 Stable and part of the contract: new codes may be added at the end, existing ones never renumber.
 
+The browser module answers a failed `convertBase.convert()` with the same numbers in its `code` field. There, `BadArg` means a call that isn't one options object, a precision that isn't a whole number from 0 to 100000, or a value that is a number but not a finite one.
+
 | Code | Name | Meaning |
 |---|---|---|
 | 0 | `None` | Success. |

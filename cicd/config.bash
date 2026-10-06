@@ -91,7 +91,7 @@ LINT_PROBE=(golangci-lint version)
 LINT_CMD=(golangci-lint run --concurrency="${CPU_CAP:-1}" ./...)
 STATICCHECK_PROBE=(staticcheck -version)
 ## Named packages, not ./..., so the vendored shcl copy stays out of it.
-STATICCHECK_CMD=(staticcheck ./cmd/convert-base-v2 ./convertbase)
+STATICCHECK_CMD=(staticcheck ./cmd/convert-base-v2 ./convertbase ./internal/errcode)
 
 ## Stage 3 also lints the Bash and Python, from the repo root, probe-gated the
 ## same way. shellcheck takes every tracked Bash file the engine finds, less the
