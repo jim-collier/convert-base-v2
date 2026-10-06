@@ -34,6 +34,36 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
+	- ID: 2026100508035901
+	- Type: Bug
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes. A full `cicd/test.bash` run on the new shcl pin. The config sections, `go test ./...` and the vendor check already pass.
+	- Severity: Low
+	- Opened: 20261005-080359
+	- Opened by: Backlog round 20261005, found while working 2026100507565201
+	- Related IDs: 2026100507565201, shcl 2026100511212359
+	- Target OS: Any
+	- Steps to reproduce:
+		- Parse `base:` then a tab and `symbols: "a b \x80 c"`, with a real `\x80` byte, under strict mode. `\xff` in the same place does the same.
+		- `"\x80"` and `"a\x80 b"` fail too, so the space has nothing to do with it.
+	- Incorrect behavior: `line 2: E017 unterminated quote in value`. `"\xff a b c"` and `"a b \xe9 c"` parse fine.
+	- Expected behavior: the value parses, or a parse error that names the bad byte. This project then refuses the digit itself.
+	- Reproduced: 20261005, with both the vendored copy and the upstream shcl tree at 0d4c174c. Rough edge, not a silent wrong answer: the config is still refused, only with the wrong message.
+	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here. Check again after the 3.0.0 re-pin.
+	- Progress log:
+		- 20261005: left out of the round. Upstream is still at 0d4c174c with no 3.0.0 tag, and the bug isn't in its backlog yet.
+		- 20261005: filed in shcl's backlog as 2026100511212359, reproduced there at `0d1a491c`. Its `utf8Len` takes any byte that isn't a lead byte as the start of a 4-byte character, so the quote scan can step over the closing quote.
+		- 20261005: fixed upstream in shcl commit d9f38a4a, on its dev branch. Still no 3.0.0 tag, so the copy moves to the dev tip, 2317df56.
+		- 20261005: a bare `tail: ,` or `tail: , ,` still reads as no tail on the new pin, the same as `tail:`. A quoted `","` is still refused as only commas. shcl's backlog has no item for it.
+	- Actual cause: shcl's quote scan, not this project. See the progress log.
+	- Actual fix: `lib/shcl/shcl.go` refreshed from shcl's dev branch, and the pin moved with it. The value now parses, and `Finalize` refuses the bad digit with this project's own invalid UTF-8 message.
+	- Note: the refresh also brings about 15 other upstream changes, mostly kept lines, setters and migration counts. Both `UpgradeConfig` workarounds are still needed on the new pin.
+	- Verified: the new Go test and harness check fail on the old pin with the unterminated quote error and pass on the new one. `go vet`, golangci-lint, `go test ./...`, the browser and reactor builds, the vendor check, and the Config file and Config migration harness sections pass.
+	- Branch: shcl-utf8
+	- Commit: a3a4f3e
+	- Test case: `ErsoOAI` TestConfigInvalidUTF8InQuotes, and harness `ErsoOAv` "config invalid UTF-8 digit mid-quote refused". Both fail before the re-pin and pass after.
+
 - The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
 	- ID: 2026100516265606
 	- Type: Enhancement
@@ -50,26 +80,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- This joins the dispatch only. The streaming and buffered paths stay separate, per BxZNl-25.
 	- Note: the library is still v0, so the two current calls can be unexported in the same change, or kept as building blocks.
 	- Origin: a82807d, the library split, exported the command's dispatch pieces, and the reactor's `stream.go` copied their order. Not seen by an earlier round. Confirmed by reading.
-
-- shcl: a quoted config value holding an invalid UTF-8 byte can fail as an unterminated quote.
-	- ID: 2026100508035901
-	- Type: Bug
-	- Status: Queued
-	- Severity: Low
-	- Opened: 20261005-080359
-	- Opened by: Backlog round 20261005, found while working 2026100507565201
-	- Related IDs: 2026100507565201, shcl 2026100511212359
-	- Target OS: Any
-	- Steps to reproduce:
-		- Parse `base:` then a tab and `symbols: "a b \x80 c"`, with a real `\x80` byte, under strict mode. `\xff` in the same place does the same.
-		- `"\x80"` and `"a\x80 b"` fail too, so the space has nothing to do with it.
-	- Incorrect behavior: `line 2: E017 unterminated quote in value`. `"\xff a b c"` and `"a b \xe9 c"` parse fine.
-	- Expected behavior: the value parses, or a parse error that names the bad byte. This project then refuses the digit itself.
-	- Reproduced: 20261005, with both the vendored copy and the upstream shcl tree at 0d4c174c. Rough edge, not a silent wrong answer: the config is still refused, only with the wrong message.
-	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here. Check again after the 3.0.0 re-pin.
-	- Progress log:
-		- 20261005: left out of the round. Upstream is still at 0d4c174c with no 3.0.0 tag, and the bug isn't in its backlog yet.
-		- 20261005: filed in shcl's backlog as 2026100511212359, reproduced there at `0d1a491c`. Its `utf8Len` takes any byte that isn't a lead byte as the start of a 4-byte character, so the quote scan can step over the closing quote.
 
 - A flag that does nothing in the current mode gets an error, a note, or nothing at all. (Code review 20261005 item 2)
 	- ID: 2026100516265602

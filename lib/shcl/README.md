@@ -4,7 +4,7 @@
 
 - Upstream: <https://github.com/yottacore/shcl>, `source/go/shcl.go`
 
-- Pinned to commit `f8e27a22` on upstream's `dev` branch, an unreleased 3.0 build. This is on purpose until 3.0.0 is tagged, and then the pin moves to that tag.
+- Pinned to commit `2317df56` on upstream's `dev` branch, an unreleased 3.0 build. This is on purpose until 3.0.0 is tagged, and then the pin moves to that tag.
 
 The pin lives in `cicd/vendor-pins.env`, and `cicd/utility/check-vendor.bash` checks it on every pipeline run: the copy must still be byte-identical to the pinned tag or commit, a commit pin prints a pre-release notice, and a newer upstream release prints a notice. An edit here would otherwise go unnoticed, since lint skips this directory and a config parser that reads an alphabet slightly wrong still produces output that looks perfectly fine.
 

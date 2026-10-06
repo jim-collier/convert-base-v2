@@ -376,16 +376,33 @@ type depthEnt struct {
 // holds those comments' indents with their depths, innermost last. A field
 // line kept for its value or name goes by the same rule over held, the kept
 // lines before it: it holds its level on a reload, so it goes deeper only
-// under one of those, which a reload holds open for it. A misplaced line,
-// which has its own indent, sits at the place's level and leaves both
-// alone.
+// under one of those, which a reload holds open for it. That line then takes
+// its place in chain at its own level, so a comment nests under it too
+// (2026100218185700). A misplaced line, which has its own indent, sits at the
+// place's level and leaves both alone.
 func commentDepth(chain, held *[]depthEnt, base, text, indent string) int {
 	if strings.HasPrefix(text, " ") || strings.HasPrefix(text, "\t") {
 		return 0
 	}
-	if !strings.HasPrefix(text, "#") {
-		chain = held
+	if strings.HasPrefix(text, "#") {
+		return chainDepth(chain, base, indent)
 	}
+	depth := chainDepth(held, base, indent)
+	// It is written at its own level, so on a reload nothing at that level or
+	// deeper is left for a comment after it to nest under.
+	for len(*chain) > 0 {
+		top := (*chain)[len(*chain)-1]
+		if top.depth < depth && len(indent) > len(top.indent) && strings.HasPrefix(indent, top.indent) {
+			break
+		}
+		*chain = (*chain)[:len(*chain)-1]
+	}
+	*chain = append(*chain, depthEnt{indent: indent, depth: depth})
+	return depth
+}
+
+// chainDepth is commentDepth over one chain.
+func chainDepth(chain *[]depthEnt, base, indent string) int {
 	if !(len(indent) > len(base) && strings.HasPrefix(indent, base)) {
 		*chain = append((*chain)[:0], depthEnt{indent: indent})
 		return 0
@@ -1088,20 +1105,28 @@ func skipWsp(s string, pos int) int {
 	return pos
 }
 
-// utf8Len is the byte length of the UTF-8 character that starts with b. The
-// scan only ever compares against ASCII structure characters, which UTF-8
-// guarantees cannot appear inside a multibyte sequence, so it advances by
-// whole characters and every offset it records is a character boundary.
-func utf8Len(b byte) int {
-	switch {
-	case b <= 0x7F:
-		return 1
+// utf8Len is the byte length of the UTF-8 character at s[i]. The scan only
+// ever compares against ASCII structure characters, which UTF-8 guarantees
+// cannot appear inside a multibyte sequence, so it advances by whole
+// characters and every offset it records is a character boundary. A byte that
+// starts nothing, or a sequence cut short, steps only over the continuation
+// bytes really there, so it never hides a quote or runs past the end
+// (2026100511212359).
+func utf8Len(s string, i int) int {
+	want := 1
+	switch b := s[i]; {
 	case b >= 0xC0 && b <= 0xDF:
-		return 2
+		want = 2
 	case b >= 0xE0 && b <= 0xEF:
-		return 3
+		want = 3
+	case b >= 0xF0 && b <= 0xF7:
+		want = 4
 	}
-	return 4
+	n := 1
+	for n < want && i+n < len(s) && s[i+n]&0xC0 == 0x80 {
+		n++
+	}
+	return n
 }
 
 // quoteClose is the offset of the quote that closes the one at pos, or -1.
@@ -1111,13 +1136,13 @@ func quoteClose(s string, pos int, rules Rules) int {
 	i := pos + 1
 	for i < len(s) {
 		if escapes && s[i] == '\\' && i+1 < len(s) {
-			i += 1 + utf8Len(s[i+1])
+			i += 1 + utf8Len(s, i+1)
 			continue
 		}
 		if s[i] == q {
 			return i
 		}
-		i += utf8Len(s[i])
+		i += utf8Len(s, i)
 	}
 	return -1
 }
@@ -1187,14 +1212,14 @@ func scanPiece(s string, pos int, term byte, rules Rules, comments bool) (Piece,
 	for pos < len(s) {
 		b := s[pos]
 		if shield && b == '\\' && pos+1 < len(s) {
-			pos += 1 + utf8Len(s[pos+1])
+			pos += 1 + utf8Len(s, pos+1)
 			contentEnd = clamp(pos)
 			continue
 		}
 		if b == term || (comments && commentAt(s, pos)) {
 			break
 		}
-		pos += utf8Len(b)
+		pos += utf8Len(s, pos)
 		if !isWspByte(b) {
 			contentEnd = clamp(pos)
 		}
@@ -1970,6 +1995,18 @@ func slotRemove(m map[uint64]slot, h uint64, idx int) {
 	}
 }
 
+// childFence is the fence a line opens under the field above it, read as a
+// value.
+func childFence(rest string, tok *Tokens) (ch byte, length int, info string, ok bool) {
+	TokenizeValue(rest, 0, RulesCurrent, tok)
+	// A capped scan zeroed the value, and a fence is told by its leading run
+	// alone.
+	if tok.Capped {
+		return fenceOpen(rest)
+	}
+	return fenceOpen(rest[tok.Value[0]:tok.Value[1]])
+}
+
 // fenceOpen matches an opening fence: a run of >=3 backticks or tildes, then
 // an optional info-string.
 func fenceOpen(rest string) (ch byte, length int, info string, ok bool) {
@@ -2053,6 +2090,13 @@ const FormatLine = "##    Format   3"
 // `##    Schema   ./app.schema.shcl`.
 const SchemaLineHead = "##    Schema   "
 
+// The info block's first two text lines. SetBanner finds an old block by the
+// first, which no release has worded differently.
+const (
+	bannerTitle = "## This config file format is SHCL."
+	bannerName  = "## \"Simple Hierarchical Config Language\""
+)
+
 // MigratedLine is written under FormatLine on a file Migrate actually changed.
 // It is a note for whoever opens the file; nothing reads it back.
 const MigratedLine = "##    Migrated from SHCL 2.x."
@@ -2097,86 +2141,128 @@ func FormatVersion(text string) (int, bool) {
 // caller's to resolve, from the config file's directory.
 func SchemaRef(text string) (string, bool) {
 	text = strings.TrimPrefix(text, "\ufeff")
-	var tok Tokens
-	var fence openFence
-	dry := migrating{fromV2: true}
+	// The Schema line is new in this format, so the blocks are the parser's.
+	lines := newRawLines(RulesCurrent)
 	for _, line := range strings.Split(text, "\n") {
-		body := strings.TrimRight(line, "\r")
-		if fence.open {
-			if isFenceClose(body, fence.ch, fence.length) {
-				fence.open = false
-			}
+		rest, ok := lines.step(line)
+		if !ok {
 			continue
 		}
-		rest := trimEndWS(body[len(leadingWS(body)):])
 		if r, ok := strings.CutPrefix(rest, SchemaLineHead); ok {
 			if r = trimWsp(r); r != "" {
 				return r, true
 			}
-			continue
 		}
-		trackFence(rest, &tok, &fence, &dry)
 	}
 	return "", false
 }
 
-// trackFence notes the raw block a line opens, the way the rewrite does. Only
-// a line with a run of three backticks or tildes can open one, so the rest
-// skip the tokenizer.
-func trackFence(rest string, tok *Tokens, fence *openFence, dry *migrating) {
-	if strings.Contains(rest, "```") || strings.Contains(rest, "~~~") {
-		migrateLine(rest, tok, fence, dry)
+// rawLines walks a document's lines and tells raw-body content from the rest,
+// the way one rule set reads the file: the current rules find a block where
+// the parser does, and the 2.x rules where the rewrite does.
+type rawLines struct {
+	rules Rules
+	tok   Tokens
+	fence openFence
+	// Only the blocks a line opens are wanted, not what the rewrite counts.
+	dry migrating
+}
+
+func newRawLines(rules Rules) *rawLines {
+	return &rawLines{rules: rules, dry: migrating{fromV2: true}}
+}
+
+// step reads the next line. ok is false when it is part of a raw block,
+// fences included; otherwise rest is its text past the indent.
+func (w *rawLines) step(line string) (rest string, ok bool) {
+	body := strings.TrimRight(line, "\r")
+	if w.fence.open {
+		if isFenceClose(body, w.fence.ch, w.fence.length) {
+			w.fence.open = false
+		}
+		return "", false
 	}
+	rest = trimEndWS(body[len(leadingWS(body)):])
+	// Only a line with a run of three backticks or tildes can open a block,
+	// so the rest skip the tokenizer.
+	if strings.Contains(rest, "```") || strings.Contains(rest, "~~~") {
+		if w.rules == RulesCurrent {
+			w.fence = opensRaw(rest, &w.tok)
+		} else {
+			migrateLine(rest, &w.tok, &w.fence, &w.dry)
+		}
+	}
+	return rest, true
+}
+
+// opensRaw is the raw block a line opens under the current rules: a fence
+// line under a field, or a field line whose value is a fence, read as the
+// parser reads them. A line refused for where it sits or for its text still
+// takes its body.
+func opensRaw(rest string, tok *Tokens) openFence {
+	rest = strings.TrimLeftFunc(rest, isWsp)
+	var ch byte
+	var length int
+	var ok bool
+	switch {
+	case rest[0] == '`' || rest[0] == '~':
+		ch, length, _, ok = childFence(rest, tok)
+	case rest[0] == '#' || rest[0] == '*':
+	default:
+		Tokenize(rest, ':', false, RulesCurrent, tok)
+		ch, length, _, ok = lineFence(tok, rest)
+	}
+	return openFence{ch: ch, length: length, open: ok}
 }
 
 // formatLineVersion is FormatVersion on text with the BOM already off. Digits
 // that do not fit 32 bits are not a 2.x file either, so they read as this
 // major and there is nothing to migrate.
 //
-// Raw bodies are skipped exactly where the rewrite skips them, by walking the
-// lines through the same migrateLine. A Format line pasted into a block is
-// that block's content, and taking it as the file's would rewrite a current
-// file, or leave an old one alone. A file naming this format on any line has
-// nothing to migrate, so the highest line decides: the stamp Migrate adds comes
-// after an older one, and the next run has to see it.
+// A Format line pasted into a raw body is that block's content, and taking it
+// as the file's would rewrite a current file, or leave an old one alone. Where
+// the blocks are turns on the rules the file was written under, which is what
+// the line itself says: a line naming this format counts outside the blocks
+// the parser finds, and an older one outside the blocks the rewrite skips. The
+// two differ on a single-quoted name ending in a backslash. A file naming this
+// format on any line has nothing to migrate, so the highest line decides: the
+// stamp Migrate adds comes after an older one, and the next run has to see it.
 func formatLineVersion(text string) (int, bool) {
-	var tok Tokens
-	var fence openFence
-	// Only the blocks a line opens are wanted here, not what it counts.
-	dry := migrating{fromV2: true}
+	now := newRawLines(RulesCurrent)
+	then := newRawLines(RulesV2)
 	found, has := 0, false
 	for _, line := range strings.Split(text, "\n") {
-		body := strings.TrimRight(line, "\r")
-		if fence.open {
-			if isFenceClose(body, fence.ch, fence.length) {
-				fence.open = false
-			}
+		current, inNow := now.step(line)
+		old, inThen := then.step(line)
+		rest := current
+		if !inNow {
+			rest = old
+		}
+		n, ok := strings.CutPrefix(rest, FormatLineHead)
+		if !(inNow || inThen) || !ok || n == "" {
 			continue
 		}
-		rest := trimEndWS(body[len(leadingWS(body)):])
-		if n, ok := strings.CutPrefix(rest, FormatLineHead); ok && n != "" {
-			digits := true
-			for i := 0; i < len(n); i++ {
-				if n[i] < '0' || n[i] > '9' {
-					digits = false
-					break
-				}
-			}
-			if digits {
-				v, err := strconv.Atoi(n)
-				if err != nil || v > math.MaxUint32 {
-					return FormatMajor, true
-				}
-				if v >= FormatMajor {
-					return v, true
-				}
-				if !has || v > found {
-					found, has = v, true
-				}
-				continue
+		digits := true
+		for i := 0; i < len(n); i++ {
+			if n[i] < '0' || n[i] > '9' {
+				digits = false
+				break
 			}
 		}
-		trackFence(rest, &tok, &fence, &dry)
+		if !digits {
+			continue
+		}
+		v, err := strconv.Atoi(n)
+		if err != nil || v > math.MaxUint32 {
+			v = FormatMajor
+		}
+		if v >= FormatMajor {
+			if inNow {
+				return v, true
+			}
+		} else if inThen && (!has || v > found) {
+			found, has = v, true
+		}
 	}
 	return found, has
 }
@@ -2242,10 +2328,15 @@ func migrateText(text string, fromV2, stamp bool) Migration {
 	var tok Tokens
 	var fence openFence
 	changed := false
+	// The output as the parser will read it, for where its raw blocks are.
+	now := newRawLines(RulesCurrent)
+	split := false
 	for i, line := range strings.Split(text, "\n") {
 		if i > 0 {
 			out.WriteByte('\n')
 		}
+		start := out.Len()
+		rawThen := fence.open
 		body := strings.TrimRight(line, "\r")
 		cr := line[len(body):]
 		if fence.open {
@@ -2253,26 +2344,39 @@ func migrateText(text string, fromV2, stamp bool) Migration {
 				fence.open = false
 			}
 			out.WriteString(line)
-			continue
+		} else {
+			indent := leadingWS(body)
+			restFull := body[len(indent):]
+			rest := trimEndWS(restFull)
+			// lost counts lines, and one line can lose several values.
+			lostBefore := st.lost
+			migrated := migrateLine(rest, &tok, &fence, &st)
+			if st.lost > lostBefore {
+				st.lost = lostBefore + 1
+			}
+			if migrated != rest {
+				changed = true
+			}
+			out.WriteString(indent)
+			out.WriteString(migrated)
+			out.WriteString(restFull[len(rest):])
+			out.WriteString(cr)
 		}
-		indent := leadingWS(body)
-		restFull := body[len(indent):]
-		rest := trimEndWS(restFull)
-		migrated := migrateLine(rest, &tok, &fence, &st)
-		if migrated != rest {
-			changed = true
+		// Lines one rule set reads as a raw body and the other as fields are
+		// one more thing that reads two ways, counted once per run of them.
+		_, outside := now.step(out.String()[start:])
+		differs := !outside != rawThen
+		if differs && !split && !st.fromV2 {
+			st.ambiguous++
 		}
-		out.WriteString(indent)
-		out.WriteString(migrated)
-		out.WriteString(restFull[len(rest):])
-		out.WriteString(cr)
+		split = differs
 	}
 	// Stamping a file whose ambiguous pieces were left alone would claim a
 	// migration that did not finish, and the next run would then skip it. A
 	// document that never closes its raw block has nowhere to put the line
-	// either: appended, it would be another line of the block's content. The
-	// lines end the way most of the file's do.
-	if stamp && st.ambiguous == 0 && !fence.open {
+	// either, under either rule set: appended, it would be another line of the
+	// block's content. The lines end the way most of the file's do.
+	if stamp && st.ambiguous == 0 && !fence.open && !now.fence.open {
 		eol := majorityEol(text)
 		s := out.String()
 		if s != "" && !strings.HasSuffix(s, "\n") {
@@ -3643,8 +3747,8 @@ func (p *parser) givePending(node int, indent string, count int, inside bool) {
 // arm that skips one comes through here, so a skipped line whose value opens a
 // raw block takes the body with it: read as lines, the body would bind or be
 // refused line by line, and its closing fence would open a block that runs to
-// the end of the file. A line whose path did not parse has no value to read,
-// so it goes alone.
+// the end of the file. A line whose path did not parse takes it too, when a
+// fence follows its colon (lineFence).
 func (p *parser) skipFieldLine(lines []string, i int, indent string, tok *Tokens, rest string) int {
 	if ch, length, info, ok := lineFence(tok, rest); ok {
 		_, next := p.consumeRaw(lines, i+1, i+1, indent, ch, length, info)
@@ -3653,10 +3757,65 @@ func (p *parser) skipFieldLine(lines []string, i int, indent string, tok *Tokens
 	return i + 1
 }
 
+// keepBody is skipFieldLine for a line the refusal just kept: the body is kept
+// too, on the end of the line's text, so a save writes it back under its line
+// and the load still holds one kept line for it. As in a field's block, the
+// closing fence's indent comes off each body line, and the body goes one level
+// under the line when it is written. A block that never closed gets its
+// closing fence, or whatever a save writes after it would read as its body.
+func (p *parser) keepBody(lines []string, i int, indent string, tok *Tokens, rest string) int {
+	ch, length, info, ok := lineFence(tok, rest)
+	if !ok {
+		return i + 1
+	}
+	_, next := p.consumeRaw(lines, i+1, i+1, indent, ch, length, info)
+	closed := next > i+1 && isFenceClose(lines[next-1], ch, length)
+	body, nest, closer := lines[i+1:next], indent, strings.Repeat(string(ch), length)
+	if closed {
+		fenceLine := lines[next-1]
+		body, nest, closer = lines[i+1:next-1], leadingWS(fenceLine), strings.Trim(fenceLine, " \t")
+	}
+	if len(p.pending) == 0 {
+		return next
+	}
+	last := &p.pending[len(p.pending)-1]
+	var b strings.Builder
+	b.WriteString(last.text)
+	for _, l := range body {
+		b.WriteByte('\n')
+		b.WriteString(stripCommon(l, nest))
+	}
+	b.WriteByte('\n')
+	b.WriteString(closer)
+	last.text = b.String()
+	if next > i+1 {
+		p.ends = append(p.ends, [2]int{i + 1, next})
+	}
+	return next
+}
+
 // lineFence is the fence a field line's value opens, if it opens one. A line
-// that did not tokenize has no value to read.
+// that did not tokenize opens one too when a fence follows its first colon
+// past where it stopped making sense, with no comment before that colon. Read
+// as lines, such a body would bind, and its closing fence would open a block
+// of its own.
 func lineFence(tok *Tokens, rest string) (ch byte, length int, info string, ok bool) {
-	if tok.Fault >= 0 || tok.Sep < 0 {
+	if tok.Fault >= 0 {
+		sep := -1
+		for k := tok.Fault; k < len(rest); k++ {
+			if rest[k] == ':' || commentAt(rest, k) {
+				sep = k
+				break
+			}
+		}
+		if sep < 0 || rest[sep] != ':' {
+			return 0, 0, "", false
+		}
+		var v Tokens
+		TokenizeValue(rest, sep+1, RulesCurrent, &v)
+		return fenceOpen(rest[v.Value[0]:v.Value[1]])
+	}
+	if tok.Sep < 0 {
 		return 0, 0, "", false
 	}
 	// A capped scan zeroed the value, and a fence is told by its leading run
@@ -4155,14 +4314,7 @@ func (p *parser) parse(text string, strictness Strictness) *Document {
 		// Child-indent fence: a value line for its parent field. The fence
 		// and its info string are the value; a comment may follow them.
 		if rest[0] == '`' || rest[0] == '~' {
-			TokenizeValue(rest, 0, RulesCurrent, &tok)
-			// A capped scan zeroed the value, and a fence is told by its leading
-			// run alone.
-			fenceText := rest[tok.Value[0]:tok.Value[1]]
-			if tok.Capped {
-				fenceText = rest
-			}
-			if ch, length, info, ok := fenceOpen(fenceText); ok {
+			if ch, length, info, ok := childFence(rest, &tok); ok {
 				comment := ""
 				if tok.Comment >= 0 {
 					comment = rest[tok.Comment:]
@@ -4327,15 +4479,20 @@ func (p *parser) parse(text string, strictness Strictness) *Document {
 			// Content-malformed at any position, so retained - except a line
 			// led by a BOM, which the file-start strip would rewrite into
 			// something that can bind.
+			bom := strings.HasPrefix(rest, "\ufeff")
 			out := outRetained(trimEndWS(rest), hadBlank)
-			if strings.HasPrefix(rest, "\ufeff") {
+			if bom {
 				out = outDropped
 			}
 			// The column counts bytes from the line start, so all four bindings
 			// report it the same on non-ASCII text.
 			msg := fmt.Sprintf("malformed line skipped: %s, at column %d", serr.Error(), len(indent)+lead+tok.Fault+1)
 			p.refuse(lineno, "E014", msg, out, indent)
-			i++
+			if bom {
+				i = p.skipFieldLine(lines, i, indent, &tok, rest)
+			} else {
+				i = p.keepBody(lines, i, indent, &tok, rest)
+			}
 			continue
 		}
 		next := i + 1
@@ -4358,7 +4515,8 @@ func (p *parser) parse(text string, strictness Strictness) *Document {
 			if _, inPath := badEscape(&tok, rest, false); !inPath {
 				p.holdOpen(parent, scan.segments, lineno, indent)
 			}
-			i = next
+			// Only a fault in the name leaves a fence to read here.
+			i = p.keepBody(lines, i, indent, &tok, rest)
 			continue
 		}
 		// Element cap: the whole line is refused, so a capped load never
@@ -4649,6 +4807,57 @@ func keptInLists(nd *nodeData) int {
 	return keptIn(nd.leading()) + keptIn(nd.after()) + keptIn(nd.inside()) + keptAmong(nd.among())
 }
 
+// restep: a reload starts a comment run at 0 and steps one level at a time
+// past the comment or kept field line before it, so a comment left after the
+// line it sat under went is pulled back to fit.
+func restep(leads []lead) {
+	room := 0
+	for k := range leads {
+		if strings.HasPrefix(leads[k].text, "#") {
+			leads[k].depth = minInt(leads[k].depth, room)
+			room = leads[k].depth + 1
+		} else if isField(leads[k].text) {
+			room = leads[k].depth + 1
+		}
+	}
+}
+
+// besideKept is what a remove of this node leaves of its lines, by
+// design.md's kept-lines table: the kept lines beside it, with the comments
+// that sit with them. Above it that is everything up to its last kept line,
+// below it everything from its first, so a comment written against the node
+// goes with it. The kept line written in place of its `name:` line goes too.
+func besideKept(nd *nodeData) []lead {
+	heads := headsBlock(nd)
+	t := nd.trivia
+	if t == nil {
+		return nil
+	}
+	left := t.leading
+	t.leading = nil
+	if heads {
+		left = left[:len(left)-1]
+	}
+	end := 0
+	for k := len(left) - 1; k >= 0; k-- {
+		if left[k].isKeptLine() {
+			end = k + 1
+			break
+		}
+	}
+	left = left[:end]
+	from := len(t.after)
+	for k := range t.after {
+		if t.after[k].isKeptLine() {
+			from = k
+			break
+		}
+	}
+	left = append(left, t.after[from:]...)
+	t.after = t.after[:from]
+	return left
+}
+
 // ErrorCount is how many error-severity diagnostics the document has - the
 // "did this file have errors?" predicate, so recover-and-continue can't read
 // as success by accident. Counts whatever Diagnostics() holds (after
@@ -4923,7 +5132,7 @@ func (d *Document) settleKeptOnce() bool {
 		}
 		depth := 0
 		for j := len(t.leading) - 1; j >= 0; j-- {
-			if strings.HasPrefix(t.leading[j].text, "#") {
+			if !strings.HasPrefix(t.leading[j].text, " ") && !strings.HasPrefix(t.leading[j].text, "\t") {
 				depth = t.leading[j].depth
 				break
 			}
@@ -5090,7 +5299,13 @@ func (e *emit) placed(indent string) {
 // empty block keeps its own line, since nothing would open the field. Only
 // what a reload restores counts, so a document and its reload agree.
 func headsBlock(node *nodeData) bool {
-	if !node.value.isEmpty() || len(node.children) == 0 || node.blankBefore || node.trailing() != "" {
+	return len(node.children) != 0 && openedByKept(node)
+}
+
+// openedByKept is headsBlock() but for the children: a field a reload would
+// open only from the lines under it, so it goes with the last of them.
+func openedByKept(node *nodeData) bool {
+	if !node.value.isEmpty() || node.blankBefore || node.trailing() != "" {
 		return false
 	}
 	leads := node.leading()
@@ -5110,6 +5325,120 @@ func headsBlock(node *nodeData) bool {
 // commented is a misplaced line's text as the comment it falls back to.
 func commented(text string) string {
 	return "# " + text[len(leadingWS(text)):]
+}
+
+// noteText is a path in a note, kept to one line.
+func noteText(s string) string {
+	return strings.ReplaceAll(strings.ReplaceAll(s, "\n", `\n`), "\r", `\r`)
+}
+
+// keptNaming is the code and message the load gave a kept line that names
+// just `name`, at the level of the block it sits in: a field line refused for
+// its value alone, which a reload would read as another `name` once fixed by
+// hand. A line with a raw body could not be commented out as one line.
+func keptNaming(l *lead, name string) (code, msg string, ok bool) {
+	if l.depth != 0 || l.text != "" && strings.IndexByte("#* \t", l.text[0]) >= 0 || strings.Contains(l.text, "\n") {
+		return "", "", false
+	}
+	var tok Tokens
+	Tokenize(l.text, ':', false, RulesCurrent, &tok)
+	scan, err := pathOf(&tok, l.text)
+	if err != nil || len(scan.segments) != 1 {
+		return "", "", false
+	}
+	seg := &scan.segments[0]
+	if seg.sel != nil || seg.name != name {
+		return "", "", false
+	}
+	if _, bad := badEscape(&tok, l.text, false); bad {
+		return "", "", false
+	}
+	return lineFault(&tok, l.text)
+}
+
+// noteLead writes a kept line as a comment, with the note giving why and
+// when. It is a plain comment from here on, as a reload reads it.
+func noteLead(l *lead, path, code, msg string) {
+	// The reason, without the advice after it.
+	why, _, _ := strings.Cut(msg, ";")
+	l.text = fmt.Sprintf("%s  ## commented out by shcl when setting %s, %s: %s %s",
+		commented(l.text), noteText(path), noteStamp(), code, why)
+	l.line = 0
+	l.kept = false
+}
+
+// runUnder is how many lines after leads[k] are written under it: each line
+// deeper than it up to the next field line that is not, with the comments and
+// misplaced lines among them, since neither ends the lines it holds open.
+func runUnder(leads []lead, k int) int {
+	depth := leads[k].depth
+	last := k
+	for i := k + 1; i < len(leads); i++ {
+		l := &leads[i]
+		// A misplaced line is at depth 0, whatever its own indent.
+		if l.depth > depth {
+			last = i
+		} else if !strings.HasPrefix(l.text, "#") && !strings.HasPrefix(l.text, " ") && !strings.HasPrefix(l.text, "\t") {
+			break
+		}
+	}
+	return last - k
+}
+
+// noteStamp is the local time to the second, with the zone, for a setter's
+// note on a line it commented out. SHCL_TEST_CLOCK stands in for the system
+// clock and zone, so tests can pin the text: "YYYY-mm-DD HH:MM:SS
+// OFFSET_MINUTES [NAME]".
+func noteStamp() string {
+	when, offset, name, ok := testClock(os.Getenv("SHCL_TEST_CLOCK"))
+	if !ok {
+		when, offset, name = localClock()
+	}
+	return when + " " + zoneLabel(offset, name)
+}
+
+func testClock(spec string) (string, int, string, bool) {
+	f := strings.Fields(spec)
+	if len(f) != 3 && len(f) != 4 {
+		return "", 0, "", false
+	}
+	offset, err := strconv.ParseInt(f[2], 10, 32)
+	if err != nil {
+		return "", 0, "", false
+	}
+	name := ""
+	if len(f) == 4 {
+		name = f[3]
+	}
+	return f[0] + " " + f[1], int(offset), name, true
+}
+
+// zoneLabel is the zone's short name, such as PDT, or its offset when it has
+// none: Windows gives only long names, and some zones a number such as `+03`.
+func zoneLabel(offset int, name string) string {
+	if name != "" && strings.IndexFunc(name, func(r rune) bool {
+		return !(r >= 'A' && r <= 'Z' || r >= 'a' && r <= 'z')
+	}) < 0 {
+		return name
+	}
+	sign := '+'
+	if offset < 0 {
+		sign = '-'
+		offset = -offset
+	}
+	return fmt.Sprintf("UTC%c%02d:%02d", sign, offset/60, offset%60)
+}
+
+// localClock is the local time, its offset from UTC in minutes, and the
+// zone's short name. Windows names a zone only in full, such as "Pacific
+// Daylight Time", so there the label is always the offset.
+func localClock() (string, int, string) {
+	now := time.Now()
+	name, secs := now.Zone()
+	if runtime.GOOS == "windows" {
+		name = ""
+	}
+	return now.Format("2006-01-02 15:04:05"), secs / 60, name
 }
 
 // pushLeads writes a run of comments and kept lines, base levels deep. A
@@ -5154,8 +5483,8 @@ func pushLeads(e *emit, leads []lead, base, node int, at site, from int) {
 				e.out.WriteString(c.text)
 				e.out.WriteByte('\n')
 			} else {
-				// Level with the comment before it, so the run's nesting reads
-				// back the same.
+				// Level with the comment or kept field line before it, so the
+				// run's nesting reads back the same.
 				if e.record {
 					e.fell = append(e.fell, fell{node: node, site: at, i: from + i, depth: lastComment})
 				}
@@ -5166,9 +5495,8 @@ func pushLeads(e *emit, leads []lead, base, node int, at site, from int) {
 			continue
 		}
 		pad := base + c.depth
-		if strings.HasPrefix(c.text, "#") {
-			lastComment = c.depth
-		} else {
+		lastComment = c.depth
+		if !strings.HasPrefix(c.text, "#") {
 			// A kept malformed line resolves and holds its column on a reload,
 			// open for the lines under it when only its value was wrong.
 			indent := strings.Repeat("\t", pad)
@@ -5182,8 +5510,38 @@ func pushLeads(e *emit, leads []lead, base, node int, at site, from int) {
 			}
 		}
 		writeTabs(&e.out, pad)
-		e.out.WriteString(c.text)
-		e.out.WriteByte('\n')
+		pushKept(e, c.text, pad)
+	}
+}
+
+// pushKept writes a kept line, and the raw body and fence it took, if any,
+// which go one level under it, as a field's block does. The body moves with
+// its line.
+func pushKept(e *emit, text string, pad int) {
+	line, block, hasBody := strings.Cut(text, "\n")
+	e.out.WriteString(line)
+	e.out.WriteByte('\n')
+	if !hasBody {
+		return
+	}
+	body := e.out.Len()
+	fence := block
+	if k := strings.LastIndexByte(block, '\n'); k >= 0 {
+		for _, l := range strings.Split(block[:k], "\n") {
+			if l != "" {
+				writeTabs(&e.out, pad+1)
+			}
+			e.out.WriteString(l)
+			e.out.WriteByte('\n')
+		}
+		fence = block[k+1:]
+	}
+	end := e.out.Len()
+	writeTabs(&e.out, pad+1)
+	e.out.WriteString(fence)
+	e.out.WriteByte('\n')
+	if e.lines {
+		e.bodies = append(e.bodies, [3]int{body, end, pad + 1})
 	}
 }
 
@@ -5608,15 +5966,112 @@ func keepLines(src string, doc *Document) (string, bool) {
 			left[k] = false
 		}
 	}
+	// A repeat the load folded away goes when the edits took every line under
+	// it, and the blank lines above it go along: the field is still written
+	// where it first was. A remove writes no line the document did not write
+	// before (2026100115323232).
+	present := make([]bool, n+2)
+	for _, r := range isRuns {
+		if r.line != 0 && r.line <= n {
+			present[owner[r.line]] = true
+		}
+	}
+	tagged := make([]bool, n+2)
+	for _, r := range wasRuns {
+		if r.line != 0 && r.line <= n {
+			tagged[owner[r.line]] = true
+		}
+	}
+	dropped := make([]bool, n+2)
+	for _, k := range loadedDoc.dropped {
+		if k <= n {
+			dropped[k] = true
+		}
+	}
+	released := make([]bool, n+2)
+	for h := n; h >= 1; h-- {
+		if !left[h] || dropped[h] {
+			continue
+		}
+		anyUnder, allGone := false, true
+		for k := h + 1; k <= n; k++ {
+			if blank(k) {
+				continue
+			}
+			// A line in a raw body or a stacked list is under h when the line
+			// it belongs to is, whatever its own indent.
+			o := owner[k]
+			i := indent(k)
+			if o == k && !(len(i) > len(indent(h)) && strings.HasPrefix(i, indent(h))) {
+				break
+			}
+			anyUnder = true
+			gone := released[k] || (tagged[o] && !present[o])
+			if !gone {
+				allGone = false
+				break
+			}
+		}
+		if anyUnder && allGone {
+			left[h] = false
+			released[h] = true
+		}
+	}
 	// New lines end the way most of the file's lines do.
 	eol := majorityEol(body)
-	// One level of the source's indent: a line one level in, or failing that
+	// One level of the source's indent: the one most blocks use for a line
+	// one level in, each block counted once, by its first such line. A tie
+	// goes to one tab when that is among them, else to the block first in the
+	// file, so one odd block does not set it (2026100115403386). Failing that,
 	// the first indented line, a list element or a fence.
-	step := ""
+	var firsts []int
 	for _, u := range wasRuns {
 		if u.line != 0 && u.line <= n && tabs(loadedText[u.start:]) == 1 && indent(u.line) != "" {
-			step = indent(u.line)
-			break
+			firsts = append(firsts, u.line)
+		}
+	}
+	sort.Ints(firsts)
+	type stepCount struct {
+		step  string
+		count int
+	}
+	var steps []stepCount
+	top, block, k := 0, -1, 1
+	for _, l := range firsts {
+		for ; k <= l; k++ {
+			if owner[k] == k && !blank(k) && indent(k) == "" && !strings.HasPrefix(line(k), "#") {
+				top = k
+			}
+		}
+		if block == top {
+			continue
+		}
+		block = top
+		found := false
+		for i := range steps {
+			if steps[i].step == indent(l) {
+				steps[i].count++
+				found = true
+				break
+			}
+		}
+		if !found {
+			steps = append(steps, stepCount{indent(l), 1})
+		}
+	}
+	most := 0
+	for _, sc := range steps {
+		most = maxInt(most, sc.count)
+	}
+	step := ""
+	for _, sc := range steps {
+		if sc.count == most && sc.step == "\t" {
+			step = "\t"
+		}
+	}
+	for _, sc := range steps {
+		if step == "" && sc.count == most {
+			step = sc.step
 		}
 	}
 	for l := 1; step == "" && l <= n; l++ {
@@ -5646,11 +6101,21 @@ func keepLines(src string, doc *Document) (string, bool) {
 	// a dropped line would be dropped with it. A line the load dropped comes
 	// back this way.
 	flush := func(from, to int) {
+		// The blank lines among them stay, up to the last one written.
+		last := 0
+		for k := minInt(to, n+1) - 1; k >= from; k-- {
+			if left[k] {
+				last = k
+				break
+			}
+		}
 		for k := from; k < to; k++ {
 			if left[k] {
 				out.WriteString(line(k))
 				wrote[k] = true
 				left[k] = false
+			} else if k < last && blank(k) {
+				out.WriteString(line(k))
 			}
 		}
 	}
@@ -5725,11 +6190,16 @@ func keepLines(src string, doc *Document) (string, bool) {
 			}
 		case kept && prev != 0 && next[prev] == l:
 			blanks := false
+			// A blank line above a source line written here stays with it.
+			last := 0
 			for k := end[prev] + 1; k < l; k++ {
 				blanks = blanks || blank(k)
+				if !blank(k) {
+					last = k
+				}
 			}
 			for k := end[prev] + 1; k < l; k++ {
-				if blanksStay || !blank(k) {
+				if blanksStay || !blank(k) || k < last {
 					out.WriteString(line(k))
 					wrote[k] = true
 					left[k] = false
@@ -5840,68 +6310,71 @@ func keepLines(src string, doc *Document) (string, bool) {
 	return "", false
 }
 
-// dropBanners takes each run of "##" lines holding the info block's SHCL line
-// or a version line out of leads, all but a Schema line. It returns how many
-// came off, and whether the last one had a blank above it with no line after
-// it to take that blank.
+// dropBanners takes the info block out of leads, from the lone "##" above its
+// "This config file format is SHCL." line to the next lone "##", and each
+// version line Migrate stamped, with the note under it. A block with no
+// closing "##" ends after its last line written the block's way. A Schema line
+// in a block stays, and so does any other comment around one, even written
+// right against it. It returns how many came off, and whether the last one
+// had a blank above it with no line after it to take that blank.
 func dropBanners(leads *[]lead) (int, bool) {
-	isBlockLine := func(t string) bool {
-		return t == "## This config file format is SHCL." || strings.HasPrefix(t, FormatLineHead)
-	}
 	ls := *leads
+	inRun := func(l lead) bool { return strings.HasPrefix(l.text, "##") && !l.blankBefore }
 	keep := make([]lead, 0, len(ls))
-	removed, owed := 0, false
+	removed, owed, prevKept := 0, false, false
 	for i := 0; i < len(ls); {
-		end := i + 1
-		if strings.HasPrefix(ls[i].text, "##") {
-			for end < len(ls) && strings.HasPrefix(ls[end].text, "##") && !ls[end].blankBefore {
-				end++
+		start, end := i, i+1
+		switch {
+		case ls[i].text == bannerTitle:
+			if prevKept && !ls[i].blankBefore && ls[i-1].text == "##" {
+				keep = keep[:len(keep)-1]
+				start = i - 1
 			}
-			hit := false
-			for _, l := range ls[i:end] {
-				if isBlockLine(l.text) {
-					hit = true
+			closed := false
+			for k := end; k < len(ls) && inRun(ls[k]); k++ {
+				if ls[k].text == "##" {
+					end, closed = k+1, true
 					break
 				}
 			}
-			if hit {
-				// The blank that set the block off moves to whatever followed
-				// it, so the lines around it stay apart. A Schema line in the
-				// block is the author's and stays, with the blank.
-				at := len(keep)
-				for _, l := range ls[i:end] {
-					if strings.HasPrefix(l.text, SchemaLineHead) {
-						keep = append(keep, l)
-					}
-				}
-				switch {
-				case at < len(keep):
-					keep[at].blankBefore = ls[i].blankBefore
-				case end < len(ls):
-					ls[end].blankBefore = ls[end].blankBefore || ls[i].blankBefore
-				default:
-					owed = ls[i].blankBefore
-				}
-				removed++
-				i = end
-				continue
+			for !closed && end < len(ls) && inRun(ls[end]) &&
+				(strings.HasPrefix(ls[end].text, "##    ") || ls[end].text == bannerName) {
+				end++
+			}
+		case strings.HasPrefix(ls[i].text, FormatLineHead):
+			if end < len(ls) && inRun(ls[end]) && ls[end].text == MigratedLine {
+				end++
+			}
+		default:
+			keep = append(keep, ls[i])
+			prevKept = true
+			i++
+			continue
+		}
+		// The blank that set the block off moves to whatever followed it, so
+		// the lines around it stay apart. A Schema line in the block is the
+		// author's and stays, with the blank.
+		at := len(keep)
+		for _, l := range ls[start:end] {
+			if strings.HasPrefix(l.text, SchemaLineHead) {
+				keep = append(keep, l)
 			}
 		}
-		keep = append(keep, ls[i:end]...)
+		switch {
+		case at < len(keep):
+			keep[at].blankBefore = ls[start].blankBefore
+		case end < len(ls):
+			ls[end].blankBefore = ls[end].blankBefore || ls[start].blankBefore
+		default:
+			owed = ls[start].blankBefore
+		}
+		removed++
+		prevKept = false
 		i = end
 	}
 	if removed > 0 {
-		// A reload puts a comment at most one level past the one before it,
-		// and the first at none, so what followed a block steps up to that.
-		room := 0
-		for k := range keep {
-			if strings.HasPrefix(keep[k].text, "#") {
-				if keep[k].depth > room {
-					keep[k].depth = room
-				}
-				room = keep[k].depth + 1
-			}
-		}
+		// What followed a block steps up to fit the run.
+		restep(keep)
 		*leads = keep
 	}
 	return removed, owed
@@ -6672,7 +7145,7 @@ func (e *SaveRefused) Error() string {
 // SaveFile is the file tier's save half: write this document's canonical text
 // to path through WriteFileAtomic, so an interrupted save can never truncate
 // the config it rewrites - the same mechanics the CLI's `--write` uses.
-// Refuses when parsing lost content that a save would silently delete (see
+// Refuses when the write would delete content from the file (see
 // LostCount); SaveFileLossy writes anyway. A refusal comes back as
 // *SaveRefused, a write failure as the wrapped i/o error.
 func (d *Document) SaveFile(path string) error {
@@ -6683,7 +7156,7 @@ func (d *Document) SaveFile(path string) error {
 }
 
 // SaveFileLossy is SaveFile without the lost-content gate: writes even when
-// parsing dropped lines this save deletes. The caller owns that choice. It
+// the write deletes content from the file. The caller owns that choice. It
 // never returns *SaveRefused - the gate is the one thing it skips.
 func (d *Document) SaveFileLossy(path string) error {
 	return WriteFileAtomic(path, d.ToCanonical())
@@ -7610,6 +8083,28 @@ func (d *Document) newChild(parent int, name, nameSrc string, v value) int {
 	if ix := d.index.Load(); ix != nil {
 		ix.append(nameKey(parent, name), idx)
 	}
+	// Kept lines that end the block stay where they were, so the new field
+	// goes after the last of them, as a reload files them. The comments
+	// after it stay at the end, and so does a kept line the settle wrote as
+	// a comment, since a reload reads it as one.
+	var tail *[]lead
+	if parent == root {
+		tail = &d.orphans
+	} else if t := d.arena[parent].trivia; t != nil {
+		tail = &t.inside
+	}
+	if tail != nil {
+		k := len(*tail) - 1
+		for k >= 0 && strings.HasPrefix((*tail)[k].text, "#") {
+			k--
+		}
+		if k >= 0 {
+			lines := append([]lead(nil), (*tail)[:k+1]...)
+			*tail = append([]lead(nil), (*tail)[k+1:]...)
+			restep(*tail)
+			d.arena[idx].trivMut().leading = lines
+		}
+	}
 	settleBlock(d.arena, parent, len(d.arena[parent].children)-1)
 	return idx
 }
@@ -7697,8 +8192,9 @@ func (d *Document) probeWrite(scan pathScan) (WriteReason, []int) {
 // selector selects the matching instance or creates it; [#k] must already
 // exist. ok=false means the path is unusable for a write (WriteReason says
 // why). Validation runs first, so a doomed path leaves no half-created
-// intermediates behind.
-func (d *Document) place(path string) (int, bool) {
+// intermediates behind. A setter creating a field deals with the kept lines
+// of its name, as setChild says.
+func (d *Document) place(path string, setter bool) (int, bool) {
 	scan, err := scanLookup(path)
 	if err != nil {
 		return 0, false
@@ -7734,18 +8230,35 @@ func (d *Document) place(path string) (int, bool) {
 			cur = trail[i]
 			continue
 		}
+		var v value
 		switch {
 		case seg.sel == nil:
-			cur = d.newChild(cur, seg.name, seg.nameSrc, value{kind: vEmpty})
+			v = value{kind: vEmpty}
 		case seg.sel.kind == selByValue:
-			cur = d.newChild(cur, seg.name, seg.nameSrc, cellOf(seg.sel.value))
+			v = cellOf(seg.sel.value)
 		default:
 			// Unreachable: probeWrite refuses a wildcard outright and an
 			// unresolvable index, so neither reaches an empty trail slot.
 			return 0, false
 		}
+		if setter {
+			cur = d.setChild(cur, seg.name, seg.nameSrc, v, path)
+		} else {
+			cur = d.newChild(cur, seg.name, seg.nameSrc, v)
+		}
 	}
 	return cur, true
+}
+
+// setChild: a setter creating a field writes the kept lines of its name in
+// the block as comments, and with no other field of that name the new one
+// goes right under the first of them (design.md, Kept lines under edits).
+func (d *Document) setChild(parent int, name, nameSrc string, v value, path string) int {
+	alone := len(d.childrenNamed(parent, name)) == 0
+	if at, ok := d.commentOutKept(parent, name, path, alone); ok {
+		return d.newChildUnder(parent, name, nameSrc, v, at)
+	}
+	return d.newChild(parent, name, nameSrc, v)
 }
 
 func (d *Document) setValue(path string, v value) bool {
@@ -7755,9 +8268,14 @@ func (d *Document) setValue(path string, v value) bool {
 	if d.probe {
 		return true
 	}
-	idx, ok := d.place(path)
+	fresh := len(d.arena)
+	idx, ok := d.place(path, true)
 	if !ok {
 		return false
+	}
+	// place has already done it for a field it created.
+	if idx < fresh && d.keptOwed > 0 {
+		d.commentOutKept(d.arena[idx].parent, d.arena[idx].name, path, false)
 	}
 	d.arena[idx].value = v
 	d.arena[idx].src = nil // written value has no source spelling
@@ -7774,6 +8292,163 @@ func (d *Document) setValue(path string, v value) bool {
 	settleFirstBlank(d.arena, d.orphans)
 	d.resettleKept()
 	return true
+}
+
+// keptAt is where a lead sits: its list, the node that list is on, and its
+// place in it.
+type keptAt struct {
+	site  site
+	owner int
+	k     int
+}
+
+// commentOutKept: a setter writing a field writes every kept line of its
+// name in the block as a comment with a note, the one heading the field
+// included, so a hand fix of one later never gives Multiple (design.md, Kept
+// lines under edits). Each is no longer owed. With anchor, the first one is
+// where a new field goes, and is returned, and the kept lines under it go
+// under that field. Any other with a kept line under it stays, since as a
+// comment it would leave that line under the field above.
+func (d *Document) commentOutKept(parent int, name, path string, anchor bool) (keptAt, bool) {
+	var first keptAt
+	found := false
+	if d.keptOwed == 0 {
+		return first, false
+	}
+	for _, kn := range d.keptNamed(parent, name) {
+		leads := *d.leadsMut(kn.at.site, kn.at.owner)
+		k := kn.at.k
+		misplaced, fields := false, false
+		for _, l := range leads[k+1 : k+1+runUnder(leads, k)] {
+			if strings.HasPrefix(l.text, " ") || strings.HasPrefix(l.text, "\t") {
+				misplaced = true
+			} else if !strings.HasPrefix(l.text, "#") {
+				fields = true
+			}
+		}
+		// A misplaced line under it is filed by its own text, so it cannot
+		// move with it either.
+		if misplaced {
+			continue
+		}
+		if anchor && !found {
+			first, found = kn.at, true
+		} else if fields {
+			continue
+		}
+		noteLead(&leads[k], path, kn.code, kn.msg)
+		if d.keptOwed > 0 {
+			d.keptOwed--
+		}
+	}
+	return first, found
+}
+
+type keptName struct {
+	at        keptAt
+	code, msg string
+}
+
+// keptNamed is the kept lines naming just `name` in the block under parent,
+// in the order they are written, each with the fault the load gave it.
+func (d *Document) keptNamed(parent int, name string) []keptName {
+	var out []keptName
+	scan := func(st site, owner int, leads []lead) {
+		for k := range leads {
+			if code, msg, ok := keptNaming(&leads[k], name); ok {
+				out = append(out, keptName{keptAt{st, owner, k}, code, msg})
+			}
+		}
+	}
+	for _, c := range d.arena[parent].children {
+		scan(siteLeading, c, d.arena[c].leading())
+		scan(siteAfter, c, d.arena[c].after())
+	}
+	scan(siteInside, parent, d.arena[parent].inside())
+	if parent == root {
+		scan(siteOrphans, root, d.orphans)
+	}
+	return out
+}
+
+func (d *Document) leadsMut(st site, owner int) *[]lead {
+	if st == siteOrphans {
+		return &d.orphans
+	}
+	t := d.arena[owner].trivMut()
+	switch st {
+	case siteLeading:
+		return &t.leading
+	case siteInside:
+		return &t.inside
+	default:
+		return &t.after
+	}
+}
+
+// newChildUnder is a new field right under the kept line at `at`, which a
+// setter just wrote as a comment. The lines written under that line go under
+// the field, where a reload files them.
+func (d *Document) newChildUnder(parent int, name, nameSrc string, v value, at keptAt) int {
+	if stacks(&d.arena[parent]) {
+		unstack(&d.arena[parent])
+	}
+	leads := d.leadsMut(at.site, at.owner)
+	all := *leads
+	k := at.k
+	end := k + 1 + runUnder(all, k)
+	line := []lead{all[k]}
+	under := append([]lead(nil), all[k+1:end]...)
+	rest := append([]lead(nil), all[end:]...)
+	head := append([]lead(nil), all[:k]...)
+	for i := range under {
+		if under[i].depth > 0 {
+			under[i].depth--
+		}
+	}
+	restep(under)
+	// Above the field, what was written before the line. After a sibling,
+	// that stays with the sibling and the settle below moves it.
+	var leading, after []lead
+	if at.site == siteAfter {
+		*leads = head
+		leading, after = line, rest
+	} else {
+		leading = append(head, line...)
+		if at.site == siteLeading {
+			restep(rest)
+		}
+		*leads = rest
+	}
+	kids := d.arena[parent].children
+	pos := len(kids)
+	if at.site == siteLeading || at.site == siteAfter {
+		for p, c := range kids {
+			if c != at.owner {
+				continue
+			}
+			pos = p
+			if at.site == siteAfter {
+				pos++
+			}
+			break
+		}
+	}
+	idx := len(d.arena)
+	d.arena = append(d.arena, nodeData{
+		name: name, nameSrc: spelled(name, nameSrc), value: v, parent: parent,
+		trivia: &trivia{leading: leading, after: after, inside: under},
+	})
+	kids = append(kids, 0)
+	copy(kids[pos+1:], kids[pos:])
+	kids[pos] = idx
+	d.arena[parent].children = kids
+	// No other field of this name, so the index order holds.
+	if ix := d.index.Load(); ix != nil {
+		ix.append(nameKey(parent, name), idx)
+	}
+	settleBlock(d.arena, parent, pos)
+	return idx
 }
 
 // collapseDup: a written value may now collide with a same-named sibling under
@@ -7902,6 +8577,8 @@ func (d *Document) Exists(path string) bool {
 }
 
 // Remove deletes the node(s) at a path (with their subtrees); returns how many.
+// Lines kept as written beside a node stay where they were, and a field opened
+// only by the lines under it goes with the last of them.
 // A removed node's storage is not reclaimed, so a process that adds and removes in a loop grows by a few hundred bytes a pair. Reloading the canonical text gives it back.
 func (d *Document) Remove(path string) int {
 	r, ok := d.resolveGroup(path)
@@ -7953,18 +8630,162 @@ func (d *Document) Remove(path string) int {
 			continue
 		}
 		kids := d.arena[pr.parent].children[:0]
+		var left []lead
 		for _, c := range d.arena[pr.parent].children {
 			if d.arena[c].parent == dead {
 				d.arena[c].parent = pr.parent
+				left = append(left, besideKept(&d.arena[c])...)
 			} else {
+				if len(left) > 0 {
+					d.leaveAbove(c, left)
+					left = nil
+				}
 				kids = append(kids, c)
 			}
 		}
 		d.arena[pr.parent].children = kids
+		if len(left) > 0 {
+			d.leaveLast(pr.parent, left)
+		}
+	}
+	// A field opened only by the lines under it goes with the last of them,
+	// and its own kept line stays where it was (escblock).
+	open := make([]int, 0, len(pairs))
+	for _, pr := range pairs {
+		open = append(open, pr.parent)
+	}
+	for len(open) > 0 {
+		p := open[len(open)-1]
+		open = open[:len(open)-1]
+		if p == root || len(d.arena[p].children) != 0 || !openedByKept(&d.arena[p]) || !d.live(p) {
+			continue
+		}
+		pp := d.arena[p].parent
+		t := d.arena[p].trivMut()
+		left := t.leading
+		for _, l := range t.inside {
+			l.depth++
+			left = append(left, l)
+		}
+		left = append(left, t.after...)
+		t.leading, t.inside, t.after = nil, nil, nil
+		if ix := d.index.Load(); ix != nil {
+			ix.unlink(nameKey(pp, d.arena[p].name), p)
+		}
+		kids := d.arena[pp].children
+		at := 0
+		for k, c := range kids {
+			if c == p {
+				at = k
+				break
+			}
+		}
+		d.arena[pp].children = append(kids[:at:at], kids[at+1:]...)
+		if at < len(d.arena[pp].children) {
+			d.leaveAbove(d.arena[pp].children[at], left)
+		} else {
+			d.leaveLast(pp, left)
+		}
+		open = append(open, pp)
 	}
 	settleFirstBlank(d.arena, d.orphans)
 	d.resettleKept()
 	return len(targets)
+}
+
+// leaveAbove puts lines a remove left above the sibling that followed them.
+func (d *Document) leaveAbove(node int, left []lead) {
+	t := d.arena[node].trivMut()
+	t.leading = append(left, t.leading...)
+	restep(t.leading)
+}
+
+// leaveLast puts lines a remove left after the last of parent's children: the
+// document's footer at the top, else after the last child left, else inside
+// the block. A misplaced line has no level there, so a reload files it with
+// the next binding line, and the comments after it go along; kept field lines
+// still go to the block.
+func (d *Document) leaveLast(parent int, left []lead) {
+	if parent == root {
+		d.orphans = append(left, d.orphans...)
+		restep(d.orphans)
+		return
+	}
+	var below []lead
+	for at := range left {
+		if strings.HasPrefix(left[at].text, " ") || strings.HasPrefix(left[at].text, "\t") {
+			rest := append([]lead(nil), left[at:]...)
+			left = left[:at:at]
+			for _, l := range rest {
+				if isField(l.text) {
+					left = append(left, l)
+				} else {
+					below = append(below, l)
+				}
+			}
+			break
+		}
+	}
+	if len(left) > 0 {
+		// Stacked with no kept line among the elements is gone on a reload, so
+		// it may not decide how these lines are written.
+		d.arena[parent].starList = stacks(&d.arena[parent])
+		var t *trivia
+		if kids := d.arena[parent].children; len(kids) > 0 {
+			t = d.arena[kids[len(kids)-1]].trivMut()
+			t.after = append(t.after, left...)
+			restep(t.after)
+		} else {
+			t = d.arena[parent].trivMut()
+			t.inside = append(t.inside, left...)
+			restep(t.inside)
+		}
+	}
+	if len(below) > 0 {
+		d.leaveBelow(parent, below)
+	}
+}
+
+// leaveBelow puts lines a remove left right after node's block: above the
+// next binding line, or the footer when there is none.
+func (d *Document) leaveBelow(node int, left []lead) {
+	at := node
+	for at != root {
+		up := d.arena[at].parent
+		kids := d.arena[up].children
+		for k, c := range kids {
+			if c == at && k+1 < len(kids) {
+				d.leaveAbove(kids[k+1], left)
+				return
+			}
+		}
+		at = up
+	}
+	d.orphans = append(left, d.orphans...)
+	restep(d.orphans)
+}
+
+// live: still in the tree, each node up to root in its parent's list. A
+// removed node keeps its parent link, so the link alone does not say.
+func (d *Document) live(node int) bool {
+	for node != root {
+		p := d.arena[node].parent
+		if p == dead {
+			return false
+		}
+		found := false
+		for _, c := range d.arena[p].children {
+			if c == node {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+		node = p
+	}
+	return true
 }
 
 // SetComment attaches a leading comment line to the node at a path (creating an
@@ -7978,7 +8799,7 @@ func (d *Document) SetComment(path, text string) bool {
 	if !ok {
 		return false
 	}
-	idx, ok := d.place(path)
+	idx, ok := d.place(path, false)
 	if !ok {
 		return false
 	}
@@ -8088,14 +8909,7 @@ func (d *Document) ClearComments(path string) int {
 		}
 		cleared += gone
 		// A kept line left in the run may have sat under a comment that went.
-		// A reload starts a run at 0 and steps one at a time.
-		room := 0
-		for k := range kept {
-			if strings.HasPrefix(kept[k].text, "#") {
-				kept[k].depth = minInt(kept[k].depth, room)
-				room = kept[k].depth + 1
-			}
-		}
+		restep(kept)
 		if len(kept) > 0 {
 			kept[0].blankBefore = kept[0].blankBefore || blank
 		} else {
@@ -8111,18 +8925,18 @@ func (d *Document) ClearComments(path string) int {
 
 // SetBanner puts the info block (GenBanner) at the end of the document, or
 // with on false just takes it off. An old block comes off first, found by its
-// "This config file format is SHCL." line or its version line, never by its
-// links or Legal line, which a later release may word differently. A version
-// line Migrate stamped counts too. A block is a run of "##" lines with no
-// blank inside, so a "##" comment of the file's own, written right against
-// it, goes with it. It is looked for in the footer and above every field but
-// the first one and its first child down, since a field added below it by hand
-// takes it as its comment. A block at the top of the file is left alone. A
-// dotted first line hangs it on its last name, which a saved file writes as the
-// first field's first child, so a block there is left alone too, however it
-// got there. The library save never adds the block by itself; this is for a
-// program that wants it in a file it writes. Returns how many old blocks came
-// off.
+// "This config file format is SHCL." line, never by its links or Legal line,
+// which a later release may word differently. It runs from the lone "##"
+// above that line to the next one, so a "##" comment of the file's own stays,
+// even written right against it. A version line Migrate stamped comes off
+// too, with the note under it. Both are looked for in the footer and above
+// every field but the first one and its first child down, since a field added
+// below one by hand takes it as its comment. A block at the top of the file is
+// left alone. A dotted first line hangs it on its last name, which a saved file
+// writes as the first field's first child, so a block there is left alone too,
+// however it got there. The library save never adds the block by itself; this
+// is for a program that wants it in a file it writes. Returns how many old
+// blocks came off.
 func (d *Document) SetBanner(on bool) int {
 	removed := 0
 	// The first line's comments are the top of the file, on the first node
@@ -8418,12 +9232,12 @@ func (d *Document) Merge(over *Document) {
 	// stack of files from repeating it once per layer. Only the lines
 	// already here count: a layer's own repeats are its content.
 	had := len(d.orphans)
-	// A repeat skipped here may be the comment the next one sat under, and a
-	// reload puts a comment at most one level past the comment before it, so
-	// none goes deeper than that.
+	// A repeat skipped here may be the line the next one sat under, and a
+	// reload puts a comment at most one level past the comment or kept field
+	// line before it, so none goes deeper than that.
 	room := 0
 	for k := len(d.orphans) - 1; k >= 0; k-- {
-		if strings.HasPrefix(d.orphans[k].text, "#") {
+		if !strings.HasPrefix(d.orphans[k].text, " ") && !strings.HasPrefix(d.orphans[k].text, "\t") {
 			room = d.orphans[k].depth + 1
 			break
 		}
@@ -8455,6 +9269,8 @@ func (d *Document) Merge(over *Document) {
 				if o.depth > room {
 					o.depth = room
 				}
+				room = o.depth + 1
+			} else if isField(o.text) {
 				room = o.depth + 1
 			}
 			d.orphans = append(d.orphans, o)
@@ -8578,11 +9394,33 @@ func (d *Document) overlay(baseParent int, over *Document, overParent int, touch
 				var kept []lead
 				for _, b := range byName[name] {
 					nd := &d.arena[b]
+					// The leaf's own comments are the ones a remove would
+					// take: above it those after its last kept line, below
+					// it those before its first. The rest sit with a kept
+					// line beside it and stay. A settled line counts as
+					// the comment a reload reads it as.
+					leading := nd.leading()
+					above := 0
+					for k := len(leading) - 1; k >= 0; k-- {
+						if !strings.HasPrefix(leading[k].text, "#") {
+							above = k + 1
+							break
+						}
+					}
+					after := nd.after()
+					below := len(after)
+					for k, l := range after {
+						if !strings.HasPrefix(l.text, "#") {
+							below = k
+							break
+						}
+					}
+					kept = append(kept, leading[:above]...)
 					among := make([]lead, 0, len(nd.among()))
 					for _, a := range nd.among() {
 						among = append(among, a.lead)
 					}
-					for _, list := range [][]lead{nd.leading(), among, nd.inside(), nd.after()} {
+					for _, list := range [][]lead{leading[above:], among, nd.inside(), after[:below]} {
 						for _, l := range list {
 							if !strings.HasPrefix(l.text, "#") {
 								kept = append(kept, l)
@@ -8595,10 +9433,13 @@ func (d *Document) overlay(baseParent int, over *Document, overParent int, touch
 							}
 						}
 					}
+					kept = append(kept, after[below:]...)
 				}
 				if len(kept) > 0 {
 					t := d.arena[clones[0]].trivMut()
 					t.leading = append(kept, t.leading...)
+					// Comments from two sources now share one run.
+					restep(t.leading)
 				}
 				replace[name] = clones
 			} else {
