@@ -78,6 +78,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the refresh also brings about 15 other upstream changes, mostly kept lines, setters and migration counts. Both `UpgradeConfig` workarounds are still needed on the new pin.
 	- Verified: the new Go test and harness check fail on the old pin with the unterminated quote error and pass on the new one. `go vet`, golangci-lint, `go test ./...`, the browser and reactor builds, the vendor check, and the Config file and Config migration harness sections pass.
 	- Branch: shcl-utf8
+	- Commit: a3a4f3e
 	- Test case: `ErsoOAI` TestConfigInvalidUTF8InQuotes, and harness `ErsoOAv` "config invalid UTF-8 digit mid-quote refused". Both fail before the re-pin and pass after.
 
 - A flag that does nothing in the current mode gets an error, a note, or nothing at all. (Code review 20261005 item 2)
