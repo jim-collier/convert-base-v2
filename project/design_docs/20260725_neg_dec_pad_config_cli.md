@@ -27,6 +27,7 @@
 	- [5. Optional: one convention in the Go definitions too](#5-optional-one-convention-in-the-go-definitions-too)
 - [Touch points](#touch-points)
 - [Compatibility](#compatibility)
+- [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
 
@@ -198,3 +199,8 @@ Then the usual sweep: `test.bash`, `conversions_test.go`, the `fuzz_test.go` see
 This is a breaking change to input syntax, for scripts using the trailer form and for existing config files.
 
 Pre-1.0 stable is the right time to take it. Nothing breaks silently, since every old spelling produces an error that names its replacement. It goes in the changelog under a breaking heading.
+
+## Copyright and license
+
+> Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]<br>
+> Licensed under CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>.

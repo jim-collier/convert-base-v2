@@ -27,6 +27,7 @@
 - [Licensing](#licensing)
 - [Touch points](#touch-points)
 - [Testing](#testing)
+- [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
 
@@ -234,3 +235,8 @@ The WASI command build stays GPL. That split already exists and does not change.
 - A memory test. Allocate, convert, free, repeated enough times to show nothing leaks and the pointer map empties.
 
 - Streaming needs a constant-memory check, the same as the native paths get. A stream that quietly buffers still produces correct output, so correctness tests alone would not catch it.
+
+## Copyright and license
+
+> Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]<br>
+> Licensed under CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>.

@@ -34,6 +34,7 @@
 - [Compatibility](#compatibility)
 - [Outcome](#outcome)
 - [Package name](#package-name)
+- [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
 
@@ -300,3 +301,8 @@ Verification: gofmt clean, `go vet ./...` clean, `go test ./...` passes, the har
 ## Package name
 
 Same as the CLI, for the same reasons of potential future changing base definitions.
+
+## Copyright and license
+
+> Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]<br>
+> Licensed under CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>.
