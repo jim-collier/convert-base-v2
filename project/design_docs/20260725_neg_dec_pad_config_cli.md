@@ -203,4 +203,4 @@ Pre-1.0 stable is the right time to take it. Nothing breaks silently, since ever
 ## Copyright and license
 
 > Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]<br>
-> Licensed under CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>.
+> Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0) <https://creativecommons.org/licenses/by/4.0/>.

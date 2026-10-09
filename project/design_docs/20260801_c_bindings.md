@@ -178,4 +178,4 @@ That is what makes it usable by a proprietary caller, and it is the same reasoni
 ## Copyright and license
 
 > Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]<br>
-> Licensed under CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>.
+> Licensed under Creative Commons Attribution 4.0 International (CC BY 4.0) <https://creativecommons.org/licenses/by/4.0/>.
