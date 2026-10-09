@@ -15,6 +15,7 @@
 - [Breaking-change accounting](#breaking-change-accounting)
 - [Additional problems to fix](#additional-problems-to-fix)
 - [Implementation checklist](#implementation-checklist)
+- [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
 
@@ -188,3 +189,8 @@ Later change, 20260803: `2048tt` was removed. The table below still records what
 - main.go `--examples`, cicd/demo-scenario.toml, default-config.shcl comments: sweep for renamed spellings (32wordsafe survives, so the demo scenario is likely untouched).
 
 - changelog: list every retired spelling under the v2.1.0 breaking notes.
+
+## Copyright and license
+
+> Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]<br>
+> Licensed under CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>.

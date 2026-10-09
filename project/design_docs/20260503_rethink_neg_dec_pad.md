@@ -24,6 +24,7 @@
 		- [structs](#structs)
 - [Detailed solution](#detailed-solution)
 - [Outcome](#outcome)
+- [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
 
@@ -160,3 +161,8 @@ What differs from the plan:
 - Nothing in `mkSpec` reads the marker tokens back out of the parsed spec. A stray `neg=~` left inside a `BaseSymbols` string is therefore parsed off and silently dropped: no error, no marker, and no digit either. The follow-on document fixes this by rejecting those tokens in the parser.
 
 Retrospective: the requirements were right and still are, but the scope was too narrow. The awkwardness this document set out to remove was most visible where a user types it, in a config file or on the command line, and neither surface is mentioned here. Fixing only the internal constructor left the project with two conventions for one idea. That delta is addressed in the next design doc.
+
+## Copyright and license
+
+> Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]<br>
+> Licensed under CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>.

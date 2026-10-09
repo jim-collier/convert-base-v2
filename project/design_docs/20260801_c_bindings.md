@@ -24,6 +24,7 @@
 - [What Python would actually do](#what-python-would-actually-do)
 - [When this becomes worth building](#when-this-becomes-worth-building)
 - [Licensing](#licensing)
+- [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
 
@@ -173,3 +174,8 @@ Until then the other two routes cover the same languages at a fraction of the co
 A C library would wrap the library, not the command, so it would be Apache-2.0.
 
 That is what makes it usable by a proprietary caller, and it is the same reasoning that applies to the Go package and the browser module. The full argument is in `20260731_linkable_library.md`.
+
+## Copyright and license
+
+> Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]<br>
+> Licensed under CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>.

@@ -30,6 +30,7 @@
 - [Testing](#testing)
 - [Compatibility](#compatibility)
 - [Outcome](#outcome)
+- [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
 
@@ -207,3 +208,8 @@ Decoding a 12 MB payload, before and after:
 Decoding gained the most, because the buffered path built one string header per digit before unpacking a single bit.
 
 Verification: 625 streamed-against-buffered comparisons across 25 bases and 25 lengths, 121000 fuzz round-trips across the six streaming shapes, and the harness at 252 checks including the published reference vectors and the v1 cross-checks. The harness also asserts a peak-memory ceiling per base, which is the only check that catches a base silently falling back to buffered, since output stays correct either way.
+
+## Copyright and license
+
+> Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]<br>
+> Licensed under CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>.

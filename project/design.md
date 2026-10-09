@@ -19,6 +19,7 @@
 		- [Flags by mode](#flags-by-mode)
 - [Key design decisions](#key-design-decisions)
 - [CI/CD and release flow](#cicd-and-release-flow)
+- [Copyright and license](#copyright-and-license)
 
 <!-- /TOC -->
 
@@ -249,3 +250,8 @@ The rationale behind the choices most likely to be questioned later. Each was se
 - Release prep on `dev`: rename the changelog's next-version heading to the version and date, bump the version var, and set the Lifecycle badge to match the stage.
 
 - Tool versions are pinned in `cicd/tool-versions.env`, read by both the local pipeline and the workflows. Dependabot files grouped weekly update pull requests against `dev`.
+
+## Copyright and license
+
+> Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]<br>
+> Licensed under CC BY 4.0 <https://creativecommons.org/licenses/by/4.0/>.
