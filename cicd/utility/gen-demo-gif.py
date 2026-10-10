@@ -35,11 +35,13 @@
 
 import argparse
 import io
+import os
 import random
 import re
 import shlex
 import subprocess
 import sys
+import tempfile
 import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
@@ -219,6 +221,8 @@ def load_scenario(path: str) -> dict[str, Any]:
 	##	  wpm_digits = 42               digit typing speed (numbers-heavy demos: raise it)
 	##	  end_hold = 3.0                seconds the final frame holds before the loop
 	##	  end_black = 2.0               seconds of black after the hold, then repeat
+	##	  setup = "{bin} 0 >/dev/null"  runs first, unshown; commands get a home of
+	##	                                their own, so this is where its config is made
 	##	  [[step]]
 	##	  note = "typed as a # comment first"           (optional; a list = one
 	##	                                                 comment line per element)
@@ -256,17 +260,43 @@ def step_notes(step: Step) -> list[str]:
 	return [note] if isinstance(note, str) else list(note)
 
 
-def run_step(step: Step, binpath: str, here: str) -> list[str]:
+def demo_env(home: Path) -> dict[str, str]:
+	##	Commands run in a home of their own, so the gif doesn't change with
+	##	whose machine renders it or what their config files say.
+	env = dict(os.environ, HOME=str(home))
+	for var, sub in (("XDG_CONFIG_HOME", ".config"), ("XDG_CACHE_HOME", ".cache"),
+	                 ("XDG_DATA_HOME", ".local/share"), ("XDG_STATE_HOME", ".local/state")):
+		env[var] = str(home / sub)
+	return env
+
+
+def expand(cmd: str, binpath: str, here: str) -> str:
+	cmd = cmd.replace("{bin}", shlex.quote(binpath)).replace("{prog}", shlex.quote(binpath))
+	return cmd.replace("{here}", shlex.quote(here))
+
+
+def run_setup(sc: dict[str, Any], binpath: str, here: str, env: dict[str, str]) -> None:
+	if not sc.get("setup"):
+		return
+	cmd = expand(sc["setup"], binpath, here)
+	try:
+		res = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True,
+		                     timeout=30, errors="replace", env=env)
+	except subprocess.TimeoutExpired:
+		skip(f"setup timed out: {cmd}")
+	if res.returncode:
+		skip(f"setup failed ({res.returncode}): {cmd}: {res.stderr.strip()}")
+
+
+def run_step(step: Step, binpath: str, here: str, env: dict[str, str]) -> list[str]:
 	##	Execute the step's command for real; merged stdout+stderr becomes the
 	##	demo output, so notes the program prints on stderr show up too.
 	if not step.get("show") and not step.get("run"):
 		return []                        # a notes-only step has nothing to run
-	cmd: str = step["run"] if "run" in step else step["show"]
-	cmd = cmd.replace("{bin}", shlex.quote(binpath)).replace("{prog}", shlex.quote(binpath))
-	cmd = cmd.replace("{here}", shlex.quote(here))
+	cmd = expand(step["run"] if "run" in step else step["show"], binpath, here)
 	try:
 		res = subprocess.run(["bash", "-c", cmd], capture_output=True, text=True,
-		                     timeout=30, errors="replace")
+		                     timeout=30, errors="replace", env=env)
 	except subprocess.TimeoutExpired:
 		skip(f"command timed out: {cmd}")
 	out = ANSI_RE.sub("", res.stdout + res.stderr)
@@ -758,7 +788,10 @@ def main() -> None:
 	##	Run every command up front: the outputs feed the demo AND tell the
 	##	palette which emoji it must carry before the first frame renders.
 	here = str(Path(args.scenario).resolve().parent)
-	step_out = [run_step(step, binpath, here) for step in sc["step"]]
+	with tempfile.TemporaryDirectory(prefix="gen-demo-gif.") as home:
+		env = demo_env(Path(home))
+		run_setup(sc, binpath, here, env)
+		step_out = [run_step(step, binpath, here, env) for step in sc["step"]]
 	emoji_set = sorted({ch for lines in step_out for ln in lines for ch in ln
 	                    if scr.is_emoji(ch)})
 	tiles = [t for t in (scr.emoji_tile(ch) for ch in emoji_set) if t is not None]
@@ -932,6 +965,8 @@ if __name__ == "__main__":
 
 
 ##	History:
+##		- 20261010: Commands run in a private home, after an optional unshown
+##			setup= command.
 ##		- 20261004: PEP 8 names and type hints. A one-word command types its
 ##			first word at muscle-memory speed like any other command. The
 ##			missing-glyph check no longer reaches into Pillow's internals.

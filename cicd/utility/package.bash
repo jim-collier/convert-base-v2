@@ -19,7 +19,8 @@
 ##		- nfpm is a pinned go-installed tool (cicd/tool-versions.env); it writes
 ##		  deb and rpm directly for any arch, sidestepping rpmbuild's host-arch
 ##		  cross-build check. makensis/nfpm each probe-skip with a warning if
-##		  missing, so a bare machine still gets the archives.
+##		  missing, so a bare machine still gets the archives. Under
+##		  CICD_NO_SKIP=1, as in the container, a missing or failed one is an error.
 ##		- Same script runs locally (via `make release` / cicd) and in the release
 ##		  workflow, so what ships is what was built and tested here.
 ##		- Every binary carries a build number, taken from the commit's time
@@ -66,6 +67,9 @@ WANT_ARM=1
 ## Output helpers (bracketed status lines, matching cicd.bash).
 fEcho(){ printf '[ %s ]\n' "$*"; }
 fWarn(){ printf '[ WARNING: %s ]\n' "$*" >&2; }
+## A package left out. In the container (CICD_NO_SKIP=1) every packager is
+## installed, so there it's an error.
+fSkip(){ [[ "${CICD_NO_SKIP:-0}" != "1" ]] || { printf '[ ERROR: %s ]\n' "$*" >&2; exit 1; }; fWarn "$*"; }
 
 fUsage(){ sed -n '/^##	Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##	\{0,1\}//'; }
 
@@ -78,6 +82,10 @@ while (($#)); do case "$1" in
 	*) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
 esac; done
 [[ -z "${BUILD_EPOCH}" || "${BUILD_EPOCH}" =~ ^[0-9]+$ ]] || { echo "--build-epoch takes unix seconds, not '${BUILD_EPOCH}'" >&2; exit 2; }
+## Before the cross builds, so a missing packager fails in a second, not a minute.
+if [[ "${CICD_NO_SKIP:-0}" == "1" ]]; then
+	for tool in nfpm makensis; do command -v "${tool}" >/dev/null 2>&1 || fSkip "${tool} missing"; done
+fi
 
 ## A relative --out is resolved against the caller's CWD (make/cicd invoke from
 ## the source dir, so their `--out dist` lands at lib/dist as before).
@@ -186,7 +194,7 @@ fEcho "built wasip1/wasm"
 
 fBuildNfpm(){
 	local arch="$1" bin="$2"   ## arch: amd64|arm64
-	command -v nfpm >/dev/null 2>&1 || { fWarn "nfpm missing; skipping .deb/.rpm (${arch}) - go install github.com/goreleaser/nfpm/v2/cmd/nfpm"; return 0; }
+	command -v nfpm >/dev/null 2>&1 || { fSkip "nfpm missing; skipping .deb/.rpm (${arch}) - go install github.com/goreleaser/nfpm/v2/cmd/nfpm"; return 0; }
 	local cfg="${work}/nfpm-${arch}.yaml"
 	cat >"${cfg}" <<-EOF
 		name: ${PKG}
@@ -223,7 +231,7 @@ fBuildNfpm(){
 		if nfpm package --config "${cfg}" --packager "${fmt}" --target "${OUT}/" >/dev/null 2>&1; then
 			fEcho "built .${fmt} (${arch})"
 		else
-			fWarn "nfpm ${fmt} failed (${arch})"
+			fSkip "nfpm ${fmt} failed (${arch})"
 		fi
 	done
 }
@@ -234,7 +242,7 @@ fBuildNfpm(){
 
 fBuildNsis(){
 	local arch="$1" bin="$2"
-	command -v makensis >/dev/null 2>&1 || { fWarn "makensis missing; skipping installer (${arch})"; return 0; }
+	command -v makensis >/dev/null 2>&1 || { fSkip "makensis missing; skipping installer (${arch})"; return 0; }
 	local label="${arch}"; [[ "${arch}" == amd64 ]] && label="x86_64"
 	local outfile="${OUT}/${PKG}-windows-${label}-setup.exe"
 	if makensis -V1 \
@@ -243,7 +251,7 @@ fBuildNsis(){
 		"${here}/nsis/installer.nsi" >/dev/null 2>&1; then
 		fEcho "built installer (${label})"
 	else
-		fWarn "makensis failed (${label}); skipping installer"
+		fSkip "makensis failed (${label}); skipping installer"
 	fi
 }
 
@@ -283,3 +291,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt ! -name "
 ##		- 2026-10-04: Build number from the commit's time (--build-epoch). The WASI build ships too.
 ##		- 2026-10-04: Archives, packages and installers rebuild to the same bytes. Names GitHub would change are changed first.
 ##		- 2026-10-04: --out is cleared only when a build made it.
+##		- 2026-10-10: A skipped package is an error under CICD_NO_SKIP=1.

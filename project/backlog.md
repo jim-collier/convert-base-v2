@@ -34,6 +34,17 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- Hosted CI runs only vet, the Go tests and the build.
+	- ID: 2026101009523062
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261010-095230
+	- Opened by: JC
+	- Target OS: Linux
+	- Related IDs: 2026101009523061
+	- Note: the runners could pull the `--container` image and run the harness, interop, shellcheck and ruff too. Building it on every run takes several minutes, so it wants a registry or a cache.
+
 - The Bash scripts drift from the house Bash style. (Code review 20261004 item 26)
 	- ID: 2026100413480026
 	- Type: Enhancement
@@ -494,6 +505,33 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 46ddb9a
 	- Acceptance signoff: Self-closed: output and memory match the old routes, its test covers all 3 steps, and the full suite passed.
 	- Closed: 20261005-203040
+
+- A pipeline run can pass with the interop, installer, gif or lint checks skipped, because a missing tool only warns.
+	- ID: 2026101009523061
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: none. `cicd/cicd.bash --container` passed on 20261010, harness 671 of 671 with no skips, and so did a host run.
+	- Priority: Avg
+	- Opened: 20261010-095230
+	- Opened by: JC
+	- Target OS: Linux
+	- Requirements:
+		- One docker image with every tool the pipeline calls, at pinned versions.
+		- `cicd.bash --container` runs stages 1 to 4, 6 and the demo gif in it. The profiler, dogfood and publish stay on the host.
+		- Inside the image a missing tool fails the run. A skip the run asked for, like `--quick`'s, doesn't.
+	- Progress log:
+		- 20261010: image in `cicd/container/Dockerfile`, tagged by a hash of it and `tool-versions.env`. `CICD_NO_SKIP=1` is set inside, and `cicd.bash`, `test.bash` and `package.bash` all honor it.
+		- 20261010: the first run in it failed on a real gap. The reactor host harness didn't build, which a host run would have skipped quietly. A rerun from a cold cache passed, so the cause is unknown. That skip now shows the build's error.
+		- 20261010: the README gif showed `emoji10` where the default config has `10emoji`, from an old config file on the machine that rendered it. Demo commands now run in a private home, after an unshown `setup =` line in the scenario that makes the default config.
+		- 20261010: the gif draws some glyphs from whatever fallback fonts the machine has, so a host render and a container render differ a little. Only `--container` runs make it now, so it can't flip back and forth.
+	- Decisions:
+		- Go is in the image too, since the harness builds the reactor, wasm and packages itself.
+		- Fuzz runs inside. Only the profiler stays out, so flame graphs compare against older host runs.
+	- Verified: 20261010, the gif rebuilds to the same bytes in the container. A host run skips it with a note.
+	- Verified: every new check fails with its code broken: no-skip off, no `--user`, no old-tag removal, stages 1 to 4 or 6 rerun on the host, the failed inner run not caught, `--container` allowed inside, a host gif, no early packager check, and the `--quick` skip left unmarked.
+	- Branch: container
+	- Test case: EsJjVsP (self-check), EsJjVtL, EsJjVuH, EsJjVvF, EsJjVwL, EsJjVxK, EsJjVyJ, EsJpWaD (CI engine section), EsJjVzI (package.bash), EsJpWap (demo gif private home).
+	- Closed: 20261010
 
 - The lint stage checks Go only. Shellcheck and ruff don't run, and nothing configures them. (Code review 20261004 item 22)
 	- ID: 2026100413480022
