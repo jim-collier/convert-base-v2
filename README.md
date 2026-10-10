@@ -543,7 +543,7 @@ Build targets, all run from `lib/`.
 | `make reactor` | The callable WebAssembly module |
 | `make release` | Cross-builds and packages every platform |
 
-Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. `--quick` skips the slow stages, `--long` runs the exhaustive tests, and every stage has its own `--no-...` switch. `--container` runs the build and test stages in a docker image that has every tool installed at a pinned version.
+Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. `--quick` skips the slow stages, `--long` runs the exhaustive tests, and every stage has its own `--no-...` switch. The build and test stages run in a docker image that has every tool installed at a pinned version, and `--host` runs them on your own machine instead.
 
 Tests sandbox their own config directory, so running them will not read or write the config file in your home directory.
 

@@ -2,7 +2,7 @@
 # gif call, pinned, so a run doesn't depend on what the host has installed.
 # The profiler, dogfood and publish stay on the host.
 #
-# The tag is a hash of this file and cicd/tool-versions.env, so editing either
+# The tag is a hash of this dir and cicd/tool-versions.env, so editing either
 # means a new image. The go-installed tools, shellcheck and ruff take their
 # versions from tool-versions.env as build args. Bump one there without its
 # checksum here and the build fails on the checksum.
@@ -13,15 +13,16 @@
 FROM debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d765c46aea49f11f
 
 # Apt is pinned only as far as the base image is. Pango, cairo and gi are for the
-# gif's color emoji. The font packages cover what the demo draws outside Monaspace.
+# gif's color emoji. The font packages are the ones the gif falls back on that
+# Debian has byte for byte; the rest come from gif-fonts below. No other fonts,
+# since one the host lacks could win a glyph there and change the gif.
 # rpm and dpkg only read what nfpm writes. cargo builds the llfourn interop adapter.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
 		bash ca-certificates curl git make xz-utils zip unzip file bc xxd time openssl \
 		nsis rpm dpkg cargo rustc gifsicle \
 		python3 python3-pil python3-fonttools python3-gi python3-gi-cairo python3-cairo gir1.2-pango-1.0 \
-		fontconfig fonts-noto-core fonts-noto-cjk fonts-noto-color-emoji fonts-dejavu-core \
-		fonts-freefont-ttf fonts-unifont fonts-vlgothic fonts-dzongkha \
+		fontconfig fonts-freefont-ttf fonts-vlgothic fonts-dzongkha \
 	&& rm -rf /var/lib/apt/lists/*
 
 ARG GO_VER=1.26.2
@@ -54,7 +55,6 @@ RUN test -n "${SHELLCHECK_VERSION}" && test -n "${RUFF_VERSION}" \
 	&& echo "${MONASPACE_SHA256}  mona.zip" | sha256sum -c - \
 	&& mkdir -p /usr/local/share/fonts/monaspace \
 	&& unzip -j -q mona.zip '*/Monaspace Argon/*.otf' -d /usr/local/share/fonts/monaspace \
-	&& fc-cache -s \
 	&& cd / && rm -rf /tmp/dl
 
 ENV PATH=/opt/gotools/bin:/opt/go/bin:/opt/node/bin:${PATH} \
@@ -71,6 +71,18 @@ RUN test -n "${GOLANGCI_LINT_VERSION}" && test -n "${STATICCHECK_VERSION}" && te
 	&& go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" \
 	&& go install "github.com/goreleaser/nfpm/v2/cmd/nfpm@${NFPM_VERSION}" \
 	&& rm -rf /tmp/gopath /tmp/gocache
+
+# The gif's other fallback fonts, such as Arial Unicode and Tahoma, which no
+# package or release has. cicd.bash passes them in from ../private/fonts/demo-gif,
+# never the repo, so this image is for local use only. They must match
+# gif-fonts.sha256 exactly. Without them the dir is empty and the gif is skipped.
+COPY gif-fonts.sha256 /usr/local/share/fonts/
+COPY --from=gif-fonts . /usr/local/share/fonts/demo-gif/
+RUN cd /usr/local/share/fonts/demo-gif \
+	&& if [ -n "$(ls -A)" ]; then \
+		[ "$(ls -A | wc -l)" = "$(wc -l <../gif-fonts.sha256)" ] && sha256sum --quiet -c ../gif-fonts.sha256; \
+	fi \
+	&& fc-cache -s
 
 # Runs as the caller's uid, which has no passwd entry here. /cache is where the
 # named volume goes, and a new volume takes this dir's mode, so anyone can write.

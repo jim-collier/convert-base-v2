@@ -50,12 +50,14 @@
 ##	                       and skip the harness perf section and packaging rebuild check
 ##	   --container         run stages 1 to 4, 6 and the demo gif in the pinned image from cicd/container/,
 ##	                       where a missing tool is an error. The profiler, dogfood and publish then run here.
+##	                       The default when config.bash sets CONTAINER_DEFAULT=1.
+##	   --host              run every stage here, with whatever tools this machine has
 ##	   -h, --help          show this help
 ##	- If neither -q/-y nor -m is given, the run prompts once for a commit message
 ##	  (blank = git editor; Ctrl+C aborts the whole run), then finishes unattended.
 ##	- --container needs docker, or CICD_DOCKER naming a program that takes its arguments.
-##	  The image is built the first time it's needed, and again when its Dockerfile or
-##	  cicd/tool-versions.env changes. Its caches live in a docker volume.
+##	  The image is built the first time it's needed, and again when anything in its
+##	  dir or cicd/tool-versions.env changes. Its caches live in a docker volume.
 ##	- Reuse: copy the cicd/ directory into another project and edit config.bash.
 
 ##	History: At bottom of script.
@@ -87,7 +89,7 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the Entering/Leaving dir noise
 
 ## Parse options.
-assume_yes=0; quiet=0; quick=0; do_long=0; cli_message=""; use_container=0; inner_args=()
+assume_yes=0; quiet=0; quick=0; do_long=0; cli_message=""; use_container=""; inner_args=()
 while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
@@ -100,6 +102,7 @@ while (($#)); do case "$1" in
 	--no-demogif)             DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
 	--no-publish)             GIT_PUBLISH=(); shift ;;
 	--container)              use_container=1; shift ;;
+	--host)                   use_container=0; shift ;;
 	--long)                   do_long=1; inner_args+=("$1"); shift ;;
 	--quick)                  quick=1; BUILD_CROSS=0; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
 	--message=*|--msg=*|-m=*) cli_message="${1#*=}"; shift ;;
@@ -110,9 +113,14 @@ esac; done
 ## The container run does its part and leaves the rest to the host run that
 ## started it. The host run also keeps the log, so this one doesn't.
 if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then
-	((! use_container)) || { echo "--container is for the host, not the container" >&2; exit 2; }
-	LINT_LOG_DIR=""
+	[[ "${use_container}" != "1" ]] || { echo "--container is for the host, not the container" >&2; exit 2; }
+	use_container=0; LINT_LOG_DIR=""
 fi
+[[ -n "${use_container}" ]] || use_container="${CONTAINER_DEFAULT:-0}"
+## Older configs don't have these.
+[[ -v CONTAINER_MOUNTS ]] || CONTAINER_MOUNTS=()
+[[ -v CONTAINER_CONTEXTS ]] || CONTAINER_CONTEXTS=()
+[[ -v CONTAINER_CONTEXT_MISSING ]] || CONTAINER_CONTEXT_MISSING=()
 
 ## Brief beat after each stage header so the cheap fast stages stay readable.
 ## Off for unattended runs (-q/-y) where nobody is watching.
@@ -167,17 +175,28 @@ fShellFiles(){
 		files_fsf+=("${path}")
 	done < <(git -C "${root}" ls-files -s -z)
 }
-## Tagged by a hash of the recipe and the tool pins, so changing either can't
-## run on the old image.
+## A build context dir from CONTAINER_CONTEXTS, if it's there and has anything in it.
+fContextDir(){ local dir="${root}/${1#*=}"; if [[ -d "${dir}" && -n "$(ls -A "${dir}")" ]]; then readlink -f "${dir}"; fi; }
+## Tagged by a hash of the recipe dir, the tool pins and which contexts are
+## there, so changing any of them can't run on the old image. A context's files
+## are checked against the recipe inside the build.
 fContainerImage(){
-	printf '%s:%s' "${CONTAINER_IMAGE}" "$(cat "${root}/${CONTAINER_DIR}/Dockerfile" "${root}/cicd/tool-versions.env" | git hash-object --stdin | cut -c1-12)"
+	local c
+	printf '%s:%s' "${CONTAINER_IMAGE}" "$( {
+		find "${root}/${CONTAINER_DIR}" -maxdepth 1 -type f -print0 | LC_ALL=C sort -z | xargs -0 cat
+		cat "${root}/cicd/tool-versions.env"
+		for c in "${CONTAINER_CONTEXTS[@]}"; do if [[ -n "$(fContextDir "${c}")" ]]; then echo "${c%%=*}"; fi; done
+	} | git hash-object --stdin | cut -c1-12)"
 }
 ## Stages 1 to 4, 6 and the demo gif, in the pinned image, as this user. The repo
 ## is mounted at the same path, so paths in logs and caches still point at
 ## something, and so is a linked worktree's git dir.
 fRunContainer(){
-	local engine="${CICD_DOCKER:-docker}" image old k v m
-	command -v "${engine}" >/dev/null 2>&1 || fDie "--container needs ${engine}"
+	local engine="${CICD_DOCKER:-docker}" image old k v m c
+	command -v "${engine}" >/dev/null 2>&1 || fDie "no ${engine} to run the stages in a container; install it, or run with --host"
+	local -a inner=(-y)
+	if ((quiet)); then inner=(-q); fi
+	inner+=(--no-profile --no-dogfood --no-publish "${inner_args[@]}")
 	[[ -f "${root}/${CONTAINER_DIR}/Dockerfile" ]] || fDie "no container recipe at ${CONTAINER_DIR}/Dockerfile"
 	image="$(fContainerImage)"
 	if "${engine}" image inspect "${image}" >/dev/null 2>&1; then
@@ -188,7 +207,15 @@ fRunContainer(){
 		while IFS='=' read -r k v; do
 			if [[ "${k}" =~ ^[A-Z_]+$ ]]; then buildArgs+=(--build-arg "${k}=${v}"); fi
 		done <"${root}/cicd/tool-versions.env"
+		## A missing context builds from an empty dir.
+		local c dir empty=""
+		for c in "${CONTAINER_CONTEXTS[@]}"; do
+			dir="$(fContextDir "${c}")"
+			if [[ -z "${dir}" ]]; then [[ -n "${empty}" ]] || empty="$(mktemp -d)"; dir="${empty}"; fi
+			buildArgs+=(--build-context "${c%%=*}=${dir}")
+		done
 		"${engine}" build -t "${image}" "${buildArgs[@]}" "${root}/${CONTAINER_DIR}" || fDie "could not build ${image}"
+		if [[ -n "${empty}" ]]; then rmdir "${empty}"; fi
 		## What it replaces is a few GB nobody runs again.
 		while IFS= read -r old; do
 			if [[ -z "${old}" || "${old}" == "${image}" ]]; then continue; fi
@@ -203,9 +230,13 @@ fRunContainer(){
 	for m in "${CONTAINER_MOUNTS[@]}"; do
 		if [[ -d "${root}/${m}" ]]; then mounts+=(-v "$(readlink -f "${root}/${m}"):$(cd "${root}/${m}" && pwd)"); fi
 	done
-	local -a inner=(-y)
-	if ((quiet)); then inner=(-q); fi
-	inner+=(--no-profile --no-dogfood --no-publish "${inner_args[@]}")
+	for c in "${CONTAINER_CONTEXTS[@]}"; do
+		if [[ -z "$(fContextDir "${c}")" ]]; then
+			fEcho "NOTE: no ${c#*=}, so the container runs with ${CONTAINER_CONTEXT_MISSING[*]}"
+			inner+=("${CONTAINER_CONTEXT_MISSING[@]}")
+			break
+		fi
+	done
 	fEcho_Chat "inside: cicd/cicd.bash ${inner[*]}"
 	"${engine}" run --rm --init --user "$(id -u):$(id -g)" "${mounts[@]}" -w "${root}" "${image}" \
 		bash "${root}/cicd/cicd.bash" "${inner[@]}" || fDie "the run in the container failed; its output is above"
@@ -260,7 +291,7 @@ fi
 fEcho_Chat "Screenshots .........: $( ((DO_SCREENSHOTS)) && echo "${SCREENSHOT_CMD[*]}" || echo '(skipped)')"
 gif_plan="${DEMOGIF_CMD[*]}"
 ((DO_DEMOGIF)) || gif_plan="(skipped)"
-if ((DO_DEMOGIF && ! use_container)) && [[ "${DEMOGIF_CONTAINER_ONLY:-0}" == "1" && "${CICD_IN_CONTAINER:-0}" != "1" ]]; then gif_plan="(skipped: only --container runs make it)"; fi
+if ((DO_DEMOGIF && ! use_container)) && [[ "${DEMOGIF_CONTAINER_ONLY:-0}" == "1" && "${CICD_IN_CONTAINER:-0}" != "1" ]]; then gif_plan="(skipped: only container runs make it)"; fi
 fEcho_Chat "Demo gif ............: ${gif_plan}"
 if ((${#GIT_PUBLISH[@]} == 0)); then
 	fEcho_Chat "Publish (last) ......: (disabled)"
@@ -564,7 +595,7 @@ elif ((! DO_DEMOGIF)); then
 elif [[ "${DEMOGIF_CONTAINER_ONLY:-0}" == "1" && "${CICD_IN_CONTAINER:-0}" != "1" ]]; then
 	## Its fallback fonts are whatever this machine has, so it would flip back
 	## and forth against the container's.
-	fEcho_Chat "demo gif skipped: only --container runs make it"
+	fEcho_Chat "demo gif skipped: only container runs make it"
 elif [[ -f "${demogif_util}" ]]; then
 	demogif_out="${root}/${DEMOGIF_OUT}"
 	demogif_tmp="${demogif_out}.new"
@@ -623,3 +654,4 @@ fEcho_Clean
 ##		- 2026-07-29 JC: Vendored drop-in files are verified against their pinned upstream release before the build.
 ##		- 2026-10-04 JC: shellcheck and ruff in the lint stage.
 ##		- 2026-10-10 JC: --container runs the tool-heavy stages in a pinned image, where no check may skip.
+##		- 2026-10-10 JC: Container runs can be the default (CONTAINER_DEFAULT), with --host to opt out. Build contexts from outside the repo.

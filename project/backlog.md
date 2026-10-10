@@ -506,6 +506,30 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: output and memory match the old routes, its test covers all 3 steps, and the full suite passed.
 	- Closed: 20261005-203040
 
+- The container's gif fonts differ from the host's, and container runs need a flag.
+	- ID: 2026101011445741
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: none. A plain `cicd/cicd.bash` run went to the container and passed on 20261010, harness 674 of 674, and a `--host --quick` run passed too.
+	- Priority: Avg
+	- Opened: 20261010-114457
+	- Opened by: JC
+	- Target OS: Linux
+	- Related IDs: 2026101009523061
+	- Requirements:
+		- The container has the fonts the gif uses on this machine, so both render it the same.
+		- A plain `cicd.bash` run uses the container. `--host` runs on this machine.
+	- Progress log:
+		- 20261010: the host draws the demo's fallback glyphs from 12 font files. FreeFont, VL Gothic and Jomolhari match Debian's byte for byte. The other 7, Arial Unicode and Tahoma among them, can't be downloaded, so they're copied into `../private/fonts/demo-gif/` and passed to the build. `gif-fonts.sha256` lists them, and the build checks them. The Debian Noto, CJK and Unifont packages are out, since a font the host lacks could win a glyph.
+		- 20261010: the container gif is now byte for byte the host's.
+		- 20261010: the gif tool fails before rendering when no font has a character, rather than drawing a box.
+		- 20261010: `CONTAINER_DEFAULT=1` in `config.bash`. Without the fonts dir the container run skips the gif with a note. Without docker the run says to install it or use `--host`.
+	- Verified: 20261010, the gif from the plain run matches a host render byte for byte.
+	- Verified: each new check fails with its code broken: no args for a missing context, no empty dir, the tag not keyed on contexts, no default, `--host` ignored, the inside run not on the host, and the glyph check gone or not reading the font's cmap.
+	- Branch: container2
+	- Test case: EsKCVVh, EsKCVWM (CI engine section), EsKCVWy (demo gif missing glyphs).
+	- Closed: 20261010
+
 - A pipeline run can pass with the interop, installer, gif or lint checks skipped, because a missing tool only warns.
 	- ID: 2026101009523061
 	- Type: Enhancement
