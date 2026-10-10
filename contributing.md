@@ -47,6 +47,12 @@ Stage 3 is the lint stage. `go vet` always runs. golangci-lint, staticcheck, she
 
 The shellcheck settings are in `.shellcheckrc`, the ruff settings in `pyproject.toml`, and the Go linter set in `lib/.golangci.yml`.
 
+With docker installed, add `--container` and there's nothing else to install. Stages 1 to 4 and 6 then run in an image with every tool at its pinned version, and a missing tool fails the run there instead of being skipped. The image is built from `cicd/container/Dockerfile` the first time, which takes a few minutes and about 3 GB. Only these runs remake the demo gif, since its fonts are pinned in the image.
+
+~~~bash
+cicd/cicd.bash --container --quick --no-dogfood --no-publish -y
+~~~
+
 ## Tests
 
 - Go unit tests sit beside the code they test, under `lib/`.

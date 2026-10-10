@@ -19,6 +19,9 @@ font  = ["Monaspace Argon SemiBold"]
 wpm_digits = 293
 end_hold  = 3.0
 end_black = 3.0
+# The demo runs in a fresh home, so make the default config there first,
+# or its first-run note shows up in the first step.
+setup = "{bin} 0 >/dev/null 2>&1"
 
 [[step]]
 note  = ["Positional notation conversion - any size, any base",

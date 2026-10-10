@@ -198,6 +198,15 @@ DO_DEMOGIF=1
 DEMOGIF_CMD=(cicd/utility/gen-demo-gif.py --scenario cicd/demo-scenario.toml)
 DEMOGIF_OUT="assets/demo.gif"                 # in-repo copy the README embeds
 DEMOGIF_ARCHIVE_DIR="../private/demos/gif"    # out-of-tree originals, GFS-rotated
+DEMOGIF_CONTAINER_ONLY=1                      # fonts are pinned only there, so a host run leaves it be
+
+## --container: the image recipe, its name, and the docker volume for its Go and
+## cargo caches. Extra dirs, relative to the repo, are mounted at the same path
+## when they exist; the demo gif reads its inputs and archives under this one.
+CONTAINER_DIR="cicd/container"
+CONTAINER_IMAGE="convert-base-v2-cicd"
+CONTAINER_VOLUME="convert-base-v2-cicd-cache"
+CONTAINER_MOUNTS=("../private/demos")
 
 ## Stage 8 (before publish): optional local pre-publish hook. Points at an
 ## out-of-tree script kept under ../private, so it never ships with the repo.
@@ -220,3 +229,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-07-09 JC: Added lint (vet/golangci/staticcheck), fuzz, vuln, and profiler stages; artifact dirs; quiet/message publish.
 ##		- 2026-07-29 JC: Added the vendor pin check (cicd/vendor-pins.env) ahead of stage 1.
 ##		- 2026-10-04 JC: shellcheck and ruff in the lint stage.
+##		- 2026-10-10 JC: Container settings for --container.

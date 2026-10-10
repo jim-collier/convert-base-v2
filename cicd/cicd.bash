@@ -48,9 +48,14 @@
 ##	   --long              exhaustive test run (sets CICDTEST_DO_LONGTEST=1)
 ##	   --quick             skip the slow stages (cross-compile, profiler, screenshots, demo gif), shorten fuzz,
 ##	                       and skip the harness perf section and packaging rebuild check
+##	   --container         run stages 1 to 4, 6 and the demo gif in the pinned image from cicd/container/,
+##	                       where a missing tool is an error. The profiler, dogfood and publish then run here.
 ##	   -h, --help          show this help
 ##	- If neither -q/-y nor -m is given, the run prompts once for a commit message
 ##	  (blank = git editor; Ctrl+C aborts the whole run), then finishes unattended.
+##	- --container needs docker, or CICD_DOCKER naming a program that takes its arguments.
+##	  The image is built the first time it's needed, and again when its Dockerfile or
+##	  cicd/tool-versions.env changes. Its caches live in a docker volume.
 ##	- Reuse: copy the cicd/ directory into another project and edit config.bash.
 
 ##	History: At bottom of script.
@@ -82,25 +87,32 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the Entering/Leaving dir noise
 
 ## Parse options.
-assume_yes=0; quiet=0; quick=0; do_long=0; cli_message=""
+assume_yes=0; quiet=0; quick=0; do_long=0; cli_message=""; use_container=0; inner_args=()
 while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
-	--no-fmt)                 FMT_CMD=(); shift ;;
-	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); SHELLCHECK_CMD=(); RUFF_CMD=(); shift ;;
-	--no-cross)               BUILD_CROSS=0; shift ;;
+	--no-fmt)                 FMT_CMD=(); inner_args+=("$1"); shift ;;
+	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); SHELLCHECK_CMD=(); RUFF_CMD=(); inner_args+=("$1"); shift ;;
+	--no-cross)               BUILD_CROSS=0; inner_args+=("$1"); shift ;;
 	--no-profile)             PROFILE_ENABLE=0; shift ;;
 	--no-dogfood)             DOGFOOD_FIXED_DESTS=(); shift ;;
-	--no-screenshots)         DO_SCREENSHOTS=0; shift ;;
-	--no-demogif)             DO_DEMOGIF=0; shift ;;
+	--no-screenshots)         DO_SCREENSHOTS=0; inner_args+=("$1"); shift ;;
+	--no-demogif)             DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
 	--no-publish)             GIT_PUBLISH=(); shift ;;
-	--long)                   do_long=1; shift ;;
-	--quick)                  quick=1; BUILD_CROSS=0; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; shift ;;
+	--container)              use_container=1; shift ;;
+	--long)                   do_long=1; inner_args+=("$1"); shift ;;
+	--quick)                  quick=1; BUILD_CROSS=0; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
 	--message=*|--msg=*|-m=*) cli_message="${1#*=}"; shift ;;
 	-m|--message|--msg)       cli_message="${2-}"; shift; (($#)) && shift ;;
 	-h|--help)                sed -n '/^##	- Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##	\{0,1\}//'; exit 0 ;;
 	*) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
 esac; done
+## The container run does its part and leaves the rest to the host run that
+## started it. The host run also keeps the log, so this one doesn't.
+if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then
+	((! use_container)) || { echo "--container is for the host, not the container" >&2; exit 2; }
+	LINT_LOG_DIR=""
+fi
 
 ## Brief beat after each stage header so the cheap fast stages stay readable.
 ## Off for unattended runs (-q/-y) where nobody is watching.
@@ -129,6 +141,9 @@ fEcho_Chat(){  if ((quiet)); then return 0; fi; fEcho_Clean "$@"; }
 _letterbox="••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"
 fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fEcho "$*"; [[ "${stage_pause:-0}" == 0 ]] || sleep "${stage_pause}"; }
 fDie(){ { fEcho_Force "FAILED: $*"; } >&2; exit 1; }
+## A tool that isn't installed skips its check, except where every tool is meant
+## to be (CICD_NO_SKIP=1, set in the container).
+fSkip(){ [[ "${CICD_NO_SKIP:-0}" != "1" ]] || fDie "$* (CICD_NO_SKIP=1)"; fEcho "WARNING: $*"; }
 ## Run a command array inside the Go module dir (SRC_DIR). Go tool stages need it.
 in_src(){ ( cd "${root}/${SRC_DIR}" && "$@" ); }
 ## Every tracked Bash file into the named array: a *.bash name, or an executable
@@ -152,6 +167,49 @@ fShellFiles(){
 		files_fsf+=("${path}")
 	done < <(git -C "${root}" ls-files -s -z)
 }
+## Tagged by a hash of the recipe and the tool pins, so changing either can't
+## run on the old image.
+fContainerImage(){
+	printf '%s:%s' "${CONTAINER_IMAGE}" "$(cat "${root}/${CONTAINER_DIR}/Dockerfile" "${root}/cicd/tool-versions.env" | git hash-object --stdin | cut -c1-12)"
+}
+## Stages 1 to 4, 6 and the demo gif, in the pinned image, as this user. The repo
+## is mounted at the same path, so paths in logs and caches still point at
+## something, and so is a linked worktree's git dir.
+fRunContainer(){
+	local engine="${CICD_DOCKER:-docker}" image old k v m
+	command -v "${engine}" >/dev/null 2>&1 || fDie "--container needs ${engine}"
+	[[ -f "${root}/${CONTAINER_DIR}/Dockerfile" ]] || fDie "no container recipe at ${CONTAINER_DIR}/Dockerfile"
+	image="$(fContainerImage)"
+	if "${engine}" image inspect "${image}" >/dev/null 2>&1; then
+		fEcho_Chat "image ${image}"
+	else
+		fEcho "building ${image}"
+		local -a buildArgs=()
+		while IFS='=' read -r k v; do
+			if [[ "${k}" =~ ^[A-Z_]+$ ]]; then buildArgs+=(--build-arg "${k}=${v}"); fi
+		done <"${root}/cicd/tool-versions.env"
+		"${engine}" build -t "${image}" "${buildArgs[@]}" "${root}/${CONTAINER_DIR}" || fDie "could not build ${image}"
+		## What it replaces is a few GB nobody runs again.
+		while IFS= read -r old; do
+			if [[ -z "${old}" || "${old}" == "${image}" ]]; then continue; fi
+			if "${engine}" rmi "${old}" >/dev/null 2>&1; then fEcho_Chat "removed ${old}"; else fEcho_Chat "kept ${old} (in use)"; fi
+		done < <("${engine}" image ls "${CONTAINER_IMAGE}" --format '{{.Repository}}:{{.Tag}}' 2>/dev/null || true)
+	fi
+	local -a mounts=(-v "${root}:${root}" -v "${CONTAINER_VOLUME}:/cache")
+	## This machine's time zone, so stamped names match the ones made out here.
+	if [[ -e /etc/localtime ]]; then mounts+=(-v /etc/localtime:/etc/localtime:ro); fi
+	local gitCommon; gitCommon="$(git -C "${root}" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)"
+	if [[ -n "${gitCommon}" && "${gitCommon}" != "${root}/"* ]]; then mounts+=(-v "${gitCommon}:${gitCommon}"); fi
+	for m in "${CONTAINER_MOUNTS[@]}"; do
+		if [[ -d "${root}/${m}" ]]; then mounts+=(-v "$(readlink -f "${root}/${m}"):$(cd "${root}/${m}" && pwd)"); fi
+	done
+	local -a inner=(-y)
+	if ((quiet)); then inner=(-q); fi
+	inner+=(--no-profile --no-dogfood --no-publish "${inner_args[@]}")
+	fEcho_Chat "inside: cicd/cicd.bash ${inner[*]}"
+	"${engine}" run --rm --init --user "$(id -u):$(id -g)" "${mounts[@]}" -w "${root}" "${image}" \
+		bash "${root}/cicd/cicd.bash" "${inner[@]}" || fDie "the run in the container failed; its output is above"
+}
 trap 'rc=$?; printf "\n[ CICD ABORTED (exit %s) at line %s: %s ]\n" "$rc" "$LINENO" "$BASH_COMMAND" >&2; exit $rc' ERR
 
 ## Preflight: show the plan with resolved paths, then confirm.
@@ -162,6 +220,8 @@ fEcho_Chat
 fEcho_Chat "${APP_NAME} local CI/CD"
 fEcho_Chat
 fEcho_Chat "Repo root ...........: ${root}"
+((use_container)) && \
+fEcho_Chat "Container ...........: $(fContainerImage) (stages 1-4, 6 and the demo gif)"
 fEcho_Chat "Vendor pins .........: ${VENDOR_CHECK_CMD[*]:-(skipped)}"
 fEcho_Chat "Interop pins ........: ${INTEROP_CHECK_CMD[*]:-(skipped)}"
 fEcho_Chat "Format ..............: ${FMT_CMD[*]:-(skipped)}"
@@ -198,7 +258,10 @@ else
 	fEcho_Chat "Dogfood, fixed name .: (disabled)"
 fi
 fEcho_Chat "Screenshots .........: $( ((DO_SCREENSHOTS)) && echo "${SCREENSHOT_CMD[*]}" || echo '(skipped)')"
-fEcho_Chat "Demo gif ............: $( ((DO_DEMOGIF)) && echo "${DEMOGIF_CMD[*]}" || echo '(skipped)')"
+gif_plan="${DEMOGIF_CMD[*]}"
+((DO_DEMOGIF)) || gif_plan="(skipped)"
+if ((DO_DEMOGIF && ! use_container)) && [[ "${DEMOGIF_CONTAINER_ONLY:-0}" == "1" && "${CICD_IN_CONTAINER:-0}" != "1" ]]; then gif_plan="(skipped: only --container runs make it)"; fi
+fEcho_Chat "Demo gif ............: ${gif_plan}"
 if ((${#GIT_PUBLISH[@]} == 0)); then
 	fEcho_Chat "Publish (last) ......: (disabled)"
 elif [[ -n "$publish_msg" ]]; then
@@ -232,156 +295,164 @@ if [[ -n "${LINT_LOG_DIR:-}" ]] && mkdir -p "${root}/${LINT_LOG_DIR}" 2>/dev/nul
 	trap 'exec 1>&- 2>&-; wait "${tee_pid}" 2>/dev/null' EXIT
 fi
 
-## Pinned tools: bring any go-installed tool that drifted from tool-versions.env
-## back in line (warn-only; probe-gated stages still skip anything missing).
-if [[ -n "${PIN_TOOLS_CMD[*]:-}" ]]; then
-	"${PIN_TOOLS_CMD[@]}"
-fi
-
-## Pinned vendor: a vendored drop-in that drifted from its upstream tag aborts
-## here, before anything is built against it. Warn-only when offline.
-if [[ -n "${VENDOR_CHECK_CMD[*]:-}" ]]; then
-	"${VENDOR_CHECK_CMD[@]}" || fDie "vendored source does not match its pin (see cicd/vendor-pins.env)"
-fi
-
-## Same idea for the interop suite's reference implementations, which are the
-## only thing proving the four big bases interoperate at all.
-if [[ -n "${INTEROP_CHECK_CMD[*]:-}" ]]; then
-	"${INTEROP_CHECK_CMD[@]}" || fDie "interop reference does not match its pin (see cicd/utility/interop/pins.env)"
-fi
-
-## Stage 1: format.
-fSection "1/8  Format"
-if ((${#FMT_CMD[@]} == 0)); then
-	fEcho_Chat "format skipped"
+container_done=0
+if ((use_container)); then
+	fSection "Container"
+	fRunContainer
+	container_done=1
+	fEcho "OK: stages 1 to 4 and 6 passed in the container"
 else
-	"${FMT_CMD[@]}"
-	fEcho "OK: formatted (${FMT_CMD[*]})"
-fi
-
-## Stage 2: native builds, staged aside from what the cross stage cleans. The
-## debug build (symbols) is what the tests and profiler run against; the
-## optimized build is smoke-checked here and dogfooded in stage 7.
-fSection "2/8  Native build"
-"${NATIVE_BUILD_CMD[@]}"
-[[ -f "${NATIVE_BUILD_OUT}" ]] || fDie "debug build produced no binary: ${NATIVE_BUILD_OUT}"
-mkdir -p "$(dirname "${STAGED_BIN}")"
-cp -f "${NATIVE_BUILD_OUT}" "${STAGED_BIN}"
-fEcho "OK: debug build: ${STAGED_BIN} ($(du -h "${STAGED_BIN}" | cut -f1))  ($("${STAGED_BIN}" --version))"
-if ((${#RELEASE_BUILD_CMD[@]})); then
-	"${RELEASE_BUILD_CMD[@]}"
-	[[ -f "${RELEASE_BUILD_OUT}" ]] || fDie "release build produced no binary: ${RELEASE_BUILD_OUT}"
-	cp -f "${RELEASE_BUILD_OUT}" "${STAGED_RELEASE_BIN}"
-	"${STAGED_RELEASE_BIN}" --version >/dev/null 2>&1 || fDie "release build smoke check failed"
-	fEcho "OK: release build: ${STAGED_RELEASE_BIN} ($(du -h "${STAGED_RELEASE_BIN}" | cut -f1))  ($("${STAGED_RELEASE_BIN}" --version))"
-fi
-
-## Stage 3: lint. go vet is gating; golangci-lint, staticcheck, shellcheck and ruff
-## run when installed (a failed probe skips that one with a warning). Any finding
-## from one that runs aborts. All output lands in the run log.
-fSection "3/8  Lint"
-if ((${#VET_CMD[@]} == 0)); then
-	fEcho_Chat "lint skipped"
-else
-	in_src "${VET_CMD[@]}"
-	fEcho "OK: go vet clean"
-	if ((${#LINT_CMD[@]})); then
-		if in_src "${LINT_PROBE[@]}" >/dev/null 2>&1; then
-			in_src "${LINT_CMD[@]}"; fEcho "OK: golangci-lint clean"
-		else
-			fEcho "WARNING: golangci-lint skipped (not installed: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)"
-		fi
+	## Pinned tools: bring any go-installed tool that drifted from tool-versions.env
+	## back in line (warn-only; probe-gated stages still skip anything missing).
+	if [[ -n "${PIN_TOOLS_CMD[*]:-}" ]]; then
+		"${PIN_TOOLS_CMD[@]}"
 	fi
-	if ((${#STATICCHECK_CMD[@]})); then
-		if in_src "${STATICCHECK_PROBE[@]}" >/dev/null 2>&1; then
-			in_src "${STATICCHECK_CMD[@]}"; fEcho "OK: staticcheck clean"
-		else
-			fEcho "WARNING: staticcheck skipped (not installed: go install honnef.co/go/tools/cmd/staticcheck@latest)"
-		fi
-	fi
-	## A linter handed no files passes, so an empty list is a failure.
-	if [[ -n "${SHELLCHECK_CMD[*]:-}" ]]; then
-		if "${SHELLCHECK_PROBE[@]}" >/dev/null 2>&1; then
-			fShellFiles shellFiles
-			((${#shellFiles[@]})) || fDie "shellcheck: no Bash files found to check"
-			"${SHELLCHECK_CMD[@]}" "${shellFiles[@]}"; fEcho "OK: shellcheck clean (${#shellFiles[@]} files)"
-		else
-			fEcho "WARNING: shellcheck skipped (not installed: apt install shellcheck)"
-		fi
-	fi
-	if [[ -n "${RUFF_CMD[*]:-}" ]]; then
-		if "${RUFF_PROBE[@]}" >/dev/null 2>&1; then
-			pyCount="$("${RUFF_CMD[@]}" --show-files 2>/dev/null | grep -c '\.py$' || true)"
-			((pyCount)) || fDie "ruff: no Python files found to check"
-			"${RUFF_CMD[@]}"; fEcho "OK: ruff clean (${pyCount} files)"
-		else
-			fEcho "WARNING: ruff skipped (not installed: pipx install ruff)"
-		fi
-	fi
-fi
 
-## Stage 4: tests. Unit (Go), integration harness (against the staged binary),
-## fuzz (one target per invocation), and govulncheck security (module + deps).
-fSection "4/8  Tests"
-## Every test has its own ID, so a failure, a backlog item and a commit can all
-## name the same one. Each prints with its ID.
-if ((${#TEST_ID_CMD[@]})); then
-	(cd "${root}" && "${TEST_ID_CMD[@]}" check) || fDie "a test has no ID, a bad one, or shares one"
-	in_src "${UNIT_TEST_CMD[@]}" 2>&1 | (cd "${root}" && "${TEST_ID_CMD[@]}" report) || fDie "unit tests failed"
-else
-	in_src "${UNIT_TEST_CMD[@]}"
-fi
-fEcho "OK: unit tests"
-## The harness runs its perf section and packaging rebuild check unless --quick.
-do_perf=1; ((quick)) && do_perf=0
-CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" CICDTEST_DO_PERF="${do_perf}" CICDTEST_QUICK="${quick}" "${TEST_CMD[@]}"
-fEcho "OK: integration harness"
+	## Pinned vendor: a vendored drop-in that drifted from its upstream tag aborts
+	## here, before anything is built against it. Warn-only when offline.
+	if [[ -n "${VENDOR_CHECK_CMD[*]:-}" ]]; then
+		"${VENDOR_CHECK_CMD[@]}" || fDie "vendored source does not match its pin (see cicd/vendor-pins.env)"
+	fi
 
-## 4b: fuzz each discovered target for a bounded time (shorter under --quick).
-if ((FUZZ_ENABLE)); then
-	ft="${FUZZ_TIME}"; ((quick)) && ft="${FUZZ_TIME_QUICK}"
-	fuzz_min="${FUZZ_MINIMIZE_TIME:-2s}"; ((quick)) && fuzz_min="${FUZZ_MINIMIZE_TIME_QUICK:-1s}"
-	mapfile -t fuzz_targets < <(in_src go test -list '^Fuzz' "${GO_TEST_PKG:-.}" 2>/dev/null | grep -E '^Fuzz' || true)
-	if ((${#fuzz_targets[@]})); then
-		fuzz_log="$(mktemp -t cicd-fuzz.XXXXXX)"
-		for t in "${fuzz_targets[@]}"; do
-			fEcho_Chat "fuzz ${t} (${ft}) ..."
-			## Only || keeps the ERR trap off a failed run; set +e does not.
-			fuzz_rc=0
-			in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}" || fuzz_rc=$?
-			fuzz_id="-------"
-			((${#TEST_ID_CMD[@]})) && fuzz_id="$(cd "${root}" && "${TEST_ID_CMD[@]}" lookup "${SRC_DIR}/${GO_TEST_PKG:-.}" "${t}" || true)"
-			if ((fuzz_rc)); then
-				## A bare "context deadline exceeded" with no crasher is the
-				## -fuzztime boundary, not a find: the coordinator reads the
-				## worker context before cancellation has reached it, so the
-				## deadline gets reported as the run's error. Real finds name
-				## the failing input file.
-				if grep -q 'Failing input written to' "${fuzz_log}" \
-				|| ! grep -q 'context deadline exceeded' "${fuzz_log}"; then
-					printf ' FAIL %s  %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
-					rm -f "${fuzz_log}"; fDie "fuzz ${t} found a failure"
-				fi
-				fEcho "NOTE: fuzz ${t} reported the -fuzztime deadline; no failing input recorded"
+	## Same idea for the interop suite's reference implementations, which are the
+	## only thing proving the four big bases interoperate at all.
+	if [[ -n "${INTEROP_CHECK_CMD[*]:-}" ]]; then
+		"${INTEROP_CHECK_CMD[@]}" || fDie "interop reference does not match its pin (see cicd/utility/interop/pins.env)"
+	fi
+
+	## Stage 1: format.
+	fSection "1/8  Format"
+	if ((${#FMT_CMD[@]} == 0)); then
+		fEcho_Chat "format skipped"
+	else
+		"${FMT_CMD[@]}"
+		fEcho "OK: formatted (${FMT_CMD[*]})"
+	fi
+
+	## Stage 2: native builds, staged aside from what the cross stage cleans. The
+	## debug build (symbols) is what the tests and profiler run against; the
+	## optimized build is smoke-checked here and dogfooded in stage 7.
+	fSection "2/8  Native build"
+	"${NATIVE_BUILD_CMD[@]}"
+	[[ -f "${NATIVE_BUILD_OUT}" ]] || fDie "debug build produced no binary: ${NATIVE_BUILD_OUT}"
+	mkdir -p "$(dirname "${STAGED_BIN}")"
+	cp -f "${NATIVE_BUILD_OUT}" "${STAGED_BIN}"
+	fEcho "OK: debug build: ${STAGED_BIN} ($(du -h "${STAGED_BIN}" | cut -f1))  ($("${STAGED_BIN}" --version))"
+	if ((${#RELEASE_BUILD_CMD[@]})); then
+		"${RELEASE_BUILD_CMD[@]}"
+		[[ -f "${RELEASE_BUILD_OUT}" ]] || fDie "release build produced no binary: ${RELEASE_BUILD_OUT}"
+		cp -f "${RELEASE_BUILD_OUT}" "${STAGED_RELEASE_BIN}"
+		"${STAGED_RELEASE_BIN}" --version >/dev/null 2>&1 || fDie "release build smoke check failed"
+		fEcho "OK: release build: ${STAGED_RELEASE_BIN} ($(du -h "${STAGED_RELEASE_BIN}" | cut -f1))  ($("${STAGED_RELEASE_BIN}" --version))"
+	fi
+
+	## Stage 3: lint. go vet is gating; golangci-lint, staticcheck, shellcheck and ruff
+	## run when installed (a failed probe skips that one with a warning). Any finding
+	## from one that runs aborts. All output lands in the run log.
+	fSection "3/8  Lint"
+	if ((${#VET_CMD[@]} == 0)); then
+		fEcho_Chat "lint skipped"
+	else
+		in_src "${VET_CMD[@]}"
+		fEcho "OK: go vet clean"
+		if ((${#LINT_CMD[@]})); then
+			if in_src "${LINT_PROBE[@]}" >/dev/null 2>&1; then
+				in_src "${LINT_CMD[@]}"; fEcho "OK: golangci-lint clean"
+			else
+				fSkip "golangci-lint skipped (not installed: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)"
 			fi
-			printf '  ok  %s  %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
-		done
-		rm -f "${fuzz_log}"
-		fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"
-	else
-		fEcho_Chat "no Fuzz* targets found; skipping fuzz"
+		fi
+		if ((${#STATICCHECK_CMD[@]})); then
+			if in_src "${STATICCHECK_PROBE[@]}" >/dev/null 2>&1; then
+				in_src "${STATICCHECK_CMD[@]}"; fEcho "OK: staticcheck clean"
+			else
+				fSkip "staticcheck skipped (not installed: go install honnef.co/go/tools/cmd/staticcheck@latest)"
+			fi
+		fi
+		## A linter handed no files passes, so an empty list is a failure.
+		if [[ -n "${SHELLCHECK_CMD[*]:-}" ]]; then
+			if "${SHELLCHECK_PROBE[@]}" >/dev/null 2>&1; then
+				fShellFiles shellFiles
+				((${#shellFiles[@]})) || fDie "shellcheck: no Bash files found to check"
+				"${SHELLCHECK_CMD[@]}" "${shellFiles[@]}"; fEcho "OK: shellcheck clean (${#shellFiles[@]} files)"
+			else
+				fSkip "shellcheck skipped (not installed: apt install shellcheck)"
+			fi
+		fi
+		if [[ -n "${RUFF_CMD[*]:-}" ]]; then
+			if "${RUFF_PROBE[@]}" >/dev/null 2>&1; then
+				pyCount="$("${RUFF_CMD[@]}" --show-files 2>/dev/null | grep -c '\.py$' || true)"
+				((pyCount)) || fDie "ruff: no Python files found to check"
+				"${RUFF_CMD[@]}"; fEcho "OK: ruff clean (${pyCount} files)"
+			else
+				fSkip "ruff skipped (not installed: pipx install ruff)"
+			fi
+		fi
 	fi
-fi
 
-## 4c: security. govulncheck scans the module and its dependencies (library code).
-if ((${#VULN_CMD[@]})); then
-	if in_src "${VULN_PROBE[@]}" >/dev/null 2>&1; then
-		in_src "${VULN_CMD[@]}"; fEcho "OK: no known vulnerabilities"
+	## Stage 4: tests. Unit (Go), integration harness (against the staged binary),
+	## fuzz (one target per invocation), and govulncheck security (module + deps).
+	fSection "4/8  Tests"
+	## Every test has its own ID, so a failure, a backlog item and a commit can all
+	## name the same one. Each prints with its ID.
+	if ((${#TEST_ID_CMD[@]})); then
+		(cd "${root}" && "${TEST_ID_CMD[@]}" check) || fDie "a test has no ID, a bad one, or shares one"
+		in_src "${UNIT_TEST_CMD[@]}" 2>&1 | (cd "${root}" && "${TEST_ID_CMD[@]}" report) || fDie "unit tests failed"
 	else
-		fEcho "WARNING: govulncheck skipped (not installed: go install golang.org/x/vuln/cmd/govulncheck@latest)"
+		in_src "${UNIT_TEST_CMD[@]}"
 	fi
+	fEcho "OK: unit tests"
+	## The harness runs its perf section and packaging rebuild check unless --quick.
+	do_perf=1; ((quick)) && do_perf=0
+	CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" CICDTEST_DO_PERF="${do_perf}" CICDTEST_QUICK="${quick}" "${TEST_CMD[@]}"
+	fEcho "OK: integration harness"
+
+	## 4b: fuzz each discovered target for a bounded time (shorter under --quick).
+	if ((FUZZ_ENABLE)); then
+		ft="${FUZZ_TIME}"; ((quick)) && ft="${FUZZ_TIME_QUICK}"
+		fuzz_min="${FUZZ_MINIMIZE_TIME:-2s}"; ((quick)) && fuzz_min="${FUZZ_MINIMIZE_TIME_QUICK:-1s}"
+		mapfile -t fuzz_targets < <(in_src go test -list '^Fuzz' "${GO_TEST_PKG:-.}" 2>/dev/null | grep -E '^Fuzz' || true)
+		if ((${#fuzz_targets[@]})); then
+			fuzz_log="$(mktemp -t cicd-fuzz.XXXXXX)"
+			for t in "${fuzz_targets[@]}"; do
+				fEcho_Chat "fuzz ${t} (${ft}) ..."
+				## Only || keeps the ERR trap off a failed run; set +e does not.
+				fuzz_rc=0
+				in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}" || fuzz_rc=$?
+				fuzz_id="-------"
+				((${#TEST_ID_CMD[@]})) && fuzz_id="$(cd "${root}" && "${TEST_ID_CMD[@]}" lookup "${SRC_DIR}/${GO_TEST_PKG:-.}" "${t}" || true)"
+				if ((fuzz_rc)); then
+					## A bare "context deadline exceeded" with no crasher is the
+					## -fuzztime boundary, not a find: the coordinator reads the
+					## worker context before cancellation has reached it, so the
+					## deadline gets reported as the run's error. Real finds name
+					## the failing input file.
+					if grep -q 'Failing input written to' "${fuzz_log}" \
+					|| ! grep -q 'context deadline exceeded' "${fuzz_log}"; then
+						printf ' FAIL %s  %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
+						rm -f "${fuzz_log}"; fDie "fuzz ${t} found a failure"
+					fi
+					fEcho "NOTE: fuzz ${t} reported the -fuzztime deadline; no failing input recorded"
+				fi
+				printf '  ok  %s  %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
+			done
+			rm -f "${fuzz_log}"
+			fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"
+		else
+			fEcho_Chat "no Fuzz* targets found; skipping fuzz"
+		fi
+	fi
+
+	## 4c: security. govulncheck scans the module and its dependencies (library code).
+	if ((${#VULN_CMD[@]})); then
+		if in_src "${VULN_PROBE[@]}" >/dev/null 2>&1; then
+			in_src "${VULN_CMD[@]}"; fEcho "OK: no known vulnerabilities"
+		else
+			fSkip "govulncheck skipped (not installed: go install golang.org/x/vuln/cmd/govulncheck@latest)"
+		fi
+	fi
+	fEcho "OK: tests passed"
 fi
-fEcho "OK: tests passed"
 
 ## Stage 5: profiler (non-gating artifact; failures classified below).
 run_profiler(){
@@ -435,15 +506,17 @@ run_profiler(){
 fSection "5/8  Profiler"
 run_profiler
 
-## Stage 6: cross-compile + package (build sanity + release artifacts).
-fSection "6/8  Cross + package"
-if ((BUILD_CROSS)); then
-	"${RELEASE_CMD[@]}"
-	count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.exe' \) 2>/dev/null | wc -l)"
-	((count > 0)) || fDie "cross + package produced no artifacts in ${RELEASE_ARTIFACT_DIR}/"
-	fEcho "OK: release artifacts: ${count} in ${RELEASE_ARTIFACT_DIR}/"
-else
-	fEcho_Chat "cross + package skipped"
+if ((! container_done)); then
+	## Stage 6: cross-compile + package (build sanity + release artifacts).
+	fSection "6/8  Cross + package"
+	if ((BUILD_CROSS)); then
+		"${RELEASE_CMD[@]}"
+		count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.exe' \) 2>/dev/null | wc -l)"
+		((count > 0)) || fDie "cross + package produced no artifacts in ${RELEASE_ARTIFACT_DIR}/"
+		fEcho "OK: release artifacts: ${count} in ${RELEASE_ARTIFACT_DIR}/"
+	else
+		fEcho_Chat "cross + package skipped"
+	fi
 fi
 
 ## Stage 7: dogfood (fixed name) + screenshots. Dogfood the optimized release
@@ -484,8 +557,14 @@ fi
 ## Demo gif: types the scenario into a fake terminal, runs each command against the
 ## tested binary, renders the animated loop. A failure is a warning, never a stop.
 demogif_util="${root}/${DEMOGIF_CMD[0]}"
-if ((! DO_DEMOGIF)); then
+if ((container_done)); then
+	: ## made in the container
+elif ((! DO_DEMOGIF)); then
 	fEcho_Chat "demo gif skipped"
+elif [[ "${DEMOGIF_CONTAINER_ONLY:-0}" == "1" && "${CICD_IN_CONTAINER:-0}" != "1" ]]; then
+	## Its fallback fonts are whatever this machine has, so it would flip back
+	## and forth against the container's.
+	fEcho_Chat "demo gif skipped: only --container runs make it"
 elif [[ -f "${demogif_util}" ]]; then
 	demogif_out="${root}/${DEMOGIF_OUT}"
 	demogif_tmp="${demogif_out}.new"
@@ -503,7 +582,7 @@ elif [[ -f "${demogif_util}" ]]; then
 		fi
 	else
 		rm -f "${demogif_tmp}"
-		fEcho "WARNING: demo gif generation failed (continuing)"
+		fSkip "demo gif generation failed"
 	fi
 else
 	fEcho_Clean "no demo gif utility at ${demogif_util}; skipping"
@@ -534,7 +613,7 @@ else
 	fEcho "OK: published"
 fi
 
-fSection "${APP_NAME} CI/CD: done."
+if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then fSection "${APP_NAME} CI/CD: container part done."; else fSection "${APP_NAME} CI/CD: done."; fi
 fEcho_Clean
 
 
@@ -543,3 +622,4 @@ fEcho_Clean
 ##		- 2026-07-09 JC: silkterm-style output (fEcho/fSection letterbox); -q/-m/--quick flags; lint, fuzz, vuln, profiler stages; tee'd run log; message prompt replaces y/n.
 ##		- 2026-07-29 JC: Vendored drop-in files are verified against their pinned upstream release before the build.
 ##		- 2026-10-04 JC: shellcheck and ruff in the lint stage.
+##		- 2026-10-10 JC: --container runs the tool-heavy stages in a pinned image, where no check may skip.

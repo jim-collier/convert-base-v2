@@ -40,6 +40,8 @@
 ##			- CICDTEST_QUICK ........: 1 to skip the packaging rebuild check. cicd.bash sets it under --quick.
 ##			- CICDTEST_FUZZ_ITERS ...: override the fuzz iteration count.
 ##			- CICDTEST_SELFCHECK ....: 1 in the run the harness makes of itself, which skips that self-check.
+##			- CICD_NO_SKIP ..........: 1 where every tool is installed, as in the container. A skip the run
+##			                           didn't ask for, such as a missing node, then fails the run.
 ##	History: At bottom of script.
 
 ##	Copyright © 2023-2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]
@@ -69,7 +71,7 @@ TIMEOUT=(); command -v timeout >/dev/null 2>&1 && TIMEOUT=(timeout 60)
 ## Colors + counters.
 b=$'\e[1m'; dim=$'\e[2m'; grn=$'\e[32m'; red=$'\e[31m'; ylw=$'\e[33m'; rst=$'\e[0m'
 declare -i TOTAL=0 PASS=0 FAIL=0
-declare -a FAILURES=() WARNINGS=()
+declare -a FAILURES=() WARNINGS=() UNASKED=()
 
 CBT_OUT="$(mktemp)"; CBT_ERR="$(mktemp)"; CBT_TMP="$(mktemp -d)"
 cleanup(){ rm -rf "${CBT_OUT}" "${CBT_ERR}" "${CBT_TMP}"; }
@@ -107,8 +109,16 @@ _pass(){
 _fail(){ FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); printf '%s FAIL %-7s  %s%s\n       %s\n' "${red}" "$1" "$2" "${rst}" "$3"; FAILURES+=("$1 $2 :: $3"); }
 ## A suite that did not run at all. Not a failure, but it must not read as one
 ## more quiet line either, so the summary repeats every one of these. IDS is a
-## space-separated list of the checks that were skipped, one line each.
-_warn(){ local wid; for wid in $1; do printf '%s SKIP %s  %s%s\n' "${ylw}" "$wid" "$2" "${rst}"; done; WARNINGS+=("$2 ($1)"); }
+## space-separated list of the checks that were skipped, one line each. A third
+## argument of "asked" marks a skip the run asked for, like --quick's.
+_warn(){
+	local wid
+	for wid in $1; do
+		printf '%s SKIP %s  %s%s\n' "${ylw}" "$wid" "$2" "${rst}"
+		if [[ "${3:-}" != "asked" ]]; then UNASKED+=("$wid"); fi
+	done
+	WARNINGS+=("$2 ($1)")
+}
 
 ## Assert against the last _run/_run_in result.
 ##   _assert ID MODE LABEL EXPECTED
@@ -1583,7 +1593,7 @@ if [[ ! "${goMinor}" =~ ^[0-9]+$ ]] || ((goMinor < 24)); then
 elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "${REACTOR_WASM}" ./reactor) >"${CBT_ERR}" 2>&1; then
 	_fail Elmd2Y4 "reactor module build" "$(tail -2 "${CBT_ERR}")"
 elif ! (cd "${REACTOR_HOST_DIR}" && go build -o "${CBT_TMP}/reactor-host" .) >"${CBT_ERR}" 2>&1; then
-	_warn "Elmd2Y4 Ern7YaC" "reactor ABI skipped: host harness would not build (wazero not cached and offline?)"
+	_warn "Elmd2Y4 Ern7YaC" "reactor ABI skipped: host harness would not build (wazero not cached and offline?): $(tail -1 "${CBT_ERR}")"
 elif "${CBT_TMP}/reactor-host" "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; then
 	_pass Elmd2Y4 "reactor ABI (exports, conversions, metadata, streams, errors, leak loops)"
 	## A call's cost must not grow with the regions a host holds open.
@@ -1863,7 +1873,7 @@ make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc
 	|| _fail Erm3Syv "make clean removes only a dist dir a build made" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
 ## The two full packaging runs take several seconds each, so --quick skips them.
 if ((doQuick)); then
-	_warn "ErlP6B8 Erm3SyD ErlP6Bg ErlP6CE" "packaging rebuild checks skipped: --quick"
+	_warn "ErlP6B8 Erm3SyD ErlP6Bg ErlP6CE" "packaging rebuild checks skipped: --quick" asked
 else
 	pkDir="${CBT_TMP}/pk"; pkrc=0
 	pkArgs=(--version v9.9.9-beta1 --build-epoch 1700000000)
@@ -1899,6 +1909,14 @@ else
 		fi
 	fi
 fi
+
+
+## Where every packager should be installed, a missing one stops the run before
+## the cross builds, not a minute in.
+pnDir="${CBT_TMP}/pn"; mkdir -p "${pnDir}/bin"; ln -s "$(command -v dirname)" "${pnDir}/bin/dirname"
+pnrc=0; pnOut="$(CICD_NO_SKIP=1 PATH="${pnDir}/bin" "${BASH}" "${meDir}/utility/package.bash" --out "${pnDir}/out" 2>&1)" || pnrc=$?
+{ ((pnrc == 1)) && [[ "${pnOut}" == *"ERROR: nfpm missing"* && ! -e "${pnDir}/out" ]]; } && _pass EsJjVzI "package.bash under CICD_NO_SKIP fails at once on a missing packager" \
+	|| _fail EsJjVzI "package.bash under CICD_NO_SKIP fails at once on a missing packager" "rc=${pnrc} out=[${pnOut}]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -2108,6 +2126,28 @@ else
 		|| _fail ErnEi9h "demo gif types a one-word command at first-word speed" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
 fi
 
+## Demo commands run in a home of their own, after the scenario's setup=, so the
+## gif never shows the config of whoever renders it. The setup only passes in a
+## private home, and the step leaves a mark in the real one only if it saw the
+## setup's file. The private home is gone afterward.
+dhDir="${CBT_TMP}/dh"; mkdir -p "${dhDir}/home" "${dhDir}/tmp"
+cat >"${dhDir}/sc.toml" <<'EOF'
+end_hold = 0.1
+end_black = 0.1
+setup = '[ "$HOME" != "$DH_REAL" ] && [ "$XDG_CONFIG_HOME" = "$HOME/.config" ] && mkdir -p "$XDG_CONFIG_HOME" && touch "$XDG_CONFIG_HOME/made"'
+[[step]]
+show = "true"
+run = '[ -e "$XDG_CONFIG_HOME/made" ] && touch "$DH_REAL/step-saw-setup"'
+EOF
+if ((dgrc == 3)); then
+	_warn EsJpWap "demo gif private home: no Pillow"
+else
+	dhrc=0; HOME="${dhDir}/home" DH_REAL="${dhDir}/home" TMPDIR="${dhDir}/tmp" python3 -B "${meDir}/utility/gen-demo-gif.py" --quiet \
+		--scenario "${dhDir}/sc.toml" --out "${dhDir}/out.gif" --bin true >"${CBT_OUT}" 2>&1 || dhrc=$?
+	{ ((dhrc == 0)) && [[ -e "${dhDir}/home/step-saw-setup" && ! -e "${dhDir}/home/.config" && -z "$(ls -A "${dhDir}/tmp")" ]]; } && _pass EsJpWap "demo gif commands run in a private home, after setup=" \
+		|| _fail EsJpWap "demo gif commands run in a private home, after setup=" "rc=${dhrc} home=[$(ls -A "${dhDir}/home")] tmp=[$(ls -A "${dhDir}/tmp")] out=[$(tail -2 "${CBT_OUT}")]"
+fi
+
 ## flame-report.py is the startup gate's reader. A flamegraph it can't read is
 ## a skip, exit 2, never a traceback. Root reads a mode-000 file anyway, so
 ## that case only runs where the mode holds.
@@ -2188,9 +2228,11 @@ FMT_CMD=(); NATIVE_BUILD_CMD=(true); NATIVE_BUILD_OUT="lib/out"; STAGED_BIN="lib
 PIN_TOOLS_CMD=(); VENDOR_CHECK_CMD=(); INTEROP_CHECK_CMD=(); VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=()
 UNIT_TEST_CMD=(true); TEST_ID_CMD=(); TEST_CMD=(sh -c 'env | grep "^CICDTEST_" | sort >"$CE_KNOBS"')
 GO_TEST_PKG="."; FUZZ_ENABLE=1; FUZZ_TIME="1s"; FUZZ_TIME_QUICK="1s"; FUZZ_MINIMIZE_TIME="1s"; FUZZ_MINIMIZE_TIME_QUICK="1s"
-VULN_CMD=(); PROFILE_ENABLE=0; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=0; RELEASE_CMD=(); RELEASE_ARTIFACT_DIR="dist"
+VULN_PROBE=(false); VULN_CMD=(${CE_VULN:+true}); PROFILE_ENABLE=0; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=${CE_CROSS:-0}; RELEASE_CMD=(); RELEASE_ARTIFACT_DIR="dist"
+CONTAINER_DIR="cicd/container"; CONTAINER_IMAGE="cbv-test-cicd"; CONTAINER_VOLUME="cbv-test-cache"; CONTAINER_MOUNTS=("demos" "nowhere")
 DOGFOOD_FIXED_DESTS=(${CE_DEST:+"${CE_DEST}"})
-DO_SCREENSHOTS=0; SCREENSHOT_CMD=(none); DO_DEMOGIF=0; DEMOGIF_CMD=(none); PREPUBLISH_HOOK=""; GIT_PUBLISH=(); PUBLISH_AUTO_MESSAGE=""
+DO_SCREENSHOTS=0; SCREENSHOT_CMD=(none); DO_DEMOGIF=${CE_GIF:-0}; DEMOGIF_CMD=(gif.py); DEMOGIF_OUT="gif/demo.gif"; DEMOGIF_ARCHIVE_DIR="gif/old"; DEMOGIF_CONTAINER_ONLY=1
+PREPUBLISH_HOOK=""; GIT_PUBLISH=(); PUBLISH_AUTO_MESSAGE=""
 EOF
 cat >"${ceBin}/go" <<'EOF'
 #!/bin/sh
@@ -2209,14 +2251,33 @@ printf '%s\n' '#!/bin/sh' 'for a; do last="$a"; done' \
 	'if [ -n "${CE_CPFAIL:-}" ]; then case "$last" in "$CE_CPFAIL"/*) echo "cp: fake failure" >&2; exit 1 ;; esac; fi' \
 	"exec $(command -v cp) \"\$@\"" >"${ceBin}/cp"
 printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$CE_SUDO_LOG"' 'exit 1' >"${ceBin}/sudo"
-chmod +x "${ceBin}/go" "${ceBin}/cp" "${ceBin}/sudo"
+cat >"${ceBin}/docker" <<'EOF'
+#!/bin/sh
+echo "$*" >>"$CE_DOCKER_LOG"
+case "$1 $2" in
+	"image inspect") [ -n "${CE_HAVE_IMAGE:-}" ]; exit $? ;;
+	"image ls") echo cbv-test-cicd:0ld0ld0ld0ld ;;
+	run*) echo "inner run"; exit "${CE_RUN_RC:-0}" ;;
+esac
+exit 0
+EOF
+chmod +x "${ceBin}/go" "${ceBin}/cp" "${ceBin}/sudo" "${ceBin}/docker"
+mkdir -p "${ceRepo}/cicd/container" "${ceDir}/demos-real"
+printf '%s\n' 'FROM scratch' >"${ceRepo}/cicd/container/Dockerfile"
+printf '%s\n' '## pins' 'FOO_VERSION=1.2' >"${ceRepo}/cicd/tool-versions.env"
+ln -s "${ceDir}/demos-real" "${ceRepo}/demos"
+## Stands in for the gif tool, run as python3 gif.py --out OUT --bin BIN.
+printf '%s\n' 'import sys' 'open(sys.argv[sys.argv.index("--out") + 1], "w").write("gif")' >"${ceRepo}/gif.py"
+mkdir -p "${ceRepo}/gif"
 ## Knobs from whatever runs this harness must not leak into the copy.
 fCeRun(){
-	: >"${ceDir}/knobs"; : >"${ceDir}/sudo.log"; ceRc=0
+	: >"${ceDir}/knobs"; : >"${ceDir}/sudo.log"; : >"${ceDir}/docker.log"; ceRc=0
 	( cd "${ceDir}" && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
 		HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${ceDir}/knobs" CE_SUDO_LOG="${ceDir}/sudo.log" \
+		CICD_NO_SKIP="${CE_NO_SKIP:-0}" CICD_IN_CONTAINER="${CE_INSIDE:-0}" CICD_DOCKER="${ceBin}/docker" CE_DOCKER_LOG="${ceDir}/docker.log" \
 		bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
 	ceOut="$(<"${CBT_OUT}")"; ceKnobs="$(<"${ceDir}/knobs")"; ceSudo="$(<"${ceDir}/sudo.log")"; ceTmp="$(ls -A "${ceDir}/tmp")"
+	ceDocker="$(<"${ceDir}/docker.log")"
 }
 fCeTail(){ printf 'rc=%s tmp=[%s] out=[%s]' "${ceRc}" "${ceTmp}" "$(tail -4 "${CBT_OUT}" | tr '\n' ' ')"; }
 
@@ -2259,6 +2320,44 @@ CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun
 { ((ceRc == 1)) && [[ "${ceSudo}" == "-n cp -f "* && "${ceOut}" == *"even with sudo -n"* ]]; } && _pass ErmCp2L "dogfood: an attended run tries only sudo -n" \
 	|| _fail ErmCp2L "dogfood: an attended run tries only sudo -n" "sudo=[${ceSudo}] $(fCeTail)"
 
+## A missing tool warns, except under CICD_NO_SKIP, where it fails the run.
+CE_VULN=1 fCeRun -y; ceWarned=0
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"WARNING: govulncheck skipped"* ]]; } && ceWarned=1
+CE_VULN=1 CE_NO_SKIP=1 fCeRun -y
+{ ((ceWarned && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: govulncheck skipped"* && "${ceOut}" != *"OK: tests passed"* ]]; } && _pass EsJjVtL "a missing tool warns, and fails the run under CICD_NO_SKIP" \
+	|| _fail EsJjVtL "a missing tool warns, and fails the run under CICD_NO_SKIP" "warned=${ceWarned} $(fCeTail)"
+
+## --container, against a docker that logs what it's asked. The image is
+## tagged by the recipe and pins, built when missing with the pins as build
+## args, and the one it replaces is removed. The run inside gets this user, the
+## repo and extra mounts at the same paths, and the flags that leave the
+## profiler, dogfood and publish to the host.
+ceTag="cbv-test-cicd:$(cat "${ceRepo}/cicd/container/Dockerfile" "${ceRepo}/cicd/tool-versions.env" | git hash-object --stdin | cut -c1-12)"
+## Cross builds are on, and would fail here, so the host must leave stage 6 alone too.
+CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container --long
+{ ((ceRc == 0)) && grep -qxF "image inspect ${ceTag}" <<<"${ceDocker}" && grep -qxF "build -t ${ceTag} --build-arg FOO_VERSION=1.2 ${ceRepo}/cicd/container" <<<"${ceDocker}" \
+	&& grep -qxF "rmi cbv-test-cicd:0ld0ld0ld0ld" <<<"${ceDocker}"; } && _pass EsJjVuH "--container builds a missing image by its pins and removes the old one" \
+	|| _fail EsJjVuH "--container builds a missing image by its pins and removes the old one" "docker=[${ceDocker}] $(fCeTail)"
+ceTz=""; [[ -e /etc/localtime ]] && ceTz=" -v /etc/localtime:/etc/localtime:ro"
+ceRunWant="run --rm --init --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
+grep -qxF "${ceRunWant}" <<<"${ceDocker}" && _pass EsJjVvF "--container runs the stages inside as this user, with the repo at its own path" \
+	|| _fail EsJjVvF "--container runs the stages inside as this user, with the repo at its own path" "want=[${ceRunWant}] docker=[${ceDocker}]"
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"inner run"* && "${ceOut}" == *"OK: stages 1 to 4 and 6 passed in the container"* && "${ceOut}" == *"OK: installed -> "* \
+	&& "${ceOut}" != *"1/8  Format"* && "${ceOut}" != *"OK: integration harness"* && "${ceOut}" != *"6/8  Cross"* ]]; } && _pass EsJjVwL "--container leaves only the profiler, dogfood and publish to the host" \
+	|| _fail EsJjVwL "--container leaves only the profiler, dogfood and publish to the host" "$(fCeTail)"
+CE_HAVE_IMAGE=1 CE_RUN_RC=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"the run in the container failed"* && "${ceOut}" != *"OK: installed"* && "${ceDocker}" != *"build "* ]]; } && _pass EsJjVxK "--container: a failed run inside stops the host run" \
+	|| _fail EsJjVxK "--container: a failed run inside stops the host run" "docker=[${ceDocker}] $(fCeTail)"
+## The gif's fallback fonts are pinned only in the container, so a host run
+## leaves it alone rather than flip it back and forth.
+rm -f "${ceRepo}/gif/demo.gif"; CE_GIF=1 fCeRun -y; ceGifHost=0; [[ -e "${ceRepo}/gif/demo.gif" ]] && ceGifHost=1
+CE_GIF=1 CE_INSIDE=1 fCeRun -y
+{ ((ceRc == 0 && ! ceGifHost)) && [[ -s "${ceRepo}/gif/demo.gif" ]]; } && _pass EsJpWaD "the demo gif is made only inside the container" \
+	|| _fail EsJpWaD "the demo gif is made only inside the container" "host made it: ${ceGifHost}; $(fCeTail)"
+CE_INSIDE=1 fCeRun -y --container
+{ ((ceRc == 2)) && [[ "${ceOut}" == *"--container is for the host"* && -z "${ceDocker}" ]]; } && _pass EsJjVyJ "--container is refused inside the container" \
+	|| _fail EsJjVyJ "--container is refused inside the container" "docker=[${ceDocker}] $(fCeTail)"
+
 ## Lint: shellcheck and ruff check what the engine finds in a git repo of
 ## fixtures. A finding fails the run, and so does finding nothing to check,
 ## since a linter handed no files passes.
@@ -2286,7 +2385,7 @@ EOF
 	fClRun(){
 		clRc=0
 		( cd "${clRepo}" && git add -A && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
-			HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" bash "${clRepo}/cicd/cicd.bash" -y </dev/null >"${CBT_OUT}" 2>&1 ) || clRc=$?
+			HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 bash "${clRepo}/cicd/cicd.bash" -y </dev/null >"${CBT_OUT}" 2>&1 ) || clRc=$?
 		clOut="$(<"${CBT_OUT}")"
 	}
 	fClTail(){ printf 'rc=%s out=[%s]' "${clRc}" "$(grep -E 'OK: (shellcheck|ruff)|FAILED|ABORTED|SC[0-9]{4}|\.py:' "${CBT_OUT}" | head -4 | tr '\n' ' ')"; }
@@ -2335,12 +2434,17 @@ if [[ "${CICDTEST_SELFCHECK:-0}" != "1" ]]; then
 	printf '%s\n' '#!/bin/sh' 'echo "go: command not found" >&2' 'exit 127' >"${hsDir}/bin/go"
 	chmod +x "${hsDir}/refuse" "${hsDir}/bin/go"
 	hsrc=0
-	CICDTEST_SELFCHECK=1 CICDTEST_EXE="${hsDir}/refuse" CICDTEST_DO_LONGTEST=0 CICDTEST_DO_PERF=1 CICDTEST_QUICK=1 CICDTEST_FUZZ_ITERS=2 \
+	CICDTEST_SELFCHECK=1 CICDTEST_EXE="${hsDir}/refuse" CICDTEST_DO_LONGTEST=0 CICDTEST_DO_PERF=1 CICDTEST_QUICK=1 CICDTEST_FUZZ_ITERS=2 CICD_NO_SKIP=1 \
 		TMPDIR="${hsDir}/tmp" PATH="${hsDir}/bin:${PATH}" bash "${meDir}/test.bash" </dev/null >"${hsDir}/out" 2>&1 || hsrc=$?
 	hsSummary="$(grep -E 'FAIL +[0-9]+ of [0-9]+ checks failed' "${hsDir}/out" || true)"
 	hsAbort="$(grep -F 'HARNESS ABORTED' "${hsDir}/out" | head -3 || true)"
 	{ ((hsrc == 1)) && [[ -n "${hsSummary}" && -z "${hsAbort}" ]]; } && _pass ErmGPkH "every check failing still reaches the summary" \
 		|| _fail ErmGPkH "every check failing still reaches the summary" "rc=${hsrc} aborts=[${hsAbort}] tail=[$(tail -3 "${hsDir}/out" | tr '\n' ' ')]"
+	## Under CICD_NO_SKIP the skips Go's absence caused fail the run, and the
+	## one --quick asked for doesn't.
+	hsNoSkip="$(grep -F 'skipped under CICD_NO_SKIP=1: ' "${hsDir}/out" || true)"
+	{ [[ "${hsNoSkip}" == *Elmd2Y4* && "${hsNoSkip}" != *ErlP6B8* ]]; } && _pass EsJjVsP "an unasked skip fails a CICD_NO_SKIP run, an asked one doesn't" \
+		|| _fail EsJjVsP "an unasked skip fails a CICD_NO_SKIP run, an asked one doesn't" "line=[${hsNoSkip}]"
 	grep -qF 'reactor module skipped: needs a Go 1.24+ toolchain' "${hsDir}/out" && _pass ErmGPkf "reactor section skips with Go off the PATH" \
 		|| _fail ErmGPkf "reactor section skips with Go off the PATH" "no skip line for the reactor section"
 	hsGoFail="$(grep -oE ' FAIL (EloQXv[6-9]|ErftBA[89A-D]) ' "${hsDir}/out" | sort -u | tr -d '\n' || true)"
@@ -2449,14 +2553,21 @@ fi
 printf '\n%s' "${b}"
 printf '========================================================================%s\n' "${rst}"
 for w in "${WARNINGS[@]}"; do printf '%s  SKIPPED  %s%s\n' "${ylw}" "$w" "${rst}"; done
-if ((FAIL == 0)); then
+## With every tool installed, a skip nobody asked for means one is missing after all.
+noSkipFail=0
+if [[ "${CICD_NO_SKIP:-0}" == "1" ]] && ((${#UNASKED[@]})); then
+	noSkipFail=1
+	printf '%s  FAIL  skipped under CICD_NO_SKIP=1: %s%s\n' "${red}${b}" "${UNASKED[*]}" "${rst}"
+fi
+if ((FAIL == 0 && ! noSkipFail)); then
 	printf '%s  PASS  %d/%d checks%s\n' "${grn}${b}" "$PASS" "$TOTAL" "${rst}"
 	exit 0
-else
+fi
+if ((FAIL)); then
 	printf '%s  FAIL  %d of %d checks failed%s\n' "${red}${b}" "$FAIL" "$TOTAL" "${rst}"
 	for f in "${FAILURES[@]}"; do printf '    %s- %s%s\n' "${red}" "$f" "${rst}"; done
-	exit 1
 fi
+exit 1
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
