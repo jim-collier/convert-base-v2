@@ -2140,12 +2140,18 @@ show = "true"
 run = '[ -e "$XDG_CONFIG_HOME/made" ] && touch "$DH_REAL/step-saw-setup"'
 EOF
 if ((dgrc == 3)); then
-	_warn EsJpWap "demo gif private home: no Pillow"
+	_warn "EsJpWap EsKCVWy" "demo gif private home and missing glyphs: no Pillow"
 else
 	dhrc=0; HOME="${dhDir}/home" DH_REAL="${dhDir}/home" TMPDIR="${dhDir}/tmp" python3 -B "${meDir}/utility/gen-demo-gif.py" --quiet \
 		--scenario "${dhDir}/sc.toml" --out "${dhDir}/out.gif" --bin true >"${CBT_OUT}" 2>&1 || dhrc=$?
 	{ ((dhrc == 0)) && [[ -e "${dhDir}/home/step-saw-setup" && ! -e "${dhDir}/home/.config" && -z "$(ls -A "${dhDir}/tmp")" ]]; } && _pass EsJpWap "demo gif commands run in a private home, after setup=" \
 		|| _fail EsJpWap "demo gif commands run in a private home, after setup=" "rc=${dhrc} home=[$(ls -A "${dhDir}/home")] tmp=[$(ls -A "${dhDir}/tmp")] out=[$(tail -2 "${CBT_OUT}")]"
+	## A char no font has would show as a box, so it fails before anything renders.
+	printf '%s\n' 'end_hold = 0.1' 'end_black = 0.1' '[[step]]' 'show = "true"' 'run = "printf \"a\\U0010FFFDb\""' >"${dhDir}/nofont.toml"
+	dhrc=0; TMPDIR="${dhDir}/tmp" python3 -B "${meDir}/utility/gen-demo-gif.py" --quiet \
+		--scenario "${dhDir}/nofont.toml" --out "${dhDir}/nofont.gif" --bin true >"${CBT_OUT}" 2>&1 || dhrc=$?
+	{ ((dhrc == 1)) && grep -qF 'no font draws U+10FFFD' "${CBT_OUT}" && [[ ! -e "${dhDir}/nofont.gif" ]]; } && _pass EsKCVWy "demo gif fails on a char no font draws" \
+		|| _fail EsKCVWy "demo gif fails on a char no font draws" "rc=${dhrc} out=[$(tail -2 "${CBT_OUT}")]"
 fi
 
 ## flame-report.py is the startup gate's reader. A flamegraph it can't read is
@@ -2230,6 +2236,7 @@ UNIT_TEST_CMD=(true); TEST_ID_CMD=(); TEST_CMD=(sh -c 'env | grep "^CICDTEST_" |
 GO_TEST_PKG="."; FUZZ_ENABLE=1; FUZZ_TIME="1s"; FUZZ_TIME_QUICK="1s"; FUZZ_MINIMIZE_TIME="1s"; FUZZ_MINIMIZE_TIME_QUICK="1s"
 VULN_PROBE=(false); VULN_CMD=(${CE_VULN:+true}); PROFILE_ENABLE=0; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=${CE_CROSS:-0}; RELEASE_CMD=(); RELEASE_ARTIFACT_DIR="dist"
 CONTAINER_DIR="cicd/container"; CONTAINER_IMAGE="cbv-test-cicd"; CONTAINER_VOLUME="cbv-test-cache"; CONTAINER_MOUNTS=("demos" "nowhere")
+CONTAINER_DEFAULT=${CE_CONTAINER_DEFAULT:-0}; CONTAINER_CONTEXTS=("ctx=${CE_CTX:-ctxdir}"); CONTAINER_CONTEXT_MISSING=(--no-demogif)
 DOGFOOD_FIXED_DESTS=(${CE_DEST:+"${CE_DEST}"})
 DO_SCREENSHOTS=0; SCREENSHOT_CMD=(none); DO_DEMOGIF=${CE_GIF:-0}; DEMOGIF_CMD=(gif.py); DEMOGIF_OUT="gif/demo.gif"; DEMOGIF_ARCHIVE_DIR="gif/old"; DEMOGIF_CONTAINER_ONLY=1
 PREPUBLISH_HOOK=""; GIT_PUBLISH=(); PUBLISH_AUTO_MESSAGE=""
@@ -2266,6 +2273,7 @@ mkdir -p "${ceRepo}/cicd/container" "${ceDir}/demos-real"
 printf '%s\n' 'FROM scratch' >"${ceRepo}/cicd/container/Dockerfile"
 printf '%s\n' '## pins' 'FOO_VERSION=1.2' >"${ceRepo}/cicd/tool-versions.env"
 ln -s "${ceDir}/demos-real" "${ceRepo}/demos"
+mkdir -p "${ceRepo}/ctxdir"; : >"${ceRepo}/ctxdir/font.ttf"
 ## Stands in for the gif tool, run as python3 gif.py --out OUT --bin BIN.
 printf '%s\n' 'import sys' 'open(sys.argv[sys.argv.index("--out") + 1], "w").write("gif")' >"${ceRepo}/gif.py"
 mkdir -p "${ceRepo}/gif"
@@ -2328,14 +2336,16 @@ CE_VULN=1 CE_NO_SKIP=1 fCeRun -y
 	|| _fail EsJjVtL "a missing tool warns, and fails the run under CICD_NO_SKIP" "warned=${ceWarned} $(fCeTail)"
 
 ## --container, against a docker that logs what it's asked. The image is
-## tagged by the recipe and pins, built when missing with the pins as build
-## args, and the one it replaces is removed. The run inside gets this user, the
-## repo and extra mounts at the same paths, and the flags that leave the
-## profiler, dogfood and publish to the host.
-ceTag="cbv-test-cicd:$(cat "${ceRepo}/cicd/container/Dockerfile" "${ceRepo}/cicd/tool-versions.env" | git hash-object --stdin | cut -c1-12)"
+## tagged by a hash, built when missing with the pins as build args and the
+## contexts by real path, and the one it replaces is removed. The run inside
+## gets this user, the repo and extra mounts at the same paths, and the flags
+## that leave the profiler, dogfood and publish to the host.
+fCeTag(){ sed -n 's/^image inspect //p' <<<"${ceDocker}" | head -1; }
 ## Cross builds are on, and would fail here, so the host must leave stage 6 alone too.
 CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container --long
-{ ((ceRc == 0)) && grep -qxF "image inspect ${ceTag}" <<<"${ceDocker}" && grep -qxF "build -t ${ceTag} --build-arg FOO_VERSION=1.2 ${ceRepo}/cicd/container" <<<"${ceDocker}" \
+ceTag="$(fCeTag)"
+{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ ]] \
+	&& grep -qxF "build -t ${ceTag} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
 	&& grep -qxF "rmi cbv-test-cicd:0ld0ld0ld0ld" <<<"${ceDocker}"; } && _pass EsJjVuH "--container builds a missing image by its pins and removes the old one" \
 	|| _fail EsJjVuH "--container builds a missing image by its pins and removes the old one" "docker=[${ceDocker}] $(fCeTail)"
 ceTz=""; [[ -e /etc/localtime ]] && ceTz=" -v /etc/localtime:/etc/localtime:ro"
@@ -2357,6 +2367,22 @@ CE_GIF=1 CE_INSIDE=1 fCeRun -y
 CE_INSIDE=1 fCeRun -y --container
 { ((ceRc == 2)) && [[ "${ceOut}" == *"--container is for the host"* && -z "${ceDocker}" ]]; } && _pass EsJjVyJ "--container is refused inside the container" \
 	|| _fail EsJjVyJ "--container is refused inside the container" "docker=[${ceDocker}] $(fCeTail)"
+
+## A missing context builds from an empty dir, which is removed after, gets its
+## own tag, and the run inside gets CONTAINER_CONTEXT_MISSING.
+CE_CTX=nope fCeRun -y --container
+ceCtx="$(sed -n 's/.*--build-context ctx=\([^ ]*\) .*/\1/p' <<<"${ceDocker}")"
+{ ((ceRc == 0)) && [[ -n "${ceCtx}" && "${ceCtx}" != *ctxdir* && ! -e "${ceCtx}" && "$(fCeTag)" != "${ceTag}" ]] \
+	&& grep -qE '^run .* --no-publish --no-demogif$' <<<"${ceDocker}"; } && _pass EsKCVVh "a missing build context builds empty and turns off what needs it" \
+	|| _fail EsKCVVh "a missing build context builds empty and turns off what needs it" "ctx=[${ceCtx}] docker=[${ceDocker}] $(fCeTail)"
+
+## With CONTAINER_DEFAULT=1 a plain run goes to the container, --host stays
+## here, and so does a run already inside.
+CE_CONTAINER_DEFAULT=1 fCeRun -y; ceDefRun=0; grep -q '^run ' <<<"${ceDocker}" && ceDefRun=1
+CE_CONTAINER_DEFAULT=1 fCeRun -y --host; ceHostOk=0; { ((ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* ]]; } && ceHostOk=1
+CE_CONTAINER_DEFAULT=1 CE_INSIDE=1 fCeRun -y
+{ ((ceDefRun && ceHostOk && ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass EsKCVWM "CONTAINER_DEFAULT runs in the container unless --host or already inside" \
+	|| _fail EsKCVWM "CONTAINER_DEFAULT runs in the container unless --host or already inside" "default ran=${ceDefRun} host ok=${ceHostOk} $(fCeTail)"
 
 ## Lint: shellcheck and ruff check what the engine finds in a git repo of
 ## fixtures. A finding fails the run, and so does finding nothing to check,

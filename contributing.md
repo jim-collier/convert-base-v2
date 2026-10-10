@@ -37,7 +37,9 @@ Before sending a pull request, run the pipeline from the repo root. `--quick` sk
 cicd/cicd.bash --quick --no-dogfood --no-publish -y
 ~~~
 
-Stage 3 is the lint stage. `go vet` always runs. golangci-lint, staticcheck, shellcheck and ruff run when they are installed, and are skipped with a warning when they are not. Any finding from one that runs stops the pipeline. Install them all, since the hosted CI only runs vet, the Go tests and the build.
+Stages 1 to 4 and 6 run in a docker image with every tool at its pinned version, so docker is the only thing to install. There, a missing tool fails the run instead of being skipped. The image is built from `cicd/container/Dockerfile` the first time, which takes a few minutes and about 3 GB. The demo gif needs fonts that can't be shared, so it's left out of the image, and the run skips it, unless they're in `../private/fonts/demo-gif/`.
+
+Without docker, `--host` runs every stage on your machine. Stage 3 is the lint stage. `go vet` always runs. golangci-lint, staticcheck, shellcheck and ruff run when they are installed, and are skipped with a warning when they are not. Any finding from one that runs stops the pipeline. Install them all, since the hosted CI only runs vet, the Go tests and the build.
 
 - golangci-lint and staticcheck: `cicd/utility/pin-tools.bash` installs both at the versions in `cicd/tool-versions.env`.
 
@@ -46,12 +48,6 @@ Stage 3 is the lint stage. `go vet` always runs. golangci-lint, staticcheck, she
 - ruff: `pipx install ruff`.
 
 The shellcheck settings are in `.shellcheckrc`, the ruff settings in `pyproject.toml`, and the Go linter set in `lib/.golangci.yml`.
-
-With docker installed, add `--container` and there's nothing else to install. Stages 1 to 4 and 6 then run in an image with every tool at its pinned version, and a missing tool fails the run there instead of being skipped. The image is built from `cicd/container/Dockerfile` the first time, which takes a few minutes and about 3 GB. Only these runs remake the demo gif, since its fonts are pinned in the image.
-
-~~~bash
-cicd/cicd.bash --container --quick --no-dogfood --no-publish -y
-~~~
 
 ## Tests
 

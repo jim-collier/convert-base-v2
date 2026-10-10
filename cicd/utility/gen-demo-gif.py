@@ -24,7 +24,7 @@
 ##		  --seed N         RNG seed; fixed default so reruns are byte-stable
 ##		  --font NAME      override the scenario's font preference list
 ##		  --quiet          only errors
-##	Exit: 0 wrote the GIF, 2 non-fatal skip (no Pillow, bad scenario, cmd failed).
+##	Exit: 0 wrote the GIF, 1 a char no font draws, 2 non-fatal skip (no Pillow, bad scenario, cmd failed).
 ##	History: At bottom of script.
 
 ##	Copyright (c) 2026 Bubbles
@@ -427,6 +427,8 @@ class Screen:
 		self.show_prompt = True   # hidden while a command's output is scrolling in
 		self._glyph_font: dict[str, ImageFont.FreeTypeFont] = {}       # ch -> font that can draw it
 		self._fallback_fonts: dict[str, ImageFont.FreeTypeFont] = {}   # font file -> font
+		self._cmaps: dict[str, set[int] | None] = {}                  # font file -> codepoints
+		self.missing: set[str] = set()                                # no font draws these
 		self._emoji_tiles: dict[str, Image.Image | None] = {}         # None if it would not render
 		self._notdef = self._glyph_pixels(font, "\U000FFFFD")
 		ascent, descent = font.getmetrics()
@@ -480,8 +482,24 @@ class Screen:
 					except OSError:
 						self._fallback_fonts[path] = self.font
 				use = self._fallback_fonts[path]
+			## fc-match answers with its best font even when none has the char.
+			if not path or not self._covers(path, ch):
+				self.missing.add(ch)
 		self._glyph_font[ch] = use
 		return use
+
+	def _covers(self, path: str, ch: str) -> bool:
+		if path not in self._cmaps:
+			try:
+				from fontTools.ttLib import TTFont, TTLibError
+			except ImportError:
+				return True                  # can't tell without fontTools
+			try:
+				self._cmaps[path] = set(TTFont(path, lazy=True, fontNumber=0).getBestCmap() or ())
+			except (OSError, TTLibError):
+				self._cmaps[path] = None
+		cmap = self._cmaps[path]
+		return cmap is None or ord(ch) in cmap
 
 	def is_emoji(self, ch: str) -> bool:
 		##	Only chars the emoji face covers, and only from the emoji blocks -
@@ -792,6 +810,16 @@ def main() -> None:
 		env = demo_env(Path(home))
 		run_setup(sc, binpath, here, env)
 		step_out = [run_step(step, binpath, here, env) for step in sc["step"]]
+	##	A char no font has would draw as a box in the README, so find them
+	##	all before rendering anything.
+	text = [ln for lines in step_out for ln in lines]
+	text += [step.get("show", "").replace("{prog}", prog).replace("{bin}", prog) for step in sc["step"]]
+	text += [note for step in sc["step"] for note in step_notes(step)]
+	for ch in sorted({c for ln in text for c in ln if ord(c) >= 0x80 and not scr.is_emoji(c)}):
+		scr.font_for(ch)
+	if scr.missing:
+		sys.stderr.write("gen-demo-gif: no font draws " + " ".join(f"U+{ord(c):04X}" for c in sorted(scr.missing)) + "\n")
+		sys.exit(1)
 	emoji_set = sorted({ch for lines in step_out for ln in lines for ch in ln
 	                    if scr.is_emoji(ch)})
 	tiles = [t for t in (scr.emoji_tile(ch) for ch in emoji_set) if t is not None]
@@ -966,7 +994,7 @@ if __name__ == "__main__":
 
 ##	History:
 ##		- 20261010: Commands run in a private home, after an optional unshown
-##			setup= command.
+##			setup= command. A char no font draws fails the run before rendering.
 ##		- 20261004: PEP 8 names and type hints. A one-word command types its
 ##			first word at muscle-memory speed like any other command. The
 ##			missing-glyph check no longer reaches into Pillow's internals.
