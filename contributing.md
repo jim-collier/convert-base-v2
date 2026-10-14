@@ -17,7 +17,7 @@ Open an [issue](https://github.com/jim-collier/convert-base-v2/issues) with the 
 
 - Read the [code style guide](project/style-guide_code.md) first. It is short, and it says why things are the way they are.
 
-- The tools you need are listed in the README, under [Set up a development environment](README.md#set-up-a-development-environment).
+- The tools you need are listed in [Set up a development environment](development.md).
 
 - A change users will notice gets a line in [changelog.md](changelog.md), under the `vNEXT` heading.
 

@@ -10,7 +10,8 @@
 # finished command, typescale= scales the command's typing speed, notepause= is
 # read time after each note line. clear= forces a blank screen first; output
 # taller than the window clears anyway. end_hold/end_black (seconds) hold the
-# last frame, then show black, before looping.
+# last frame, then show black, before looping. width= scales the output down to
+# that many pixels wide.
 
 title = "convert-base-v2"
 prog  = "convert-base-v2"
@@ -19,6 +20,7 @@ font  = ["Monaspace Argon SemiBold"]
 wpm_digits = 293
 end_hold  = 3.0
 end_black = 3.0
+width     = 800
 # The demo runs in a fresh home, so make the default config there first,
 # or its first-run note shows up in the first step.
 setup = "{bin} 0 >/dev/null 2>&1"

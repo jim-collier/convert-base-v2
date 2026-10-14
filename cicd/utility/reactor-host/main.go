@@ -15,7 +15,8 @@
 // through the streaming ABI. --batch-codes is --batch with "err" <tab> CODE,
 // which holds the browser module to the reactor's error codes. --regions
 // times a conversion with no other regions open and with many, and fails when
-// the second is much slower.
+// the second is much slower. --wasi runs the command's own WASI build instead,
+// with the rest of the line as its argv, and exits with its status.
 package main
 
 import (
@@ -34,6 +35,7 @@ import (
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/api"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+	"github.com/tetratelabs/wazero/sys"
 )
 
 // Mirrors the ABI error codes in reactor/README.md.
@@ -53,6 +55,23 @@ type host struct {
 	errText string
 }
 
+// No env and no preopened dirs, as a bare wasmtime run gives it.
+func runCommand(ctx context.Context, rt wazero.Runtime, wasm []byte, argv []string) int {
+	cfg := wazero.NewModuleConfig().
+		WithArgs(append([]string{"convert-base-v2"}, argv...)...).
+		WithStdin(os.Stdin).WithStdout(os.Stdout).WithStderr(os.Stderr)
+	_, err := rt.InstantiateWithConfig(ctx, wasm, cfg)
+	var exitErr *sys.ExitError
+	switch {
+	case err == nil:
+		return 0
+	case errors.As(err, &exitErr):
+		return int(exitErr.ExitCode())
+	}
+	fmt.Fprintf(os.Stderr, "reactor-host: run: %v\n", err)
+	return 70
+}
+
 func main() {
 	args := os.Args[1:]
 	mode := ""
@@ -62,13 +81,15 @@ func main() {
 	usageOK := (mode == "" && len(args) == 1) ||
 		((mode == "batch" || mode == "batch-codes") && len(args) == 1) ||
 		(mode == "regions" && len(args) == 1) ||
-		(mode == "stream" && (len(args) == 3 || len(args) == 4))
+		(mode == "stream" && (len(args) == 3 || len(args) == 4)) ||
+		(mode == "wasi" && len(args) >= 1)
 	if !usageOK {
 		fmt.Fprintln(os.Stderr, "usage: reactor-host MODULE.wasm\n"+
 			"       reactor-host --batch MODULE.wasm\n"+
 			"       reactor-host --batch-codes MODULE.wasm\n"+
 			"       reactor-host --regions MODULE.wasm\n"+
-			"       reactor-host --stream MODULE.wasm FROM TO [CHUNK]")
+			"       reactor-host --stream MODULE.wasm FROM TO [CHUNK]\n"+
+			"       reactor-host --wasi COMMAND.wasm [ARGS...]")
 		os.Exit(2)
 	}
 	wasm, err := os.ReadFile(args[0])
@@ -80,6 +101,10 @@ func main() {
 	rt := wazero.NewRuntime(ctx)
 	defer func() { _ = rt.Close(ctx) }() // the process is exiting anyway
 	wasi_snapshot_preview1.MustInstantiate(ctx, rt)
+
+	if mode == "wasi" {
+		os.Exit(runCommand(ctx, rt, wasm, args[1:]))
+	}
 
 	// A reactor initializes and stays resident; _start would mean the command
 	// shape slipped back in.

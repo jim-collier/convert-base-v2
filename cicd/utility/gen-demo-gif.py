@@ -61,7 +61,8 @@ except ImportError:
 
 
 ##	Canvas and window chrome. 960x540 total; the window fills the whole view
-##	except a thin black border. Square corners, no shadow.
+##	except a thin black border. Square corners, no shadow. Scenario width=
+##	scales all of it, fonts included.
 CANVAS_W, CANVAS_H = 960, 540
 MARGIN     = 4        # thin black border around the window
 TITLE_H    = 34       # title bar height
@@ -192,7 +193,7 @@ def skip(msg: str) -> NoReturn:
 	sys.exit(2)
 
 
-def find_font(prefs: list[str], size: int) -> tuple[ImageFont.FreeTypeFont, str]:
+def find_font(prefs: list[str], size: float) -> tuple[ImageFont.FreeTypeFont, str]:
 	##	Resolve the first available preference via fc-match. fc-match always
 	##	answers with its best match, so verify the family before trusting it;
 	##	the final fallback takes whatever monospace fontconfig offers.
@@ -221,6 +222,7 @@ def load_scenario(path: str) -> dict[str, Any]:
 	##	  wpm_digits = 42               digit typing speed (numbers-heavy demos: raise it)
 	##	  end_hold = 3.0                seconds the final frame holds before the loop
 	##	  end_black = 2.0               seconds of black after the hold, then repeat
+	##	  width = 800                   canvas width; chrome, fonts and scroll scale with it
 	##	  setup = "{bin} 0 >/dev/null"  runs first, unshown; commands get a home of
 	##	                                their own, so this is where its config is made
 	##	  [[step]]
@@ -420,7 +422,7 @@ class Screen:
 	##	prompt line, viewed through a pixel-scrolled window. render() draws the
 	##	full chrome each time and quantizes straight to the master palette.
 	def __init__(self, font: ImageFont.FreeTypeFont, font_name: str, title: str,
-	             prompt: list[Span], font_size: int) -> None:
+	             prompt: list[Span], font_size: float, k: float = 1.0) -> None:
 		self.font, self.title, self.prompt = font, title, prompt
 		self.pal = Image.new("P", (1, 1))  # the real one needs the emoji tiles first
 		self.font_size = font_size
@@ -433,14 +435,17 @@ class Screen:
 		self._notdef = self._glyph_pixels(font, "\U000FFFFD")
 		ascent, descent = font.getmetrics()
 		self.cw = font.getlength("0")
-		self.lh = ascent + descent + 3
-		self.win_w = CANVAS_W - 2 * MARGIN
-		self.win_h = CANVAS_H - 2 * MARGIN
-		self.term_x = MARGIN + PAD
-		self.term_y = MARGIN + TITLE_H + PAD
-		self.cols = int((self.win_w - 2 * PAD) // self.cw)
-		self.rows = int((self.win_h - TITLE_H - 2 * PAD) // self.lh)
-		self.view_w = self.win_w - 2 * PAD
+		self.k = k
+		self.canvas = (round(CANVAS_W * k), round(CANVAS_H * k))
+		self.margin, self.title_h, pad = (max(1, round(v * k)) for v in (MARGIN, TITLE_H, PAD))
+		self.lh = ascent + descent + round(3 * k)
+		self.win_w = self.canvas[0] - 2 * self.margin
+		self.win_h = self.canvas[1] - 2 * self.margin
+		self.term_x = self.margin + pad
+		self.term_y = self.margin + self.title_h + pad
+		self.cols = int((self.win_w - 2 * pad) // self.cw)
+		self.rows = int((self.win_h - self.title_h - 2 * pad) // self.lh)
+		self.view_w = self.win_w - 2 * pad
 		self.view_h = self.rows * self.lh
 		self.lines: list[list[Span]] = []   # committed scrollback
 		self.typed = ""          # text after the prompt on the live line
@@ -658,19 +663,20 @@ class Screen:
 
 	def render(self, cursor: tuple[float, float] | None, ident_colors: dict[str, Rgb]) -> Image.Image:
 		##	cursor: None = hidden, else (x, y) view px of the block's top-left.
-		img = Image.new("RGB", (CANVAS_W, CANVAS_H), THEME["outer"])
+		img = Image.new("RGB", self.canvas, THEME["outer"])
 		d = ImageDraw.Draw(img)
-		x0, y0 = MARGIN, MARGIN
+		x0 = y0 = self.margin
+		k = self.k
 		d.rectangle([x0, y0, x0 + self.win_w, y0 + self.win_h],
 		            fill=THEME["bg"], outline=THEME["border"])
-		d.rectangle([x0, y0, x0 + self.win_w, y0 + TITLE_H],
+		d.rectangle([x0, y0, x0 + self.win_w, y0 + self.title_h],
 		            fill=THEME["titlebar"])
 		for i, c in enumerate(TRAFFIC_LIGHTS):
-			dot_x = x0 + 18 + i * 20
-			d.ellipse([dot_x, y0 + 12, dot_x + 11, y0 + 23], fill=c)
+			dot_x = x0 + round((18 + i * 20) * k)
+			d.ellipse([dot_x, y0 + round(12 * k), dot_x + round(11 * k), y0 + round(23 * k)], fill=c)
 		tw = d.textlength(self.title, font=self.font)
 		self.draw_text(d, img, x0 + (self.win_w - tw) / 2,
-		               y0 + (TITLE_H - self.lh) / 2 + 1, self.title, THEME["titletxt"])
+		               y0 + (self.title_h - self.lh) / 2 + 1, self.title, THEME["titletxt"])
 
 		##	Text: content lines at their scrolled offsets, drawn on a layer the
 		##	size of the view so partial lines clip cleanly at the edges.
@@ -687,7 +693,7 @@ class Screen:
 				x = self.draw_text(ld, layer, x, y, text, colors[key])
 		if cursor is not None:
 			cx, cy = cursor
-			ld.rectangle([cx + 1, cy + 1, cx + self.cw, cy + self.lh - 3],
+			ld.rectangle([cx + 1, cy + 1, cx + self.cw, cy + self.lh - round(3 * k)],
 			             fill=THEME["fg"])
 		img.paste(layer, (self.term_x, self.term_y))
 		return img.quantize(palette=self.pal, dither=Image.Dither.NONE)
@@ -792,7 +798,9 @@ def main() -> None:
 	prefs = [args.font] if args.font else sc.get("font", [])
 	prefs = prefs + ["Monaspace Argon SemiBold", "JetBrains Mono",
 	                 "Cascadia Mono", "DejaVu Sans Mono"]
-	font, font_name = find_font([p for p in prefs if p], sc.get("fontsize", 15))
+	k = float(sc.get("width", CANVAS_W)) / CANVAS_W
+	font_size = float(sc.get("fontsize", 15)) * k
+	font, font_name = find_font([p for p in prefs if p], font_size)
 
 	user_tint, host_tint = rng.sample(IDENT_TINTS, 2)
 	user = rng.choice(IDENT_USERS)
@@ -801,7 +809,7 @@ def main() -> None:
 	          ("~", "gray"), ("$ ", "gray")]
 	ident_colors = {"user": user_tint, "host": host_tint}
 
-	scr = Screen(font, font_name, sc.get("title", prog), prompt, sc.get("fontsize", 15))
+	scr = Screen(font, font_name, sc.get("title", prog), prompt, font_size, k)
 
 	##	Run every command up front: the outputs feed the demo AND tell the
 	##	palette which emoji it must carry before the first frame renders.
@@ -902,7 +910,7 @@ def main() -> None:
 
 	snap(700)                                        # opening frame = loop-in target
 	for step_idx, step in enumerate(sc["step"]):
-		rate = float(step.get("scrollrate", SCROLL_RATE))
+		rate = float(step.get("scrollrate", SCROLL_RATE)) * scr.k
 		line_ms = float(step.get("linems", 26))
 		##	Output taller than the window starts on a clean screen, so a long
 		##	list scrolls through once instead of first chasing the previous
@@ -971,7 +979,7 @@ def main() -> None:
 	if hold_ms > 0:
 		snap(hold_ms)
 	if black_ms > 0:
-		black = Image.new("RGB", (CANVAS_W, CANVAS_H), (0, 0, 0)).quantize(
+		black = Image.new("RGB", scr.canvas, (0, 0, 0)).quantize(
 			palette=scr.pal, dither=Image.Dither.NONE)
 		mov.add(black, black_ms)
 
@@ -993,6 +1001,7 @@ if __name__ == "__main__":
 
 
 ##	History:
+##		- 20261014: Scenario width= scales the canvas, chrome, fonts and scroll rate.
 ##		- 20261010: Commands run in a private home, after an optional unshown
 ##			setup= command. A char no font draws fails the run before rendering.
 ##		- 20261004: PEP 8 names and type hints. A one-word command types its
