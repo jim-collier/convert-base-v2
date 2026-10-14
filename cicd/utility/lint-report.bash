@@ -9,7 +9,7 @@
 ##		vet / staticcheck / vuln lines so they can be addressed. Two modes: plain
 ##		(print warnings from the newest log) and --check (print only when that log
 ##		is newer than the one last recorded in a local marker, then record it -
-##		meant for a per-session startup look that is a no-op until a new cicd run
+##		for a quick look that prints nothing until a new cicd run
 ##		has happened).
 ##	Syntax:
 ##		lint-report.bash [--check] [--force] [--no-mark] [--dir DIR] [--file LOG]

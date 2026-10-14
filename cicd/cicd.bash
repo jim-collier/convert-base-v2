@@ -45,6 +45,10 @@
 ##	   --no-screenshots    skip regenerating README screenshots
 ##	   --no-demogif        skip regenerating the demo gif
 ##	   --no-publish        skip the git backup + publish stage
+##	   --no-sync           don't check the remote first (by default the run fetches, fast-forwards
+##	                       when only behind, and stops when the branch and its upstream have diverged)
+##	   --gate              the fast merge gate only: format check, lint, unit tests. No log, no
+##	                       container, no publish. The git pre-push hook runs this for dev and main.
 ##	   --long              exhaustive test run (sets CICDTEST_DO_LONGTEST=1)
 ##	   --quick             skip the slow stages (cross-compile, profiler, screenshots, demo gif), shorten fuzz,
 ##	                       and skip the harness perf section and packaging rebuild check
@@ -83,17 +87,19 @@ CPU_CAP=$(( _cores / 2 )); (( CPU_CAP < 1 )) && CPU_CAP=1
 export GOMAXPROCS="${CPU_CAP}"
 
 source "${here}/config.bash"
+[[ -v FMT_CHECK_CMD ]] || FMT_CHECK_CMD=()   ## older configs
 source "${here}/utility/include/gfs-rotate.bash"       ## gfs_rotate() for the artifact dirs
 cd "${root}"
 stamp="$(date +%Y%m%d-%H%M%S)"
 export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the Entering/Leaving dir noise
 
-## Parse options.
-assume_yes=0; quiet=0; quick=0; do_long=0; cli_message=""; use_container=""; inner_args=()
+## Parse options. The originals are kept for a restart after the sync.
+orig_args=("$@")
+assume_yes=0; quiet=0; quick=0; do_long=0; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0
 while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
-	--no-fmt)                 FMT_CMD=(); inner_args+=("$1"); shift ;;
+	--no-fmt)                 FMT_CMD=(); FMT_CHECK_CMD=(); inner_args+=("$1"); shift ;;
 	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); SHELLCHECK_CMD=(); RUFF_CMD=(); inner_args+=("$1"); shift ;;
 	--no-cross)               BUILD_CROSS=0; inner_args+=("$1"); shift ;;
 	--no-profile)             PROFILE_ENABLE=0; shift ;;
@@ -103,6 +109,8 @@ while (($#)); do case "$1" in
 	--no-publish)             GIT_PUBLISH=(); shift ;;
 	--container)              use_container=1; shift ;;
 	--host)                   use_container=0; shift ;;
+	--no-sync)                do_sync=0; shift ;;
+	--gate)                   gate=1; shift ;;
 	--long)                   do_long=1; inner_args+=("$1"); shift ;;
 	--quick)                  quick=1; BUILD_CROSS=0; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
 	--message=*|--msg=*|-m=*) cli_message="${1#*=}"; shift ;;
@@ -241,7 +249,143 @@ fRunContainer(){
 	"${engine}" run --rm --init --user "$(id -u):$(id -g)" "${mounts[@]}" -w "${root}" "${image}" \
 		bash "${root}/cicd/cicd.bash" "${inner[@]}" || fDie "the run in the container failed; its output is above"
 }
+## Stage 3, and the gate. go vet is gating; golangci-lint, staticcheck, shellcheck
+## and ruff run when installed (a failed probe skips that one with a warning). Any
+## finding from one that runs aborts.
+fLint(){
+	local -a shellFiles=()
+	local pyCount
+	if ((${#VET_CMD[@]} == 0)); then
+		fEcho_Chat "lint skipped"
+		return 0
+	fi
+	in_src "${VET_CMD[@]}"
+	fEcho "OK: go vet clean"
+	if ((${#LINT_CMD[@]})); then
+		if in_src "${LINT_PROBE[@]}" >/dev/null 2>&1; then
+			in_src "${LINT_CMD[@]}"; fEcho "OK: golangci-lint clean"
+		else
+			fSkip "golangci-lint skipped (not installed: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)"
+		fi
+	fi
+	if ((${#STATICCHECK_CMD[@]})); then
+		if in_src "${STATICCHECK_PROBE[@]}" >/dev/null 2>&1; then
+			in_src "${STATICCHECK_CMD[@]}"; fEcho "OK: staticcheck clean"
+		else
+			fSkip "staticcheck skipped (not installed: go install honnef.co/go/tools/cmd/staticcheck@latest)"
+		fi
+	fi
+	## A linter handed no files passes, so an empty list is a failure.
+	if [[ -n "${SHELLCHECK_CMD[*]:-}" ]]; then
+		if "${SHELLCHECK_PROBE[@]}" >/dev/null 2>&1; then
+			fShellFiles shellFiles
+			((${#shellFiles[@]})) || fDie "shellcheck: no Bash files found to check"
+			"${SHELLCHECK_CMD[@]}" "${shellFiles[@]}"; fEcho "OK: shellcheck clean (${#shellFiles[@]} files)"
+		else
+			fSkip "shellcheck skipped (not installed: apt install shellcheck)"
+		fi
+	fi
+	if [[ -n "${RUFF_CMD[*]:-}" ]]; then
+		if "${RUFF_PROBE[@]}" >/dev/null 2>&1; then
+			pyCount="$("${RUFF_CMD[@]}" --show-files 2>/dev/null | grep -c '\.py$' || true)"
+			((pyCount)) || fDie "ruff: no Python files found to check"
+			"${RUFF_CMD[@]}"; fEcho "OK: ruff clean (${pyCount} files)"
+		else
+			fSkip "ruff skipped (not installed: pipx install ruff)"
+		fi
+	fi
+}
+## Every test has its own ID, so a failure, a backlog item and a commit can all
+## name the same one. Each prints with its ID.
+fUnitTests(){
+	if ((${#TEST_ID_CMD[@]})); then
+		(cd "${root}" && "${TEST_ID_CMD[@]}" check) || fDie "a test has no ID, a bad one, or shares one"
+		in_src "${UNIT_TEST_CMD[@]}" 2>&1 | (cd "${root}" && "${TEST_ID_CMD[@]}" report) || fDie "unit tests failed"
+	else
+		in_src "${UNIT_TEST_CMD[@]}"
+	fi
+	fEcho "OK: unit tests"
+}
+## gitsby picks the account for the folder; plain git where it isn't installed.
+fGit(){ if command -v gitsby >/dev/null 2>&1; then gitsby raw git "$@"; else git "$@"; fi; }
+## Publish pulls after the tests, so a remote change would go out untested.
+## Pulling first means the run tests what it publishes. Offline, or no
+## upstream, just warns. Edits in the tree are stashed around the fast-forward.
+fSyncRemote(){
+	local upstream counts ahead behind before stashed=0
+	if ! git -C "${root}" rev-parse --git-dir >/dev/null 2>&1; then
+		fEcho "WARNING: not a git checkout, so no remote sync"
+		return 0
+	fi
+	upstream="$(git -C "${root}" rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null || true)"
+	if [[ -z "${upstream}" ]]; then
+		fEcho "WARNING: no upstream branch, so no remote sync"
+		return 0
+	fi
+	if ! (cd "${root}" && fGit fetch --quiet) 2>/dev/null; then
+		fEcho "WARNING: couldn't fetch for ${upstream} (offline?), so this builds what's here"
+		return 0
+	fi
+	counts="$(git -C "${root}" rev-list --left-right --count 'HEAD...@{u}')"
+	read -r ahead behind <<<"${counts}"
+	if ((behind == 0)); then
+		if ((ahead)); then fEcho_Chat "up to date with ${upstream}, ${ahead} ahead"; else fEcho_Chat "up to date with ${upstream}"; fi
+		return 0
+	fi
+	((ahead == 0)) || fDie "this branch and ${upstream} have diverged (${ahead} ahead, ${behind} behind). Merge them, then run again."
+	before="$(git -C "${root}" rev-parse HEAD)"
+	if ! git -C "${root}" diff --quiet HEAD --; then
+		git -C "${root}" stash push --quiet -m "cicd sync ${stamp}" || fDie "couldn't stash the edits in the tree before the fast-forward"
+		stashed=1
+	fi
+	if ! git -C "${root}" merge --quiet --ff-only '@{u}'; then
+		((stashed)) && git -C "${root}" stash pop --quiet
+		fDie "couldn't fast-forward to ${upstream}"
+	fi
+	if ((stashed)); then
+		git -C "${root}" stash pop --quiet || fDie "fast-forwarded, but the stashed edits didn't go back cleanly. They're still in 'git stash list'."
+	fi
+	fEcho "OK: fast-forwarded ${behind} commit(s) from ${upstream}"
+	## Bash reads a script as it runs, so a pipeline that just changed starts over.
+	if ! git -C "${root}" diff --quiet "${before}" HEAD -- cicd/; then
+		fEcho "the pipeline itself changed, so starting over"
+		exec bash "${here}/cicd.bash" "${orig_args[@]}" --no-sync
+	fi
+}
+## The pre-push hook runs --gate for pushes to dev and main. Hooks are per clone,
+## so this adds a stub that calls the tracked script, never over one already there.
+fInstallGateHook(){
+	local hook
+	hook="$(git -C "${root}" rev-parse --path-format=absolute --git-path hooks/pre-push 2>/dev/null || true)"
+	if [[ -z "${hook}" || -e "${hook}" || -L "${hook}" || ! -f "${root}/cicd/utility/pre-push" ]]; then return 0; fi
+	mkdir -p "$(dirname "${hook}")"
+	printf '%s\n' '#!/usr/bin/env bash' '## Put here by cicd/cicd.bash. Runs the merge gate hook of whichever checkout is pushing.' \
+		'hook="$(git rev-parse --show-toplevel)/cicd/utility/pre-push"' 'if [[ -x "${hook}" ]]; then exec "${hook}" "$@"; fi' >"${hook}"
+	chmod +x "${hook}"
+	fEcho "added the pre-push hook: ${hook}"
+}
 trap 'rc=$?; printf "\n[ CICD ABORTED (exit %s) at line %s: %s ]\n" "$rc" "$LINENO" "$BASH_COMMAND" >&2; exit $rc' ERR
+
+## The fast gate: no log, no container, no plan, no publish.
+if ((gate)); then
+	fSection "Merge gate"
+	fInstallGateHook
+	if ((${#FMT_CHECK_CMD[@]})); then
+		unformatted="$(in_src "${FMT_CHECK_CMD[@]}")" || fDie "format check didn't run: ${FMT_CHECK_CMD[*]}"
+		[[ -z "${unformatted}" ]] || fDie "needs formatting (${FMT_CMD[*]:-gofmt}): ${unformatted//$'\n'/ }"
+		fEcho "OK: format"
+	fi
+	fLint
+	fUnitTests
+	fEcho "OK: gate passed"
+	echo
+	exit 0
+fi
+
+if [[ "${CICD_IN_CONTAINER:-0}" != "1" ]]; then
+	if ((do_sync)); then fSyncRemote; fi
+	fInstallGateHook
+fi
 
 ## Preflight: show the plan with resolved paths, then confirm.
 profile_dir="$(cd "${root}" && mkdir -p "${PROFILE_OUT_DIR}" 2>/dev/null; cd "${PROFILE_OUT_DIR}" 2>/dev/null && pwd || echo "${root}/${PROFILE_OUT_DIR}")"
@@ -381,58 +525,14 @@ else
 	## run when installed (a failed probe skips that one with a warning). Any finding
 	## from one that runs aborts. All output lands in the run log.
 	fSection "3/8  Lint"
-	if ((${#VET_CMD[@]} == 0)); then
-		fEcho_Chat "lint skipped"
-	else
-		in_src "${VET_CMD[@]}"
-		fEcho "OK: go vet clean"
-		if ((${#LINT_CMD[@]})); then
-			if in_src "${LINT_PROBE[@]}" >/dev/null 2>&1; then
-				in_src "${LINT_CMD[@]}"; fEcho "OK: golangci-lint clean"
-			else
-				fSkip "golangci-lint skipped (not installed: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)"
-			fi
-		fi
-		if ((${#STATICCHECK_CMD[@]})); then
-			if in_src "${STATICCHECK_PROBE[@]}" >/dev/null 2>&1; then
-				in_src "${STATICCHECK_CMD[@]}"; fEcho "OK: staticcheck clean"
-			else
-				fSkip "staticcheck skipped (not installed: go install honnef.co/go/tools/cmd/staticcheck@latest)"
-			fi
-		fi
-		## A linter handed no files passes, so an empty list is a failure.
-		if [[ -n "${SHELLCHECK_CMD[*]:-}" ]]; then
-			if "${SHELLCHECK_PROBE[@]}" >/dev/null 2>&1; then
-				fShellFiles shellFiles
-				((${#shellFiles[@]})) || fDie "shellcheck: no Bash files found to check"
-				"${SHELLCHECK_CMD[@]}" "${shellFiles[@]}"; fEcho "OK: shellcheck clean (${#shellFiles[@]} files)"
-			else
-				fSkip "shellcheck skipped (not installed: apt install shellcheck)"
-			fi
-		fi
-		if [[ -n "${RUFF_CMD[*]:-}" ]]; then
-			if "${RUFF_PROBE[@]}" >/dev/null 2>&1; then
-				pyCount="$("${RUFF_CMD[@]}" --show-files 2>/dev/null | grep -c '\.py$' || true)"
-				((pyCount)) || fDie "ruff: no Python files found to check"
-				"${RUFF_CMD[@]}"; fEcho "OK: ruff clean (${pyCount} files)"
-			else
-				fSkip "ruff skipped (not installed: pipx install ruff)"
-			fi
-		fi
-	fi
+	fLint
 
 	## Stage 4: tests. Unit (Go), integration harness (against the staged binary),
 	## fuzz (one target per invocation), and govulncheck security (module + deps).
 	fSection "4/8  Tests"
 	## Every test has its own ID, so a failure, a backlog item and a commit can all
 	## name the same one. Each prints with its ID.
-	if ((${#TEST_ID_CMD[@]})); then
-		(cd "${root}" && "${TEST_ID_CMD[@]}" check) || fDie "a test has no ID, a bad one, or shares one"
-		in_src "${UNIT_TEST_CMD[@]}" 2>&1 | (cd "${root}" && "${TEST_ID_CMD[@]}" report) || fDie "unit tests failed"
-	else
-		in_src "${UNIT_TEST_CMD[@]}"
-	fi
-	fEcho "OK: unit tests"
+	fUnitTests
 	## The harness runs its perf section and packaging rebuild check unless --quick.
 	do_perf=1; ((quick)) && do_perf=0
 	CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" CICDTEST_DO_PERF="${do_perf}" CICDTEST_QUICK="${quick}" "${TEST_CMD[@]}"
@@ -523,7 +623,7 @@ run_profiler(){
 		fEcho "OK: flamegraph: ${latest}"
 		fEcho_Clean "open: ${latest}  (in a browser)"
 		## Hot-spot summary into the log (non-fatal, no marker - the marker is for
-		## the per-session --check gate, not the pipeline).
+		## the --check look, not the pipeline).
 		local report="${here}/utility/flame-report.py"
 		if [[ -f "$report" ]]; then
 			fEcho_Clean
@@ -631,6 +731,8 @@ fi
 ## Always run the publisher quiet: cicd already gave the initial prompt, so skip
 ## its redundant continue-prompt. With no message it still lets git open the editor.
 pub_flags=(--quiet)
+## The pre-push hook would run the gate again on what this run just tested.
+export CICD_GATE_PASSED=1
 if ((${#GIT_PUBLISH[@]} == 0)); then
 	fEcho_Chat "publish disabled"
 elif [[ -n "$publish_msg" ]]; then
@@ -655,3 +757,4 @@ fEcho_Clean
 ##		- 2026-10-04 JC: shellcheck and ruff in the lint stage.
 ##		- 2026-10-10 JC: --container runs the tool-heavy stages in a pinned image, where no check may skip.
 ##		- 2026-10-10 JC: Container runs can be the default (CONTAINER_DEFAULT), with --host to opt out. Build contexts from outside the repo.
+##		- 2026-10-14 JC: --gate and its pre-push hook; fetch and fast-forward before building, --no-sync to skip.

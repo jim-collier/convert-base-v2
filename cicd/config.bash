@@ -49,6 +49,9 @@ SRC_DIR="lib"
 ## (FMT_CMD=()) to skip. gofmt is a no-op on already-clean source. Never a Bash
 ## formatter here - bash is hand-formatted on purpose.
 FMT_CMD=(make -C "${SRC_DIR}" fmt)
+## The --gate form: lists what needs formatting rather than fixing it, run in
+## SRC_DIR. Any output fails the gate.
+FMT_CHECK_CMD=(gofmt -l .)
 
 ## Stage 2: two native builds, both staged under lib/bin (outside what the
 ## cross stage touches, so they survive it).
@@ -236,3 +239,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-07-29 JC: Added the vendor pin check (cicd/vendor-pins.env) ahead of stage 1.
 ##		- 2026-10-04 JC: shellcheck and ruff in the lint stage.
 ##		- 2026-10-10 JC: Container settings, and container runs as the default.
+##		- 2026-10-14 JC: FMT_CHECK_CMD for --gate.

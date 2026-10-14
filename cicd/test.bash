@@ -168,18 +168,18 @@ done
 ## The library's lib/vX.Y.Z tags sit on the command's release commits, and a
 ## build from a clone once stamped the library's version on the command.
 _run --version
-{ ((_rc == 0)) && [[ "$_out" == v[1-9]* ]]; } && _pass ErkSf4k "--version is the command's tag, not the library's" || _fail ErkSf4k "--version is the command's tag, not the library's" "out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == v[1-9]* ]]; } && _pass ErkSf4k "--version: command tag" || _fail ErkSf4k "--version: command tag" "out=[$_out]"
 ## Still one line for scripts: the version, then the build number when the build
 ## was stamped. Crockford base32, lower case, so no i, l, o or u.
 _run --version
-{ ((_rc == 0)) && [[ "$_out" =~ ^v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+)?$ ]]; } && _pass ErlL5dx "--version is one line, version then build number" || _fail ErlL5dx "--version is one line, version then build number" "out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" =~ ^v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+)?$ ]]; } && _pass ErlL5dx "--version one-line format" || _fail ErlL5dx "--version one-line format" "out=[$_out]"
 ## make stamps the commit's time, never the clock, so a release rebuilds to its checksums.
 cbEpoch="$(git -C "${meDir}" log -1 --format=%ct 2>/dev/null || true)"
 if [[ -z "${cbEpoch}" ]] || ! command -v make >/dev/null 2>&1; then
 	_warn ErlL5eT "make build stamp not checked (needs git and make)"
 else
 	cbMake="$(make -n -C "${meDir}/../lib" local debug wasm release 2>/dev/null || true)"
-	{ (($(grep -cF -- "-X main.buildEpoch=${cbEpoch}" <<<"$cbMake") == 3)) && grep -qF -- "--build-epoch '${cbEpoch}'" <<<"$cbMake"; } && _pass ErlL5eT "make stamps every command build with the commit's time" || _fail ErlL5eT "make stamps every command build with the commit's time" "want ${cbEpoch} in local, debug, wasm and release: [$cbMake]"
+	{ (($(grep -cF -- "-X main.buildEpoch=${cbEpoch}" <<<"$cbMake") == 3)) && grep -qF -- "--build-epoch '${cbEpoch}'" <<<"$cbMake"; } && _pass ErlL5eT "make build-epoch stamp" || _fail ErlL5eT "make build-epoch stamp" "want ${cbEpoch} in local, debug, wasm and release: [$cbMake]"
 fi
 check EizUJDd ok  "--help exits 0"          -   --help
 check EizUJDe ok  "-h exits 0"              -   -h
@@ -230,10 +230,10 @@ check ElG9gVP eq  "compat base still resolves" 128_compat_v1 -- --get-base-name 
 ## The byte base gave up these names to the --binary flag.
 oldnames=""
 for oldname in binary bin raw; do "${EXE}" --get-base-name "$oldname" >/dev/null 2>&1 && oldnames+=" $oldname"; done
-[[ -z "$oldnames" ]] && _pass ErkSf4p "retired byte-base names do not resolve" || _fail ErkSf4p "retired byte-base names do not resolve" "still resolve:${oldnames}"
+[[ -z "$oldnames" ]] && _pass ErkSf4p "retired byte-base names gone" || _fail ErkSf4p "retired byte-base names gone" "still resolve:${oldnames}"
 ## The ALIASES column lists the other names only. Columns: INDEX NAME SIZE NEG DEC RAW ALIASES
 aliasdup="$("${EXE}" --list --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/ { for (i = 7; i <= NF; i++) { a = $i; sub(/,$/, "", a); if (a == $2) print $2 } }' || true)"
-[[ -z "$aliasdup" ]] && _pass ErkSf4s "--list ALIASES never repeats the NAME" || _fail ErkSf4s "--list ALIASES never repeats the NAME" "repeated on: ${aliasdup}"
+[[ -z "$aliasdup" ]] && _pass ErkSf4s "--list alias/name dupes" || _fail ErkSf4s "--list alias/name dupes" "repeated on: ${aliasdup}"
 ## A dash digit can't double as the negative marker, so those bases use "~" or
 ## none. Every base is checked. One already on "~" or off can't break the rule,
 ## so its digits aren't read.
@@ -245,7 +245,7 @@ while read -r dnidx dnname _ dnneg _; do
 	[[ $'\n'"${dnsyms}"$'\n' == *$'\n-\n'* ]] || continue
 	dashneg+=" ${dnname}=${dnneg}"
 done < <("${EXE}" --list --list-compat 2>/dev/null)
-[[ -z "$dashneg" ]] && _pass ErkSf4r "a dash digit is never the negative marker" || _fail ErkSf4r "a dash digit is never the negative marker" "bases:${dashneg}"
+[[ -z "$dashneg" ]] && _pass ErkSf4r "dash digit vs neg marker" || _fail ErkSf4r "dash digit vs neg marker" "bases:${dashneg}"
 ## The README bases table is generated from the binary, so a renamed base leaves
 ## it pointing at a name that no longer exists. Nothing else notices that.
 README_MD="${meDir}/../README.md"
@@ -392,7 +392,7 @@ check El4bQKw errmsg "retired pad= token"   'no longer part of the symbol spec' 
 check El4bQKx eq  "marker on named base"    -255      -- --from 16 --from-neg "~" --to 10 "~ff"
 check El4bQKy eq  "marker on output base"   "~FF"     -- --from 10 --to 16 --to-neg "~" -- -255
 check El4bQKz errmsg "marker collides"      'is also a digit' -- --from 16 --from-neg "a" --to 10 ff
-check El4bQL0 errmsg "markers vs bytes"     'carries raw bytes' -- --from bytes --from-neg "~" --to 16 5
+check El4bQL0 errmsg "markers vs bytes"     'is raw bytes' -- --from bytes --from-neg "~" --to 16 5
 check EizUJDx ok  "custom both sides"       -         -- --from-symbols ABCD --to-symbols 0123 CBBA
 check EizUJDy errmsg "one-symbol spec fails" 'at least 2 symbols' -- --from-symbols A 5 16
 ## Spec parser edge cases: multi-token comma split makes a base-4 alphabet
@@ -463,7 +463,7 @@ if [[ -r "$lockedcfg" ]]; then
 else
 	for lockedhow in default typed; do
 		if [[ "$lockedhow" == default ]]; then XDG_CONFIG_HOME="${CBT_TMP}/xdg-locked" _run --help; else _run --config "$lockedcfg" --help; fi
-		{ ((_rc == 0)) && grep -qF "[unreadable]" <<<"$_out" && ! grep -qF "[loaded]" <<<"$_out"; } && _pass ErmufUW "--help shows a mode 000 config as unreadable ($lockedhow path)" || _fail ErmufUW "--help shows a mode 000 config as unreadable ($lockedhow path)" "rc=$_rc err=[$_err] out=[$_out]"
+		{ ((_rc == 0)) && grep -qF "[unreadable]" <<<"$_out" && ! grep -qF "[loaded]" <<<"$_out"; } && _pass ErmufUW "--help unreadable config ($lockedhow path)" || _fail ErmufUW "--help unreadable config ($lockedhow path)" "rc=$_rc err=[$_err] out=[$_out]"
 	done
 fi
 chmod 600 "$lockedcfg"
@@ -655,8 +655,8 @@ head -c 3000000 /dev/urandom >"${CBT_TMP}/idle_big"
 "${TIMEOUT[@]}" "${EXE}" --from bytes --to 64 <"${CBT_TMP}/idle_big" >"${CBT_TMP}/idle_plain" 2>/dev/null || true
 _rc=0; "${TIMEOUT[@]}" "${EXE}" --precision 3 --to-neg '~' --to-neg '~' --from bytes --to 64 <"${CBT_TMP}/idle_big" >"${CBT_TMP}/idle_noted" 2>"${CBT_ERR}" || _rc=$?
 { ((_rc == 0)) && cmp -s "${CBT_TMP}/idle_plain" "${CBT_TMP}/idle_noted" && [[ "$(<"${CBT_ERR}")" == $'note: --to-neg does nothing in byte mode\nnote: --precision does nothing in byte mode' ]]; } \
-	&& _pass ErswAUX "stream output unchanged by unused flags, one note each" \
-	|| _fail ErswAUX "stream output unchanged by unused flags, one note each" "rc=$_rc err=[$(<"${CBT_ERR}")]"
+	&& _pass ErswAUX "unused flags vs stream output" \
+	|| _fail ErswAUX "unused flags vs stream output" "rc=$_rc err=[$(<"${CBT_ERR}")]"
 ## Every stderr note starts with "note:", the number-or-bytes one included.
 _run --from 16 --to 64 deadbeef
 [[ "$_err" == "note: "* ]] && _pass ErswAVN "number-or-bytes note starts with note:" || _fail ErswAVN "number-or-bytes note starts with note:" "err=[$_err]"
@@ -671,9 +671,9 @@ _run --to 16 255 hex
 ## `echo 255 | prog 16` reads 16 as the NUMBER and leaves the pipe alone. With
 ## a base name as the only argument and a pipe on stdin, a note says to use -.
 pnout="$(printf '255' | "${TIMEOUT[@]}" "${EXE}" 16 2>"${CBT_ERR}")" || true
-{ [[ "$pnout" == 16 ]] && grep -qF 'stdin (piped) was ignored' "${CBT_ERR}"; } && _pass ErkSf4l "piped stdin with a base name for NUMBER gets a note" || _fail ErkSf4l "piped stdin with a base name for NUMBER gets a note" "out=[$pnout] err=[$(<"${CBT_ERR}")]"
+{ [[ "$pnout" == 16 ]] && grep -qF 'stdin (piped) was ignored' "${CBT_ERR}"; } && _pass ErkSf4l "pipe + base-name NUMBER note" || _fail ErkSf4l "pipe + base-name NUMBER note" "out=[$pnout] err=[$(<"${CBT_ERR}")]"
 pnout="$(printf '255' | "${TIMEOUT[@]}" "${EXE}" 255 16 2>"${CBT_ERR}")" || true
-{ [[ "$pnout" == FF ]] && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErkSf4t "no pipe note when NUMBER and base are both given" || _fail ErkSf4t "no pipe note when NUMBER and base are both given" "out=[$pnout] err=[$(<"${CBT_ERR}")]"
+{ [[ "$pnout" == FF ]] && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErkSf4t "no pipe note, NUMBER and base given" || _fail ErkSf4t "no pipe note, NUMBER and base given" "out=[$pnout] err=[$(<"${CBT_ERR}")]"
 
 ## Shell-metachar / injection strings are just invalid digits: must error, never execute.
 sentinel="${CBT_TMP}/PWNED"
@@ -1068,16 +1068,16 @@ for rcase in multi-letter greek greek-pipe long-s; do
 		long-s)       rwant='--upper is invalid for output base "custom(2)": uppercasing digit "ſ" gives "S"';  rargs=(--to-symbols "s ſ" --upper 3) ;;
 	esac
 	_run_in "${CBT_TMP}/rb_in" "${rargs[@]}"
-	{ ((_rc == 1)) && [[ -z "$_out" && "$_err" == *"$rwant"* ]]; } && _pass ErvpHV2 "case flag refused where the base can't read the digit back (${rcase})" \
-		|| _fail ErvpHV2 "case flag refused where the base can't read the digit back (${rcase})" "rc=$_rc out=[$_out] err=[$_err] want-substr=[$rwant]"
+	{ ((_rc == 1)) && [[ -z "$_out" && "$_err" == *"$rwant"* ]]; } && _pass ErvpHV2 "case flag refused (${rcase})" \
+		|| _fail ErvpHV2 "case flag refused (${rcase})" "rc=$_rc out=[$_out] err=[$_err] want-substr=[$rwant]"
 done
 ## A digit the flag leaves as it is doesn't count: uncased multi-letter digits,
 ## CJK, and CJK beside one-letter ASCII digits all still recase and read back.
 for rsyms in "0! 1! 2! 3!" "一 二 三 四" "a b 一 二"; do
 	rout=$("${TIMEOUT[@]}" "${EXE}" --to-symbols "$rsyms" --upper 9 2>"${CBT_ERR}" || true)
 	rback=$("${TIMEOUT[@]}" "${EXE}" --from-symbols "$rsyms" --to 10 "${rout:-x}" 2>>"${CBT_ERR}" || true)
-	[[ -n "$rout" && "$rback" == 9 ]] && _pass ErvpHVf "case flag kept where every recased digit reads back (${rsyms})" \
-		|| _fail ErvpHVf "case flag kept where every recased digit reads back (${rsyms})" "out='${rout}' back='${rback}' err=[$(<"${CBT_ERR}")]"
+	[[ -n "$rout" && "$rback" == 9 ]] && _pass ErvpHVf "case flag ok (${rsyms})" \
+		|| _fail ErvpHVf "case flag ok (${rsyms})" "out='${rout}' back='${rback}' err=[$(<"${CBT_ERR}")]"
 done
 
 
@@ -1831,7 +1831,7 @@ EOF
 )"
 rnrc=0; rnGot="$(bash "${meDir}/utility/release-notes.bash" --version v9.9.9-beta1 --dist "${rnDist}" --repo o/r --changelog "${rnDir}/changelog.md" 2>"${CBT_ERR}")" || rnrc=$?
 { ((rnrc == 0)) && [[ "${rnGot}" == "${rnWant}" ]]; } && _pass ErlN8Nk "release notes: changelog, downloads table, build line" || _fail ErlN8Nk "release notes: changelog, downloads table, build line" "rc=${rnrc} diff: $(diff <(printf '%s\n' "${rnWant}") <(printf '%s\n' "${rnGot}") || true)"
-grep -qF "not a known asset, listed under the table: notes.txt" "${CBT_ERR}" && _pass ErlN8OJ "release notes warn of a file they can't place" || _fail ErlN8OJ "release notes warn of a file they can't place" "stderr=[$(<"${CBT_ERR}")]"
+grep -qF "not a known asset, listed under the table: notes.txt" "${CBT_ERR}" && _pass ErlN8OJ "release notes: unknown asset warning" || _fail ErlN8OJ "release notes: unknown asset warning" "stderr=[$(<"${CBT_ERR}")]"
 ## A --no-arm run, and a build that says another version: only the column that
 ## has something, and no build line rather than a wrong one.
 rnDist2="${rnDir}/dist2"; mkdir -p "${rnDist2}"
@@ -1839,7 +1839,7 @@ cp -p "${rnDist}"/convert-base-v2-linux-x86_64{,.tgz} "${rnDist}"/convert-base-v
 rnGot="$(bash "${meDir}/utility/release-notes.bash" --version v9.9.9 --dist "${rnDist2}" --repo o/r --changelog "${rnDir}/changelog.md" 2>"${CBT_ERR}" || true)"
 rnU="https://github.com/o/r/releases/download/v9.9.9"
 rnWant="$(printf '%s\n' 'See changelog.md.' '' '### Downloads' '' '| OS | x86_64' '| :--- | :---' "| Linux | [binary](${rnU}/convert-base-v2-linux-x86_64), [.tgz](${rnU}/convert-base-v2-linux-x86_64.tgz)" "| Windows | [.zip](${rnU}/convert-base-v2-windows-x86_64.zip)")"
-{ [[ "${rnGot}" == "${rnWant}" ]] && grep -qF "so the notes name no build number" "${CBT_ERR}"; } && _pass ErlN8Oq "release notes: only filled columns, no build line for another version" || _fail ErlN8Oq "release notes: only filled columns, no build line for another version" "got=[${rnGot}] stderr=[$(<"${CBT_ERR}")]"
+{ [[ "${rnGot}" == "${rnWant}" ]] && grep -qF "so the notes name no build number" "${CBT_ERR}"; } && _pass ErlN8Oq "release notes: sparse table, no build line" || _fail ErlN8Oq "release notes: sparse table, no build line" "got=[${rnGot}] stderr=[$(<"${CBT_ERR}")]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1857,20 +1857,20 @@ echo keep >"${pgDir}/theirs/notes.txt"
 fNames(){ find "$1" -mindepth 1 -maxdepth 1 -printf '%f ' 2>&1 || true; }
 fPgRun(){ PATH="${pgBin}:${PATH}" bash "${meDir}/utility/package.bash" --version v9.9.9 --build-epoch 1700000000 --out "$1" >/dev/null 2>"${CBT_ERR}"; }
 pgrc=0; fPgRun "${pgDir}/theirs" || pgrc=$?
-{ ((pgrc != 0)) && [[ -f "${pgDir}/theirs/notes.txt" ]] && grep -qF "no sign a build made them" "${CBT_ERR}"; } && _pass Erm3Sws "package.bash leaves alone an --out it did not make" \
-	|| _fail Erm3Sws "package.bash leaves alone an --out it did not make" "rc=${pgrc} left: [$(fNames "${pgDir}/theirs")] err=[$(<"${CBT_ERR}")]"
+{ ((pgrc != 0)) && [[ -f "${pgDir}/theirs/notes.txt" ]] && grep -qF "no sign a build made them" "${CBT_ERR}"; } && _pass Erm3Sws "package.bash: foreign --out kept" \
+	|| _fail Erm3Sws "package.bash: foreign --out kept" "rc=${pgrc} left: [$(fNames "${pgDir}/theirs")] err=[$(<"${CBT_ERR}")]"
 fPgRun "${pgDir}/ours" || true
 mkdir -p "${pgDir}/ours/sub"; echo old >"${pgDir}/ours/old.tgz"
 fPgRun "${pgDir}/ours" || true
 fPgRun "${pgDir}/empty" || true
-{ [[ -f "${pgDir}/ours/${pgMark}" && -f "${pgDir}/empty/${pgMark}" && ! -e "${pgDir}/ours/old.tgz" && ! -e "${pgDir}/ours/sub" ]]; } && _pass Erm3SxT "package.bash clears an --out it made, and takes an empty one" \
-	|| _fail Erm3SxT "package.bash clears an --out it made, and takes an empty one" "ours: [$(fNames "${pgDir}/ours")] empty: [$(fNames "${pgDir}/empty")]"
+{ [[ -f "${pgDir}/ours/${pgMark}" && -f "${pgDir}/empty/${pgMark}" && ! -e "${pgDir}/ours/old.tgz" && ! -e "${pgDir}/ours/sub" ]]; } && _pass Erm3SxT "package.bash: own or empty --out" \
+	|| _fail Erm3SxT "package.bash: own or empty --out" "ours: [$(fNames "${pgDir}/ours")] empty: [$(fNames "${pgDir}/empty")]"
 ## make clean takes the same rule. BINARY is pointed away from lib/'s own build.
 mkdir -p "${pgDir}/mc-theirs" "${pgDir}/mc-ours"; echo keep >"${pgDir}/mc-theirs/notes.txt"; : >"${pgDir}/mc-ours/${pgMark}"; : >"${pgDir}/mc-ours/old.tgz"
 mcrc=0; make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc-theirs" >/dev/null 2>&1 || mcrc=$?
 make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc-ours" >/dev/null 2>&1 || true
-{ ((mcrc != 0)) && [[ -f "${pgDir}/mc-theirs/notes.txt" && ! -e "${pgDir}/mc-ours" ]]; } && _pass Erm3Syv "make clean removes only a dist dir a build made" \
-	|| _fail Erm3Syv "make clean removes only a dist dir a build made" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
+{ ((mcrc != 0)) && [[ -f "${pgDir}/mc-theirs/notes.txt" && ! -e "${pgDir}/mc-ours" ]]; } && _pass Erm3Syv "make clean: own dist only" \
+	|| _fail Erm3Syv "make clean: own dist only" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
 ## The two full packaging runs take several seconds each, so --quick skips them.
 if ((doQuick)); then
 	_warn "ErlP6B8 Erm3SyD ErlP6Bg ErlP6CE" "packaging rebuild checks skipped: --quick" asked
@@ -1896,8 +1896,8 @@ else
 		pkBad="$(awk '{ sub(/^\*/, "", $2); if ($2 !~ /^[A-Za-z0-9._-]+$/) printf "%s ", $2 }' "${pkSums}")"
 		pkCheck="$(cd "${pkDir}/a" && sha256sum -c --quiet checksums.txt 2>&1 || true)"
 		pkDebs="$(find "${pkDir}/a" -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' \) | wc -l)"
-		{ [[ -z "${pkBad}" && -z "${pkCheck}" ]] && ((pkDebs == 4)); } && _pass ErlP6Bg "prerelease packages named as GitHub serves them" \
-			|| _fail ErlP6Bg "prerelease packages named as GitHub serves them" "renamed on upload: [${pkBad}] check: [${pkCheck}] packages: ${pkDebs}"
+		{ [[ -z "${pkBad}" && -z "${pkCheck}" ]] && ((pkDebs == 4)); } && _pass ErlP6Bg "prerelease asset names" \
+			|| _fail ErlP6Bg "prerelease asset names" "renamed on upload: [${pkBad}] check: [${pkCheck}] packages: ${pkDebs}"
 		## The version inside keeps the ~, so a beta sorts below its final.
 		pkVers=""
 		command -v dpkg-deb >/dev/null 2>&1 && pkVers+="$(dpkg-deb -f "${pkDir}"/a/*_amd64.deb Version 2>&1 || true) "
@@ -1915,8 +1915,8 @@ fi
 ## the cross builds, not a minute in.
 pnDir="${CBT_TMP}/pn"; mkdir -p "${pnDir}/bin"; ln -s "$(command -v dirname)" "${pnDir}/bin/dirname"
 pnrc=0; pnOut="$(CICD_NO_SKIP=1 PATH="${pnDir}/bin" "${BASH}" "${meDir}/utility/package.bash" --out "${pnDir}/out" 2>&1)" || pnrc=$?
-{ ((pnrc == 1)) && [[ "${pnOut}" == *"ERROR: nfpm missing"* && ! -e "${pnDir}/out" ]]; } && _pass EsJjVzI "package.bash under CICD_NO_SKIP fails at once on a missing packager" \
-	|| _fail EsJjVzI "package.bash under CICD_NO_SKIP fails at once on a missing packager" "rc=${pnrc} out=[${pnOut}]"
+{ ((pnrc == 1)) && [[ "${pnOut}" == *"ERROR: nfpm missing"* && ! -e "${pnDir}/out" ]]; } && _pass EsJjVzI "package.bash missing nfpm, NO_SKIP" \
+	|| _fail EsJjVzI "package.bash missing nfpm, NO_SKIP" "rc=${pnrc} out=[${pnOut}]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1950,12 +1950,35 @@ case "$url" in
 esac
 EOF
 chmod +x "${inDir}/bin/curl"
-for inCase in '{"message": "Not Found"}|could not determine the stable release tag' '{"tag_name": "v9.9.9"}|no checksum for convert-base-v2-'; do
-	printf '%s\n' "${inCase%%|*}" >"${inDir}/release.json"; inWant="${inCase#*|}"; inrc=0
-	HOME="${inDir}/home" FAKE_RELEASE="${inDir}/release.json" PATH="${inDir}/bin:${PATH}" bash "${meDir}/../install.bash" -y --arch x86_64 </dev/null >/dev/null 2>"${CBT_ERR}" || inrc=$?
+## The API lists releases one field per line, as GitHub serves it.
+fInList(){ local t; printf '[\n'; for t in "$@"; do printf '  {\n    "tag_name": "%s",\n    "draft": %s,\n    "prerelease": %s\n  },\n' "${t%%:*}" "$( [[ "${t}" == *:draft ]] && echo true || echo false)" "$( [[ "${t}" == *:pre* ]] && echo true || echo false)"; done; printf ']\n'; }
+fInRun(){ inrc=0; HOME="${inDir}/home" FAKE_RELEASE="${inDir}/release.json" PATH="${inDir}/bin:${PATH}" bash "${meDir}/../install.bash" "$@" </dev/null >"${CBT_OUT}" 2>"${CBT_ERR}" || inrc=$?; inOut="$(<"${CBT_OUT}")"; }
+for inCase in '{"message": "Not Found"}|could not determine the stable release tag' 'v9.9.9|no checksum for convert-base-v2-'; do
+	if [[ "${inCase}" == v* ]]; then fInList "${inCase%%|*}" >"${inDir}/release.json"; else printf '%s\n' "${inCase%%|*}" >"${inDir}/release.json"; fi
+	inWant="${inCase#*|}"; fInRun -y
 	{ ((inrc == 1)) && grep -qF -- "${inWant}" "${CBT_ERR}"; } && _pass Erm3T0M "install.bash says why: ${inWant}" \
 		|| _fail Erm3T0M "install.bash says why: ${inWant}" "rc=${inrc} err=[$(<"${CBT_ERR}")]"
 done
+## Newest by version, not by listing order: a pre-release sorts below its
+## final, beta10 above beta9, and a draft never counts.
+fInList v3.0.0 v3.1.0-beta2:pre v99.0.0:draft v3.1.0-beta10:pre v3.1.0-beta9:pre v2.0.0 v3.0.1-rc1:pre >"${inDir}/release.json"
+fInRun -y; inStable="${inOut}"
+fInRun -y --release=dev; inDev="${inOut}"
+fInRun -y --release dev; inDev2="${inOut}"
+{ [[ "${inStable}" == *"Release: v3.0.0 (stable)"* && "${inDev}" == *"Release: v3.1.0-beta10 (dev)"* && "${inDev2}" == *"Release: v3.1.0-beta10 (dev)"* ]]; } && _pass EshY04X "install.bash picks newest version" \
+	|| _fail EshY04X "install.bash picks newest version" "stable=[${inStable}] dev=[${inDev}]"
+## No stable release yet: stable takes the newest pre-release, and says so.
+fInList v1.0.0-rc2:pre v1.0.0-rc10:pre >"${inDir}/release.json"
+fInRun -y
+{ [[ "${inOut}" == *"No stable release yet"* && "${inOut}" == *"Release: v1.0.0-rc10 (stable)"* ]]; } && _pass EshY05J "install.bash, pre-releases only" \
+	|| _fail EshY05J "install.bash, pre-releases only" "rc=${inrc} out=[${inOut}]"
+## --version, no --arch, and a closed stdin at the prompt is a no.
+inOk=""
+fInRun --version; [[ "${inrc}" == 0 && "${inOut}" =~ ^convert-base-v2\ installer\ v[0-9]+\.[0-9]+\.[0-9]+$ ]] && inOk+="version "
+fInRun --arch x86_64; [[ "${inrc}" == 1 ]] && grep -qF 'unknown option: --arch' "${CBT_ERR}" && inOk+="arch "
+fInRun; [[ "${inrc}" == 1 && "${inOut}" == *"aborted; nothing was touched"* && ! -e "${inDir}/home/.local/bin/convert-base-v2" ]] && inOk+="prompt"
+[[ "${inOk}" == "version arch prompt" ]] && _pass EshY061 "install.bash options" \
+	|| _fail EshY061 "install.bash options" "passed=[${inOk}] last rc=${inrc} out=[${inOut}]"
 
 ## magick lists pango first, then more than a pipe holds. Any other call
 ## exits 42, which shows the pango probe passed.
@@ -1965,8 +1988,8 @@ printf '%s\n' '#!/bin/sh' 'exit 0' >"${gsDir}/bin/fc-match"
 printf '%s\n' '#!/bin/sh' 'echo 0' >"${gsDir}/bin/cbv"
 chmod +x "${gsDir}/bin/magick" "${gsDir}/bin/fc-match" "${gsDir}/bin/cbv"
 gsrc=0; PATH="${gsDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${gsDir}/repo" "${gsDir}/bin/cbv" >/dev/null 2>"${CBT_ERR}" || gsrc=$?
-{ ((gsrc == 42)) && ! grep -qF "lacks the pango delegate" "${CBT_ERR}"; } && _pass Erm3T0v "gen-screenshots finds pango in a long format list" \
-	|| _fail Erm3T0v "gen-screenshots finds pango in a long format list" "rc=${gsrc} err=[$(tail -3 "${CBT_ERR}")]"
+{ ((gsrc == 42)) && ! grep -qF "lacks the pango delegate" "${CBT_ERR}"; } && _pass Erm3T0v "gen-screenshots pango probe" \
+	|| _fail Erm3T0v "gen-screenshots pango probe" "rc=${gsrc} err=[$(tail -3 "${CBT_ERR}")]"
 
 ## go version -m names the pinned nfpm, then writes more than a pipe holds.
 ptDir="${CBT_TMP}/pt"; mkdir -p "${ptDir}/bin" "${ptDir}/home"
@@ -1980,8 +2003,8 @@ printf '%s\n' '#!/bin/sh' >"${ptDir}/bin/nfpm"
 chmod +x "${ptDir}/bin/go" "${ptDir}/bin/nfpm"
 ptWant="$(sed -n 's/^NFPM_VERSION=//p' "${meDir}/tool-versions.env")"
 ptrc=0; ptOut="$(HOME="${ptDir}/home" FAKE_MOD="${ptWant}" PATH="${ptDir}/bin:${PATH}" bash "${meDir}/utility/pin-tools.bash" 2>&1)" || ptrc=$?
-{ ((ptrc == 0)) && [[ -n "${ptWant}" && "${ptOut}" != *"installing nfpm"* ]]; } && _pass Erm3T1Z "pin-tools reads nfpm's version from a long module list" \
-	|| _fail Erm3T1Z "pin-tools reads nfpm's version from a long module list" "rc=${ptrc} want=${ptWant} out=[${ptOut}]"
+{ ((ptrc == 0)) && [[ -n "${ptWant}" && "${ptOut}" != *"installing nfpm"* ]]; } && _pass Erm3T1Z "pin-tools nfpm version" \
+	|| _fail Erm3T1Z "pin-tools nfpm version" "rc=${ptrc} want=${ptWant} out=[${ptOut}]"
 ## shellcheck and ruff are only compared. A version that merely starts with
 ## the pinned one is a different version.
 ptSc="$(sed -n 's/^SHELLCHECK_VERSION=//p' "${meDir}/tool-versions.env")"; ptRuff="$(sed -n 's/^RUFF_VERSION=//p' "${meDir}/tool-versions.env")"
@@ -1989,15 +2012,15 @@ printf '%s\n' '#!/bin/sh' "printf 'ShellCheck\\nversion: ${ptSc}\\nlicense: x\\n
 printf '%s\n' '#!/bin/sh' "echo 'ruff ${ptRuff}1'" >"${ptDir}/bin/ruff"
 chmod +x "${ptDir}/bin/shellcheck" "${ptDir}/bin/ruff"
 ptrc=0; ptOut="$(HOME="${ptDir}/home" FAKE_MOD="${ptWant}" PATH="${ptDir}/bin:${PATH}" bash "${meDir}/utility/pin-tools.bash" 2>&1)" || ptrc=$?
-{ ((ptrc == 0)) && [[ -n "${ptSc}" && -n "${ptRuff}" && "${ptOut}" == *"WARNING: ruff is not the pinned ${ptRuff}"* && "${ptOut}" != *"shellcheck is not"* ]]; } && _pass Ermt58H "pin-tools reports a shellcheck or ruff that is not the pinned version" \
-	|| _fail Ermt58H "pin-tools reports a shellcheck or ruff that is not the pinned version" "rc=${ptrc} out=[${ptOut}]"
+{ ((ptrc == 0)) && [[ -n "${ptSc}" && -n "${ptRuff}" && "${ptOut}" == *"WARNING: ruff is not the pinned ${ptRuff}"* && "${ptOut}" != *"shellcheck is not"* ]]; } && _pass Ermt58H "pin-tools: unpinned shellcheck/ruff" \
+	|| _fail Ermt58H "pin-tools: unpinned shellcheck/ruff" "rc=${ptrc} out=[${ptOut}]"
 
 ## awk -v would read the backslash as an escape and miss the heading.
 rbDir="${CBT_TMP}/rb"; mkdir -p "${rbDir}/dist"; rbVer='v9.9.9-b\q'
 printf '%s\n' "## ${rbVer} - 2026-10-04" '' '- Backslash.' >"${rbDir}/changelog.md"
 rbGot="$(bash "${meDir}/utility/release-notes.bash" --version "${rbVer}" --dist "${rbDir}/dist" --repo o/r --changelog "${rbDir}/changelog.md" 2>/dev/null || true)"
-[[ "${rbGot%%$'\n'*}" == "- Backslash." ]] && _pass Erm3T2D "release notes find a version with a backslash" \
-	|| _fail Erm3T2D "release notes find a version with a backslash" "got=[${rbGot%%$'\n'*}]"
+[[ "${rbGot%%$'\n'*}" == "- Backslash." ]] && _pass Erm3T2D "release notes backslash version" \
+	|| _fail Erm3T2D "release notes backslash version" "got=[${rbGot%%$'\n'*}]"
 
 ## A pin with an empty name. Unchecked, that is a remove of all of thirdparty/.
 feDir="${CBT_TMP}/fe"; mkdir -p "${feDir}/bin" "${feDir}/src/pkg" "${feDir}/thirdparty/keep"
@@ -2008,18 +2031,18 @@ printf 'INTEROP_PINS=("|1.0|https://example.invalid/pkg.tgz|%s|example.invalid/p
 printf '%s\n' '#!/bin/sh' 'while [ $# -gt 0 ]; do [ "$1" = -o ] && { cp "$FAKE_TGZ" "$2"; exit 0; }; shift; done' 'exit 7' >"${feDir}/bin/curl"
 chmod +x "${feDir}/bin/curl"
 ferc=0; FAKE_TGZ="${feDir}/pkg.tgz" PATH="${feDir}/bin:${PATH}" bash "${feDir}/fetch.bash" --refresh >/dev/null 2>"${CBT_ERR}" || ferc=$?
-{ ((ferc != 0)) && [[ -f "${feDir}/thirdparty/keep/file" ]] && grep -qF "not a plain directory name" "${CBT_ERR}"; } && _pass Erm3T2q "interop refresh refuses a pin name that is not a plain name" \
-	|| _fail Erm3T2q "interop refresh refuses a pin name that is not a plain name" "rc=${ferc} left: [$(fNames "${feDir}/thirdparty")] err=[$(<"${CBT_ERR}")]"
+{ ((ferc != 0)) && [[ -f "${feDir}/thirdparty/keep/file" ]] && grep -qF "not a plain directory name" "${CBT_ERR}"; } && _pass Erm3T2q "interop refresh bad pin name" \
+	|| _fail Erm3T2q "interop refresh bad pin name" "rc=${ferc} left: [$(fNames "${feDir}/thirdparty")] err=[$(<"${CBT_ERR}")]"
 
 ## The benchmark times only runs that worked. A 1 MiB blob and one run keep
 ## each of these to about a second.
 bnFail="${CBT_TMP}/bn-fail"; printf '%s\n' '#!/bin/sh' 'echo "unknown base" >&2' 'exit 1' >"${bnFail}"; chmod +x "${bnFail}"
 bnrc=0; BENCH_SIZE_MIB=1 BENCH_RUNS=1 bash "${meDir}/../utility/bench-encoders.bash" "${bnFail}" >/dev/null 2>"${CBT_ERR}" || bnrc=$?
-{ ((bnrc != 0)) && grep -qF "bench-encoders: failed:" "${CBT_ERR}"; } && _pass ErmCp2M "bench-encoders stops on a failed conversion" \
-	|| _fail ErmCp2M "bench-encoders stops on a failed conversion" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
+{ ((bnrc != 0)) && grep -qF "bench-encoders: failed:" "${CBT_ERR}"; } && _pass ErmCp2M "bench-encoders failed conversion" \
+	|| _fail ErmCp2M "bench-encoders failed conversion" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
 bnrc=0; BENCH_SIZE_MIB=1 BENCH_RUNS=1 bash "${meDir}/../utility/bench-encoders.bash" "${EXE}" >"${CBT_OUT}" 2>"${CBT_ERR}" || bnrc=$?
-{ ((bnrc == 0)) && ! grep -qF "failed:" "${CBT_ERR}" && (($(grep -cF "| convert-base-v2 |" "${CBT_OUT}" || true) == 3)); } && _pass ErmCp2N "bench-encoders runs every convert-base-v2 row" \
-	|| _fail ErmCp2N "bench-encoders runs every convert-base-v2 row" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
+{ ((bnrc == 0)) && ! grep -qF "failed:" "${CBT_ERR}" && (($(grep -cE '^\| convert-base-v2 +\|' "${CBT_OUT}" || true) == 3)); } && _pass ErmCp2N "bench-encoders rows" \
+	|| _fail ErmCp2N "bench-encoders rows" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
 
 ## The screenshot script against the real binary, with a magick that draws
 ## nothing and notes each picture it was asked for.
@@ -2028,12 +2051,12 @@ printf '%s\n' '#!/bin/sh' '[ "$1" = -list ] && { echo "PANGO* PANGO r-- Pango Ma
 printf '%s\n' '#!/bin/sh' 'exit 0' >"${ssDir}/bin/fc-match"
 chmod +x "${ssDir}/bin/magick" "${ssDir}/bin/fc-match"
 ssrc=0; SS_DRAWN="${ssDir}/drawn" PATH="${ssDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${ssDir}/repo" "${EXE}" >/dev/null 2>"${CBT_ERR}" || ssrc=$?
-{ ((ssrc == 0)) && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErmCp2O "gen-screenshots: every command in every scene works" \
-	|| _fail ErmCp2O "gen-screenshots: every command in every scene works" "rc=${ssrc} err=[$(head -3 "${CBT_ERR}")]"
+{ ((ssrc == 0)) && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErmCp2O "gen-screenshots scenes" \
+	|| _fail ErmCp2O "gen-screenshots scenes" "rc=${ssrc} err=[$(head -3 "${CBT_ERR}")]"
 : >"${ssDir}/drawn"
 ssrc=0; SS_DRAWN="${ssDir}/drawn" PATH="${ssDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${ssDir}/repo" "${bnFail}" >/dev/null 2>"${CBT_ERR}" || ssrc=$?
-{ ((ssrc != 0)) && [[ ! -s "${ssDir}/drawn" ]]; } && _pass ErmCp2P "gen-screenshots draws nothing after a failed command" \
-	|| _fail ErmCp2P "gen-screenshots draws nothing after a failed command" "rc=${ssrc} drawn: $(wc -l <"${ssDir}/drawn")"
+{ ((ssrc != 0)) && [[ ! -s "${ssDir}/drawn" ]]; } && _pass ErmCp2P "gen-screenshots stops on failure" \
+	|| _fail ErmCp2P "gen-screenshots stops on failure" "rc=${ssrc} drawn: $(wc -l <"${ssDir}/drawn")"
 
 ## The demo gif encodes frames in batches as they come. A real render takes over
 ## a minute, so its Movie is fed made-up frames: small ones across many batch
@@ -2120,10 +2143,10 @@ if ((dgrc == 3)); then
 else
 	grep -q "^identity ok" "${CBT_OUT}" && _pass ErmYENq "demo gif batches match one Pillow save" \
 		|| _fail ErmYENq "demo gif batches match one Pillow save" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
-	grep -q "^memory ok" "${CBT_OUT}" && _pass ErmYEP0 "demo gif frames are not all held until the save" \
-		|| _fail ErmYEP0 "demo gif frames are not all held until the save" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
-	grep -q "^leadword ok" "${CBT_OUT}" && _pass ErnEi9h "demo gif types a one-word command at first-word speed" \
-		|| _fail ErnEi9h "demo gif types a one-word command at first-word speed" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+	grep -q "^memory ok" "${CBT_OUT}" && _pass ErmYEP0 "demo gif frame memory" \
+		|| _fail ErmYEP0 "demo gif frame memory" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+	grep -q "^leadword ok" "${CBT_OUT}" && _pass ErnEi9h "demo gif one-word typing" \
+		|| _fail ErnEi9h "demo gif one-word typing" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
 fi
 
 ## Demo commands run in a home of their own, after the scenario's setup=, so the
@@ -2144,14 +2167,14 @@ if ((dgrc == 3)); then
 else
 	dhrc=0; HOME="${dhDir}/home" DH_REAL="${dhDir}/home" TMPDIR="${dhDir}/tmp" python3 -B "${meDir}/utility/gen-demo-gif.py" --quiet \
 		--scenario "${dhDir}/sc.toml" --out "${dhDir}/out.gif" --bin true >"${CBT_OUT}" 2>&1 || dhrc=$?
-	{ ((dhrc == 0)) && [[ -e "${dhDir}/home/step-saw-setup" && ! -e "${dhDir}/home/.config" && -z "$(ls -A "${dhDir}/tmp")" ]]; } && _pass EsJpWap "demo gif commands run in a private home, after setup=" \
-		|| _fail EsJpWap "demo gif commands run in a private home, after setup=" "rc=${dhrc} home=[$(ls -A "${dhDir}/home")] tmp=[$(ls -A "${dhDir}/tmp")] out=[$(tail -2 "${CBT_OUT}")]"
+	{ ((dhrc == 0)) && [[ -e "${dhDir}/home/step-saw-setup" && ! -e "${dhDir}/home/.config" && -z "$(ls -A "${dhDir}/tmp")" ]]; } && _pass EsJpWap "demo gif private home, after setup=" \
+		|| _fail EsJpWap "demo gif private home, after setup=" "rc=${dhrc} home=[$(ls -A "${dhDir}/home")] tmp=[$(ls -A "${dhDir}/tmp")] out=[$(tail -2 "${CBT_OUT}")]"
 	## A char no font has would show as a box, so it fails before anything renders.
 	printf '%s\n' 'end_hold = 0.1' 'end_black = 0.1' '[[step]]' 'show = "true"' 'run = "printf \"a\\U0010FFFDb\""' >"${dhDir}/nofont.toml"
 	dhrc=0; TMPDIR="${dhDir}/tmp" python3 -B "${meDir}/utility/gen-demo-gif.py" --quiet \
 		--scenario "${dhDir}/nofont.toml" --out "${dhDir}/nofont.gif" --bin true >"${CBT_OUT}" 2>&1 || dhrc=$?
-	{ ((dhrc == 1)) && grep -qF 'no font draws U+10FFFD' "${CBT_OUT}" && [[ ! -e "${dhDir}/nofont.gif" ]]; } && _pass EsKCVWy "demo gif fails on a char no font draws" \
-		|| _fail EsKCVWy "demo gif fails on a char no font draws" "rc=${dhrc} out=[$(tail -2 "${CBT_OUT}")]"
+	{ ((dhrc == 1)) && grep -qF 'no font draws U+10FFFD' "${CBT_OUT}" && [[ ! -e "${dhDir}/nofont.gif" ]]; } && _pass EsKCVWy "demo gif missing glyph" \
+		|| _fail EsKCVWy "demo gif missing glyph" "rc=${dhrc} out=[$(tail -2 "${CBT_OUT}")]"
 fi
 
 ## flame-report.py is the startup gate's reader. A flamegraph it can't read is
@@ -2164,8 +2187,8 @@ frCases=("${frDir}/flame_20260101-000000_latest.svg")
 [[ -r "${frDir}/locked.svg" ]] || frCases+=("${frDir}/locked.svg")
 for frFile in "${frCases[@]}"; do
 	frrc=0; python3 "${meDir}/utility/flame-report.py" --file "${frFile}" >/dev/null 2>"${CBT_ERR}" || frrc=$?
-	{ ((frrc == 2)) && ! grep -qF "Traceback" "${CBT_ERR}"; } && _pass Ermz79l "flame-report skips an unreadable flamegraph: ${frFile##*/}" \
-		|| _fail Ermz79l "flame-report skips an unreadable flamegraph: ${frFile##*/}" "rc=${frrc} err=[$(tail -2 "${CBT_ERR}")]"
+	{ ((frrc == 2)) && ! grep -qF "Traceback" "${CBT_ERR}"; } && _pass Ermz79l "flame-report unreadable svg: ${frFile##*/}" \
+		|| _fail Ermz79l "flame-report unreadable svg: ${frFile##*/}" "rc=${frrc} err=[$(tail -2 "${CBT_ERR}")]"
 done
 chmod 600 "${frDir}/locked.svg"
 ## The divide and conquer parse and format, and what they call, are big-int
@@ -2182,8 +2205,8 @@ frPkg="github.com/jim-collier/convert-base-v2/lib/convertbase"
 	printf '</svg>\n'
 } >"${frDir}/flame_20260101-000001_latest.svg"
 frrc=0; python3 "${meDir}/utility/flame-report.py" --file "${frDir}/flame_20260101-000001_latest.svg" >"${CBT_OUT}" 2>"${CBT_ERR}" || frrc=$?
-{ ((frrc == 0)) && grep -qE '^  big-int, math/big convert\.*: 100\.0%$' "${CBT_OUT}"; } && _pass Ermz7AQ "flame-report counts the divide and conquer convert as big-int" \
-	|| _fail Ermz7AQ "flame-report counts the divide and conquer convert as big-int" "rc=${frrc} out=[$(head -8 "${CBT_OUT}" | tr '\n' ' ')] err=[$(tail -2 "${CBT_ERR}")]"
+{ ((frrc == 0)) && grep -qE '^  big-int, math/big convert\.*: 100\.0%$' "${CBT_OUT}"; } && _pass Ermz7AQ "flame-report big-int bucket" \
+	|| _fail Ermz7AQ "flame-report big-int bucket" "rc=${frrc} out=[$(head -8 "${CBT_OUT}" | tr '\n' ' ')] err=[$(tail -2 "${CBT_ERR}")]"
 
 ## test-ids.py reads test.bash by pattern. An array of command words is not a
 ## test call, while a call inside a subshell still is. It runs from a copy, so
@@ -2195,8 +2218,8 @@ cp "${meDir}/utility/test-ids.py" "${tiDir}/cicd/utility/"
 	printf '%s _pass Ermz7B5 "kept in a subshell" )\n' '('
 } >"${tiDir}/cicd/test.bash"
 tirc=0; tiOut="$(python3 "${tiDir}/cicd/utility/test-ids.py" check 2>&1)" || tirc=$?
-{ ((tirc == 0)) && [[ "${tiOut}" == "OK: 2 test IDs, all distinct" ]]; } && _pass Ermz7B5 "test-ids reads a bash array as no test call" \
-	|| _fail Ermz7B5 "test-ids reads a bash array as no test call" "rc=${tirc} out=[${tiOut}]"
+{ ((tirc == 0)) && [[ "${tiOut}" == "OK: 2 test IDs, all distinct" ]]; } && _pass Ermz7B5 "test-ids bash array" \
+	|| _fail Ermz7B5 "test-ids bash array" "rc=${tirc} out=[${tiOut}]"
 
 ## Go tests are keyed by import path, since two packages can share a directory
 ## name. A compile error prints under the package it broke.
@@ -2210,13 +2233,13 @@ tgrc=0; tgOut="$(python3 "${tgDir}/cicd/utility/test-ids.py" check 2>&1)" || tgr
 tgRep="$(printf '%s\n' '{"Action":"pass","Package":"example.com/m/a/util","Test":"TestSame"}' '{"Action":"pass","Package":"example.com/m/b/util","Test":"TestSame"}' \
 	| python3 "${tgDir}/cicd/utility/test-ids.py" report 2>&1 || true)"
 { ((tgrc == 0)) && [[ "${tgOut}" == "OK: 3 test IDs, all distinct" ]] && grep -qF "Ermz7Ba  TestSame (util)" <<<"${tgRep}" && grep -qF "Ermz7Bb  TestSame (util)" <<<"${tgRep}"; } \
-	&& _pass ErnEiAv "test-ids keeps two Go packages with the same directory name apart" \
-	|| _fail ErnEiAv "test-ids keeps two Go packages with the same directory name apart" "rc=${tgrc} check=[${tgOut}] report=[$(tr '\n' ' ' <<<"${tgRep}")]"
+	&& _pass ErnEiAv "test-ids same-name packages" \
+	|| _fail ErnEiAv "test-ids same-name packages" "rc=${tgrc} check=[${tgOut}] report=[$(tr '\n' ' ' <<<"${tgRep}")]"
 tgRep="$(printf '%s\n' '{"ImportPath":"example.com/m/a/util [example.com/m/a/util.test]","Action":"build-output","Output":"a/util/x_test.go:4:1: undefined: oops\n"}' \
 	'{"ImportPath":"example.com/m/a/util [example.com/m/a/util.test]","Action":"build-fail"}' '{"Action":"fail","Package":"example.com/m/a/util"}' \
 	| python3 "${tgDir}/cicd/utility/test-ids.py" report 2>&1 || true)"
-grep -qF "undefined: oops" <<<"${tgRep}" && _pass ErnEiCC "test-ids report shows a compile error under its package" \
-	|| _fail ErnEiCC "test-ids report shows a compile error under its package" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
+grep -qF "undefined: oops" <<<"${tgRep}" && _pass ErnEiCC "test-ids compile error" \
+	|| _fail ErnEiCC "test-ids compile error" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -2292,11 +2315,11 @@ fCeTail(){ printf 'rc=%s tmp=[%s] out=[%s]' "${ceRc}" "${ceTmp}" "$(tail -4 "${C
 ## Go reports its own -fuzztime deadline as a failure (G18): that passes with a
 ## note, and a real find fails the stage with its own message.
 FAKE_FUZZ=deadline fCeRun -y
-{ ((ceRc == 0)) && [[ "${ceOut}" == *"NOTE: fuzz FuzzA reported the -fuzztime deadline"* && -z "${ceTmp}" ]]; } && _pass ErmCp2E "fuzz deadline passes with a note, and its log is removed" \
-	|| _fail ErmCp2E "fuzz deadline passes with a note, and its log is removed" "$(fCeTail)"
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"NOTE: fuzz FuzzA reported the -fuzztime deadline"* && -z "${ceTmp}" ]]; } && _pass ErmCp2E "fuzz deadline note" \
+	|| _fail ErmCp2E "fuzz deadline note" "$(fCeTail)"
 FAKE_FUZZ="find" fCeRun -y
-{ ((ceRc == 1)) && [[ "${ceOut}" == *"FAILED: fuzz FuzzA found a failure"* && "${ceOut}" != *"CICD ABORTED"* && -z "${ceTmp}" ]]; } && _pass ErmCp2F "fuzz find fails the stage with its own message" \
-	|| _fail ErmCp2F "fuzz find fails the stage with its own message" "$(fCeTail)"
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"FAILED: fuzz FuzzA found a failure"* && "${ceOut}" != *"CICD ABORTED"* && -z "${ceTmp}" ]]; } && _pass ErmCp2F "fuzz find fails stage" \
+	|| _fail ErmCp2F "fuzz find fails stage" "$(fCeTail)"
 
 ## The harness runs its perf section, and skips the packaging rebuilds, as
 ## --quick says. A plain -y run also keeps its plan and progress lines; -q drops them.
@@ -2311,29 +2334,29 @@ done
 	|| _fail ErmCp2H "--quick reaches the harness" "full=[${ceKnobsFull}] quick=[${ceKnobsQuick}]"
 fCeRun -q
 { ((ceRc == 0)) && [[ "${ceOutFull}" == *"Repo root ..."* && "${ceOutFull}" == *"format skipped"* && "${ceOut}" != *"Repo root ..."* && "${ceOut}" != *"format skipped"* \
-	&& "${ceOut}" == *"1/8  Format"* && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass ErmCp2I "-q drops the plan and progress lines, not the stage results" \
-	|| _fail ErmCp2I "-q drops the plan and progress lines, not the stage results" "$(fCeTail)"
+	&& "${ceOut}" == *"1/8  Format"* && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass ErmCp2I "-q output" \
+	|| _fail ErmCp2I "-q output" "$(fCeTail)"
 
 ## Dogfood: a copy that fails is an error, and sudo is tried only as sudo -n,
 ## and only when someone is there.
 CE_DEST="${ceDir}/home/bin" fCeRun -y
 ceOk=0; { ((ceRc == 0)) && [[ -f "${ceDir}/home/bin/cbv-test" && "${ceOut}" == *"OK: installed -> "* ]]; } && ceOk=1
 CE_DEST="${ceDir}/home/bin" CE_CPFAIL="${ceDir}/home/bin" fCeRun -y
-{ ((ceOk && ceRc == 1)) && [[ "${ceOut}" == *"could not install"* && "${ceOut}" != *"OK: installed"* && -z "${ceSudo}" ]]; } && _pass ErmCp2J "dogfood: a failed copy under HOME is an error" \
-	|| _fail ErmCp2J "dogfood: a failed copy under HOME is an error" "good copy ok=${ceOk}; sudo=[${ceSudo}] $(fCeTail)"
+{ ((ceOk && ceRc == 1)) && [[ "${ceOut}" == *"could not install"* && "${ceOut}" != *"OK: installed"* && -z "${ceSudo}" ]]; } && _pass ErmCp2J "dogfood: failed copy under HOME" \
+	|| _fail ErmCp2J "dogfood: failed copy under HOME" "good copy ok=${ceOk}; sudo=[${ceSudo}] $(fCeTail)"
 CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun -y
-{ ((ceRc == 1)) && [[ -z "${ceSudo}" && "${ceOut}" != *"OK: installed"* ]]; } && _pass ErmCp2K "dogfood: an unattended run never calls sudo" \
-	|| _fail ErmCp2K "dogfood: an unattended run never calls sudo" "sudo=[${ceSudo}] $(fCeTail)"
+{ ((ceRc == 1)) && [[ -z "${ceSudo}" && "${ceOut}" != *"OK: installed"* ]]; } && _pass ErmCp2K "dogfood: unattended, no sudo" \
+	|| _fail ErmCp2K "dogfood: unattended, no sudo" "sudo=[${ceSudo}] $(fCeTail)"
 CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun
-{ ((ceRc == 1)) && [[ "${ceSudo}" == "-n cp -f "* && "${ceOut}" == *"even with sudo -n"* ]]; } && _pass ErmCp2L "dogfood: an attended run tries only sudo -n" \
-	|| _fail ErmCp2L "dogfood: an attended run tries only sudo -n" "sudo=[${ceSudo}] $(fCeTail)"
+{ ((ceRc == 1)) && [[ "${ceSudo}" == "-n cp -f "* && "${ceOut}" == *"even with sudo -n"* ]]; } && _pass ErmCp2L "dogfood: attended, sudo -n only" \
+	|| _fail ErmCp2L "dogfood: attended, sudo -n only" "sudo=[${ceSudo}] $(fCeTail)"
 
 ## A missing tool warns, except under CICD_NO_SKIP, where it fails the run.
 CE_VULN=1 fCeRun -y; ceWarned=0
 { ((ceRc == 0)) && [[ "${ceOut}" == *"WARNING: govulncheck skipped"* ]]; } && ceWarned=1
 CE_VULN=1 CE_NO_SKIP=1 fCeRun -y
-{ ((ceWarned && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: govulncheck skipped"* && "${ceOut}" != *"OK: tests passed"* ]]; } && _pass EsJjVtL "a missing tool warns, and fails the run under CICD_NO_SKIP" \
-	|| _fail EsJjVtL "a missing tool warns, and fails the run under CICD_NO_SKIP" "warned=${ceWarned} $(fCeTail)"
+{ ((ceWarned && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: govulncheck skipped"* && "${ceOut}" != *"OK: tests passed"* ]]; } && _pass EsJjVtL "missing tool under NO_SKIP" \
+	|| _fail EsJjVtL "missing tool under NO_SKIP" "warned=${ceWarned} $(fCeTail)"
 
 ## --container, against a docker that logs what it's asked. The image is
 ## tagged by a hash, built when missing with the pins as build args and the
@@ -2346,24 +2369,24 @@ CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container --long
 ceTag="$(fCeTag)"
 { ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ ]] \
 	&& grep -qxF "build -t ${ceTag} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
-	&& grep -qxF "rmi cbv-test-cicd:0ld0ld0ld0ld" <<<"${ceDocker}"; } && _pass EsJjVuH "--container builds a missing image by its pins and removes the old one" \
-	|| _fail EsJjVuH "--container builds a missing image by its pins and removes the old one" "docker=[${ceDocker}] $(fCeTail)"
+	&& grep -qxF "rmi cbv-test-cicd:0ld0ld0ld0ld" <<<"${ceDocker}"; } && _pass EsJjVuH "--container image rebuild" \
+	|| _fail EsJjVuH "--container image rebuild" "docker=[${ceDocker}] $(fCeTail)"
 ceTz=""; [[ -e /etc/localtime ]] && ceTz=" -v /etc/localtime:/etc/localtime:ro"
 ceRunWant="run --rm --init --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
-grep -qxF "${ceRunWant}" <<<"${ceDocker}" && _pass EsJjVvF "--container runs the stages inside as this user, with the repo at its own path" \
-	|| _fail EsJjVvF "--container runs the stages inside as this user, with the repo at its own path" "want=[${ceRunWant}] docker=[${ceDocker}]"
+grep -qxF "${ceRunWant}" <<<"${ceDocker}" && _pass EsJjVvF "--container user and repo path" \
+	|| _fail EsJjVvF "--container user and repo path" "want=[${ceRunWant}] docker=[${ceDocker}]"
 { ((ceRc == 0)) && [[ "${ceOut}" == *"inner run"* && "${ceOut}" == *"OK: stages 1 to 4 and 6 passed in the container"* && "${ceOut}" == *"OK: installed -> "* \
-	&& "${ceOut}" != *"1/8  Format"* && "${ceOut}" != *"OK: integration harness"* && "${ceOut}" != *"6/8  Cross"* ]]; } && _pass EsJjVwL "--container leaves only the profiler, dogfood and publish to the host" \
-	|| _fail EsJjVwL "--container leaves only the profiler, dogfood and publish to the host" "$(fCeTail)"
+	&& "${ceOut}" != *"1/8  Format"* && "${ceOut}" != *"OK: integration harness"* && "${ceOut}" != *"6/8  Cross"* ]]; } && _pass EsJjVwL "--container host stages" \
+	|| _fail EsJjVwL "--container host stages" "$(fCeTail)"
 CE_HAVE_IMAGE=1 CE_RUN_RC=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container
-{ ((ceRc == 1)) && [[ "${ceOut}" == *"the run in the container failed"* && "${ceOut}" != *"OK: installed"* && "${ceDocker}" != *"build "* ]]; } && _pass EsJjVxK "--container: a failed run inside stops the host run" \
-	|| _fail EsJjVxK "--container: a failed run inside stops the host run" "docker=[${ceDocker}] $(fCeTail)"
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"the run in the container failed"* && "${ceOut}" != *"OK: installed"* && "${ceDocker}" != *"build "* ]]; } && _pass EsJjVxK "--container inner failure" \
+	|| _fail EsJjVxK "--container inner failure" "docker=[${ceDocker}] $(fCeTail)"
 ## The gif's fallback fonts are pinned only in the container, so a host run
 ## leaves it alone rather than flip it back and forth.
 rm -f "${ceRepo}/gif/demo.gif"; CE_GIF=1 fCeRun -y; ceGifHost=0; [[ -e "${ceRepo}/gif/demo.gif" ]] && ceGifHost=1
 CE_GIF=1 CE_INSIDE=1 fCeRun -y
-{ ((ceRc == 0 && ! ceGifHost)) && [[ -s "${ceRepo}/gif/demo.gif" ]]; } && _pass EsJpWaD "the demo gif is made only inside the container" \
-	|| _fail EsJpWaD "the demo gif is made only inside the container" "host made it: ${ceGifHost}; $(fCeTail)"
+{ ((ceRc == 0 && ! ceGifHost)) && [[ -s "${ceRepo}/gif/demo.gif" ]]; } && _pass EsJpWaD "demo gif container-only" \
+	|| _fail EsJpWaD "demo gif container-only" "host made it: ${ceGifHost}; $(fCeTail)"
 CE_INSIDE=1 fCeRun -y --container
 { ((ceRc == 2)) && [[ "${ceOut}" == *"--container is for the host"* && -z "${ceDocker}" ]]; } && _pass EsJjVyJ "--container is refused inside the container" \
 	|| _fail EsJjVyJ "--container is refused inside the container" "docker=[${ceDocker}] $(fCeTail)"
@@ -2373,16 +2396,16 @@ CE_INSIDE=1 fCeRun -y --container
 CE_CTX=nope fCeRun -y --container
 ceCtx="$(sed -n 's/.*--build-context ctx=\([^ ]*\) .*/\1/p' <<<"${ceDocker}")"
 { ((ceRc == 0)) && [[ -n "${ceCtx}" && "${ceCtx}" != *ctxdir* && ! -e "${ceCtx}" && "$(fCeTag)" != "${ceTag}" ]] \
-	&& grep -qE '^run .* --no-publish --no-demogif$' <<<"${ceDocker}"; } && _pass EsKCVVh "a missing build context builds empty and turns off what needs it" \
-	|| _fail EsKCVVh "a missing build context builds empty and turns off what needs it" "ctx=[${ceCtx}] docker=[${ceDocker}] $(fCeTail)"
+	&& grep -qE '^run .* --no-publish --no-demogif$' <<<"${ceDocker}"; } && _pass EsKCVVh "missing build context" \
+	|| _fail EsKCVVh "missing build context" "ctx=[${ceCtx}] docker=[${ceDocker}] $(fCeTail)"
 
 ## With CONTAINER_DEFAULT=1 a plain run goes to the container, --host stays
 ## here, and so does a run already inside.
 CE_CONTAINER_DEFAULT=1 fCeRun -y; ceDefRun=0; grep -q '^run ' <<<"${ceDocker}" && ceDefRun=1
 CE_CONTAINER_DEFAULT=1 fCeRun -y --host; ceHostOk=0; { ((ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* ]]; } && ceHostOk=1
 CE_CONTAINER_DEFAULT=1 CE_INSIDE=1 fCeRun -y
-{ ((ceDefRun && ceHostOk && ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass EsKCVWM "CONTAINER_DEFAULT runs in the container unless --host or already inside" \
-	|| _fail EsKCVWM "CONTAINER_DEFAULT runs in the container unless --host or already inside" "default ran=${ceDefRun} host ok=${ceHostOk} $(fCeTail)"
+{ ((ceDefRun && ceHostOk && ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass EsKCVWM "CONTAINER_DEFAULT routing" \
+	|| _fail EsKCVWM "CONTAINER_DEFAULT routing" "default ran=${ceDefRun} host ok=${ceHostOk} $(fCeTail)"
 
 ## Lint: shellcheck and ruff check what the engine finds in a git repo of
 ## fixtures. A finding fails the run, and so does finding nothing to check,
@@ -2417,34 +2440,138 @@ EOF
 	fClTail(){ printf 'rc=%s out=[%s]' "${clRc}" "$(grep -E 'OK: (shellcheck|ruff)|FAILED|ABORTED|SC[0-9]{4}|\.py:' "${CBT_OUT}" | head -4 | tr '\n' ' ')"; }
 
 	fClRun
-	{ ((clRc == 0)) && [[ "${clOut}" == *"OK: shellcheck clean (2 files)"* && "${clOut}" == *"OK: ruff clean (1 files)"* ]]; } && _pass ErmroeI "lint: shellcheck takes .bash files and shell shebangs, ruff takes .py, excludes hold" \
-		|| _fail ErmroeI "lint: shellcheck takes .bash files and shell shebangs, ruff takes .py, excludes hold" "$(fClTail)"
+	{ ((clRc == 0)) && [[ "${clOut}" == *"OK: shellcheck clean (2 files)"* && "${clOut}" == *"OK: ruff clean (1 files)"* ]]; } && _pass ErmroeI "lint file selection" \
+		|| _fail ErmroeI "lint file selection" "$(fClTail)"
 	printf '%s\n' '#!/bin/sh' 'echo $1' >"${clRepo}/tool"
 	fClRun
-	{ ((clRc != 0)) && [[ "${clOut}" == *"tool:2:"*"[SC2086]"* && "${clOut}" != *"OK: shellcheck clean"* ]]; } && _pass Ermroeo "lint: a shellcheck finding in a script with no .bash name fails the run" \
-		|| _fail Ermroeo "lint: a shellcheck finding in a script with no .bash name fails the run" "$(fClTail)"
+	{ ((clRc != 0)) && [[ "${clOut}" == *"tool:2:"*"[SC2086]"* && "${clOut}" != *"OK: shellcheck clean"* ]]; } && _pass Ermroeo "lint: shellcheck finding, no .bash name" \
+		|| _fail Ermroeo "lint: shellcheck finding, no .bash name" "$(fClTail)"
 	clFound="${clOut}"
 	printf '%s\n' '#!/bin/sh' 'echo "$1"' >"${clRepo}/tool"
 	printf '%s\n' 'import os' >"${clRepo}/bad.py"
 	fClRun
-	{ ((clRc != 0)) && [[ "${clOut}" == *"bad.py:1:"*"F401"* && "${clOut}" != *"OK: ruff clean"* ]]; } && _pass ErmrofR "lint: a ruff finding fails the run" \
-		|| _fail ErmrofR "lint: a ruff finding fails the run" "$(fClTail)"
+	{ ((clRc != 0)) && [[ "${clOut}" == *"bad.py:1:"*"F401"* && "${clOut}" != *"OK: ruff clean"* ]]; } && _pass ErmrofR "lint: ruff finding" \
+		|| _fail ErmrofR "lint: ruff finding" "$(fClTail)"
 	## The startup look at the newest run log has to show both kinds.
 	mkdir -p "${ceDir}/lintlog"; printf '%s\n%s\n' "${clFound}" "${clOut}" >"${ceDir}/lintlog/run_20260101-000000.log"
 	clReport="$(bash "${meDir}/utility/lint-report.bash" --file "${ceDir}/lintlog/run_20260101-000000.log" 2>&1 || true)"
-	{ [[ "${clReport}" == "FLAG "*"tool:2:"*"[SC2086]"* && "${clReport}" == *"bad.py:1:"*"F401"* ]]; } && _pass Ermroh4 "lint-report shows shellcheck and ruff findings from a run log" \
-		|| _fail Ermroh4 "lint-report shows shellcheck and ruff findings from a run log" "report=[${clReport}]"
+	{ [[ "${clReport}" == "FLAG "*"tool:2:"*"[SC2086]"* && "${clReport}" == *"bad.py:1:"*"F401"* ]]; } && _pass Ermroh4 "lint-report findings" \
+		|| _fail Ermroh4 "lint-report findings" "report=[${clReport}]"
 	rm -f "${clRepo}/bad.py"
 	CL_SH_EXCLUDE="ok.bash tool" fClRun
-	{ ((clRc != 0)) && [[ "${clOut}" == *"FAILED: shellcheck: no Bash files found to check"* ]]; } && _pass Ermrofy "lint: shellcheck finding no files fails the run" \
-		|| _fail Ermrofy "lint: shellcheck finding no files fails the run" "$(fClTail)"
+	{ ((clRc != 0)) && [[ "${clOut}" == *"FAILED: shellcheck: no Bash files found to check"* ]]; } && _pass Ermrofy "lint: shellcheck, no files" \
+		|| _fail Ermrofy "lint: shellcheck, no files" "$(fClTail)"
 	printf '%s\n' '[tool.ruff]' 'extend-exclude = ["*.py"]' >"${clRepo}/pyproject.toml"
 	fClRun
-	{ ((clRc != 0)) && [[ "${clOut}" == *"FAILED: ruff: no Python files found to check"* && "${clOut}" == *"OK: shellcheck clean"* ]]; } && _pass ErmrogW "lint: ruff finding no files fails the run" \
-		|| _fail ErmrogW "lint: ruff finding no files fails the run" "$(fClTail)"
+	{ ((clRc != 0)) && [[ "${clOut}" == *"FAILED: ruff: no Python files found to check"* && "${clOut}" == *"OK: shellcheck clean"* ]]; } && _pass ErmrogW "lint: ruff, no files" \
+		|| _fail ErmrogW "lint: ruff, no files" "$(fClTail)"
 else
 	_warn "ErmroeI Ermroeo ErmrofR Ermroh4 Ermrofy ErmrogW" "lint stage checks skipped: needs shellcheck and ruff"
 fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Remote sync and the merge gate, on scratch repos with a bare origin. The
+## engine is the CI engine copy above, with its config.
+section "Remote sync and merge gate"
+syDir="${CBT_TMP}/sy"; syA="${syDir}/a"; syB="${syDir}/b"
+mkdir -p "${syDir}/home" "${syDir}/tmp"
+fSyGit(){ env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE HOME="${syDir}/home" git -c user.name=t -c user.email=t@example.com -c init.defaultBranch=dev "$@"; }
+fSyGit init -q --bare "${syDir}/o.git"
+fSyGit init -q "${syA}"
+mkdir -p "${syA}/cicd/utility/include" "${syA}/lib"
+cp "${ceRepo}/cicd/cicd.bash" "${ceRepo}/cicd/config.bash" "${syA}/cicd/"
+cp "${ceRepo}/cicd/utility/include/gfs-rotate.bash" "${syA}/cicd/utility/include/"
+cp "${meDir}/utility/pre-push" "${syA}/cicd/utility/"
+cp "${ceRepo}/lib/out" "${syA}/lib/"
+printf '%s\n' '[[ -z "${CE_GATE_FAIL:-}" ]] || UNIT_TEST_CMD=(false)' >>"${syA}/cicd/config.bash"
+printf '%s\n' 'lib/bin/' 'prof/' >"${syA}/.gitignore"; printf 'one\n' >"${syA}/notes.txt"
+fSyGit -C "${syA}" add -A; fSyGit -C "${syA}" commit -qm one
+fSyGit -C "${syA}" config user.name t; fSyGit -C "${syA}" config user.email t@example.com
+fSyGit -C "${syA}" remote add origin "${syDir}/o.git"; fSyGit -C "${syA}" push -q -u origin dev 2>/dev/null
+fSyGit clone -q "${syDir}/o.git" "${syB}" 2>/dev/null
+fSyPushB(){ printf '%s\n' "$2" >>"${syB}/$1"; fSyGit -C "${syB}" commit -qam "b $1"; fSyGit -C "${syB}" push -q origin dev 2>/dev/null; }
+fSyRun(){
+	syRc=0
+	( cd "${syDir}" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
+		HOME="${syDir}/home" TMPDIR="${syDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${syDir}/knobs" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 \
+		bash "${syA}/cicd/cicd.bash" -y "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || syRc=$?
+	syOut="$(<"${CBT_OUT}")"
+}
+fSyTail(){ printf 'rc=%s out=[%s]' "${syRc}" "$(tail -5 "${CBT_OUT}" | tr '\n' ' ')"; }
+fSyHead(){ fSyGit -C "$1" rev-parse HEAD; }
+
+## Behind only: fast-forwards, and an edit in the tree comes through it.
+fSyPushB notes.txt two; printf 'mine\n' >"${syA}/lib/out.note"; printf 'edit\n' >>"${syA}/.gitignore"
+fSyRun
+{ ((syRc == 0)) && [[ "${syOut}" == *"OK: fast-forwarded 1 commit(s) from origin/dev"* && "$(fSyHead "${syA}")" == "$(fSyHead "${syB}")" ]] \
+	&& grep -qx edit "${syA}/.gitignore" && [[ -f "${syA}/lib/out.note" && -z "$(fSyGit -C "${syA}" stash list)" ]]; } && _pass EshVwHv "sync: behind, fast-forward" \
+	|| _fail EshVwHv "sync: behind, fast-forward" "$(fSyTail)"
+{ [[ -x "${syA}/.git/hooks/pre-push" ]] && grep -qF 'cicd/utility/pre-push' "${syA}/.git/hooks/pre-push"; } && _pass EshVwIZ "gate hook added" \
+	|| _fail EshVwIZ "gate hook added" "hook=[$(cat "${syA}/.git/hooks/pre-push" 2>&1)]"
+fSyGit -C "${syA}" checkout -q -- .gitignore
+
+## --no-sync leaves it behind.
+fSyPushB notes.txt three; syWas="$(fSyHead "${syA}")"
+fSyRun --no-sync
+{ ((syRc == 0)) && [[ "$(fSyHead "${syA}")" == "${syWas}" && "${syOut}" != *"fast-forwarded"* ]]; } && _pass EshVwJC "sync: --no-sync" \
+	|| _fail EshVwJC "sync: --no-sync" "$(fSyTail)"
+
+## A change to the pipeline itself starts the run over on the new copy.
+fSyPushB cicd/config.bash '## from b'
+fSyRun
+{ ((syRc == 0)) && [[ "${syOut}" == *"OK: fast-forwarded 2 commit(s)"* && "${syOut}" == *"starting over"* && "${syOut}" == *"OK: integration harness"* ]] \
+	&& [[ "$(grep -c 'fast-forwarded' <<<"${syOut}")" == 1 ]]; } && _pass EshVwJp "sync: pipeline changed, restart" \
+	|| _fail EshVwJp "sync: pipeline changed, restart" "$(fSyTail)"
+
+## Diverged stops before anything is built.
+fSyPushB notes.txt four; printf 'a\n' >>"${syA}/notes.txt"; fSyGit -C "${syA}" commit -qam "a"
+fSyRun
+{ ((syRc == 1)) && [[ "${syOut}" == *"have diverged (1 ahead, 1 behind)"* && "${syOut}" != *"1/8  Format"* ]]; } && _pass EshVwKS "sync: diverged stops" \
+	|| _fail EshVwKS "sync: diverged stops" "$(fSyTail)"
+fSyGit -C "${syA}" reset -q --hard origin/dev
+
+## No upstream, or no remote to reach, warns and goes on.
+fSyGit -C "${syA}" checkout -q -b solo
+fSyRun
+{ ((syRc == 0)) && [[ "${syOut}" == *"WARNING: no upstream branch"* && "${syOut}" == *"OK: integration harness"* ]]; } && _pass EshVwL6 "sync: no upstream warns" \
+	|| _fail EshVwL6 "sync: no upstream warns" "$(fSyTail)"
+fSyGit -C "${syA}" checkout -q dev
+fSyGit -C "${syA}" remote set-url origin "${syDir}/gone.git"
+fSyRun
+{ ((syRc == 0)) && [[ "${syOut}" == *"WARNING: couldn't fetch"* && "${syOut}" == *"OK: integration harness"* ]]; } && _pass EshVwLj "sync: offline warns" \
+	|| _fail EshVwLj "sync: offline warns" "$(fSyTail)"
+fSyGit -C "${syA}" remote set-url origin "${syDir}/o.git"
+
+## The hook gates dev and main only, and not a delete or a publish.
+syZeros="0000000000000000000000000000000000000000"; syHeadA="$(fSyHead "${syA}")"
+fSyHook(){
+	syRc=0
+	( cd "${syA}" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u CICD_GATE_PASSED HOME="${syDir}/home" TMPDIR="${syDir}/tmp" PATH="${ceBin}:${PATH}" "$@" \
+		bash "${syA}/.git/hooks/pre-push" origin "${syDir}/o.git" <<<"${syLine}" >"${CBT_OUT}" 2>&1 ) || syRc=$?
+	syOut="$(<"${CBT_OUT}")"
+}
+syLine="refs/heads/dev ${syHeadA} refs/heads/dev ${syZeros}"; fSyHook env
+syDev=0; { ((syRc == 0)) && [[ "${syOut}" == *"OK: gate passed"* && "${syOut}" != *"1/8"* ]]; } && syDev=1
+syLine="refs/heads/x ${syHeadA} refs/heads/feature ${syZeros}"; fSyHook env
+syFeat=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syFeat=1
+syLine="(delete) ${syZeros} refs/heads/main ${syHeadA}"; fSyHook env
+syDel=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syDel=1
+syLine="refs/heads/dev ${syHeadA} refs/heads/dev ${syZeros}"; fSyHook env CICD_GATE_PASSED=1
+syPub=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syPub=1
+((syDev && syFeat && syDel && syPub)) && _pass EshVwMN "pre-push: dev/main only" \
+	|| _fail EshVwMN "pre-push: dev/main only" "dev=${syDev} feature=${syFeat} delete=${syDel} publish=${syPub} $(fSyTail)"
+
+## A failed gate refuses the push, and a hook already there is left alone.
+syLine="refs/heads/main ${syHeadA} refs/heads/main ${syZeros}"; fSyHook env CE_GATE_FAIL=1
+{ ((syRc != 0)) && [[ "${syOut}" == *"running the merge gate"* && "${syOut}" != *"OK: gate passed"* ]]; } && _pass EshVwNd "pre-push: failed gate refuses" \
+	|| _fail EshVwNd "pre-push: failed gate refuses" "$(fSyTail)"
+printf '%s\n' '#!/bin/sh' 'exit 0' >"${syDir}/mine"; chmod +x "${syDir}/mine"
+fSyGit -C "${syA}" config core.hooksPath "${syDir}/hooks2"; mkdir -p "${syDir}/hooks2"; cp "${syDir}/mine" "${syDir}/hooks2/pre-push"
+fSyRun --gate
+{ ((syRc == 0)) && cmp -s "${syDir}/mine" "${syDir}/hooks2/pre-push" && [[ "${syOut}" == *"OK: gate passed"* && "${syOut}" != *"added the pre-push hook"* ]]; } && _pass EshVwMz "gate keeps an existing hook" \
+	|| _fail EshVwMz "gate keeps an existing hook" "$(fSyTail)"
+fSyGit -C "${syA}" config --unset core.hooksPath
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -2464,24 +2591,24 @@ if [[ "${CICDTEST_SELFCHECK:-0}" != "1" ]]; then
 		TMPDIR="${hsDir}/tmp" PATH="${hsDir}/bin:${PATH}" bash "${meDir}/test.bash" </dev/null >"${hsDir}/out" 2>&1 || hsrc=$?
 	hsSummary="$(grep -E 'FAIL +[0-9]+ of [0-9]+ checks failed' "${hsDir}/out" || true)"
 	hsAbort="$(grep -F 'HARNESS ABORTED' "${hsDir}/out" | head -3 || true)"
-	{ ((hsrc == 1)) && [[ -n "${hsSummary}" && -z "${hsAbort}" ]]; } && _pass ErmGPkH "every check failing still reaches the summary" \
-		|| _fail ErmGPkH "every check failing still reaches the summary" "rc=${hsrc} aborts=[${hsAbort}] tail=[$(tail -3 "${hsDir}/out" | tr '\n' ' ')]"
+	{ ((hsrc == 1)) && [[ -n "${hsSummary}" && -z "${hsAbort}" ]]; } && _pass ErmGPkH "all-fail run reaches summary" \
+		|| _fail ErmGPkH "all-fail run reaches summary" "rc=${hsrc} aborts=[${hsAbort}] tail=[$(tail -3 "${hsDir}/out" | tr '\n' ' ')]"
 	## Under CICD_NO_SKIP the skips Go's absence caused fail the run, and the
 	## one --quick asked for doesn't.
 	hsNoSkip="$(grep -F 'skipped under CICD_NO_SKIP=1: ' "${hsDir}/out" || true)"
-	{ [[ "${hsNoSkip}" == *Elmd2Y4* && "${hsNoSkip}" != *ErlP6B8* ]]; } && _pass EsJjVsP "an unasked skip fails a CICD_NO_SKIP run, an asked one doesn't" \
-		|| _fail EsJjVsP "an unasked skip fails a CICD_NO_SKIP run, an asked one doesn't" "line=[${hsNoSkip}]"
-	grep -qF 'reactor module skipped: needs a Go 1.24+ toolchain' "${hsDir}/out" && _pass ErmGPkf "reactor section skips with Go off the PATH" \
-		|| _fail ErmGPkf "reactor section skips with Go off the PATH" "no skip line for the reactor section"
+	{ [[ "${hsNoSkip}" == *Elmd2Y4* && "${hsNoSkip}" != *ErlP6B8* ]]; } && _pass EsJjVsP "NO_SKIP asked vs unasked" \
+		|| _fail EsJjVsP "NO_SKIP asked vs unasked" "line=[${hsNoSkip}]"
+	grep -qF 'reactor module skipped: needs a Go 1.24+ toolchain' "${hsDir}/out" && _pass ErmGPkf "reactor skip, no Go" \
+		|| _fail ErmGPkf "reactor skip, no Go" "no skip line for the reactor section"
 	hsGoFail="$(grep -oE ' FAIL (EloQXv[6-9]|ErftBA[89A-D]) ' "${hsDir}/out" | sort -u | tr -d '\n' || true)"
 	{ grep -qF 'frontend parity skipped: needs a Go toolchain' "${hsDir}/out" && grep -qF 'macOS universal binary tests skipped: needs a Go toolchain' "${hsDir}/out" \
-		&& [[ -z "${hsGoFail}" ]]; } && _pass ErmzVUR "parity and macOS sections skip with Go off the PATH" \
-		|| _fail ErmzVUR "parity and macOS sections skip with Go off the PATH" "skip lines missing or failures: [${hsGoFail}]"
+		&& [[ -z "${hsGoFail}" ]]; } && _pass ErmzVUR "parity/macOS skip, no Go" \
+		|| _fail ErmzVUR "parity/macOS skip, no Go" "skip lines missing or failures: [${hsGoFail}]"
 	## A failed interop check names the first sample that differs.
 	if command -v node >/dev/null 2>&1 && [[ -d "${meDir}/utility/interop/thirdparty" ]]; then
 		hsDiff="$(grep -m1 -A1 -F 'interop encode == qntm base2048' "${hsDir}/out" | tail -1 || true)"
-		[[ "${hsDiff}" =~ ^\ +sample\ [0-9]+\ of\ [0-9]+/[0-9]+:\  ]] && _pass ErmGPl4 "failed interop check keeps its detail" \
-			|| _fail ErmGPl4 "failed interop check keeps its detail" "detail=[${hsDiff}]"
+		[[ "${hsDiff}" =~ ^\ +sample\ [0-9]+\ of\ [0-9]+/[0-9]+:\  ]] && _pass ErmGPl4 "interop failure detail" \
+			|| _fail ErmGPl4 "interop failure detail" "detail=[${hsDiff}]"
 	else
 		_warn ErmGPl4 "interop detail not checked: needs node and the vendored references"
 	fi

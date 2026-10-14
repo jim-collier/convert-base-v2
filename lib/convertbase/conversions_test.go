@@ -127,7 +127,7 @@ func TestNumberVectors(t *testing.T) {
 func TestAutoPrecision(t *testing.T) {
 	reg := newReg(t)
 	cases := []struct{ from, to, in, want string }{
-		{"10", "16", "0.1", "0.1A"},          // 1 dec digit -> 2 hex, honest tail not 50
+		{"10", "16", "0.1", "0.1A"},          // 1 dec digit -> 2 hex, real tail not 50
 		{"10", "2", "0.1", "0.00011"},        // widens: 1 dec -> 5 binary
 		{"10", "3", "0.1", "0.0022"},         // odd base ratio
 		{"10", "2", "0.5", "0.1"},            // terminates, trailing zeros trimmed

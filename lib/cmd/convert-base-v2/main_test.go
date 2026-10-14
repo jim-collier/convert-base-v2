@@ -68,7 +68,7 @@ func TestInfoFlagOrder(t *testing.T) {
 }
 
 // Test ID: Erfqe2J
-func TestPrintInfoLoneIsUnchanged(t *testing.T) {
+func TestPrintInfoLone(t *testing.T) {
 	var got, want strings.Builder
 	if err := printInfo(&got, parseInfo(t, "--version"), nil); err != nil {
 		t.Fatal(err)
@@ -357,7 +357,7 @@ func TestHelpListsEveryFlag(t *testing.T) {
 // A positional after the NUMBER that looks like a flag gets the flags-first
 // hint, so no built-in base may look like one.
 // Test ID: ErsskKs
-func TestNoBuiltinBaseLooksLikeFlag(t *testing.T) {
+func TestBuiltinNamesNotFlags(t *testing.T) {
 	reg, err := convertbase.NewRegistry()
 	if err != nil {
 		t.Fatal(err)

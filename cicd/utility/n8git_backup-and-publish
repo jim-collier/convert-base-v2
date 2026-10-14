@@ -753,7 +753,7 @@ fMain  "${@}"
 ##			  without rar walking in, so no 'dir/*' twins. Rules gathered from every
 ##			  project's cicd and made general: Rust lint, doc and gate builds,
 ##			  Unreal, goreleaser, Wine, cicd run output, review and gate copies,
-##			  Panoplia scratch, private screenshots and third-party source, and
+##			  scratch dir, private screenshots and third-party source, and
 ##			  backup and editor leftovers. The audit-* rule matched files only, so
 ##			  it dropped audit-* reports too, and rar still walked every tree.
 ##			- Project excludes also from cicd/rar-excludes.conf. The env list takes
@@ -764,7 +764,7 @@ fMain  "${@}"
 ##			  stash, and an unset git user no longer ends the run.
 ##			- Also excludes every 0_archive and tmp dir, fetched zig/vendor, and
 ##			  imported Unreal asset zips under Content/_staging/*/_done.
-##		- 20260923: Backup excludes: dropped the Panoplia scratch and private tree
+##		- 20260923: Backup excludes: dropped the scratch dir and private tree
 ##		  rules, so both are archived again. Added '*_dupes', '*_no-backup' (files
 ##		  and dirs) and '*/versions/*.rar'.
 ##		- 20260925: Pull and push go through 'gitsby raw git' when gitsby is

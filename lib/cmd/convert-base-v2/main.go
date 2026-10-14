@@ -201,7 +201,7 @@ func parseFlags(args []string) (*cliFlags, error) {
 	fs.StringVar(&f.precision, "precision", "auto", "max fractional digits, or 'auto' to match the input's precision")
 	fs.BoolVar(&f.lower, "lower", false, "lowercase output (errors if the output base can't read its digits back in lower case)")
 	fs.BoolVar(&f.upper, "upper", false, "uppercase output (errors if the output base can't read its digits back in upper case)")
-	fs.BoolVar(&f.escapeCtrl, "escape-controls", false, "write control-character digits as named escapes (⊳LF, ⊳TAB, ...); input accepts them either way")
+	fs.BoolVar(&f.escapeCtrl, "escape-controls", false, "write control-character digits as named escapes (⊳LF, ⊳HT, ...); input accepts them either way")
 	fs.BoolVar(&f.noNewline, "no-newline", false, "do not append a trailing newline to text output (like echo -n)")
 	fs.BoolVar(&f.noNewline, "n", false, "alias for -no-newline")
 	fs.BoolVar(&f.binary, "binary", false, "treat both sides as raw byte data (byte encode/decode, like basenc); an omitted --from/--to defaults to bytes")
@@ -224,7 +224,7 @@ func parseFlags(args []string) (*cliFlags, error) {
 	fs.Var(f.asked.flag("version"), "version", "print version and exit")
 	fs.Var(f.asked.flag("version"), "v", "alias for -version")
 	fs.Var(f.asked.flag("version"), "V", "alias for -version")
-	fs.Var(f.asked.flag("about"), "about", "print version, copyright, license and project home, then exit")
+	fs.Var(f.asked.flag("about"), "about", "print version, copyright, license, and project home, then exit")
 	fs.Var(f.asked.flag("donate"), "donate", "print ways to support the project, then exit")
 	fs.Var(f.asked.flag("examples"), "examples", "show usage examples and exit")
 
@@ -1500,7 +1500,7 @@ Conversion mode:
   --number, --num, -N  Treat input as a positional notation number (default)
   --precision N|auto   Max fractional digits, or auto to match input  [default auto]
   --lower / --upper    Force output case (errors if the base can't read it back)
-  --escape-controls    Write control-character digits as ⊳LF, ⊳TAB, ⊳CR, ...
+  --escape-controls    Write control-character digits as ⊳LF, ⊳HT, ⊳CR, ...
                        Input accepts those and the raw characters, mixed, always.
   --no-newline, -n     Omit trailing newline on text output (like echo -n)
 
@@ -1524,7 +1524,7 @@ Program info (several in one run each print once, in order, then exit):
   --help, -h           Show this help
   --examples           Show usage examples
   --version, -v, -V    Print version and build number
-  --about              Print version, copyright, license and project home
+  --about              Print version, copyright, license, and project home
   --donate             Print ways to support the project
 
 Exit status:
@@ -1570,11 +1570,11 @@ Exit status:
 	userLoaded := userPath != "" && userPath != etcPath && pathLoaded(reg, userPath)
 	switch {
 	case etcLoaded && userLoaded:
-		fmt.Fprintf(out, "  -> %s takes precedence over %s (and both over built-in).\n", userPath, etcPath)
+		fmt.Fprintf(out, "  -> %s takes precedence over %s (and both over the built-in ones).\n", userPath, etcPath)
 	case etcLoaded:
-		fmt.Fprintf(out, "  -> a name defined in %s takes precedence over built-in.\n", etcPath)
+		fmt.Fprintf(out, "  -> a name defined in %s takes precedence over the built-in one.\n", etcPath)
 	case userLoaded:
-		fmt.Fprintf(out, "  -> a name defined in %s takes precedence over built-in.\n", userPath)
+		fmt.Fprintf(out, "  -> a name defined in %s takes precedence over the built-in one.\n", userPath)
 	}
 
 	fmt.Fprintln(out, "  (optional user-specified flags)")
@@ -1645,14 +1645,13 @@ Project home: https://github.com/jim-collier/convert-base-v2
 }
 
 func printDonate(out io.Writer) {
-	fmt.Fprint(out, `convert-base-v2 is free software, and stays that way.
+	fmt.Fprint(out, `convert-base-v2 is free software.
 
 If it saves you time and you want to give something back:
   https://github.com/sponsors/jim-collier
   https://ko-fi.com/jimcollier
 
-A star on the project, a clear bug report, or a mention to someone who needs it
-are worth just as much.
+Stars and bug reports help too.
 `)
 }
 
@@ -1677,23 +1676,23 @@ func printExamples(out io.Writer) {
   # The alphabet uses "-" and "." as digits, so pick markers that are free.
   convert-base-v2  --from-symbols "aeiouy.-_0" --from-neg '~' --from-dec '/'  --to 20ws  "~y0-._/ooo"
 
-  # Markers work on named bases too, not just custom alphabets
+  # Markers work on named bases too
   convert-base-v2  --from hex --from-neg '~'  --to 10  -- '~ff'
 
-  # 98keyboard holds tab, newline and return as digits, so they can be named.
+  # 98keyboard has tab, newline, and return as digits, so they can be named.
   # Input takes named and raw forms mixed; output writes them only if asked.
   convert-base-v2  --from keyboard --to 10  -n 'hi⊳LFthere'             # 3772491441706426
   convert-base-v2  --from 10 --to keyboard --escape-controls  -n 3772491441706426
   convert-base-v2  --show-symbols --escape-controls  keyboard           # the readable alphabet
 
   # Convert a binary file to any 2^N base (i.e. 4, 8, 16, 32, 64 ... 65536)
-  # Streams in linear time at speeds competitive with basenc/base64. The draw is
-  # the bases nothing else has: 2048, 65536, or your own 2^N alphabet.
+  # Streams in linear time, about as fast as basenc/base64. Also works for
+  # 2048, 65536, or your own 2^N alphabet.
   cat file.bin | convert-base-v2 --from bytes --to 64url > out.b64
 
-  cat out.b64  | convert-base-v2 --from 64url --to bytes > file2.bin     # base64url -> File (bit-perfect)
+  cat out.b64  | convert-base-v2 --from 64url --to bytes > file2.bin     # base64url -> file (bit-perfect)
 
-  # Re-encode between two text bases as BYTE DATA (like basenc), not as a number.
+  # Re-encode between two text bases as bytes (like basenc), not as a number.
   # Without --binary the value converts numerically and leading zeros are lost.
   echo -n deadbeef | convert-base-v2 --binary --from 16 --to 64rfc       # 3q2+7w==
 

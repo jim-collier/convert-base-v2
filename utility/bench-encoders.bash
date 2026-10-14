@@ -80,7 +80,7 @@ row() {
 	d=$(bench "$dec_in" $dec_cmd) || exit 1
 	# shellcheck disable=SC2086
 	e=$(bench "$blob" $enc_cmd) || exit 1
-	printf '| %s | %s | %s |\n' "$name" "$(comma "$d")" "$(comma "$e")"
+	printf '| %-18s | %14s | %14s\n' "$name" "$(comma "$d")" "$(comma "$e")"
 }
 
 # Canonical text per format (prefer the system tool's own output, so every
@@ -97,7 +97,7 @@ printf '\n%s MiB random blob, mean of %s runs, one process each, all I/O in RAM.
 printf 'CPU: %s (%s threads).  RAM: %s GiB.\n\n' "$cpu" "$(nproc)" "$memgib"
 
 # One table per format, so like-for-like sits together.
-table() { printf '\n%s\n\n| Program | text -> binary | binary -> text |\n| :-- | --: | --: |\n' "$1"; }
+table() { printf '\n%s\n\n| %-18s | text -> binary | binary -> text\n| :----------------- | -------------: | -------------:\n' "$1" Program; }
 
 table "Base-64"
 row "convert-base-v2" "$b64" "$EXE --from bytes --to 64" "$EXE --from 64 --to bytes"

@@ -11,7 +11,7 @@
 #	says which SHCL rules the file follows, so keep it.
 #
 #
-# convert-base-v2 creates this file on the first run and never rewritten afterwards,
+# convert-base-v2 creates this file on the first run and never rewrites it afterwards,
 # so anything you put here is safe. Delete it and it comes back with these defaults.
 # The one exception is a later version that reads SHCL differently. It converts
 # the file once, keeping your settings, and leaves the original beside it.
@@ -62,7 +62,7 @@
 #
 # The defaults "-" and "." are an error when they are also digits of the base,
 # so such a base has to either name different markers or switch them off. That
-# is deliberate: a silently disabled sign is worse than a refused definition.
+# is on purpose, so a sign is never turned off without notice.
 #
 #
 # About tail
@@ -81,7 +81,7 @@
 # else is an error where it is written.
 
 
-# Base 10 in emoji, hand picked to carry a wide range of expressions. It lives
+# Base 10 in emoji, hand picked to cover a wide range of expressions. It lives
 # here rather than in the built-in set, so there is always a working example to
 # copy from.
 base: 10emoji

@@ -7,6 +7,7 @@
 
 <!-- TOC ignore:true -->
 ## Table of contents
+
 <!-- TOC -->
 
 - [The problem](#the-problem)
@@ -14,6 +15,7 @@
 - [Rename table](#rename-table)
 - [Breaking-change accounting](#breaking-change-accounting)
 - [Additional problems to fix](#additional-problems-to-fix)
+- [Status](#status)
 - [Implementation checklist](#implementation-checklist)
 - [Copyright and license](#copyright-and-license)
 
@@ -21,7 +23,7 @@
 
 ## The problem
 
-Base names and aliases grew organically and are inconsistent on several axes at once: word-radix order (`mayan20` vs `30rock`), capitalization (`Crockford`, `basE91`, `PostScript` vs everything else), when a bare number is a name, which alias comes second, and how many aliases a base carries. (Some have way to many which makes thing harder not easier.)
+Base names and aliases grew organically and are inconsistent on several axes at once: word-radix order (`mayan20` vs `30rock`), capitalization (`Crockford`, `basE91`, `PostScript` vs everything else), when a bare number is a name, which alias comes second, and how many aliases a base carries. (Some have way too many which makes things harder not easier.)
 
 Each new base addition reopened all of these questions, and caused design and interface churn. This doc defines a policy, so that future churn is reduced or eliminated.
 
@@ -79,66 +81,66 @@ The `tt` family and every compatibility base are untouched, per standing constra
 
 Order within each row is the final alias order. Names in the Dropped column stop resolving (unknown-base error with suggestions; see Breaking below).
 
-| Now | Proposed | Dropped |
-|---|---|---|
-| 2 | 2 | |
-| 3, ternary | 3, ternary | |
-| 4, quarternary | 4, quaternary | quarternary (typo) |
-| 5, quinary | 5, quinary | |
-| 6, senary, seximal, bestagon | 6, senary | seximal, bestagon |
-| 7, septenary | 7, septenary | |
-| 8, octal, oct | 8, octal | oct |
-| 9, nonary | 9, nonary | |
-| 10, decimal, dec, arabic | 10, decimal | dec, arabic |
-| cjk10, CJK | 10cjk, cjk | |
-| hindi10, Hindi | 10hindi, devanagari | hindi10, bare hindi |
-| arabicindic10, ArabicIndic | 10arabicindic, easternarabic | |
-| rods10, rods | 10rods, rods | |
-| blocks10, blocks | 10blocks, blocks | |
-| 12, dozenal, 12h, duodecimal | 12, dozenal | 12h, duodecimal |
-| 16, hex, 16h, 16hex, hexadecimal, nerd | 16, hex | 16h, 16hex, hexadecimal, nerd |
-| 20, vigesimal, 20h, venti | 20, vigesimal | 20h, venti |
-| 20ws, wordsafe20, 20w, google20, 20g | 20ws, pluscode | wordsafe20, 20w, google20, 20g |
-| mayan20, Mayan | 20mayan, mayan | |
-| 24, 24h | 24 | 24h |
-| 26, alphabet, alpha | 26, alphabet | alpha |
-| 30rock, 30h | 30rock, 30 | 30h |
-| 32, RFC4648s6, 32r, 32rfc, 32rfc4648s6 | 32rfc, rfc4648s6, 32r, 32 | 32rfc4648s6 |
-| 32h, RFC4648s7, 32rfc4648s7, 32tt | 32hex, rfc4648s7, 32tt, 32h | 32rfc4648s7 |
-| 32crock, Crockford, 32c, 32crockford | 32crock, crockford, 32c | 32crockford |
-| 32ws, 32wordsafe, 32w, 32google, 32g | 32ws, 32wordsafe, 32w | 32google, 32g |
-| 32zbase, ZBase32, 32z | 32z, zbase32 | 32zbase |
-| 36, alphanum, alphanumeric, 36h | 36, alphanum | alphanumeric, 36h |
-| 38hostname, hostname, 38jc1 | 38hostname, hostname, 38jc1 | |
-| 39username, username, 39un | 39username, username | 39un (not a legacy spelling; v1b used 39us/39jc1, which v2 never honored) |
-| 42, TheUltimateAnswer, 42h | 42, answer | TheUltimateAnswer, 42h |
-| 45, RFC9285, 45rfc9285, 45r | 45, rfc9285 | 45rfc9285, 45r (45r was never a legacy spelling; neither legacy tool had RFC base-45) |
-| 45email, email, 45jc1 | 45email, email, 45jc1 | |
-| 52, upperlower | 52, upperlower | |
-| Sumerian, sexagesimal, Babylonian, hexagesimal, 60jc | 60jc, sexagesimal | sumerian, babylonian, hexagesimal |
-| 60tc, NewBase60 | 60tc, newbase60 | |
-| 62, 62h | 62 | 62h |
-| 64, rfc4648s4, 64r, 64rfc, 64rfc4648s4 | 64rfc, rfc4648s4, 64r, 64 | 64rfc4648s4 |
-| 64u, rfc4648s5, 64url, 64ru, 64rfc4648s5 | 64url, rfc4648s5, 64u | 64ru, 64rfc4648s5 |
-| 64h, 64hu, 64hurl | 64hex, 64h | 64hu, 64hurl |
-| 64code, programmer, 64p, 64j1u | 64code, programmer, 64j1u | 64p |
-| emoji64 | 64emoji | emoji64 |
-| 64tt | 64tt | |
-| nice69 | 69nice, nice | nice69 |
-| emoji69 | 69emoji | emoji69 |
-| 85z, z85, 85zeromq | 85z, z85 | 85zeromq |
-| PostScript, 85postscript, 85ps, 85adobe | 85ps, ascii85 | postscript, 85postscript, 85adobe |
-| 85ipv6, 85rfc1924, 85elz | 85ipv6, rfc1924 | 85rfc1924, 85elz |
-| 91hk, basE91 | 91hk, base91 | (same key: basE91 already registers as 91 after the base-prefix strip, so 91, b91, base91 all resolve, before and after) |
-| keyboard, 98, text, ascii, kbd | 98keyboard, keyboard, 98 | text, ascii (misleading: the base is not ASCII exactly), kbd |
-| 128tt | 128tt | |
-| bytes | bytes | |
-| 256tt / 512tt / 1024tt / 2048tt | unchanged | |
-| 2048twitter, 2048x, 2048qntm | 2048qntm, 2048twitter | 2048x |
-| 2048rust, 2048llfourn | 2048llfourn | 2048rust |
-| 32768qntm, 32768utf16 | 32768qntm, 32768utf16 | |
-| 65536qntm, 65536utf32 | 65536qntm, 65536utf32 | |
-| all *_compat_v1[b] bases | unchanged | |
+| Now                                                  | Proposed                     | Dropped
+| :--------------------------------------------------- | :--------------------------- | :-----------------------------------------------------------------------------------------------------------------------
+| 2                                                    | 2
+| 3, ternary                                           | 3, ternary
+| 4, quarternary                                       | 4, quaternary                | quarternary (typo)
+| 5, quinary                                           | 5, quinary
+| 6, senary, seximal, bestagon                         | 6, senary                    | seximal, bestagon
+| 7, septenary                                         | 7, septenary
+| 8, octal, oct                                        | 8, octal                     | oct
+| 9, nonary                                            | 9, nonary
+| 10, decimal, dec, arabic                             | 10, decimal                  | dec, arabic
+| cjk10, CJK                                           | 10cjk, cjk
+| hindi10, Hindi                                       | 10hindi, devanagari          | hindi10, bare hindi
+| arabicindic10, ArabicIndic                           | 10arabicindic, easternarabic
+| rods10, rods                                         | 10rods, rods
+| blocks10, blocks                                     | 10blocks, blocks
+| 12, dozenal, 12h, duodecimal                         | 12, dozenal                  | 12h, duodecimal
+| 16, hex, 16h, 16hex, hexadecimal, nerd               | 16, hex                      | 16h, 16hex, hexadecimal, nerd
+| 20, vigesimal, 20h, venti                            | 20, vigesimal                | 20h, venti
+| 20ws, wordsafe20, 20w, google20, 20g                 | 20ws, pluscode               | wordsafe20, 20w, google20, 20g
+| mayan20, Mayan                                       | 20mayan, mayan
+| 24, 24h                                              | 24                           | 24h
+| 26, alphabet, alpha                                  | 26, alphabet                 | alpha
+| 30rock, 30h                                          | 30rock, 30                   | 30h
+| 32, RFC4648s6, 32r, 32rfc, 32rfc4648s6               | 32rfc, rfc4648s6, 32r, 32    | 32rfc4648s6
+| 32h, RFC4648s7, 32rfc4648s7, 32tt                    | 32hex, rfc4648s7, 32tt, 32h  | 32rfc4648s7
+| 32crock, Crockford, 32c, 32crockford                 | 32crock, crockford, 32c      | 32crockford
+| 32ws, 32wordsafe, 32w, 32google, 32g                 | 32ws, 32wordsafe, 32w        | 32google, 32g
+| 32zbase, ZBase32, 32z                                | 32z, zbase32                 | 32zbase
+| 36, alphanum, alphanumeric, 36h                      | 36, alphanum                 | alphanumeric, 36h
+| 38hostname, hostname, 38jc1                          | 38hostname, hostname, 38jc1
+| 39username, username, 39un                           | 39username, username         | 39un (not a legacy spelling; v1b used 39us/39jc1, which v2 never honored)
+| 42, TheUltimateAnswer, 42h                           | 42, answer                   | TheUltimateAnswer, 42h
+| 45, RFC9285, 45rfc9285, 45r                          | 45, rfc9285                  | 45rfc9285, 45r (45r was never a legacy spelling; neither legacy tool had RFC base-45)
+| 45email, email, 45jc1                                | 45email, email, 45jc1
+| 52, upperlower                                       | 52, upperlower
+| Sumerian, sexagesimal, Babylonian, hexagesimal, 60jc | 60jc, sexagesimal            | sumerian, babylonian, hexagesimal
+| 60tc, NewBase60                                      | 60tc, newbase60
+| 62, 62h                                              | 62                           | 62h
+| 64, rfc4648s4, 64r, 64rfc, 64rfc4648s4               | 64rfc, rfc4648s4, 64r, 64    | 64rfc4648s4
+| 64u, rfc4648s5, 64url, 64ru, 64rfc4648s5             | 64url, rfc4648s5, 64u        | 64ru, 64rfc4648s5
+| 64h, 64hu, 64hurl                                    | 64hex, 64h                   | 64hu, 64hurl
+| 64code, programmer, 64p, 64j1u                       | 64code, programmer, 64j1u    | 64p
+| emoji64                                              | 64emoji                      | emoji64
+| 64tt                                                 | 64tt
+| nice69                                               | 69nice, nice                 | nice69
+| emoji69                                              | 69emoji                      | emoji69
+| 85z, z85, 85zeromq                                   | 85z, z85                     | 85zeromq
+| PostScript, 85postscript, 85ps, 85adobe              | 85ps, ascii85                | postscript, 85postscript, 85adobe
+| 85ipv6, 85rfc1924, 85elz                             | 85ipv6, rfc1924              | 85rfc1924, 85elz
+| 91hk, basE91                                         | 91hk, base91                 | (same key: basE91 already registers as 91 after the base-prefix strip, so 91, b91, base91 all resolve, before and after)
+| keyboard, 98, text, ascii, kbd                       | 98keyboard, keyboard, 98     | text, ascii (misleading: the base is not ASCII exactly), kbd
+| 128tt                                                | 128tt
+| bytes                                                | bytes
+| 256tt / 512tt / 1024tt / 2048tt                      | unchanged
+| 2048twitter, 2048x, 2048qntm                         | 2048qntm, 2048twitter        | 2048x
+| 2048rust, 2048llfourn                                | 2048llfourn                  | 2048rust
+| 32768qntm, 32768utf16                                | 32768qntm, 32768utf16
+| 65536qntm, 65536utf32                                | 65536qntm, 65536utf32
+| all *_compat_v1[b] bases                             | unchanged
 
 Notes:
 
@@ -166,7 +168,7 @@ Retiring a spelling produces the existing unknown-base error with did-you-mean s
 
 - **`64r` is an unmarked contract name**. Both legacy scripts accept `"64r"*` exactly as they accept `"32r"*`, but only 32r carries the "required, don't delete" comment. 64r should be marked the same.
 
-- **The base-prefix strip applies at registration too**, so an alias spelled `base91` registers under the key `91`. Worth a comment in registry.go; it is load-bearing for the 91 row above.
+- **The base-prefix strip applies at registration too**, so an alias spelled `base91` registers under the key `91`. Worth a comment in registry.go, since the 91 row above depends on it.
 
 - **`quarternary` is a typo** for quaternary.
 

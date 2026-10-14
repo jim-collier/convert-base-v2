@@ -33,15 +33,17 @@
 
 ## Status
 
-The one-shot surface shipped: `make reactor` builds `dist/convert-base-reactor.wasm` from `lib/reactor/`, covering everything zuid asked for - conversion, lookup, radix and padding-symbol metadata, symbol counting, the allocator pair, the numeric error codes, and the last-error text accessor. The contract lives in `lib/reactor/README.md`, and a host-side exerciser under `cicd/utility/reactor-host/` drives all of it each test run.
+The one-shot API is built: `make reactor` builds `dist/convert-base-reactor.wasm` from `lib/reactor/`, covering everything zuid asked for - conversion, lookup, radix and padding-symbol metadata, symbol counting, the allocator pair, the numeric error codes, and the last-error text accessor. The contract lives in `lib/reactor/README.md`, and a host-side exerciser under `cicd/utility/reactor-host/` drives all of it each test run.
 
-Streaming shipped as well, in the push shape proposed below: `stream_new`/`stream_write`/`stream_finish`/`stream_free`, plus a `stream_count` leak counter. The streams feed the library's own streaming code through an in-module pipe, so the constant-memory paths are the same ones the command uses; pairs the library cannot stream (the codecs) buffer internally and emit at finish, matching the command's behavior for the same conversions. The exerciser holds the streams to the one-shot results, drives the error and abandon paths, and asserts a linear-memory ceiling over a payload large enough that quiet buffering would blow it. This closes the design.
+Streaming is built as well, in the push style proposed below: `stream_new`/`stream_write`/`stream_finish`/`stream_free`, plus a `stream_count` leak counter. The streams feed the library's own streaming code through an in-module pipe, so the constant-memory paths are the same ones the command uses; pairs the library cannot stream (the codecs) buffer internally and emit at finish, matching the command's behavior for the same conversions. The exerciser checks the streams against the one-shot results, drives the error and abandon paths, and asserts a linear-memory ceiling over a payload large enough that quiet buffering would blow it. This closes the design.
 
 One practical note from the build-out: linters do not yet treat `//go:wasmexport` as a root, so every export reads as unused code under a `wasip1` lint run. The reactor package stays out of lint scope the way the vendored parser does; vet runs on it cross-compiled and comes back clean.
 
-A follow-up request from zuid arrived 20260802, after the one-shot surface shipped: symbol-boundary slicing for fixed-width fields. Its identifiers render every component at a fixed width, which needs left-fill with the zero symbol (already possible via `base_zero` plus `symbol_count`) and keeping the rightmost N symbols of a longer value (not possible from the host, which has no copy of the alphabet). Shipped as `SymbolSlice` and `Fit` on the library's Base, and three exports: `symbol_slice`, `fit` (the whole pad-or-truncate policy in one shared implementation, so the Go and wasm callers cannot drift), and `convert_fit` (convert plus fit in one call, which is every call zuid makes). The zero-return rule zuid asked to have pinned down is now contractual in the ABI README: on a zero return, error code zero means a legitimately empty result.
+A follow-up request from zuid arrived 20260802, after the one-shot API was released: symbol-boundary slicing for fixed-width fields. Its identifiers render every component at a fixed width, which needs left-fill with the zero symbol (already possible via `base_zero` plus `symbol_count`) and keeping the rightmost N symbols of a longer value (not possible from the host, which has no copy of the alphabet). Built as `SymbolSlice` and `Fit` on the library's Base, and three exports: `symbol_slice`, `fit` (the whole pad-or-truncate policy in one shared implementation, so the Go and wasm callers cannot drift), and `convert_fit` (convert plus fit in one call, which is every call zuid makes). The zero-return rule zuid asked to have pinned down is now contractual in the ABI README: on a zero return, error code zero means a legitimately empty result.
 
-Split out of `20260731_linkable_library.md`, which treated WebAssembly as the replacement for a C library. That conclusion still holds for reach. It skipped one thing: neither build that exists is callable as a library from another program.
+Split out of `20260731_linkable_library.md`, which treated WebAssembly as the replacement for a C library. That conclusion is still right for reach. It skipped one thing: neither build that exists is callable as a library from another program.
+
+2026-10-14: "What exists now" and "What is missing" below describe the state before the reactor was built.
 
 ## Introduction
 
@@ -97,31 +99,35 @@ What zuid needs is small, and streaming is not part of it. Its input is a millis
 The acceptance bar is parity with the four calls zuid already makes natively:
 
 - Registry setup, once. This can happen inside `_initialize` and never be exposed.
+
 - Name lookup, to validate a base name or alias.
+
 - One-shot convert: decimal string in, target base out, automatic precision.
+
 - Symbol count of a converted string, what `Tokenize` gives a native caller.
 
-Plus two pieces of base metadata, and these are load-bearing rather than cosmetic. zuid pads identifiers to a fixed width so they sort chronologically as plain text, so it needs the base's radix, and its zero symbol (the first in the alphabet) to pad with. The padding symbol must come from the library: for the word-safe base 32 the alphabet starts at `2`, so anything that assumes `0` is silently wrong. And padding has to count symbols, not bytes, because a chosen base may have multi-byte digits.
+Plus two pieces of base metadata, which zuid can't do without. zuid pads identifiers to a fixed width so they sort chronologically as plain text, so it needs the base's radix, and its zero symbol (the first in the alphabet) to pad with. The padding symbol must come from the library: for the word-safe base 32 the alphabet starts at `2`, so anything that assumes `0` is silently wrong. And padding has to count symbols, not bytes, because a chosen base may have multi-byte digits.
 
 Two asks on errors, both reasonable and both cheap once the surface exists:
 
 - A stable, documented numeric error code set, since the host has to map codes to its own handling and codes that shift between versions would break it.
-- A way to read the error text, something like a last-error accessor returning a pointer and length. The library's messages carry near-match suggestions for a mistyped base name, and a host should not have to throw that away.
+
+- A way to read the error text, something like a last-error accessor returning a pointer and length. The library's messages include near-match suggestions for a mistyped base name, and a host should not have to throw that away.
 
 The error text work elsewhere in the module design pays off here: the library's messages are now stated neutrally, so the text a host reads never mentions command-line flags.
 
-zuid suggested an export shape (per-call functions for radix, padding symbol and symbol count, or one call returning a small serialized blob) but is explicit that the ABI is this project's call. Priority order from their side: one-shot convert plus the allocator pair, then base metadata, then the error codes and message accessor, then streaming whenever it suits.
+zuid suggested an export layout (per-call functions for radix, padding symbol and symbol count, or one call returning a small serialized blob) but is explicit that the ABI is this project's call. Priority order from their side: one-shot convert plus the allocator pair, then base metadata, then the error codes and message accessor, then streaming whenever it suits.
 
 ## What a reactor module is
 
 WebAssembly modules come in two shapes:
 
-| Shape | Entry point | Behavior
-|---|---|---
-| Command | `_start` | Runs once, top to bottom, then exits. This is what both current builds are.
+| Shape   | Entry point   | Behavior
+| :------ | :------------ | :------------------------------------------------------------------------------------------
+| Command | `_start`      | Runs once, top to bottom, then exits. This is what both current builds are.
 | Reactor | `_initialize` | Initializes, then stays alive. The host calls exported functions as many times as it wants.
 
-A reactor is the shape a library needs. Go builds one with `-buildmode=c-shared` for `GOOS=wasip1`, and marks the functions to expose with `//go:wasmexport`.
+A reactor is the kind of module a library needs. Go builds one with `-buildmode=c-shared` for `GOOS=wasip1`, and marks the functions to expose with `//go:wasmexport`.
 
 The name `c-shared` is misleading here. It does not produce a C library and there is no C involved. It is the flag Go reuses to mean "build a reactor, not a command".
 
@@ -131,12 +137,12 @@ These were checked by building, not assumed:
 
 - A `wasip1` reactor with `//go:wasmexport` functions builds with the installed toolchain.
 
-- The exported names really appear in the module's export section, alongside `_initialize` and `memory`. The export section was parsed directly, because the function names also appear in the debug section and would look present either way.
+- The exported names do appear in the module's export section, alongside `_initialize` and `memory`. The export section was parsed directly, because the function names also appear in the debug section and would look present either way.
 
 - `_start` is not exported. The module is a reactor, not a command.
 
 - The build works with `go 1.21` in `go.mod`. The directive is a language version, and it does not gate this.
-	- The **toolchain** doing the build has to be 1.24 or newer, because that is when `//go:wasmexport` and `wasip1` reactor support landed.
+	- The **toolchain** doing the build has to be 1.24 or newer, because that is when `//go:wasmexport` and `wasip1` reactor support were added.
 	- This matters, because the low `go.mod` floor was kept on purpose for distro packagers. Adding this target does not raise it. Only whoever builds this particular artifact needs the newer toolchain, and that is a release-time concern, not a build-from-source concern.
 
 - `//go:wasmexport` rejects `string` as a parameter or result type. The compiler says so directly.
@@ -165,11 +171,11 @@ Streaming is half of why this library is worth having, so the reactor should not
 
 The three routes sketched for a C boundary in `20260731_linkable_library.md` all have a WebAssembly form:
 
-| Route | How it works here | Pros | Cons
-|---|---|---
-| Push API | `stream_new`, `stream_write`, `stream_finish`, over linear memory | No host imports needed. Works in every runtime the same way. Matches how zlib is used, so it is familiar. | The module holds state between calls, so the host has to free it.
-| File descriptors | Host preopens a descriptor, module wraps it with `os.NewFile` | Reuses the existing streaming function unchanged. | Only works on hosts that grant WASI descriptors. Not available on a page.
-| Host callbacks | Module imports `read` and `write` functions from the host | Natural for a host that already has its own I/O. | The host must supply imports at instantiation, which complicates loading and differs per runtime.
+| Route            | How it works here                                                 | Pros                                                                                                      | Cons
+| :--------------- | :---------------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------
+| Push API         | `stream_new`, `stream_write`, `stream_finish`, over linear memory | No host imports needed. Works in every runtime the same way. Matches how zlib is used, so it is familiar. | The module holds state between calls, so the host has to free it.
+| File descriptors | Host preopens a descriptor, module wraps it with `os.NewFile`     | Reuses the existing streaming function unchanged.                                                         | Only works on hosts that grant WASI descriptors. Not available on a page.
+| Host callbacks   | Module imports `read` and `write` functions from the host         | Natural for a host that already has its own I/O.                                                          | The host must supply imports at instantiation, which complicates loading and differs per runtime.
 
 The push API is the best fit. It needs nothing from the host beyond memory, so a caller can load the module and use it with no setup. The other two can be added later without breaking it.
 
@@ -191,14 +197,14 @@ A new package under `lib/`, built only for `wasip1` and only when asked.
 
 Against the WASI command build that already exists:
 
-| | WASI command (exists) | Reactor library (proposed)
-|---|---|---
-| How the host uses it | Sets up argv and pipes, runs it | Calls a function
-| Repeat calls | New instance each time | Same instance, many calls
-| Streaming | Free, through real stdin and stdout | Has to be designed, see above
-| Host work to adopt | Low, if the host can already run a WASI program | Moderate, memory handling and a small protocol
-| License | GPL, it is the command | Apache-2.0, it would wrap the library
-| Exists today | Yes | No
+|                      | WASI command (exists)                           | Reactor library (proposed)
+| :------------------- | :---------------------------------------------- | :---------------------------------------------
+| How the host uses it | Sets up argv and pipes, runs it                 | Calls a function
+| Repeat calls         | New instance each time                          | Same instance, many calls
+| Streaming            | Free, through real stdin and stdout             | Has to be designed, see above
+| Host work to adopt   | Low, if the host can already run a WASI program | Moderate, memory handling and a small protocol
+| License              | GPL, it is the command                          | Apache-2.0, it would wrap the library
+| Exists today         | Yes                                             | No
 
 Against a native C library, which is covered in `20260801_c_bindings.md`:
 
@@ -224,7 +230,7 @@ The WASI command build stays GPL. That split already exists and does not change.
 
 - `README.md` - what is available and how to load it.
 
-- Any statement that the project ships a C binding is wrong, and should say WebAssembly instead.
+- Any statement that the project has a C binding is wrong, and should say WebAssembly instead.
 
 ## Testing
 

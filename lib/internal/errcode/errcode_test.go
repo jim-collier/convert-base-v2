@@ -70,7 +70,7 @@ func TestCodesMatchLibraryAndReadme(t *testing.T) {
 	want := map[string]int{"None": None, "UnknownBase": UnknownBase, "MissingMarker": MissingMarker,
 		"MarkerDefault": MarkerDefault, "RetiredToken": RetiredToken, "BadInput": BadInput,
 		"BadArg": BadArg, "Internal": Internal}
-	rows := regexp.MustCompile("(?m)^\\| (\\d+) \\| `(\\w+)` \\|").FindAllSubmatch(readme, -1)
+	rows := regexp.MustCompile("(?m)^\\| (\\d+) +\\| `(\\w+)` +\\|").FindAllSubmatch(readme, -1)
 	if len(rows) != len(want) {
 		t.Errorf("README lists %d codes, the package has %d", len(rows), len(want))
 	}

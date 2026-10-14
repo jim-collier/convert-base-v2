@@ -30,13 +30,13 @@
 
 ## Status
 
-Implemented, with one divergence. Closed 20260725. See [Outcome](#outcome) for what shipped.
+Implemented, with one divergence. Closed 20260725. See [Outcome](#outcome) for what was built.
 
 Scope note: this document only ever covered the Go source definitions in `bases.go`. The same problem in config files and on the command line is not addressed here, and is picked up by `20260725_neg_dec_pad_config_cli.md`.
 
 ## Introduction
 
-Currently, the symbols representing 'negative' and 'decimal' are included in the base definion string, like this:
+Currently, the symbols representing 'negative' and 'decimal' are included in the base definition string, like this:
 
 ~~~go
 mkSpec(base_62hex+" - _ neg=~", "64h", "64hex", "64hexurl", "64hu"),
@@ -44,13 +44,13 @@ mkSpec(base_62hex+" - _ neg=~", "64h", "64hex", "64hexurl", "64hu"),
 
 Problems:
 
-- Going to get unweildly when adding high-base padding symbols.
+- Going to get unwieldy when adding high-base padding symbols.
 
 - Compound problem with ability to use space as a delimiter.
 
 - It's a little janky.
 
-This is a universal (if minor) problem class - basically how to best break out paremeters you rarely want to specify and that sometimes have magic meaning - solved a million times in a million ways, in different idiomatic ways in different languages.
+This is a universal (if minor) problem class - basically how to best break out parameters you rarely want to specify and that sometimes have magic meaning - solved a million times in a million ways, in different idiomatic ways in different languages.
 
 ## Related to Issues, PRs
 
@@ -78,13 +78,13 @@ Either use a struct, or functional options. Struct is the simplest.
 
 ### Pros and cons of idiomatic approaches in Go
 
-| Option | Pros | Cons | Idiomatic? | Consider? | Comments
-| ---    | ---  | ---  | :--:       | :--:      | ---
-| `structs` with string pointers instead of strings | If member not defined, it's `nil`, exactly what we want (which would mean "use the default symbol"). | • Can't pass pointers to string literals, e.g. `&"~"`, only to variables, e.g. `&neg`.<br />• The code is not obvious about our intended meaning of empty and nil. | yes | yes | Can use a helper function e.g. `ptr("~")`, still some jank.
-| `functional options` with default values set to "-", ".", and "" for `neg`, `dec`, and `padSymbols`. | • The behavior we originally wanted.<br />• Moves some validation closer to where it logically belongs. | • Inflates the simple codebase slightly just to gain this behavior.<br />• The code is not obvious about our intended meaning of empty and nil.<br />• Could spread validation out. | yes | yes | When keeping things lean, even small functions add up.
-| `structs` but using a sentinel value for "don't allow". | The simplest of all | The jankiest of all | NO | NO
-| `structs` with added boolean fields `disallowNeg` and `disallowDec`. | More explicit about what we want, a huge plus. | With `false` as the non-overridable default in not specified, we'd have to use `true` for _negation_, which makes reasoning through logic more difficult. | if you squint hard enough | yes
-| `functional options` with added boolean fields `allowNeg` and `allowDec` that both default to `true` | The explicitness of the previous option, _and_ without the jank of `true`ing a negative. | • The "extra code" drawback.<br />• Now it's possible to have conflicting fields; need extra validation. | yes | yes
+| Option                                                                                               | Pros                                                                                                    | Cons                                                                                                                                                                                | Idiomatic?                | Consider? | Comments
+| :--------------------------------------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :-----------------------: | :-------: | :----------------------------------------------------------
+| `structs` with string pointers instead of strings                                                    | If member not defined, it's `nil`, exactly what we want (which would mean "use the default symbol").    | • Can't pass pointers to string literals, e.g. `&"~"`, only to variables, e.g. `&neg`.<br />• The code is not obvious about our intended meaning of empty and nil.                  | yes                       | yes       | Can use a helper function e.g. `ptr("~")`, still some jank.
+| `functional options` with default values set to "-", ".", and "" for `neg`, `dec`, and `padSymbols`. | • The behavior we originally wanted.<br />• Moves some validation closer to where it logically belongs. | • Inflates the simple codebase slightly just to gain this behavior.<br />• The code is not obvious about our intended meaning of empty and nil.<br />• Could spread validation out. | yes                       | yes       | When keeping things lean, even small functions add up.
+| `structs` but using a sentinel value for "don't allow".                                              | The simplest of all                                                                                     | The jankiest of all                                                                                                                                                                 | NO                        | NO
+| `structs` with added boolean fields `disallowNeg` and `disallowDec`.                                 | More explicit about what we want, a huge plus.                                                          | With `false` as the non-overridable default in not specified, we'd have to use `true` for _negation_, which makes reasoning through logic more difficult.                           | if you squint hard enough | yes
+| `functional options` with added boolean fields `allowNeg` and `allowDec` that both default to `true` | The explicitness of the previous option, _and_ without the jank of `true`ing a negative.                | • The "extra code" drawback.<br />• Now it's possible to have conflicting fields; need extra validation.                                                                            | yes                       | yes
 
 Points to consider:
 
@@ -150,7 +150,7 @@ Decision: Use structs for the simplicity, with the understood and accepted trade
 
 ## Outcome
 
-`SpecOpts` and `mkSpec(SpecOpts{...})` shipped as specified, and every predefined base uses them. `mkSpec` panics if `NegSymbol` is set alongside `DisallowNeg` (same for decimal and pad), since a bad definition there is a source bug, not a runtime condition.
+`SpecOpts` and `mkSpec(SpecOpts{...})` were built as specified, and every predefined base uses them. `mkSpec` panics if `NegSymbol` is set alongside `DisallowNeg` (same for decimal and pad), since a bad definition there is a source bug, not a runtime condition.
 
 What differs from the plan:
 
