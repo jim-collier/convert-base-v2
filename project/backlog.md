@@ -663,7 +663,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- The base 64 claims now say base 85 and base 91 pack tighter. The "one narrow edge case" line is gone.
 		- The demo page footer links GitHub Sponsors and Ko-fi. The GitHub About has a new description, the demo page as its homepage, and 20 topics.
 	- Test case: none for the wording. The bases table check `ElWMN5U` still reads the README, and `EsifL7e` reads the Go example from its new file.
+	- Branch: readme-split
+	- Commit: f482f09
 	- Acceptance signoff: Self-closed: did what the item asked.
+	- Closed: 20261014-163433
 
 - Nothing runs the WASI build under a WASI runtime, though the docs say it runs under several.
 	- ID: 2026101416210402
@@ -675,7 +678,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: Any
 	- Done: the harness builds the WASI module the way `make wasm` does and runs it under wazero, with no env and no dirs. Its stdout and exit status have to match the native command for numbers, errors, and a binary stream both ways.
 	- Test case: `EsifL4h` WASI command matches the native one, `EsifL63` WASI command streams binary both ways. Both fail when the host drops the last argument.
+	- Branch: readme-split
+	- Commit: f482f09
 	- Acceptance signoff: Self-closed: its checks pass, and fail with the host broken.
+	- Closed: 20261014-163433
 
 - A design doc says a test checks the README's Go example, and none does.
 	- ID: 2026101416210403
@@ -687,7 +693,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: Any
 	- Actual fix: the harness builds the Go example from `use_in_your_code.md` against this tree and checks its output against the command's. `20260801_go_module.md` names the new file.
 	- Test case: `EsifL7e` Go doc example builds and matches the command. It fails with the example's base changed.
+	- Branch: readme-split
+	- Commit: f482f09
 	- Acceptance signoff: Self-closed: its check passes, and fails with the example changed.
+	- Closed: 20261014-163433
 
 - The demo gif is drawn at 960 wide and shown at 800.
 	- ID: 2026101416210404
@@ -699,7 +708,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: Any
 	- Done: the scenario's new `width = 800` scales the canvas, window chrome, fonts and scroll speed together, so the gif is drawn at the size it's shown. It went from 9.6 MB to 7.5 MB. With no width set, the output is byte for byte what it was.
 	- Test case: none. The gif is rendered output, made only on container runs.
+	- Branch: readme-split
+	- Commit: f482f09
 	- Acceptance signoff: Self-closed: did what the item asked.
+	- Closed: 20261014-163433
 
 - The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
 	- ID: 2026100516265606
