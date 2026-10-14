@@ -607,6 +607,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- `cicd/utility/pre-push` runs the gate when a push updates `dev` or `main`, and lets other branches and deletes through. Every run adds a stub to `.git/hooks/pre-push` that calls it, unless a hook is already there.
 		- The pipeline's own publish sets `CICD_GATE_PASSED=1`, so the hook doesn't run the gate again after the full tests.
 	- Branch: tidy
+	- Commit: d363f8c
 	- Test case: `EshVwIZ` gate hook added, `EshVwMN` pre-push: dev/main only, `EshVwNd` pre-push: failed gate refuses, `EshVwMz` gate keeps an existing hook. With the dev/main filter taken out, `EshVwMN` fails.
 	- Acceptance signoff: Self-closed: did what the item asked, and its checks fail with the hook filter broken.
 	- Closed: 20261014-113459
@@ -626,6 +627,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- `--no-sync` skips it.
 	- Done: every run that isn't inside the container syncs first, before the plan. Behind only: a fast-forward, with edits in the tree stashed around it. Diverged: stops before stage 1. No upstream, or a failed fetch: a warning, and it builds what's there. A fast-forward that changed `cicd/` starts the run over on the new copy. `--no-sync` skips it.
 	- Branch: tidy
+	- Commit: d363f8c
 	- Test case: `EshVwHv` sync: behind, fast-forward, `EshVwJC` sync: --no-sync, `EshVwJp` sync: pipeline changed, restart, `EshVwKS` sync: diverged stops, `EshVwL6` sync: no upstream warns, `EshVwLj` sync: offline warns. All but `EshVwJC` fail with the sync call taken out.
 	- Acceptance signoff: Self-closed: did what the item asked, and its checks fail with the sync taken out.
 	- Closed: 20261014-113459
@@ -912,6 +914,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Actual fix: the release is picked from the `/releases` list by version, with a pre-release below its final and digit runs compared as numbers, in awk, since `sort -V` gets pre-releases wrong and isn't on every BSD. Stable with no stable release takes the newest pre-release, and says so. `--arch` is gone, `--version` prints the installer's version, and each option takes `--name=value` too. A failed read at the prompt is a no, with the usual message. The header says FreeBSD.
 	- Verified: against the live API, stable and dev both plan v3.0.0, the newest by version.
 	- Branch: tidy
+	- Commit: d363f8c
 	- Test case: `EshY04X` install.bash picks newest version, `EshY05J` install.bash, pre-releases only, `EshY061` install.bash options. With the sort taken out, `EshY04X` and `EshY05J` fail.
 	- Acceptance signoff: Self-closed: did what the item asked, and its checks fail with the sort taken out.
 	- Closed: 20261014-113459
@@ -1834,6 +1837,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Shorten them to the terse style of the older labels and names.
 		- Test IDs stay the same.
 	- Branch: tidy
+	- Commit: d363f8c
 	- Test case: none, a rename of test names only; the harness and Go tests are the check.
 	- Acceptance signoff: Self-closed: mechanical rename, IDs unchanged, full harness passed 640 of 640.
 	- Closed: 20261014-112047
