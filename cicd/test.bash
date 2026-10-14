@@ -271,6 +271,30 @@ if [[ -r "${README_MD}" ]]; then
 else
 	_warn ElWMN5U "README bases table not checked: no readable file at ${README_MD}"
 fi
+## The Go example in the library doc has to build against this tree and give
+## the command's answer. It's the first ~~~go block there, run as main's body.
+GODOC_MD="${meDir}/../use_in_your_code.md"
+GODOC_DIR="${CBT_TMP}/godoc"
+if ! go env GOVERSION >/dev/null 2>&1; then
+	_warn EsifL7e "Go doc example skipped: needs a Go toolchain"
+elif ! gdBody="$(awk '/^~~~go$/ {on = 1; next} on && /^~~~$/ {exit} on' "${GODOC_MD}" 2>/dev/null)" || [[ -z "$gdBody" ]]; then
+	_fail EsifL7e "Go doc example" "no ~~~go block in ${GODOC_MD}"
+else
+	mkdir -p "${GODOC_DIR}"
+	printf 'module godoc\n\ngo 1.21\n\nrequire github.com/jim-collier/convert-base-v2/lib v0.0.0\n\nreplace github.com/jim-collier/convert-base-v2/lib => %s\n' \
+		"$(cd "${meDir}/../lib" && pwd)" >"${GODOC_DIR}/go.mod"
+	{
+		printf 'package main\n\nimport (\n\t"fmt"\n\n\t"github.com/jim-collier/convert-base-v2/lib/convertbase"\n)\n\nfunc main() {\n'
+		printf '%s\n' "$gdBody"
+		printf '\tif err != nil {\n\t\tpanic(err)\n\t}\n\tfmt.Println(out)\n}\n'
+	} >"${GODOC_DIR}/main.go"
+	gdWant="$("${EXE}" --from 10 --to 62 86434491232548995369 2>/dev/null || true)"
+	if gdGot="$(cd "${GODOC_DIR}" && GOFLAGS=-mod=mod GOPROXY=off go run . 2>"${CBT_ERR}")" && [[ -n "$gdWant" && "$gdGot" == "$gdWant" ]]; then
+		_pass EsifL7e "Go doc example builds and matches the command"
+	else
+		_fail EsifL7e "Go doc example builds and matches the command" "want=[$gdWant] got=[${gdGot:-}] $(tail -2 "${CBT_ERR}" | tr '\n' ' ')"
+	fi
+fi
 ## --by-index outside a query mode is ignored, with a stderr note. The note
 ## reads like every other unused flag's since 2026100516265602, so the wording
 ## checked changed from "--by-index is ignored".
@@ -1604,6 +1628,58 @@ elif "${CBT_TMP}/reactor-host" "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; t
 	fi
 else
 	_fail Elmd2Y4 "reactor ABI" "$(tail -1 "${CBT_ERR}")"
+fi
+
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## WASI command: the whole command as a WASI module, under wazero
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Same build as make wasm, run through reactor-host --wasi with no env and no
+## dirs, like a bare wasmtime run. Stdout and exit status have to match the
+## native command for numbers, errors and a binary stream both ways. No config
+## reaches the module, so no case uses a config base.
+section "WASI command"
+WASI_WASM="${CBT_TMP}/convert-base-v2.wasm"
+WASI_HOST="${CBT_TMP}/reactor-host"
+if ! go env GOVERSION >/dev/null 2>&1; then
+	_warn "EsifL4h EsifL63" "WASI command skipped: needs a Go toolchain"
+elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -o "${WASI_WASM}" ./cmd/convert-base-v2) >"${CBT_ERR}" 2>&1; then
+	_fail EsifL4h "WASI command build" "$(tail -2 "${CBT_ERR}")"
+elif [[ ! -x "${WASI_HOST}" ]] && ! (cd "${REACTOR_HOST_DIR}" && go build -o "${WASI_HOST}" .) >"${CBT_ERR}" 2>&1; then
+	_warn "EsifL4h EsifL63" "WASI command skipped: host would not build (wazero not cached and offline?): $(tail -1 "${CBT_ERR}")"
+else
+	wasiBad=""; wasiN=0
+	## wasi_case STDIN ARGS...
+	wasi_case() {
+		local in="$1" wrc=0 nrc=0
+		shift
+		"${WASI_HOST}" --wasi "${WASI_WASM}" "$@" <"$in" >"${CBT_TMP}/wasi_w" 2>/dev/null || wrc=$?
+		"${EXE}" "$@" <"$in" >"${CBT_TMP}/wasi_n" 2>/dev/null || nrc=$?
+		wasiN=$((wasiN + 1))
+		if [[ "$wrc" != "$nrc" ]] || ! cmp -s "${CBT_TMP}/wasi_w" "${CBT_TMP}/wasi_n"; then
+			wasiBad+=" [$* rc ${wrc}/${nrc}]"
+		fi
+		return 0
+	}
+	wasi_case /dev/null --from hex --to 10 ff
+	wasi_case /dev/null --to 64emoji -- -62831853.0717958647692528676655
+	wasi_case /dev/null --to 2048qntm 86434491232548995369
+	wasi_case /dev/null --from 36 --to 10 --precision 40 zz.zz
+	wasi_case /dev/null --from hex nope
+	wasi_case /dev/null --bogus
+	printf 'hi\nthere' >"${CBT_TMP}/wasi_text"
+	wasi_case "${CBT_TMP}/wasi_text" --from keyboard --to 10 -
+	(( ${#wasiBad} == 0 && wasiN == 7 )) && _pass EsifL4h "WASI command matches the native one (${wasiN} cases)" || _fail EsifL4h "WASI command matches the native one" "differs:${wasiBad}"
+
+	wasiBad=""; wasiN=0
+	head -c 30000 /dev/urandom >"${CBT_TMP}/wasi_raw"
+	for wb in 64rfc 91hk 32768qntm; do
+		wasi_case "${CBT_TMP}/wasi_raw" --binary --to "$wb"
+		cp "${CBT_TMP}/wasi_n" "${CBT_TMP}/wasi_enc"
+		wasi_case "${CBT_TMP}/wasi_enc" --binary --from "$wb" --to bytes
+		cmp -s "${CBT_TMP}/wasi_w" "${CBT_TMP}/wasi_raw" || wasiBad+=" [${wb} round trip]"
+	done
+	(( ${#wasiBad} == 0 )) && _pass EsifL63 "WASI command streams binary both ways (${wasiN} cases)" || _fail EsifL63 "WASI command streams binary both ways" "differs:${wasiBad}"
 fi
 
 

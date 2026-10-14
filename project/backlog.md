@@ -58,6 +58,17 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261014: waiting on a choice: copy the Windows and macOS builds too, and move the path out of the public config.
 
+- The repo has no social preview image, so shared links show GitHub's generic card.
+	- ID: 2026101416210405
+	- Type: Task
+	- Status: Queued
+	- Priority: Low
+	- Opened: 20261014-162104
+	- Opened by: Repo review 20261014
+	- Assigned to: JC
+	- Target OS: Any
+	- Note: GitHub takes it only on the repo settings page, with no API for it. A 1280x640 image from the demo gif is ready outside the repo.
+
 - A bare `tail: ,` in a config reads as no tail.
 	- ID: 2026101411014813
 	- Type: Bug
@@ -103,6 +114,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- With the `.deb` and `.rpm` files downloaded beside `checksums.txt`, `sha256sum -c checksums.txt` passes.
 		- A rebuild of the tag with the Go, nfpm and NSIS versions the workflow used gives the same checksums. NSIS comes from the runner's apt, so its version is read from the workflow log.
 		- The release notes table renders, every link downloads, and the notes end with the build line.
+	- Note: once this passes, add one line under Packages and installers in `install.md`: every asset rebuilds to the same bytes from its tagged commit, so the published checksums can be checked against your own build.
 
 - Run on the last Core 2 Duo, and AMD CPUs from that era.
 	- ID: 2026101301161880
@@ -631,6 +643,75 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `EshVwHv` sync: behind, fast-forward, `EshVwJC` sync: --no-sync, `EshVwJp` sync: pipeline changed, restart, `EshVwKS` sync: diverged stops, `EshVwL6` sync: no upstream warns, `EshVwLj` sync: offline warns. All but `EshVwJC` fail with the sync call taken out.
 	- Acceptance signoff: Self-closed: did what the item asked, and its checks fail with the sync taken out.
 	- Closed: 20261014-113459
+
+- The README reads like a manual, at 565 lines.
+	- ID: 2026101416210401
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Avg
+	- Opened: 20261014-162104
+	- Opened by: JC
+	- Target OS: Any
+	- Requirements:
+		- Install, configuration and the dev environment move to their own .md files, linked from the README.
+		- "Use it in your own code" moves to its own .md, linked from the README.
+		- The speed comparison moves to its own .md, linked from the README.
+		- The accepted README and About suggestions from the 20261014 review go in.
+	- Done: new `install.md`, `configuration.md`, `development.md`, `use_in_your_code.md` and `speed.md`. The README keeps a short section and a link for each, and is down to about 300 lines.
+		- Badges are CI, Release and Go on one line, each linked. Lifecycle moved down to Legal stuff, where `check-release.bash` still finds it.
+		- New tagline, a try-it link under the gif, a "When to use something else" section, the exit status, and "Why the -v2?" as its own section near the end.
+		- The base 64 claims now say base 85 and base 91 pack tighter. The "one narrow edge case" line is gone.
+		- The demo page footer links GitHub Sponsors and Ko-fi. The GitHub About has a new description, the demo page as its homepage, and 20 topics.
+	- Test case: none for the wording. The bases table check `ElWMN5U` still reads the README, and `EsifL7e` reads the Go example from its new file.
+	- Branch: readme-split
+	- Commit: f482f09
+	- Acceptance signoff: Self-closed: did what the item asked.
+	- Closed: 20261014-163433
+
+- Nothing runs the WASI build under a WASI runtime, though the docs say it runs under several.
+	- ID: 2026101416210402
+	- Type: Task
+	- Status: Done
+	- Priority: Avg
+	- Opened: 20261014-162104
+	- Opened by: Repo review 20261014
+	- Target OS: Any
+	- Done: the harness builds the WASI module the way `make wasm` does and runs it under wazero, with no env and no dirs. Its stdout and exit status have to match the native command for numbers, errors, and a binary stream both ways.
+	- Test case: `EsifL4h` WASI command matches the native one, `EsifL63` WASI command streams binary both ways. Both fail when the host drops the last argument.
+	- Branch: readme-split
+	- Commit: f482f09
+	- Acceptance signoff: Self-closed: its checks pass, and fail with the host broken.
+	- Closed: 20261014-163433
+
+- A design doc says a test checks the README's Go example, and none does.
+	- ID: 2026101416210403
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261014-162104
+	- Opened by: Repo review 20261014
+	- Target OS: Any
+	- Actual fix: the harness builds the Go example from `use_in_your_code.md` against this tree and checks its output against the command's. `20260801_go_module.md` names the new file.
+	- Test case: `EsifL7e` Go doc example builds and matches the command. It fails with the example's base changed.
+	- Branch: readme-split
+	- Commit: f482f09
+	- Acceptance signoff: Self-closed: its check passes, and fails with the example changed.
+	- Closed: 20261014-163433
+
+- The demo gif is drawn at 960 wide and shown at 800.
+	- ID: 2026101416210404
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261014-162104
+	- Opened by: Repo review 20261014
+	- Target OS: Any
+	- Done: the scenario's new `width = 800` scales the canvas, window chrome, fonts and scroll speed together, so the gif is drawn at the size it's shown. It went from 9.6 MB to 7.5 MB. With no width set, the output is byte for byte what it was.
+	- Test case: none. The gif is rendered output, made only on container runs.
+	- Branch: readme-split
+	- Commit: f482f09
+	- Acceptance signoff: Self-closed: did what the item asked.
+	- Closed: 20261014-163433
 
 - The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
 	- ID: 2026100516265606
