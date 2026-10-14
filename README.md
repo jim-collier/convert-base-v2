@@ -49,6 +49,7 @@ It's a single, fast, cross-platform static binary written in Go.
 
 <!-- TOC ignore:true -->
 ## Table of contents
+
 <!-- TOC -->
 
 - [Features](#features)
@@ -88,9 +89,9 @@ It's a single, fast, cross-platform static binary written in Go.
 
 - **Negatives and fractions**: Both work in nearly every base. Even bases meant only for binary encoding can be pressed into positional use. If the usual `-` and `.` markers clash with a base's own symbols, you can set your own.
 
-- **Digits you can actually type**: Some bases carry tab, newline and return as digits, so a whole text file converts as one number. Those digits can be written by name instead, as `⊳TAB` or `⊳LF`, and input takes the named and the raw forms mixed.
+- **Digits you can actually type**: Some bases carry tab, newline and return as digits, so a whole text file converts as one number. Those digits can be written by name instead, as `⊳HT` or `⊳LF`, and input takes the named and the raw forms mixed.
 
-- **Binary to text, in many more bases than usual**: Encode or decode raw binary in every power-of-two base (2 through 256, plus 2048, 32768, and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. That covers everything `basenc` does, at comparable speed, plus bases `basenc` never heard of. Bases with no byte-exact mapping are refused in binary mode, and `--list` shows which ones qualify.
+- **Binary to text, in many more bases than usual**: Encode or decode raw binary in every power-of-two base (2 through 2048, plus 32768 and 65536) and the standard chunked codecs base45, Ascii85, Z85, and base91. That covers everything `basenc` does except its LSB-first bit string and base 58, at comparable speed, plus bases `basenc` never heard of. Bases with no byte-exact mapping are refused in binary mode, and `--list` shows which ones qualify.
 
 	- To re-encode straight between two text bases as bytes (hex to base 64, say), add `--binary`. Without it, two power-of-two text bases convert as a plain number, which drops leading zeros; a note on stderr points this out, and `--number` silences it.
 
@@ -104,7 +105,7 @@ It's a single, fast, cross-platform static binary written in Go.
 
 **[Open the converter in your browser](https://jim-collier.github.io/convert-base-v2/)**. Nothing to install, nothing to sign up for.
 
-It runs the real conversion core, compiled to WebAssembly, inside your own browser tab. Every base listed below works, including the large Unicode ones.
+It runs the real conversion core, compiled to WebAssembly, inside your own browser tab. Every built-in base listed below works, including the large Unicode ones.
 
 *Note: Nothing you type is sent anywhere. Your browser downloads the page and the WASM module once, then does all the work locally - disconnect from the network and it keeps converting. No cookies, beacons, tracking, fingerprinting, analytics, or captchas that have you wondering if you are really a human.*
 
@@ -112,9 +113,9 @@ It runs the real conversion core, compiled to WebAssembly, inside your own brows
 
 ### Packages and installers
 
-Grab a build for your platform from the [Releases page](https://github.com/jim-collier/convert-base-v2/releases). Every option installs the same single static executable.
+Grab a build for your platform from the [Releases page](https://github.com/jim-collier/convert-base-v2/releases). Every native option installs the same single static executable.
 
-- **Linux**: a `.deb` or `.rpm` (amd64 or arm64), or a `.tgz` tarball.
+- **Linux**: a `.deb` or `.rpm` (x86_64 or arm64), or a `.tgz` tarball.
 
 - **Windows**: a one-click installer `.exe` that adds the tool to your PATH, or a plain `.zip`.
 
@@ -134,13 +135,12 @@ For Linux, macOS, FreeBSD, and WSL. The script prints what it will do, verifies 
 bash <(curl -fsSL https://raw.githubusercontent.com/jim-collier/convert-base-v2/main/install.bash)
 ~~~
 
-- `--release stable|dev` picks the channel. Default is stable.
+That gets the newest stable release. To include pre-releases, add `--release dev` at the end. It works out your OS and CPU, uses sensible defaults, and asks before it does anything. `--help` lists the few options.
 
-- `--target user|system` picks the location. A user install goes to `~/.local/bin/`, a system install to `/usr/local/bin/`.
-
-- `--arch x86_64|arm64` overrides the detected architecture.
-
-- `-y` skips the confirmation prompt.
+| Install        | Location
+| :---           | :---
+| User (default) | `~/.local/bin/convert-base-v2`
+| System         | `/usr/local/bin/convert-base-v2`
 
 On Windows, use the installer `.exe` instead.
 
@@ -159,51 +159,51 @@ Copy the resulting binary anywhere on your PATH. For the full set of build targe
 ## Usage
 
 ~~~bash
-# Hex to decimal
+ # Hex to decimal
 convert-base-v2 --from hex FF                 # 255
 
-# Decimal to hex-style base 64
+ # Decimal to hex-style base 64
 convert-base-v2 1767269700 64hex              # 1fLcL4
 
-# Decimal to a base you invent on the spot
+ # Decimal to a base you invent on the spot
 convert-base-v2 --to-symbols "a b c d e f" 42 # bba
 
-# Pick your own negative or decimal marker, on any base
+ # Pick your own negative or decimal marker, on any base
 convert-base-v2 --from hex --from-neg '~' -- '~ff'  # -255
 
-# Encode a file to base 64, and back
+ # Encode a file to base 64, and back
 some-command | convert-base-v2 --binary --to 64
 convert-base-v2 --binary --from 64 --to bytes < file.b64
 
-# Text in, text out: 98keyboard holds every character a text file normally does
+ # Text in, text out: 98keyboard has every character a text file normally does
 printf 'hi\nthere' | convert-base-v2 --from keyboard --to 10 -   # 3772491441706426
 
-# Its tab, newline and return digits can also be written by name
+ # Its tab, newline and return digits can also be written by name
 convert-base-v2 --from keyboard --to 10 -n 'hi⊳LFthere'          # the same number
 convert-base-v2 --from 10 --to keyboard --escape-controls -n 3772491441706426
 
-# See every base, or one base's alphabet
+ # See every base, or one base's alphabet
 convert-base-v2 --list
 convert-base-v2 --show-symbols 64emoji
 ~~~
 
-A base can hold control characters as digits, which are impossible to type at a prompt and invisible on a terminal. Those can be written by name instead, as `⊳LF`, `⊳TAB`, `⊳CR` and so on. Input takes the named and the raw forms mixed, always; output writes them only when `--escape-controls` asks for it. The marker is a character no such base uses, so nothing ever needs escaping twice.
+A base can hold control characters as digits, which are impossible to type at a prompt and invisible on a terminal. Those can be written by name instead, as `⊳LF`, `⊳HT`, `⊳CR` and so on. Input takes the named and the raw forms mixed, always; output writes them only when `--escape-controls` asks for it. The marker is a character no such base uses, so nothing ever needs escaping twice.
 
 Run `convert-base-v2 --help` for the full flag list, or `--examples` for more. `--about` says what the tool is and where it lives, and `--donate` lists the ways to support it. `--version` prints the version and build number, as `v3.1.0 build dbrk8`; a bug report with that line says exactly which build it was.
 
 To avoid confusion when working with binary data, you can add these aliases to your shell startup script:
 
 ~~~bash
-## Streaming binary/text codec
+ ## Streaming binary/text codec
 alias convert-base-v2-bin="convert-base-v2 --binary"
 
-## Positional notation base conversion
+ ## Positional notation base conversion
 alias convert-base-v2-num="convert-base-v2 --number"
 ~~~
 
 ## Configuration
 
-The first run writes `~/.config/convert-base-v2/convert-base-v2.shcl`, a commented file for defining bases of your own. Nothing rewrites it after that. A system-wide `/etc/convert-base-v2/convert-base-v2.shcl` is read first, so the user file wins over it, and both win over the built-in bases: reuse a built-in name and your definition replaces it.
+The first run writes `~/.config/convert-base-v2/convert-base-v2.shcl`, a commented file for defining bases of your own. Nothing rewrites it after that, apart from the one-time format upgrade below. A system-wide `/etc/convert-base-v2/convert-base-v2.shcl` is read first, so the user file wins over it, and both win over the built-in bases: reuse a built-in name and your definition replaces it.
 
 A base is a name and its digits, plus whatever markers it needs.
 
@@ -247,17 +247,17 @@ The line between the command and the package is about what each one is allowed t
 
 ### A Go package
 
-```sh
+~~~sh
 go get github.com/jim-collier/convert-base-v2/lib/convertbase
-```
+~~~
 
-```go
+~~~go
 reg, _ := convertbase.NewRegistry()
 from, _ := convertbase.ResolveBase(reg, "10", "", nil)
 to, _ := convertbase.ResolveBase(reg, "62", "", nil)
 
 out, err := convertbase.Convert("86434491232548995369", from, to, -1)
-```
+~~~
 
 Convert whole values, or stream through an `io.Reader` and `io.Writer` in constant memory for anything large. Define your own alphabets, override the negative and decimal markers, and read the base registry directly.
 
@@ -267,13 +267,13 @@ The package version moves on its own, separately from the command's. It is at v0
 
 The [demo page](https://jim-collier.github.io/convert-base-v2/) is the whole library compiled to WebAssembly, with a small set of JavaScript calls:
 
-```js
+~~~js
 const res = convertBase.convert({value: "255", from: "10", to: "16"});
 // { ok: true, value: "FF" }
 
 convertBase.convert({value: "255", from: "10", to: "hexx"});
 // { ok: false, error: 'unknown base "hexx"; did you mean "hex"?', code: 1 }
-```
+~~~
 
 A failure comes back as a result, not an exception. Its `code` is the same number the [reactor module](lib/reactor/README.md#error-codes) gives for the same failure, so a page can act on one without matching the text.
 
@@ -285,10 +285,10 @@ This build talks to JavaScript through the browser, so a page is the only place 
 
 The command also builds as a WASI module, which runs under Wasmtime, Wazero, Node, and the WebAssembly edge platforms. WASI hands it real argv, standard input, and standard output, so streaming works exactly as it does natively, and one file runs on every architecture. Each release includes it, or `make wasm` builds it.
 
-```sh
-wasmtime run dist/convert-base-v2.wasm -- --from hex --to 10 ff
-# 255
-```
+~~~sh
+wasmtime run dist/convert-base-v2.wasm --from hex --to 10 ff
+ # 255
+~~~
 
 This is the command in a sandbox, not the library made portable. A Rust, Python, or C# program reaches it by starting it under a runtime and wiring up argv and pipes. That is running a program in process. It is not calling a function, and the module does not survive being run a second time in the same instance.
 
@@ -296,7 +296,7 @@ That is still enough to cover callers in any language with a WebAssembly runtime
 
 ### WebAssembly, as a function call
 
-The reactor module is the library compiled for any WebAssembly runtime, exporting plain functions the host calls directly: one-shot conversion, base lookup, the radix and padding symbol of a base, symbol counting, and a stable numeric error code set with readable error text. It also slices and pads by symbol rather than by byte, which is what fixed-width identifier fields need once a base reaches outside ASCII and one digit is no longer one byte. Strings cross as a pointer and length through the module's memory, with an exported allocator pair; the full contract is in [`lib/reactor/README.md`](lib/reactor/README.md). Build it with `make reactor` (needs a Go 1.24 or newer toolchain).
+The reactor module is the library compiled for any WebAssembly runtime, exporting plain functions the host calls directly: one-shot conversion, base lookup, the radix and zero symbol of a base, symbol counting, and a stable numeric error code set with readable error text. It also slices and pads by symbol rather than by byte, which is what fixed-width identifier fields need once a base reaches outside ASCII and one digit is no longer one byte. Strings cross as a pointer and length through the module's memory, with an exported allocator pair; the full contract is in [`lib/reactor/README.md`](lib/reactor/README.md). Build it with `make reactor` (needs a Go 1.24 or newer toolchain).
 
 Streaming is there too, as a push API: open a stream, write raw bytes as they arrive, read output chunks back, finish. It runs the same constant-memory paths the command uses for piped data. The WASI module above remains the simpler choice when all you want is a pipe.
 
@@ -350,31 +350,31 @@ Binary and text stream encoding is the part that benchmarks cleanly, so here is 
 
 **Base-64**
 
-| Program | text -> binary | binary -> text |
-| :-- | --: | --: |
-| `convert-base-v2` | **744** | 755 |
-| coreutils `base64` | 323 | 1,056 |
-| coreutils `basenc` | 323 | 1,048 |
-| openssl `base64` | 276 | **1,221** |
+| Program            | text -> binary | binary -> text
+| :----------------- | -------------: | -------------:
+| `convert-base-v2`  |        **744** |            755
+| coreutils `base64` |            323 |          1,056
+| coreutils `basenc` |            323 |          1,048
+| openssl `base64`   |            276 |      **1,221**
 
 **Base-32**
 
-| Program | text -> binary | binary -> text |
-| :-- | --: | --: |
-| `convert-base-v2` | **596** | 716 |
-| coreutils `base32` | 400 | **855** |
-| coreutils `basenc` | 376 | 851 |
+| Program            | text -> binary | binary -> text
+| :----------------- | -------------: | -------------:
+| `convert-base-v2`  |        **596** |            716
+| coreutils `base32` |            400 |        **855**
+| coreutils `basenc` |            376 |            851
 
 **Hex**
 
-| Program | text -> binary | binary -> text |
-| :-- | --: | --: |
-| `convert-base-v2` | **521** | **850** |
-| `xxd` | 57 | 102 |
+| Program           | text -> binary | binary -> text
+| :---------------- | -------------: | -------------:
+| `convert-base-v2` |        **521** |        **850**
+| `xxd`             |             57 |            102
 
-Numbers are MiB/s. Mean of 10 runs, one process each, all I/O in a tmpfs (RAM) so disk speed doesn't enter into it. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and each format's own canonical text to decode. Each tool is single-threaded. Reproducible with `github/utility/bench-encoders.bash` (it auto-skips tools you don't have). Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
+Numbers are MiB/s. Mean of 10 runs, one process each, all I/O in a tmpfs (RAM) so disk speed doesn't enter into it. Every program gets identical input: the same 256 MiB blob of random bytes to encode, and each format's own canonical text to decode. Each tool is single-threaded. Reproducible with `utility/bench-encoders.bash` (it auto-skips tools you don't have). Test bench: AMD Ryzen 9 3950X (16 cores / 32 threads, Zen 2), 128 GiB DDR4-3600.
 
-Memory stays flat no matter how big the file is, and that holds for every base that can carry raw bytes, not just the ASCII ones. A 48 MB file encoded to `64emoji` or to base 65536 peaks around 20 MB, the same as base 64.
+Memory stays flat no matter how big the file is, for every base that can encode raw bytes, ASCII or not. A 48 MB file encoded to `64emoji` or to base 65536 stays under 20 MB.
 
 Base 64 is the most compact way to store binary as UTF-8 text, which is why it is the usual default:
 
@@ -404,14 +404,14 @@ This uses the published subquadratic method instead.
 
 Measured base 10 to base 36, against a straight schoolbook implementation on the same hardware using the same `math/big`:
 
-| Input digits | Schoolbook | `convert-base-v2` | Faster by |
-| --: | --: | --: | --: |
-| 1,000 | 0.16 ms | 0.04 ms | 4x |
-| 4,000 | 1.99 ms | 0.20 ms | 10x |
-| 16,000 | 29 ms | 1.0 ms | 28x |
-| 64,000 | 443 ms | 6.4 ms | 69x |
-| 256,000 | 7.0 s | 47 ms | 150x |
-| 1,000,000 | 107 s | 0.34 s | 310x |
+| Input digits | Schoolbook | `convert-base-v2` | Faster by
+| -----------: | ---------: | ----------------: | --------:
+|        1,000 |    0.16 ms |           0.04 ms |        4x
+|        4,000 |    1.99 ms |           0.20 ms |       10x
+|       16,000 |      29 ms |            1.0 ms |       28x
+|       64,000 |     443 ms |            6.4 ms |       69x
+|      256,000 |      7.0 s |             47 ms |      150x
+|    1,000,000 |      107 s |            0.34 s |      310x
 
 Four million digits convert in about 2.9 seconds. Same bench as the tables above, with both implementations in one process so the arithmetic library and the machine are held constant.
 
@@ -526,24 +526,26 @@ Prerequisites, in the order you are likely to need them.
 
 - **Bash 4 and the usual GNU tools** are needed for the pipeline scripts, which is what all the checks run under.
 
+- Docker, for the default pipeline run, which builds and tests in an image with every tool pinned. `--host` runs without it.
+
 - **Optional tools** are probed for and skipped when missing: `golangci-lint`, `staticcheck`, `shellcheck`, `ruff`, `govulncheck`, `nfpm` and `makensis` for packaging, `node` and `cargo` for the third-party comparison tests, `gifsicle` and Python with Pillow for the demo animation.
 
 The Go tree is under `lib/`. The command is in `lib/cmd/convert-base-v2/`, the conversion core in `lib/convertbase/`, and the WebAssembly entry points in `lib/wasm/` and `lib/reactor/`.
 
 Build targets, all run from `lib/`.
 
-| Target | Result |
-| :-- | :-- |
-| `make local` | The optimized native binary, the same build that is released |
-| `make debug` | Native with symbols kept, for tests and the profiler |
-| `make test` | Unit tests |
-| `make vet` / `make fmt` | Static checks and formatting |
-| `make web` | The browser module and its loader, into `web/` |
-| `make wasm` | The whole command as a WASI module |
-| `make reactor` | The callable WebAssembly module |
-| `make release` | Cross-builds and packages every platform |
+| Target                  | Result
+| :---------------------- | :-----------------------------------------------------------
+| `make local`            | The optimized native binary, the same build that is released
+| `make debug`            | Native with symbols kept, for tests and the profiler
+| `make test`             | Unit tests
+| `make vet` / `make fmt` | Static checks and formatting
+| `make web`              | The browser module and its loader, into `web/`
+| `make wasm`             | The whole command as a WASI module
+| `make reactor`          | The callable WebAssembly module
+| `make release`          | Cross-builds and packages every platform
 
-Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. `--quick` skips the slow stages, `--long` runs the exhaustive tests, and every stage has its own `--no-...` switch. The build and test stages run in a docker image that has every tool installed at a pinned version, and `--host` runs them on your own machine instead.
+Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. `--quick` skips the slow stages, `--long` runs the exhaustive tests, `--gate` runs only the quick checks, and most stages have a `--no-...` switch. The build and test stages run in a docker image that has every tool installed at a pinned version, and `--host` runs them on your own machine instead.
 
 Tests sandbox their own config directory, so running them will not read or write the config file in your home directory.
 

@@ -176,9 +176,9 @@ func TestConfigPadFields(t *testing.T) {
 	}
 }
 
-// The shapes the file is meant to carry still load.
+// The forms the file is meant to have still load.
 // Test ID: Em1008y
-func TestConfigAcceptsValidShapes(t *testing.T) {
+func TestConfigValidForms(t *testing.T) {
 	text := "base: myb\n\taliases: mybase, mb\n\tsymbols: \"z y x w\"\n\n" +
 		"base: nodec\n\tsymbols: 0123456789\n\tdecimal:\n\n" +
 		"base: fruit4\n\tsymbols:\n\t\t* 🍎\n\t\t* 🍊\n\t\t* 🍋\n\t\t* 🍌\n\n" +

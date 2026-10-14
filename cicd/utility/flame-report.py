@@ -6,7 +6,7 @@
 ##		attribute = raw sample counts). Runs two ways: plain (print the report,
 ##		meant to run every cicd run) and --check (print only when the newest
 ##		flamegraph is newer than the one last recorded in a local marker, then
-##		record it - meant for session startup so a look is a no-op until there is
+##		record it - for a quick look that prints nothing until there is
 ##		something new to read).
 ##	History: At bottom of script.
 

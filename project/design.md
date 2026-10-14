@@ -9,6 +9,7 @@
 
 <!-- TOC ignore:true -->
 ## Table of contents
+
 <!-- TOC -->
 
 - [Goal](#goal)
@@ -17,7 +18,7 @@
 	- [Code organization](#code-organization)
 	- [CLI contract](#cli-contract)
 		- [Flags by mode](#flags-by-mode)
-- [Key design decisions](#key-design-decisions)
+- [Design decisions](#design-decisions)
 - [CI/CD and release flow](#cicd-and-release-flow)
 - [Copyright and license](#copyright-and-license)
 
@@ -29,7 +30,7 @@ One small, fast, portable command line tool that does two related jobs well:
 
 - Convert a number of any size between any two bases, including negatives and fractions.
 
-- Encode and decode raw binary to and from text in the bases that can carry bytes exactly.
+- Encode and decode raw binary to and from text in the bases that can encode bytes exactly.
 
 It should cover the everyday standards (base 10, 16, RFC 4648 base 32 and 64) and a wide set of named and custom bases, match published reference encoders byte for byte, and stay stable and deterministic so scripts can rely on its output for years.
 
@@ -49,19 +50,23 @@ A second goal was added later: the same conversion core should be usable from in
 
 Five things are built from one tree. They are not interchangeable, and the line between them is about what each is allowed to do.
 
-| Built | From | Kind |
-| :-- | :-- | :-- |
-| The command | `lib/cmd/convert-base-v2/` | A program |
-| The Go package | `lib/convertbase/` | A library |
-| The browser module | `lib/wasm/` | A library, for a web page |
-| The WASI module | `lib/cmd/convert-base-v2/` | The whole command, sandboxed |
-| The reactor module | `lib/reactor/` | A library, for any wasm runtime |
+| Built              | From                       | Kind
+| :----------------- | :------------------------- | :------------------------------
+| The command        | `lib/cmd/convert-base-v2/` | A program
+| The Go package     | `lib/convertbase/`         | A library
+| The browser module | `lib/wasm/`                | A library, for a web page
+| The WASI module    | `lib/cmd/convert-base-v2/` | The whole command, sandboxed
+| The reactor module | `lib/reactor/`             | A library, for any wasm runtime
 
 Inside the command:
 
-- `main.go` reads flags and config, resolves the conversion, and handles stdin and pipes. It also holds the version string.
+- `main.go` reads flags and config, resolves the conversion, and handles stdin and pipes. It also has the version string.
 
 - `userconfig.go` writes the default config file on first run, with `default-config.shcl` embedded in the binary.
+
+- `configupgrade.go` converts a config file written for an older SHCL format, and keeps the original as a backup.
+
+- `version.go` turns the commit time into the build number that `--version` prints.
 
 Inside the package:
 
@@ -77,7 +82,7 @@ Inside the package:
 
 - `symbolspec.go` parses user-supplied alphabets. A spec is digit symbols only; the negative, decimal, and padding markers are set separately, by flags or config fields.
 
-- `escapes.go` names control characters that a base carries as digits, so they can be typed and read.
+- `escapes.go` names control characters that a base has as digits, so they can be typed and read.
 
 - `slice.go` cuts and pads a value on symbol boundaries, for callers with fixed-width fields.
 
@@ -150,11 +155,11 @@ This is the rule for a flag that does nothing in the run it's given to. It gets 
 | `--about`                 | Prints and exits             | Prints and exits                                 | Prints and exits
 | `--donate`                | Prints and exits             | Prints and exits                                 | Prints and exits
 
-## Key design decisions
+## Design decisions
 
 The rationale behind the choices most likely to be questioned later. Each was settled during pre-1.0 review.
 
-- **The library and the command have different licenses.** The package is Apache-2.0 and the command stays GPL-2.0-or-later. GPL reaches through a static link into the calling program, and Go links statically only, so the split is what makes the package importable at all. Apache was chosen for its attribution notice, which is the part that carries credit into someone else's product. The "or later" on the command's license is what lets the two combine.
+- **The library and the command have different licenses.** The package is Apache-2.0 and the command stays GPL-2.0-or-later. GPL reaches through a static link into the calling program, and Go links statically only, so the split is what makes the package importable at all. Apache was chosen for its attribution notice, which keeps the credit in someone else's product. The "or later" on the command's license is what lets the two combine.
 
 - **The library version is separate from the command's, and starts at v0.** Go writes a module's major version into its import path above v1, so one shared number would mean every major release of the command rewrote the import path and broke callers over a change that never touched the package. Starting at v0 also leaves room to reshape the API.
 
@@ -164,7 +169,7 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 - **WebAssembly, rather than a C shared library, is how other languages get in.** It reaches the same languages with no permanent ABI to freeze, no cgo, and no per-platform build. A C interface waits for someone who specifically needs in-process native speed.
 
-- **The reactor module is a push API for streaming.** An exported function gets none of the standard input and output that the WASI build is handed, so a stream is opened, written to, and finished by the host. That shape needs nothing from the host beyond memory.
+- **The reactor module is a push API for streaming.** An exported function gets none of the standard input and output that the WASI build is handed, so a stream is opened, written to, and finished by the host. That design needs nothing from the host beyond memory.
 
 - **Two binary paths, kept separate.** Streaming (constant memory, linear time) and buffered positional (superlinear time) are different jobs, so they stay as two implementations rather than being merged. An equivalence test pins them together, and fails if they ever diverge.
 
@@ -193,18 +198,18 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 - **An old config keeps its meaning.** A config with no Format line was written for SHCL 1.x, and is read that way, through SHCL's own `Migrate`, in the library as well as the command.
 	- `Migrate` is used rather than writing a fresh file, since it keeps comments and layout. A regenerated file would drop whatever was written in the old one besides the bases.
-	- Files the program found on its own are converted on disk once. The original is hard-linked to its backup name before the converted text replaces it through an atomic rename, so the path always holds a whole file and the backup is the very file that was there. A failed write leaves the original, and the run converts it in memory instead.
+	- Files the program found on its own are converted on disk once. The original is hard-linked to its backup name before the converted text replaces it through an atomic rename, so the path always has a whole file and the backup is the very file that was there. A failed write leaves the original, and the run converts it in memory instead.
 	- A file named with `--config` may be anywhere and was not put there by the program, so it is never rewritten.
 	- Anything `Migrate` cannot keep, or a converted file the strict loader refuses, stops the run with the file untouched. Loading part of it would mean a different alphabet with no error, for the same reason an unknown field is an error.
 	- The backup is named for the format the file was written for, `format-v1`, since that says how to read it. SHCL's own `migrate --write` keeps `NAME_old_v2.EXT`, and its plan for this feature calls an unstamped file `format-v2`, because it cannot tell 1.x from 2.x. The two differ only in escapes in field names, which no file the loader accepts can hold.
 
-- **The config is written, not just documented.** The first run creates the user file with a commented example in it. A documented path that does not exist is a feature most people never find, and there is no example to copy from until they have already worked out the syntax. The file is embedded in the binary, so the shipped example and the real file cannot disagree.
+- **The first run writes the config.** The first run creates the user file with a commented example in it. A documented path that does not exist is a feature most people never find, and there is no example to copy from until they have already worked out the syntax. The file is embedded in the binary, so the built-in example and the real file cannot disagree.
 
 - **`10emoji` lives in the config rather than in the code.** It was the most decorative of the built-in bases and the most obvious thing to imitate, which makes it a better example than a placeholder alphabet. Anyone who wants it keeps it; anyone who wants their own edits it in place.
 
 - **An unrecognized config field is an error.** Loading the file with a misspelled field ignored would produce a base with the wrong markers or the wrong digits, and nothing about the output would ever look wrong. The same reasoning applies to a line SHCL could not parse: the parser is designed to skip and carry on, which is right for a log and wrong for an alphabet.
 
-- **Control-character digits are named with a marker from outside the alphabet.** A base can hold tab, newline and return as digits, and those cannot be typed at a prompt or seen on a terminal. Naming them needs a marker, and the usual choice, a printable character with a doubling rule, leads straight to the question of how to write the marker itself. Picking a character the base does not use answers it: the marker can never be a digit, so raw and named forms mix in one value with nothing to disambiguate and no rule to remember.
+- **Control-character digits are named with a marker from outside the alphabet.** A base can have tab, newline, and return as digits, and those cannot be typed at a prompt or seen on a terminal. Naming them needs a marker, and the usual choice, a printable character with a doubling rule, leads straight to the question of how to write the marker itself. Picking a character the base does not use answers it: the marker can never be a digit, so raw and named forms mix in one value with nothing to disambiguate and no rule to remember.
 	- Among the options considered, single glyphs from the Unicode control-pictures block were the tidiest but too small to read at a glance, so a marker plus a short name won.
 	- Naming is accepted on input always, and written on output only when asked. Input acceptance cannot break anything, since the marker was never valid input before; changing what is written would change every existing result in such a base.
 	- One control's name is the start of another's, so a name alone is not always enough. Output re-reads each name against the text that follows it and writes a fixed-width form instead where the name would not survive the trip back.
@@ -217,29 +222,33 @@ The rationale behind the choices most likely to be questioned later. Each was se
 	- It comes from the commit, never the clock. A clock stamp would change on every rebuild, so a published asset could never be rebuilt to its published checksum.
 	- The build passes the commit's unix seconds in through a second linker-patched var, `buildEpoch`, and the program does the encoding. A build with no stamp, such as `go install`, prints the version alone rather than make one up.
 	- It goes on the version line, not a line of its own, so `--version` stays one line.
-	- The browser and reactor modules report the library's own version, which names a package surface, not a build. They have no build number.
+	- The browser and reactor modules report the library's own version, which names a package API, not a build. They have no build number.
 
 - **Output stays deterministic and stable.** Given the same input and base, the output never changes across runs or platforms. Any future change that would alter output goes to a new version suffix so old scripts keep working.
 
 ## CI/CD and release flow
 
-- Branching: `dev` is the integration branch. Feature branches merge to `dev`; `main` is release-only.
+- Branching: `dev` is the integration branch. Feature branches merge `--no-ff` to `dev`, pulls are `--ff-only`, and `main` is release-only.
 
-- Hosted CI is a bare safety net: vet, test, and build on every push and pull request. The full pipeline (fuzz, profiling, dogfood, package, publish) stays local.
+- The merge gate is local: `cicd.bash --gate` runs the format check, the linters and the Go tests, and a pre-push hook runs it for any push to `dev` or `main`. The pipeline adds the hook to a clone the first time it runs, and leaves a hook already there alone. Its own publish skips the gate, since it just ran the full tests.
+
+- A pipeline run fetches first and fast-forwards when only behind, since publish pulls after the tests and would otherwise push a remote change nobody tested. Edits in the tree are stashed around the fast-forward. A diverged branch stops the run before anything is built. Offline, or with no upstream, it warns and builds what's there. When the fast-forward changed `cicd/`, the run starts over on the new copy, since Bash reads a script while it runs it.
+
+- Hosted CI is a bare safety net: vet, test, and build on every push to main or dev and every pull request. The full pipeline (fuzz, profiling, dogfood, package, publish) stays local.
 
 - Two native builds. The debug build (symbols kept) is what tests and the profiler run against. The optimized build (stripped) is smoke-checked and used day to day, and matches what is released.
 
 - Packaging is self-contained (`cicd/utility/package.bash`). The same script runs locally and in the release workflow, so what is released is what was built and tested here.
 
-	- Targets: linux, darwin, freebsd, and windows on amd64 and arm64. ARM is built unconditionally, since Go cross-compiles it at native speed.
+	- Targets: linux, darwin, freebsd, and windows on amd64 and arm64. ARM is built by default, since Go cross-compiles it at native speed, and `--no-arm` skips it.
 
-	- Per platform: a tarball (zip on Windows) of the static binary, a `.deb` and `.rpm` for each Linux arch, a single-file Windows installer that adds the tool to PATH and can update an existing install, and a checksums file. macOS `.dmg` and a native FreeBSD `.pkg` are deferred; those platforms ship as tarballs for now.
+	- Per platform: a tarball (zip on Windows) of the static binary, a `.deb` and `.rpm` for each Linux arch, a single-file Windows installer that adds the tool to PATH and can update an existing install, and a checksums file. macOS `.dmg` and a native FreeBSD `.pkg` are deferred; those platforms get tarballs for now.
 
-	- The WASI build of the command ships too, as one `.wasm` for every CPU.
+	- The WASI build of the command is released too, as one `.wasm` for every CPU.
 
 	- macOS also gets a universal binary, both darwin builds joined into one file. Packaging runs on Linux with no lipo, so `cicd/utility/macho-fat` does the join, and checks each slice against its input. The per-arch macOS assets stay, since the install script fetches those and they are half the size. A `--no-arm` run makes no universal binary.
 
-	- Every asset rebuilds to the same bytes from the same commit. File times come from the commit, owners and modes are fixed, and the Go builds carry no VCS stamp or build ID. The same tool versions are needed for that: Go and nfpm are pinned, but NSIS, tar, gzip and zip come from the OS.
+	- Every asset rebuilds to the same bytes from the same commit. File times come from the commit, owners and modes are fixed, and the Go builds have no VCS stamp or build ID. The same tool versions are needed for that. Go and nfpm are pinned, and NSIS, tar, gzip, and zip come from the pinned container image. A `--host` run uses the OS copies.
 
 	- nfpm writes a prerelease package version with a `~`, such as `3.1.0~beta1`, so it sorts below the final. GitHub would serve that file name with a `.` in place of the `~`, so packaging renames it before writing the checksums. The version inside the package keeps the `~`.
 

@@ -9,12 +9,12 @@ package convertbase
 // lib/vX.Y.Z tag the release workflow pushes.
 //
 // It moves independently of the command's version, which is why it reads v0
-// while the tool reads v2. Go welds a module's major version into its import
+// while the tool is past v1. Go welds a module's major version into its import
 // path above v1, so sharing one number would mean every major release of the
 // command rewrote the import path and broke callers over a change that never
-// touched this API. Bump it when this package's surface changes, not when the
-// command ships something.
+// touched this API. Bump it when this package's API changes, not when the
+// command gets a release.
 //
 // v0 is deliberate for now: it promises nothing about compatibility, which is
-// the honest signal for an API published for the first time.
+// the right signal for an API published for the first time.
 const Version = "v0.2.0"

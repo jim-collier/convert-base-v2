@@ -75,7 +75,7 @@ func UpgradeConfig(text string) (*ConfigUpgrade, error) {
 		return refuse(err)
 	}
 	if n := m.Lost + m.Ambiguous; n > 0 {
-		return refuse(fmt.Errorf("%d line(s) have no spelling in format %d", n, shcl.FormatMajor))
+		return refuse(fmt.Errorf("%d line(s) can't be written in format %d", n, shcl.FormatMajor))
 	}
 	return &ConfigUpgrade{
 		FromFormat: from,

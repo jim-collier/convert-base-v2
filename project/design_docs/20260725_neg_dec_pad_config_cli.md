@@ -37,11 +37,11 @@ The symbols that mark negative and decimal used to live inside the base definiti
 
 The other two ways a base can be defined were left alone, so the old format is still in use:
 
-- A config file entry can carry `neg=` and `dec=` and `pad=` tokens inside its `symbols` string.
+- A config file entry can have `neg=` and `dec=` and `pad=` tokens inside its `symbols` string.
 
 - On the command line, tokens inside `--from-symbols` and `--to-symbols` are the only way to set a marker at all.
 
-So one idea now has two implementations, and the surface a person actually types still has the awkward one. This document covers finishing the job.
+So one idea now has two implementations, and the syntax a person types still has the awkward one. This document covers finishing the job.
 
 There is a second, quieter problem. `mkSpec` parses its symbol string through the same parser but never reads the marker tokens back out, so a `neg=~` accidentally left inside a `BaseSymbols` string is parsed off and thrown away. It produces no error, no marker, and no digit.
 
@@ -85,7 +85,7 @@ Added here:
 
 The symbol spec means symbols, and nothing else. Markers move to named fields in config, and to named flags on the command line.
 
-Config already has the named fields. It grew `negative:`, `decimal:`, and `pad:` some time ago and simply kept the older path working alongside them, so that side is mostly deletion.
+Config already has the named fields. It grew `negative:`, `decimal:`, and `pad:` some time ago and kept the older path working alongside them, so that side is mostly deletion.
 
 The command line has no named fields at all, so that side is the real work.
 
@@ -102,7 +102,7 @@ Six flags, one per marker per side:
 --to-neg   X   --to-dec   X   --to-pad   X
 ~~~
 
-Symmetric on purpose. Padding really does differ by side, since on input it means strip a trailing run and on output it means pad out to the group boundary, so folding the two into one flag would be wrong.
+Symmetric on purpose. Padding does differ by side, since on input it means strip a trailing run and on output it means pad out to the group boundary, so folding the two into one flag would be wrong.
 
 An empty value disables: `--to-neg ''`. An absent flag leaves the base's own setting alone.
 
@@ -111,13 +111,13 @@ These apply to whatever base that side resolved to, whether it came from a name 
 Comparison, current versus proposed:
 
 ~~~bash
-# now
+ # now
 convert-base-v2 --from-symbols "aeiouy.-_0 neg=~ dec=/" --to 20w "~y0-._/ooo"
 
-# proposed
+ # proposed
 convert-base-v2 --from-symbols "aeiouy.-_0" --from-neg '~' --from-dec '/' --to 20w "~y0-._/ooo"
 
-# newly possible
+ # newly possible
 convert-base-v2 --from hex --from-neg '~' --to 10 -- '~ff'
 ~~~
 

@@ -78,6 +78,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Library: `ConvertStream` does the whole piped byte mode in one call. It takes a reader, a writer, two bases and the `--binary` choice, streams when the pair can, and reads the input whole when it can't. It replaces `StreamConvert` and `StreamBytesRoute`, which are private now, and so is `SpecOpts`. A program that called any of the three needs a change. The library is still v0, so its API can still change like this.
 
+- The install script picks the newest release by version, not by the order GitHub lists them, so a pre-release sorts below its final and beta10 above beta9. With no stable release yet, stable takes the newest pre-release. It takes `--name=value` as well as `--name value`, and has `--version`. `--arch` is gone, since the CPU is always detected, and an answer of Ctrl-D at the prompt is a no.
+
 ### Fixed
 
 - A config field indented under another field, such as `decimal:` under `negative:`, was never read, and an empty field above it still switched its marker off. The base was built wrong with no error. It is refused now, naming the base, the field and the line.

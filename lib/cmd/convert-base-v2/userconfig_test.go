@@ -448,7 +448,7 @@ func TestUpgradeConfigFileKeepsBackup(t *testing.T) {
 
 // When the edit cannot go back, it stays in the backup, and the note says so.
 // Test ID: Ern925t
-func TestUpgradeConfigFileEditStaysInBackup(t *testing.T) {
+func TestUpgradeEditInBackup(t *testing.T) {
 	if os.Geteuid() == 0 || runtime.GOOS == "windows" {
 		t.Skip("a read-only mode on a directory does not stop root, or windows")
 	}

@@ -128,7 +128,7 @@ func streamNew(fromPtr, fromLen, toPtr, toLen uint32) int64 {
 		if !b.RawCodec() && !b.Binary {
 			_, err := convertbase.Convert("", b, bytesBase, -1)
 			if err == nil {
-				err = errors.New("base cannot carry raw bytes")
+				err = errors.New("base can't encode raw bytes")
 			}
 			setErr(errBadInput, err.Error())
 			return -errBadInput

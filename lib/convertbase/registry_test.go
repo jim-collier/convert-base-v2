@@ -42,7 +42,7 @@ func TestRegisterChecksEveryNumericAlias(t *testing.T) {
 // leaves the index, and the listing shows only names that still resolve to
 // the row they sit on.
 // Test ID: ErkSf4Z
-func TestConfigShadowedBuiltinDropsOut(t *testing.T) {
+func TestConfigShadowsBuiltin(t *testing.T) {
 	reg := newReg(t)
 	old := base(t, reg, "8")
 	before := len(reg.OrderedBases())

@@ -168,7 +168,7 @@ func checkConfigFields(doc *shcl.Document) error {
 	// names are checked at the top level.
 	for _, name := range doc.Children("") {
 		if !strings.EqualFold(name, "base") {
-			return fmt.Errorf("%sunknown setting %q (this file holds \"base:\" blocks only)",
+			return fmt.Errorf("%sunknown setting %q (this file has only \"base:\" blocks)",
 				citeLine(doc, shcl.QuoteSegment(name)), name)
 		}
 	}

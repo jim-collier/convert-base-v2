@@ -32,7 +32,7 @@
 
 Not built, and not currently planned. Kept as a live document because the question comes up, and because the Go split was checked to make sure it does not block this later.
 
-Split out of `20260731_linkable_library.md`, which planned a C library first and then set it aside once WebAssembly was built. This document holds the reasoning so it does not have to be worked out again.
+Split out of `20260731_linkable_library.md`, which planned a C library first and then set it aside once WebAssembly was built. This document keeps the reasoning so it does not have to be worked out again.
 
 ## Introduction
 
@@ -62,11 +62,11 @@ If this were built, it would aim for:
 
 - The command and the Go library keep every property they have now, including static builds with no cgo.
 
-The last point is what keeps this from being a small change. The C artifacts need `CGO_ENABLED=1`, so they are a separate build from everything else that ships.
+The last point is what keeps this from being a small change. The C artifacts need `CGO_ENABLED=1`, so they are a separate build from everything else that is released.
 
 ## What a C binding actually promises
 
-This is worth stating plainly, because "wrap it in a C binding" is sometimes used loosely to mean any way of calling from C.
+This needs saying, because "wrap it in a C binding" is sometimes used loosely to mean any way of calling from C.
 
 - A C binding means a header and a library file. The caller links it. There is no runtime to install, no module to load, and no extra process.
 
@@ -96,7 +96,7 @@ Rules that would apply throughout:
 
 - Everything the library allocates is freed by a function the library provides. The caller never frees Go memory itself.
 
-- No Go pointer is ever handed to C to hold. A `runtime/cgo.Handle` carries the reference instead.
+- No Go pointer is ever handed to C to hold. A `runtime/cgo.Handle` keeps the reference instead.
 
 `Registry.Print` would not be part of this. Formatting a table is presentation, and a C caller can format its own.
 
@@ -106,21 +106,21 @@ An early read of this said streaming could not survive a C ABI. That was wrong, 
 
 The internal entry point is already the right shape:
 
-```go
+~~~go
 func streamConvert(r io.Reader, w io.Writer, from, to *Base) (bool, error)
-```
+~~~
 
 Three ways to reach it, in increasing order of work:
 
-| Route | How it works | Pros | Cons
-|---|---|---
-| File descriptors | `os.NewFile` turns a descriptor into a reader or writer, handed straight to the existing function | No refactor. Identical code path, identical memory profile, no added copies. | Windows takes a handle instead, so that is one platform branch.
-| Callbacks | The caller supplies read and write function pointers, wrapped in types satisfying the two interfaces | The most portable, and the most natural to a C programmer. | One crossing per chunk. At sixty-four kilobytes that is not measurable.
-| Push | A `new`, `write`, `finish` trio, the shape zlib uses | Suits callers that handle neither descriptors nor callbacks comfortably. | Holds state between calls, so the caller has to free it.
+| Route            | How it works                                                                                         | Pros                                                                         | Cons
+| :--------------- | :--------------------------------------------------------------------------------------------------- | :--------------------------------------------------------------------------- | :----------------------------------------------------------------------
+| File descriptors | `os.NewFile` turns a descriptor into a reader or writer, handed straight to the existing function    | No refactor. Identical code path, identical memory profile, no added copies. | Windows takes a handle instead, so that is one platform branch.
+| Callbacks        | The caller supplies read and write function pointers, wrapped in types satisfying the two interfaces | The most portable, and the most natural to a C programmer.                   | One crossing per chunk. At sixty-four kilobytes that is not measurable.
+| Push             | A `new`, `write`, `finish` trio, the shape zlib uses                                                 | Suits callers that handle neither descriptors nor callbacks comfortably.     | Holds state between calls, so the caller has to free it.
 
 The push form would be implemented by running the existing loop in a goroutine behind an `io.Pipe`. That pattern is already in the codebase, in `streamBytesRoute`.
 
-What genuinely gets harder is reporting an error after output has already been partly written, and cancellation. Both are ordinary problems with ordinary answers.
+What gets harder is reporting an error after output has already been partly written, and cancellation. Both are ordinary problems with ordinary answers.
 
 ## Costs
 
@@ -132,20 +132,20 @@ These are the reasons this has not been built:
 
 - A copy of the Go runtime inside each `.so`, so the artifacts are large and there is one per platform and architecture.
 
-- An interface that cannot be changed once somebody ships against it. The Go library is at v0 and can still be reshaped. A C ABI has no such freedom.
+- An interface that cannot be changed once somebody builds against it. The Go library is at v0 and can still be reshaped. A C ABI has no such freedom.
 
 - Packaging. For Python that means manylinux wheels, macOS on two architectures, and Windows. That work is larger than the binding itself.
 
 ## Comparison with the alternatives
 
-| | Subprocess | WebAssembly reactor | Native C library
-|---|---|---|---
-| Exists today | Yes | No | No
-| Caller needs | Ability to start a process | A WebAssembly runtime | Nothing at runtime
-| Artifacts to build | None, the binary already ships | One, runs everywhere | One per platform and architecture
-| Interface can change later | Yes, it is a command line | Yes, while unversioned | No, once shipped
-| Speed | Process startup per call | Slower than native, not yet measured | Native
-| Streaming | Free, through pipes | Has to be designed | Has to be designed
+|                            | Subprocess                     | WebAssembly reactor                  | Native C library
+| :------------------------- | :----------------------------- | :----------------------------------- | :--------------------------------
+| Exists today               | Yes                            | No                                   | No
+| Caller needs               | Ability to start a process     | A WebAssembly runtime                | Nothing at runtime
+| Artifacts to build         | None, the binary already ships | One, runs everywhere                 | One per platform and architecture
+| Interface can change later | Yes, it is a command line      | Yes, while unversioned               | No, once shipped
+| Speed                      | Process startup per call       | Slower than native, not yet measured | Native
+| Streaming                  | Free, through pipes            | Has to be designed                   | Has to be designed
 
 For a caller that can start a process, the subprocess route is the simplest and always was. Pipes stream natively, and the cost is one process per call. For a tool built around streaming that is a real answer, not a consolation prize.
 
@@ -165,7 +165,7 @@ The work in the first case is not the binding. It is the wheels.
 
 The case for this is in-process native speed. That is the one thing neither of the alternatives offers.
 
-So it is worth building when someone needs conversion inside a hot path, in a language that is not Go, at a volume where process startup or WebAssembly overhead actually shows up in a measurement.
+So it is worth building when someone needs conversion inside a hot path, in a language that is not Go, at a volume where process startup or WebAssembly overhead shows up in a measurement.
 
 Until then the other two routes cover the same languages at a fraction of the cost. Nothing in the Go split forecloses this, which was checked at the time and is the reason it can wait.
 

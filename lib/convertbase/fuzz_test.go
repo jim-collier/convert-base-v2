@@ -30,7 +30,7 @@ func FuzzParseSymbolSpec(f *testing.F) {
 	})
 }
 
-// Length ceilings, so a fuzz run keeps finding new shapes instead of grinding on
+// Length ceilings, so a fuzz run keeps finding new cases instead of grinding on
 // ever-longer values. The number cap was 256 when the positional path was
 // quadratic; divide-and-conquer made 1k digits cost what 250 used to, so the cap
 // rose with it and now also reaches the recursion's split seams for most bases.
@@ -71,7 +71,7 @@ func FuzzConvert(f *testing.F) {
 
 // FuzzStreamRoundTrip: raw bytes -> text base -> raw bytes must reproduce the
 // input exactly. Exercises the streaming bit-packing encode and decode paths on
-// arbitrary lengths and byte values, across one base per streaming shape: the
+// arbitrary lengths and byte values, across one base per streaming path: the
 // tuned byte path, wide symbols under and over 8 bits per digit, and each of the
 // tail schemes. Odd lengths are where chunk edges and tails go wrong.
 // Test ID: EjXtZxy

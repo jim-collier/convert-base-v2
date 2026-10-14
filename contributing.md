@@ -37,6 +37,8 @@ Before sending a pull request, run the pipeline from the repo root. `--quick` sk
 cicd/cicd.bash --quick --no-dogfood --no-publish -y
 ~~~
 
+`cicd/cicd.bash --gate` is the short version: the format check, the linters and the Go tests, on your machine, in under a minute. The first pipeline run sets it up as a git pre-push hook, so a push to `dev` or `main` runs it first and stops if it fails. A full run also fetches before it builds, and fast-forwards when the remote is ahead. `--no-sync` skips that.
+
 Stages 1 to 4 and 6 run in a docker image with every tool at its pinned version, so docker is the only thing to install. There, a missing tool fails the run instead of being skipped. The image is built from `cicd/container/Dockerfile` the first time, which takes a few minutes and about 3 GB. The demo gif needs fonts that can't be shared, so it's left out of the image, and the run skips it, unless they're in `../private/fonts/demo-gif/`.
 
 Without docker, `--host` runs every stage on your machine. Stage 3 is the lint stage. `go vet` always runs. golangci-lint, staticcheck, shellcheck and ruff run when they are installed, and are skipped with a warning when they are not. Any finding from one that runs stops the pipeline. Install them all, since the hosted CI only runs vet, the Go tests and the build.

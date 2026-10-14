@@ -1,0 +1,31 @@
+#!/usr/bin/env bash
+
+##	- Purpose: git pre-push hook. Runs the fast merge gate (cicd.bash --gate) when
+##	  a push updates dev or main, so nothing reaches either one unchecked. Pushes
+##	  to other branches, and deletes, go straight through.
+##	- cicd.bash puts a stub in .git/hooks/pre-push that calls this, once per clone.
+##	- The gate checks the working tree, so commit or stash stray edits first.
+##	- CICD_GATE_PASSED=1 skips it; the pipeline sets that when it publishes, since
+##	  it just ran the full tests.
+
+##	Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]
+##	Licensed under The MIT License (MIT). Full text at:
+##		https://mit-license.org/
+##	SPDX-License-Identifier: MIT
+
+set -Eeuo pipefail
+
+[[ "${CICD_GATE_PASSED:-0}" != "1" ]] || exit 0
+
+zeros="0000000000000000000000000000000000000000"
+gated=0
+## One line per ref: <local ref> <local sha> <remote ref> <remote sha>
+while read -r _ localSha remoteRef _; do
+	[[ "${localSha}" != "${zeros}" ]] || continue
+	case "${remoteRef}" in refs/heads/dev|refs/heads/main) gated=1 ;; esac
+done
+((gated)) || exit 0
+
+root="$(git rev-parse --show-toplevel)"
+echo "[ pre-push: running the merge gate for dev/main ]"
+exec bash "${root}/cicd/cicd.bash" --gate -q </dev/null

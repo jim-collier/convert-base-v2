@@ -14,7 +14,7 @@
 // # Licensing
 //
 // This package is Apache-2.0, so it can be linked into anything. The command
-// around it stays GPL-2.0-or-later. Both licenses ship in the repository.
+// around it stays GPL-2.0-or-later. Both license texts are in the repository.
 //
 // # Bases
 //
