@@ -151,7 +151,11 @@ The conversion core is also a library. It comes as a Go package, a module for we
 
 Plenty of everyday tasks are easier in a bigger base, and they usually mean chaining several tools together or reaching for a web page that can't be scripted.
 
-- **Short, readable IDs**: Say you want to hand-generate serial numbers now and then, unique to the minute, but short and unambiguous rather than a long date or number. Take POSIX time (seconds since 1970), optionally divide by 60 for minute precision, and convert it to a compact base. The value for "2026-01-01 12:15 PM" (1767269700) is `1fLcL4` in hex-style base 64 (`64hex`), or `ɷƨɞ«` in base 256 (`256tt`). [zuid](https://github.com/jim-collier/zuid) does this for you: it's built on this project's library, and adds random, host, or user parts when a timestamp alone isn't unique enough.
+- **Short, readable IDs**: Say you want to hand-generate sortable serial numbers now and then, of arbitrary time precision (let's say unique to the minute for this example), but short and unambiguous. Take POSIX time, divide by 60, and convert it to a compact base. The value for "2026-01-01 12:15 PM" (1767269700) is `1fLcL4` in hex-style base 64 (`64hex`), or `ɷƨɞ«` in base 256 (`256tt`).
+
+	- The Bash command for that would be `convert-base-v2 --from 10 --to 64hex "$(( $(date +%s) / 60 ))"`.
+
+	- [zuid](https://github.com/jim-collier/zuid) does this for you: it's built on this project's library, and can add random, host, or user parts when a timestamp alone isn't unique enough.
 
 - **Compact binary as text**: Base 64 (`64rfc`, `64url`) is the usual way to pack binary into UTF-8 text, but `85z` and `91hk` pack about 6 to 8 percent smaller. Higher bases help in niche cases: `2048qntm`, qntm's base built for Twitter posts, or `65536qntm` for UTF-32.
 
@@ -161,21 +165,23 @@ The larger custom bases here (like `256tt`) were designed with care to:
 
 - Avoid characters too wide to render cleanly in a fixed-width terminal.
 
-- Avoid characters reserved by operating systems and web standards, so the output stays usable in those places. (The published standards, like base 64, keep their own reserved characters.)
+- Avoid characters reserved by operating systems and web standards, so the output stays usable in those places.
 
 - Stay consistent from one base to the next.
 
 ## When to use something else
 
-- Only need base 64 or hex on a box with coreutils? `base64` and `basenc` are already there, and they encode faster.
+- Only need base 64 or hex on a box with coreutils? `base64` and `basenc` are already there, and they encode a few % faster for large streaming jobs.
 
 - Bitcoin addresses need Bech32 or base 58 with checksums, which aren't plain base conversion. Use a wallet library.
 
-- Fractions are rounded to about the input's own precision, so a round trip through another base can lose digits. For exact decimal math, use a decimal or rational library.
+- Fractions are rounded to about the input's own precision, so trips through multiple bases can lose fractional significance at the tail-end.
 
 ## Speed
 
-Decoding streams faster than coreutils `base64`, `base32`, and `basenc`, and encoding is close behind. Memory stays flat however big the file is. On the number side, a million-digit value converts from base 10 to base 36 in about a third of a second, where the textbook method takes almost 2 minutes.
+Decoding binary streams is faster than coreutils' `base64`, `base32`, and `basenc`. Encoding is just slightly slower. Memory stays flat however big the file is.
+
+Converting a million-digit value in positional notation from base 10 to base 36 takes about 300ms - while the textbook method takes almost 2 minutes.
 
 [speed.md](speed.md) has the tables, how they were measured, and the methods behind the big-number path.
 
