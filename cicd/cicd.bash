@@ -28,7 +28,7 @@
 ##	   4. tests (unit + integration harness + fuzz + govulncheck security)
 ##	   5. profiler (flamegraph SVG; non-gating artifact - see failure policy)
 ##	   6. cross-compile + package every shipping platform (archives, deb/rpm, Windows installers, checksums)
-##	   7. dogfood (install the optimized native build locally, fixed name) + screenshots + demo gif
+##	   7. dogfood (install the optimized native build locally, fixed name, and any cross builds listed) + screenshots + demo gif
 ##	   8. backup + publish to git (runs from repo root)
 ##	- Syntax:
 ##	  cicd/cicd.bash [options]
@@ -41,7 +41,7 @@
 ##	   --no-lint           skip the lint stage
 ##	   --no-cross          skip the cross-compile + package stage
 ##	   --no-profile        skip the profiler stage
-##	   --no-dogfood        skip installing the native build locally
+##	   --no-dogfood        skip installing the builds locally
 ##	   --no-screenshots    skip regenerating README screenshots
 ##	   --no-demogif        skip regenerating the demo gif
 ##	   --no-publish        skip the git backup + publish stage
@@ -88,6 +88,10 @@ export GOMAXPROCS="${CPU_CAP}"
 
 source "${here}/config.bash"
 [[ -v FMT_CHECK_CMD ]] || FMT_CHECK_CMD=()   ## older configs
+[[ -v DOGFOOD_CROSS ]] || DOGFOOD_CROSS=()
+## Personal dogfood dirs, kept out of the repo. Before the options, so --no-dogfood still wins.
+# shellcheck source=/dev/null
+if [[ -n "${DOGFOOD_LOCAL:-}" && -f "${root}/${DOGFOOD_LOCAL}" ]]; then source "${root}/${DOGFOOD_LOCAL}"; fi
 source "${here}/utility/include/gfs-rotate.bash"       ## gfs_rotate() for the artifact dirs
 cd "${root}"
 stamp="$(date +%Y%m%d-%H%M%S)"
@@ -103,7 +107,7 @@ while (($#)); do case "$1" in
 	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); SHELLCHECK_CMD=(); RUFF_CMD=(); inner_args+=("$1"); shift ;;
 	--no-cross)               BUILD_CROSS=0; inner_args+=("$1"); shift ;;
 	--no-profile)             PROFILE_ENABLE=0; shift ;;
-	--no-dogfood)             DOGFOOD_FIXED_DESTS=(); shift ;;
+	--no-dogfood)             DOGFOOD_FIXED_DESTS=(); DOGFOOD_CROSS=(); shift ;;
 	--no-screenshots)         DO_SCREENSHOTS=0; inner_args+=("$1"); shift ;;
 	--no-demogif)             DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
 	--no-publish)             GIT_PUBLISH=(); shift ;;
@@ -390,6 +394,12 @@ fi
 ## Preflight: show the plan with resolved paths, then confirm.
 profile_dir="$(cd "${root}" && mkdir -p "${PROFILE_OUT_DIR}" 2>/dev/null; cd "${PROFILE_OUT_DIR}" 2>/dev/null && pwd || echo "${root}/${PROFILE_OUT_DIR}")"
 fixed_dest=""; for d in "${DOGFOOD_FIXED_DESTS[@]:-}"; do [[ -d "$d" && -w "$d" ]] && { fixed_dest="$d"; break; }; done
+## First existing, writable dir of a DOGFOOD_CROSS entry, or nothing.
+fCrossDest(){
+	local d; local -a parts; IFS='|' read -r -a parts <<<"$1"
+	for d in "${parts[@]:2}"; do [[ -d "$d" && -w "$d" ]] && { echo "$d"; return 0; }; done
+	return 0
+}
 
 fEcho_Chat
 fEcho_Chat "${APP_NAME} local CI/CD"
@@ -432,6 +442,12 @@ if ((${#DOGFOOD_FIXED_DESTS[@]})); then
 else
 	fEcho_Chat "Dogfood, fixed name .: (disabled)"
 fi
+for entry in "${DOGFOOD_CROSS[@]:-}"; do
+	[[ -n "$entry" ]] || continue
+	if ((! BUILD_CROSS)); then fEcho_Chat "Dogfood, cross ......: ${entry%%|*} (skipped, no stage 6)"
+	elif d="$(fCrossDest "$entry")"; [[ -n "$d" ]]; then fEcho_Chat "Dogfood, cross ......: ${entry%%|*} -> ${d}/$(cut -d'|' -f2 <<<"$entry")"
+	else fEcho_Chat "Dogfood, cross ......: ${entry%%|*} <no dir exists - will skip>"; fi
+done
 fEcho_Chat "Screenshots .........: $( ((DO_SCREENSHOTS)) && echo "${SCREENSHOT_CMD[*]}" || echo '(skipped)')"
 gif_plan="${DEMOGIF_CMD[*]}"
 ((DO_DEMOGIF)) || gif_plan="(skipped)"
@@ -653,25 +669,39 @@ fi
 ## Stage 7: dogfood (fixed name) + screenshots. Dogfood the optimized release
 ## build (the real thing), falling back to the debug build if it wasn't made.
 fSection "7/8  Dogfood"
+## sudo -n never prompts, so it can't hang a run, and an unattended run
+## doesn't try it at all.
+fDogfoodCopy(){
+	local from="$1" to="$2" how=""
+	if cp -f "${from}" "${to}"; then :
+	elif [[ "${to}" == "${HOME}/"* ]] || ((assume_yes)); then fDie "could not install ${to}"
+	elif sudo -n cp -f "${from}" "${to}"; then how=" (sudo)"
+	else fDie "could not install ${to}, even with sudo -n"
+	fi
+	fEcho "OK: installed${how} -> ${to}"
+}
 dogfood_bin="${STAGED_BIN}"
 [[ -n "${STAGED_RELEASE_BIN:-}" && -f "${STAGED_RELEASE_BIN}" ]] && dogfood_bin="${STAGED_RELEASE_BIN}"
 if ((${#DOGFOOD_FIXED_DESTS[@]})); then
 	if [[ -n "$fixed_dest" ]]; then
-		## sudo -n never prompts, so it can't hang a run, and an unattended run
-		## doesn't try it at all.
-		dogfood_to="${fixed_dest}/${EXE_NAME}"; dogfood_how=""
-		if cp -f "${dogfood_bin}" "${dogfood_to}"; then :
-		elif [[ "${fixed_dest}" == "${HOME}/"* ]] || ((assume_yes)); then fDie "could not install ${dogfood_to}"
-		elif sudo -n cp -f "${dogfood_bin}" "${dogfood_to}"; then dogfood_how=" (sudo)"
-		else fDie "could not install ${dogfood_to}, even with sudo -n"
-		fi
-		fEcho "OK: installed${dogfood_how} -> ${dogfood_to}"
+		fDogfoodCopy "${dogfood_bin}" "${fixed_dest}/${EXE_NAME}"
 	else
 		fEcho "WARNING: no dogfood dest exists (${DOGFOOD_FIXED_DESTS[*]}); skipping"
 	fi
 else
 	fEcho_Chat "dogfood disabled"
 fi
+## The cross builds only count when stage 6 made them this run. An old dist/ copy
+## would be dogfooding something nobody tested.
+for entry in "${DOGFOOD_CROSS[@]:-}"; do
+	[[ -n "$entry" ]] || continue
+	artifact="${entry%%|*}"
+	if ((! BUILD_CROSS)); then fEcho_Chat "dogfood ${artifact}: skipped, stage 6 didn't run"; continue; fi
+	[[ -f "${RELEASE_ARTIFACT_DIR}/${artifact}" ]] || fDie "dogfood: stage 6 made no ${RELEASE_ARTIFACT_DIR}/${artifact}"
+	d="$(fCrossDest "$entry")"
+	if [[ -z "$d" ]]; then fEcho "WARNING: no dogfood dir exists for ${artifact}; skipping"; continue; fi
+	fDogfoodCopy "${RELEASE_ARTIFACT_DIR}/${artifact}" "${d}/$(cut -d'|' -f2 <<<"$entry")"
+done
 
 ## Screenshots: off by default (retired, so the skip is silent); a failure is a
 ## warning, never a stop.
@@ -758,3 +788,4 @@ fEcho_Clean
 ##		- 2026-10-10 JC: --container runs the tool-heavy stages in a pinned image, where no check may skip.
 ##		- 2026-10-10 JC: Container runs can be the default (CONTAINER_DEFAULT), with --host to opt out. Build contexts from outside the repo.
 ##		- 2026-10-14 JC: --gate and its pre-push hook; fetch and fast-forward before building, --no-sync to skip.
+##		- 2026-10-14 JC: Dogfood the cross builds too (DOGFOOD_CROSS), with personal dirs read from DOGFOOD_LOCAL.

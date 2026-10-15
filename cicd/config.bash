@@ -177,12 +177,16 @@ BUILD_CROSS=1
 RELEASE_CMD=(make -C "${SRC_DIR}" release)
 RELEASE_ARTIFACT_DIR="${SRC_DIR}/dist"
 
-## Stage 7: dogfood. Overwrite EXE_NAME in the first existing dir below (the stable
-## path you launch by hand). Empty the list to skip. No rotating copy for this project.
-DOGFOOD_FIXED_DESTS=(
-	"${HOME}/synced/0-0/common/exec/util/linux/bin"
-	"/usr/local/sbin"
-)
+## Stage 7: dogfood. Overwrite EXE_NAME in the first existing, writable dir of
+## DOGFOOD_FIXED_DESTS with the native release build. DOGFOOD_CROSS does the same
+## for builds stage 6 made, one "ARTIFACT|NAME|DIR|DIR..." entry each: copy
+## dist/ARTIFACT to NAME in the first dir that exists. Those are skipped when
+## stage 6 didn't run. Empty lists skip. The real dirs are personal, so they live
+## in DOGFOOD_LOCAL, a bash file outside the repo that sets these two lists.
+DOGFOOD_FIXED_DESTS=()
+DOGFOOD_CROSS=()
+## e.g. DOGFOOD_CROSS=("${EXE_NAME}-windows-x86_64.exe|${EXE_NAME}.exe|${HOME}/bin/win64")
+DOGFOOD_LOCAL="../private/dogfood.bash"
 
 ## Stage 7 (after dogfood): screenshots. The README no longer shows them, so this is
 ## off by default. The generator (utility/gen-screenshots.bash) is kept, so flip this
@@ -240,3 +244,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-10-04 JC: shellcheck and ruff in the lint stage.
 ##		- 2026-10-10 JC: Container settings, and container runs as the default.
 ##		- 2026-10-14 JC: FMT_CHECK_CMD for --gate.
+##		- 2026-10-14 JC: Dogfood dirs moved to DOGFOOD_LOCAL; DOGFOOD_CROSS for the Windows and macOS builds.

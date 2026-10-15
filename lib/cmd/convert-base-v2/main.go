@@ -1624,7 +1624,7 @@ func reportSide(out io.Writer, label string, reg *convertbase.Registry, name, sy
 }
 
 func printCopyright(out io.Writer) {
-	fmt.Fprintf(out, `convert-base-v2 %s
+	fmt.Fprintf(out, `%s
 Copyright © %s %s.
 Licensed under the GNU General Public License v2.0 or later. Full text at:
   https://spdx.org/licenses/GPL-2.0-or-later.html

@@ -157,8 +157,8 @@ url="https://github.com/${REPO}/releases/download/${tag}/${asset}"
 
 ## Already current? Then there is nothing to do.
 if [[ -x "${destPath}" ]]; then
-	## The version line may end in a build number, as "v3.1.0 build dbrk8".
-	haveVer="$("${destPath}" --version 2>/dev/null || true)"
+	## "convert-base-v2 v3.1.0 build dbrk8". Before 3.1 it had no name in front.
+	haveVer="$("${destPath}" --version 2>/dev/null || true)"; haveVer="${haveVer#"${PKG} "}"
 	if [[ "${haveVer%% *}" == "${tag}" ]]; then
 		fEcho "${destPath} is already ${tag}; nothing to do"
 		echo

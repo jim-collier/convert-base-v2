@@ -160,19 +160,20 @@ _rand_int(){
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "CLI surface"
 _run --version
-{ ((_rc == 0)) && [[ "$_out" == v* ]]; } && _pass EizUJDc "--version prints a version" || _fail EizUJDc "--version prints a version" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"* ]]; } && _pass EizUJDc "--version prints a version" || _fail EizUJDc "--version prints a version" "rc=$_rc out=[$_out]"
 for _vflag in -v -V; do
 	_run "$_vflag"
-	{ ((_rc == 0)) && [[ "$_out" == v* ]]; } && _pass ErgVwO8 "$_vflag prints a version" || _fail ErgVwO8 "$_vflag prints a version" "rc=$_rc out=[$_out]"
+	{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"* ]]; } && _pass ErgVwO8 "$_vflag prints a version" || _fail ErgVwO8 "$_vflag prints a version" "rc=$_rc out=[$_out]"
 done
 ## The library's lib/vX.Y.Z tags sit on the command's release commits, and a
 ## build from a clone once stamped the library's version on the command.
 _run --version
-{ ((_rc == 0)) && [[ "$_out" == v[1-9]* ]]; } && _pass ErkSf4k "--version: command tag" || _fail ErkSf4k "--version: command tag" "out=[$_out]"
-## Still one line for scripts: the version, then the build number when the build
-## was stamped. Crockford base32, lower case, so no i, l, o or u.
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"[1-9]* ]]; } && _pass ErkSf4k "--version: command tag" || _fail ErkSf4k "--version: command tag" "out=[$_out]"
+## Still one line for scripts: the name, the version, then the build number when
+## the build was stamped, with no space at either end. Crockford base32, lower
+## case, so no i, l, o or u.
 _run --version
-{ ((_rc == 0)) && [[ "$_out" =~ ^v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+)?$ ]]; } && _pass ErlL5dx "--version one-line format" || _fail ErlL5dx "--version one-line format" "out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" =~ ^convert-base-v2\ v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+)?$ ]]; } && _pass ErlL5dx "--version one-line format" || _fail ErlL5dx "--version one-line format" "out=[$_out]"
 ## make stamps the commit's time, never the clock, so a release rebuilds to its checksums.
 cbEpoch="$(git -C "${meDir}" log -1 --format=%ct 2>/dev/null || true)"
 if [[ -z "${cbEpoch}" ]] || ! command -v make >/dev/null 2>&1; then
@@ -191,7 +192,7 @@ _run --examples
 { ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Examples* ]]; } && _pass Eje9ui1 "--examples writes to stdout" || _fail Eje9ui1 "--examples writes to stdout" "rc=$_rc outlen=${#_out}"
 _run --version; cbVer="$_out"
 _run --about
-{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 ${cbVer}"$'\n'* ]] && [[ "$_out" == *"Copyright ©"* ]] && [[ "$_out" == *GPL-2.0-or-later* ]] && [[ "$_out" == *"https://github.com/jim-collier/convert-base-v2"* ]]; } && _pass Erfqe2C "--about names version, copyright, license, home" || _fail Erfqe2C "--about names version, copyright, license, home" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n'* ]] && [[ "$_out" == *"Copyright ©"* ]] && [[ "$_out" == *GPL-2.0-or-later* ]] && [[ "$_out" == *"https://github.com/jim-collier/convert-base-v2"* ]]; } && _pass Erfqe2C "--about names version, copyright, license, home" || _fail Erfqe2C "--about names version, copyright, license, home" "rc=$_rc out=[$_out]"
 _run --donate
 { ((_rc == 0)) && [[ "$_out" == *"https://github.com/sponsors/jim-collier"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]]; } && _pass Erfqe2D "--donate lists both support links" || _fail Erfqe2D "--donate lists both support links" "rc=$_rc out=[$_out]"
 ## Several informational flags each print once, in the order given.
@@ -200,10 +201,10 @@ _run --donate --version
 _run --version --donate
 { ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n\n'"convert-base-v2 is free"* ]]; } && _pass Erfqe2F "--version --donate prints both, in order" || _fail Erfqe2F "--version --donate prints both, in order" "rc=$_rc out=[$_out]"
 _run --help --donate --help
-{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 ${cbVer}"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]] && (($(grep -c '^Usage:' <<<"$_out") == 1)); } && _pass Erfqe2G "--help --donate --help prints help once, then donate" || _fail Erfqe2G "--help --donate --help prints help once, then donate" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]] && (($(grep -c '^Usage:' <<<"$_out") == 1)); } && _pass Erfqe2G "--help --donate --help prints help once, then donate" || _fail Erfqe2G "--help --donate --help prints help once, then donate" "rc=$_rc out=[$_out]"
 ## --about opens with the version line, so --version adds nothing to it.
 _run --about --version
-{ ((_rc == 0)) && ! grep -qxF -- "${cbVer}" <<<"$_out"; } && _pass Erfqe2H "--about covers --version" || _fail Erfqe2H "--about covers --version" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && (($(grep -cxF -- "${cbVer}" <<<"$_out") == 1)); } && _pass Erfqe2H "--about covers --version" || _fail Erfqe2H "--about covers --version" "rc=$_rc out=[$_out]"
 ## No-args error path keeps help on stderr, exit 2, stdout empty.
 _run
 { ((_rc == 2)) && [[ -z "$_out" ]] && [[ -n "$_err" ]]; } && _pass Eje9ui2 "no-args help stays on stderr" || _fail Eje9ui2 "no-args help stays on stderr" "rc=$_rc outlen=${#_out} errlen=${#_err}"
@@ -1874,7 +1875,7 @@ for rnName in checksums.txt convert-base-v2.wasm notes.txt \
 	convert-base-v2-{linux,darwin,freebsd}-{x86_64,arm64}{,.tgz} convert-base-v2-darwin-universal{,.tgz} \
 	convert-base-v2-windows-{x86_64,arm64}{.exe,.zip,-setup.exe}; do
 	if [[ "${rnName}" =~ ^convert-base-v2-(linux|darwin|freebsd)-[a-z0-9_]+$ ]]; then
-		printf '#!/bin/sh\necho "v9.9.9-beta1 build abcde"\n' >"${rnDist}/${rnName}"; chmod +x "${rnDist}/${rnName}"
+		printf '#!/bin/sh\necho "convert-base-v2 v9.9.9-beta1 build abcde"\n' >"${rnDist}/${rnName}"; chmod +x "${rnDist}/${rnName}"
 	else
 		: >"${rnDist}/${rnName}"
 	fi
@@ -2055,6 +2056,16 @@ fInRun --arch x86_64; [[ "${inrc}" == 1 ]] && grep -qF 'unknown option: --arch' 
 fInRun; [[ "${inrc}" == 1 && "${inOut}" == *"aborted; nothing was touched"* && ! -e "${inDir}/home/.local/bin/convert-base-v2" ]] && inOk+="prompt"
 [[ "${inOk}" == "version arch prompt" ]] && _pass EshY061 "install.bash options" \
 	|| _fail EshY061 "install.bash options" "passed=[${inOk}] last rc=${inrc} out=[${inOut}]"
+## Already current, read from the installed build's --version, with the name in
+## front as now, or without it as before 3.1.
+fInList v3.0.0 >"${inDir}/release.json"; mkdir -p "${inDir}/home/.local/bin"
+for inLine in "convert-base-v2 v3.0.0 build abcde" "v3.0.0 build abcde" "v3.0.0"; do
+	printf '#!/bin/sh\necho "%s"\n' "${inLine}" >"${inDir}/home/.local/bin/convert-base-v2"; chmod +x "${inDir}/home/.local/bin/convert-base-v2"
+	fInRun -y
+	{ ((inrc == 0)) && [[ "${inOut}" == *"is already v3.0.0; nothing to do"* ]]; } && _pass Esj2Pos "install.bash sees it's current: ${inLine}" \
+		|| _fail Esj2Pos "install.bash sees it's current: ${inLine}" "rc=${inrc} out=[${inOut}]"
+done
+rm -f "${inDir}/home/.local/bin/convert-base-v2"
 
 ## magick lists pango first, then more than a pipe holds. Any other call
 ## exits 42, which shows the pango probe passed.
@@ -2333,10 +2344,11 @@ FMT_CMD=(); NATIVE_BUILD_CMD=(true); NATIVE_BUILD_OUT="lib/out"; STAGED_BIN="lib
 PIN_TOOLS_CMD=(); VENDOR_CHECK_CMD=(); INTEROP_CHECK_CMD=(); VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=()
 UNIT_TEST_CMD=(true); TEST_ID_CMD=(); TEST_CMD=(sh -c 'env | grep "^CICDTEST_" | sort >"$CE_KNOBS"')
 GO_TEST_PKG="."; FUZZ_ENABLE=1; FUZZ_TIME="1s"; FUZZ_TIME_QUICK="1s"; FUZZ_MINIMIZE_TIME="1s"; FUZZ_MINIMIZE_TIME_QUICK="1s"
-VULN_PROBE=(false); VULN_CMD=(${CE_VULN:+true}); PROFILE_ENABLE=0; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=${CE_CROSS:-0}; RELEASE_CMD=(); RELEASE_ARTIFACT_DIR="dist"
+VULN_PROBE=(false); VULN_CMD=(${CE_VULN:+true}); PROFILE_ENABLE=0; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=${CE_CROSS:-0}; RELEASE_ARTIFACT_DIR="dist"
+RELEASE_CMD=(sh -c 'mkdir -p dist && echo "win $$" >dist/cbv-test-windows-x86_64.exe && echo "mac $$" >dist/cbv-test-darwin-universal')
 CONTAINER_DIR="cicd/container"; CONTAINER_IMAGE="cbv-test-cicd"; CONTAINER_VOLUME="cbv-test-cache"; CONTAINER_MOUNTS=("demos" "nowhere")
 CONTAINER_DEFAULT=${CE_CONTAINER_DEFAULT:-0}; CONTAINER_CONTEXTS=("ctx=${CE_CTX:-ctxdir}"); CONTAINER_CONTEXT_MISSING=(--no-demogif)
-DOGFOOD_FIXED_DESTS=(${CE_DEST:+"${CE_DEST}"})
+DOGFOOD_FIXED_DESTS=(${CE_DEST:+"${CE_DEST}"}); DOGFOOD_CROSS=(); DOGFOOD_LOCAL="${CE_LOCAL:-}"
 DO_SCREENSHOTS=0; SCREENSHOT_CMD=(none); DO_DEMOGIF=${CE_GIF:-0}; DEMOGIF_CMD=(gif.py); DEMOGIF_OUT="gif/demo.gif"; DEMOGIF_ARCHIVE_DIR="gif/old"; DEMOGIF_CONTAINER_ONLY=1
 PREPUBLISH_HOOK=""; GIT_PUBLISH=(); PUBLISH_AUTO_MESSAGE=""
 EOF
@@ -2426,6 +2438,34 @@ CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun -y
 CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun
 { ((ceRc == 1)) && [[ "${ceSudo}" == "-n cp -f "* && "${ceOut}" == *"even with sudo -n"* ]]; } && _pass ErmCp2L "dogfood: attended, sudo -n only" \
 	|| _fail ErmCp2L "dogfood: attended, sudo -n only" "sudo=[${ceSudo}] $(fCeTail)"
+
+## The cross builds, with dirs from a file outside the repo: each goes to the
+## first dir that exists, under its own name, and only when stage 6 made it this
+## run. --no-dogfood drops the file's lists too.
+mkdir -p "${ceDir}/priv" "${ceDir}/home/win" "${ceDir}/home/mac"
+cat >"${ceDir}/priv/dogfood.bash" <<EOF
+DOGFOOD_CROSS=(
+	"cbv-test-windows-x86_64.exe|cbv-test.exe|${ceDir}/home/nope|${ceDir}/home/win"
+	"cbv-test-darwin-universal|cbv-test|${ceDir}/home/mac"
+)
+EOF
+fCeCrossClean(){ rm -rf "${ceDir}/home/win" "${ceDir}/home/mac" "${ceRepo}/dist"; mkdir -p "${ceDir}/home/win" "${ceDir}/home/mac"; }
+fCeCrossNone(){ [[ -z "$(ls -A "${ceDir}/home/win")$(ls -A "${ceDir}/home/mac")" ]]; }
+fCeCrossClean; CE_CROSS=1 CE_LOCAL="../priv/dogfood.bash" fCeRun -y
+{ ((ceRc == 0)) && cmp -s "${ceRepo}/dist/cbv-test-windows-x86_64.exe" "${ceDir}/home/win/cbv-test.exe" && cmp -s "${ceRepo}/dist/cbv-test-darwin-universal" "${ceDir}/home/mac/cbv-test" \
+	&& [[ "${ceOut}" == *"OK: installed -> ${ceDir}/home/win/cbv-test.exe"* && ! -e "${ceDir}/home/nope" ]]; } && _pass Esj2PpU "dogfood: cross builds to the local file's dirs" \
+	|| _fail Esj2PpU "dogfood: cross builds to the local file's dirs" "$(fCeTail)"
+fCeCrossClean; mkdir -p "${ceRepo}/dist"; echo stale >"${ceRepo}/dist/cbv-test-windows-x86_64.exe"
+CE_LOCAL="../priv/dogfood.bash" fCeRun -y
+{ ((ceRc == 0)) && fCeCrossNone && [[ "${ceOut}" == *"stage 6 didn't run"* ]]; } && _pass Esj2Pq1 "dogfood: no cross copy without stage 6" \
+	|| _fail Esj2Pq1 "dogfood: no cross copy without stage 6" "$(fCeTail)"
+fCeCrossClean; CE_CROSS=1 CE_LOCAL="../priv/dogfood.bash" fCeRun -y --no-dogfood
+{ ((ceRc == 0)) && [[ -f "${ceRepo}/dist/cbv-test-windows-x86_64.exe" ]] && fCeCrossNone; } && _pass Esj2PqY "dogfood: --no-dogfood skips the cross builds" \
+	|| _fail Esj2PqY "dogfood: --no-dogfood skips the cross builds" "$(fCeTail)"
+rm -rf "${ceRepo}/dist"
+## The public config names no personal dir.
+if grep -nE '/synced/|/Dropbox/|/mnt/zfs/' "${meDir}/config.bash" >"${CBT_OUT}"; then _fail Esj2Pr6 "config.bash names no personal dir" "$(tr '\n' ' ' <"${CBT_OUT}")"
+else _pass Esj2Pr6 "config.bash names no personal dir"; fi
 
 ## A missing tool warns, except under CICD_NO_SKIP, where it fails the run.
 CE_VULN=1 fCeRun -y; ceWarned=0
