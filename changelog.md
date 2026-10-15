@@ -22,7 +22,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Other work
 -->
 
-## vNEXT - DATE
+## v3.0.1-beta1 - 2026-10-14
+
+### Notes
+
+- A beta, since config files are read with the SHCL 3.0 rules before SHCL 3.0 itself is released. A file this version writes says Format 3, and a later release could still read one a little differently.
+
+- Breaking: a command line that can't be parsed exits 2, not 1. See Changed.
+
+- Breaking: in a config file, `\,` and `\#` no longer protect a comma or a `#` outside quotes. Quote the value instead. A config without backslashes reads the same as before.
+
+- Breaking, library: `StreamConvert`, `StreamBytesRoute` and `SpecOpts` are private now. Use `ConvertStream`.
 
 ### Added
 
@@ -117,6 +127,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Other work
 
 - The pipeline's lint stage checks the Bash scripts with shellcheck and the Python tools with ruff, set up by `.shellcheckrc` and `pyproject.toml`. A finding stops the run. A few copied-in and one-off research scripts are left out.  [20261004]
+
+- The README is shorter, with install, configuration, development, use in your own code, and speed each on a page of their own. The Go example on the code page is built and run by the test suite. So is the WASI build, under a WebAssembly runtime.  [20261014]
+
+- The pipeline has a fast `--gate` run of the format check, lint and unit tests, which a pre-push hook runs for `dev` and `main`. A full run fast-forwards from the remote first.  [20261014]
 
 ## v3.0.0 - 2026-08-04
 

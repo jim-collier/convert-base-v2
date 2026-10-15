@@ -300,7 +300,7 @@ This tool is free and open source, and built and maintained in spare time. If it
 
 ## Legal stuff
 
-![Lifecycle: Stable](https://img.shields.io/badge/Lifecycle-Stable-brightgreen)
+![Lifecycle: Beta](https://img.shields.io/badge/Lifecycle-Beta-yellow)
 
 Copyright © 2023-2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]
 
