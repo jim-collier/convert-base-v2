@@ -73,12 +73,12 @@ func TestVersionText(t *testing.T) {
 	version = "v3.0.0"
 
 	buildEpoch = ""
-	if got := versionText(); got != "v3.0.0" {
-		t.Errorf("unstamped: got %q, want v3.0.0", got)
+	if got := versionText(); got != "convert-base-v2 v3.0.0" {
+		t.Errorf("unstamped: got %q, want convert-base-v2 v3.0.0", got)
 	}
 	buildEpoch = "1787000000"
-	if got := versionText(); got != "v3.0.0 build dbd05" {
-		t.Errorf("stamped: got %q, want %q", got, "v3.0.0 build dbd05")
+	if got := versionText(); got != "convert-base-v2 v3.0.0 build dbd05" {
+		t.Errorf("stamped: got %q, want %q", got, "convert-base-v2 v3.0.0 build dbd05")
 	}
 	var about strings.Builder
 	printAbout(&about)
@@ -104,7 +104,7 @@ func TestBuildEpochIsPatchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := string(out); got != "v9.8.7-stamped build dbd05\n" {
-		t.Errorf("--version = %q, want one line, v9.8.7-stamped build dbd05", got)
+	if got := string(out); got != "convert-base-v2 v9.8.7-stamped build dbd05\n" {
+		t.Errorf("--version = %q, want one line, convert-base-v2 v9.8.7-stamped build dbd05", got)
 	}
 }

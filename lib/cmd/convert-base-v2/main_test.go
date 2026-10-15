@@ -142,7 +142,7 @@ func TestVersionIsPatchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.TrimSpace(string(out)); got != "v9.8.7-stamped" {
+	if got := strings.TrimSpace(string(out)); got != "convert-base-v2 v9.8.7-stamped" {
 		t.Errorf("--version = %q, want the stamped v9.8.7-stamped", got)
 	}
 }

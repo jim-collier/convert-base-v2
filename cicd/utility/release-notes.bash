@@ -170,7 +170,7 @@ versionLine=""
 if [[ -n "${os}" && -n "${arch}" && -x "${native}" ]]; then
 	versionLine="$("${native}" --version 2>/dev/null || true)"
 fi
-versionLine="${versionLine%%$'\n'*}"
+versionLine="${versionLine%%$'\n'*}"; versionLine="${versionLine#"${PKG} "}"
 if [[ -z "${versionLine}" ]]; then
 	fWarn "could not run ${native} --version, so the notes name no build number"
 elif [[ "${versionLine%% *}" != "${VERSION}" ]]; then

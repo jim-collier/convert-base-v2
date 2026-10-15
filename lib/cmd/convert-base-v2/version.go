@@ -49,11 +49,11 @@ func crockfordBase32(n int64) string {
 	return string(digits)
 }
 
-// versionText is the version line, "v3.0.0 build dbrk8", or the version alone
-// when nothing stamped a build.
+// versionText is the version line, "convert-base-v2 v3.0.0 build dbrk8", minus
+// the build part when nothing stamped one.
 func versionText() string {
 	if b := buildNumber(); b != "" {
-		return version + " build " + b
+		return "convert-base-v2 " + version + " build " + b
 	}
-	return version
+	return "convert-base-v2 " + version
 }

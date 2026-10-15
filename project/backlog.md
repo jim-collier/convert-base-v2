@@ -37,7 +37,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - `--version` prints `v3.0.0 build ddgee`, with no program name.
 	- ID: 2026101411014809
 	- Type: Task
-	- Status: Waiting for answers
+	- Status: Done
 	- Opened: 20261014-110148
 	- Opened by: Repo review 20261014
 	- Related IDs: 2026100408500169
@@ -46,17 +46,25 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: `install.bash` and scripts compare the first word of `--version` with the release tag, so a program name in front would break them.
 	- Progress log:
 		- 20261014: waiting on a choice: keep `--version` as it is, or add the program name and update `install.bash` and the scripts to match.
+		- 20261014: answered: name, version, build, with no space at either end.
+	- Done: `--version` prints `convert-base-v2 v3.0.0 build ddgee`. `install.bash` and the release notes drop the name before comparing the version, so an installed pre-3.1 build still reads as current.
+	- Test case: `ErlL5dx` --version one-line format, `ErlL5cs` and `ErlL5dO` in Go, `Esj2Pos` install.bash sees it's current, for the new line and both old ones, and `ErlN8Nk` for the release notes.
+	- Branch: dogfood-ver
 
 - The dogfood stage copies only the native Linux build, and its destination is a private path in the public `cicd/config.bash`.
 	- ID: 2026101411014810
 	- Type: Task
-	- Status: Waiting for answers
+	- Status: Done
 	- Opened: 20261014-110148
 	- Opened by: Repo review 20261014
 	- Target OS: Linux, Windows, macOS
 	- Note: stage 7 copies the Linux build to a synced tools dir named in `DOGFOOD_FIXED_DESTS`. The Windows and macOS builds aren't copied to their own synced dirs.
 	- Progress log:
 		- 20261014: waiting on a choice: copy the Windows and macOS builds too, and move the path out of the public config.
+		- 20261014: answered yes to both.
+	- Done: stage 7 also copies the Windows x86_64 exe and the macOS universal build, listed in `DOGFOOD_CROSS`, but only when stage 6 built them in the same run. The dirs moved to a file outside the repo, named by `DOGFOOD_LOCAL`, and the public config lists none.
+	- Test case: `Esj2PpU`, `Esj2Pq1` and `Esj2PqY` for the cross copies, the skip without stage 6, and `--no-dogfood`. `Esj2Pr6` fails if `config.bash` names a personal dir again.
+	- Branch: dogfood-ver
 
 - The repo has no social preview image, so shared links show GitHub's generic card.
 	- ID: 2026101416210405
