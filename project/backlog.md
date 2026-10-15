@@ -47,7 +47,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261014: waiting on a choice: keep `--version` as it is, or add the program name and update `install.bash` and the scripts to match.
 		- 20261014: answered: name, version, build, with no space at either end.
-	- Done: `--version` prints `convert-base-v2 v3.0.0 build ddgee`. `install.bash` and the release notes drop the name before comparing the version, so an installed pre-3.1 build still reads as current.
+	- Done: `--version` prints `convert-base-v2 v3.0.0 build ddgee`. `install.bash` and the release notes drop the name before comparing the version, so an installed pre-3.0.1 build still reads as current.
 	- Test case: `ErlL5dx` --version one-line format, `ErlL5cs` and `ErlL5dO` in Go, `Esj2Pos` install.bash sees it's current, for the new line and both old ones, and `ErlN8Nk` for the release notes.
 	- Branch: dogfood-ver
 	- Commit: 07a81b5

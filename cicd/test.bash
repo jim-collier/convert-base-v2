@@ -2057,7 +2057,7 @@ fInRun; [[ "${inrc}" == 1 && "${inOut}" == *"aborted; nothing was touched"* && !
 [[ "${inOk}" == "version arch prompt" ]] && _pass EshY061 "install.bash options" \
 	|| _fail EshY061 "install.bash options" "passed=[${inOk}] last rc=${inrc} out=[${inOut}]"
 ## Already current, read from the installed build's --version, with the name in
-## front as now, or without it as before 3.1.
+## front as now, or without it as before 3.0.1.
 fInList v3.0.0 >"${inDir}/release.json"; mkdir -p "${inDir}/home/.local/bin"
 for inLine in "convert-base-v2 v3.0.0 build abcde" "v3.0.0 build abcde" "v3.0.0"; do
 	printf '#!/bin/sh\necho "%s"\n' "${inLine}" >"${inDir}/home/.local/bin/convert-base-v2"; chmod +x "${inDir}/home/.local/bin/convert-base-v2"
