@@ -50,6 +50,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: `--version` prints `convert-base-v2 v3.0.0 build ddgee`. `install.bash` and the release notes drop the name before comparing the version, so an installed pre-3.1 build still reads as current.
 	- Test case: `ErlL5dx` --version one-line format, `ErlL5cs` and `ErlL5dO` in Go, `Esj2Pos` install.bash sees it's current, for the new line and both old ones, and `ErlN8Nk` for the release notes.
 	- Branch: dogfood-ver
+	- Commit: 07a81b5
+	- Acceptance signoff: Self-closed: its checks pass, and fail with the change undone.
+	- Closed: 20261014-180028
 
 - The dogfood stage copies only the native Linux build, and its destination is a private path in the public `cicd/config.bash`.
 	- ID: 2026101411014810
@@ -65,6 +68,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: stage 7 also copies the Windows x86_64 exe and the macOS universal build, listed in `DOGFOOD_CROSS`, but only when stage 6 built them in the same run. The dirs moved to a file outside the repo, named by `DOGFOOD_LOCAL`, and the public config lists none.
 	- Test case: `Esj2PpU`, `Esj2Pq1` and `Esj2PqY` for the cross copies, the skip without stage 6, and `--no-dogfood`. `Esj2Pr6` fails if `config.bash` names a personal dir again.
 	- Branch: dogfood-ver
+	- Commit: 07a81b5
+	- Acceptance signoff: Self-closed: its checks pass, and fail with the change undone.
+	- Closed: 20261014-180028
 
 - The repo has no social preview image, so shared links show GitHub's generic card.
 	- ID: 2026101416210405
