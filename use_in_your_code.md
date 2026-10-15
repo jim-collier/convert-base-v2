@@ -55,6 +55,8 @@ out, err := convertbase.Convert("86434491232548995369", from, to, -1)
 
 Convert whole values, or stream through an `io.Reader` and `io.Writer` in constant memory for anything large. Define your own alphabets, override the negative and decimal markers, and read the base registry directly.
 
+[zuid](https://github.com/jim-collier/zuid), a short sortable ID generator, is one example. Its Go module imports this package for every base it offers.
+
 The package version moves on its own, separately from the command's. It's at v0 for now, which means the API may still change.
 
 ## WebAssembly, in a browser
@@ -93,6 +95,8 @@ That is still enough to cover callers in any language with a WebAssembly runtime
 The reactor module is the library compiled for any WebAssembly runtime, exporting plain functions the host calls directly: one-shot conversion, base lookup, the radix and zero symbol of a base, symbol counting, and a stable numeric error code set with readable error text. It also slices and pads by symbol rather than by byte, which is what fixed-width identifier fields need once a base reaches outside ASCII and one digit is no longer one byte. Strings cross as a pointer and length through the module's memory, with an exported allocator pair; the full contract is in [`lib/reactor/README.md`](lib/reactor/README.md). Build it with `make reactor` (needs a Go 1.24 or newer toolchain).
 
 Streaming is there too, as a push API: open a stream, write raw bytes as they arrive, read output chunks back, finish. It runs the same constant-memory paths the command uses for piped data. The WASI module above remains the simpler choice when all you want is a pipe.
+
+zuid's C module uses it this way. The identifier code is native Zig, and it calls the reactor module through Wasmtime for each base conversion.
 
 ## Or just run it
 
