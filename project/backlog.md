@@ -83,6 +83,69 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: Any
 	- Note: GitHub takes it only on the repo settings page, with no API for it. A 1280x640 image from the demo gif is ready outside the repo.
 
+- Updates to CICD script flags.
+	- ID: 2026101816351431
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261018-163514
+	- Opened by: JC
+	- Related IDs: 2026101411014801, 2026100413480012
+	- Target OS: Linux
+	- Requirements:
+		- `--ci`: Rename to `--gate`.
+		- `--quick`:
+			- Should run whatever linting, validation, and testing steps are very quick.
+			- Cross-compile whatever is fast; e.g. maybe skip slow arm64.
+			- Skip anything requiring an external host.
+		- No flags by default should do everything.
+		- The other existing flags can stay.
+	- Note: pre-next-cut. Do next.
+	- Note: there's no `--ci` in `cicd.bash` now. The fast merge gate is already `--gate`, from 2026101411014801.
+	- Note: `--quick` now skips all cross-compiling, the profiler, and the demo gif, shortens fuzz, and skips the harness perf section and packaging rebuild check.
+	- Note: a run with no flags still leaves out the `--long` tests.
+
+- Leak, memory, and correctness checks in the CICD process, for the code end users run.
+	- ID: 2026101816351432
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261018-163514
+	- Opened by: JC
+	- Related IDs: 2026101816351431
+	- Target OS: Linux
+	- Estimated effort: High
+	- Requirements:
+		- For all code:
+			- The checks cover first-party and third-party code. Vendored code is included.
+				- On third-party code, run the leak, memory, and correctness checks named here, not style lints. Style findings in someone else's module aren't ours to fix.
+				- CodeQL reports only on source inside the database's root. For its run, vendor the dependencies into the tree first (`go mod vendor`).
+			- Any report fails the test that made it.
+			- Any leak is fixed. If the fix has to wait, it gets a backlog item, and the test that shows it turns the check off with that item's ID beside it.
+			- A `--leakcheck` flag adds the slow checks:
+				- CodeQL, from a pinned CLI run locally. No hosted service.
+				- A soak test. It loops through the program's main actions headless, and fails if the heap at round 2N is larger than at round N by more than a set margin. The heap report is kept as a pipeline artifact.
+			- Every tool is pinned and runs in the build container or lint image, never installed on the host.
+			- Each new gate is watched to fail before it's trusted, by planting the leak it's meant to catch and seeing it go red.
+			- Known-advisory scans run on every full run: `govulncheck`. They cover third-party code only, which is the point.
+		- For Go:
+			- Go leaks are goroutines that never exit, and references held too long: a map or slice that only grows, or a small slice keeping a big backing array alive.
+			- Every package's tests run `goleak.VerifyTestMain(m)` from `go.uber.org/goleak`, pinned in go.mod. A goroutine still running after the tests fails the run, whether our code or a dependency started it.
+			- Every full run runs the whole test suite with `-race`.
+			- If the code uses cgo, every full run also runs the tests with `-asan`, in a build dir of its own.
+			- Every full run runs `go vet` and `staticcheck`. `go vet`'s `lostcancel` and `copylocks` checks are the leak-related ones.
+			- The soak test reads `runtime.MemStats.HeapInuse` and `runtime.NumGoroutine()` at round N and 2N, after `runtime.GC()`. Its heap profile (`pprof`) is kept as the artifact, and `go tool pprof -base` shows what grew.
+			- Traps:
+				- `goleak.VerifyNone` per test doesn't work with `t.Parallel()`. Use `VerifyTestMain`.
+				- goleak ignores by function name. That's the only form of suppression allowed.
+				- `go test` caches a pass. Run with `-count=1`.
+				- One `runtime.GC()` can leave garbage behind. Call it twice before reading the stats, or the margin has to be wide enough to hide a real leak.
+				- `-race` needs cgo on some platforms. A job with `CGO_ENABLED=0` fails to build it or skips it, so check the job's env.
+				- `-race` is 2 to 20 times slower and uses 5 to 10 times the memory. Size the job's timeout for it.
+	- Note: the command, the library, and the browser and reactor modules are all Go, and none uses cgo. The other code in the tree is pipeline scripts, research tools, and interop test copies, so the C, C++, Rust, and Python parts of the list weren't logged.
+	- Note: the vendored code is `lib/shcl/shcl.go`. It's never edited here, so a leak found in it goes to shcl's backlog.
+	- Note: `go vet`, `staticcheck`, and `govulncheck` already run in stages 3 and 4, and container runs fail when one is missing. Release builds use `CGO_ENABLED=0`.
+
 - A bare `tail: ,` in a config reads as no tail.
 	- ID: 2026101411014813
 	- Type: Bug
