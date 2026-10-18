@@ -104,6 +104,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: there's no `--ci` in `cicd.bash` now. The fast merge gate is already `--gate`, from 2026101411014801.
 	- Note: `--quick` now skips all cross-compiling, the profiler, and the demo gif, shortens fuzz, and skips the harness perf section and packaging rebuild check.
 	- Note: a run with no flags still leaves out the `--long` tests.
+	- Decisions:
+		- 20261018: no flags do everything, the `--leakcheck` checks included. `--leakcheck` can be added to other flags that might otherwise skip them.
 
 - Leak, memory, and correctness checks in the CICD process, for the code end users run.
 	- ID: 2026101816351432
@@ -145,6 +147,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the command, the library, and the browser and reactor modules are all Go, and none uses cgo. The other code in the tree is pipeline scripts, research tools, and interop test copies, so the C, C++, Rust, and Python parts of the list weren't logged.
 	- Note: the vendored code is `lib/shcl/shcl.go`. It's never edited here, so a leak found in it goes to shcl's backlog.
 	- Note: `go vet`, `staticcheck`, and `govulncheck` already run in stages 3 and 4, and container runs fail when one is missing. Release builds use `CGO_ENABLED=0`.
+	- Decisions:
+		- 20261018: a run with no flags runs the `--leakcheck` checks too, per 2026101816351431. The flag adds them to a run whose other flags would skip them, such as `--quick`.
 
 - A bare `tail: ,` in a config reads as no tail.
 	- ID: 2026101411014813
