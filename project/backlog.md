@@ -171,7 +171,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Hosted CI runs only vet, the Go tests and the build.
 	- ID: 2026101009523062
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
+	- Needs local test suite run?: none. Hosted CI passed on the branch twice, harness 674 of 674 both times.
 	- Priority: Avg
 	- Opened: 20261010-095230
 	- Opened by: JC
@@ -180,6 +181,20 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the runners could pull the `--container` image and run the harness, interop, shellcheck and ruff too. Building it on every run takes several minutes, so it needs a registry or a cache.
 	- Decisions:
 		- 20261018: build the image on the runner with the GitHub Actions layer cache. Nothing is published to a registry.
+		- 20261019: the new job runs `cicd.bash --container --quick` with no sync, publish or dogfood, rather than its own steps, so CI runs what a local run does and can't drift from it. `--quick` keeps it short: the long tests, leak checks, CodeQL and the checks that reach other hosts stay local. The gif fonts aren't on the runner, so the gif is skipped.
+		- 20261019: the image is the same one a local run builds, CodeQL layer included, rather than a CI-only cut. The cache is about 750 MB per image version, well under the 10 GB cap.
+		- 20261019: the vet, test and build job stays beside it. It needs only Go, so it still reports when the image build can't.
+	- Progress log:
+		- 20261019: `ci.yml` has a second job, `pipeline`. It takes the tag from the new `cicd.bash --image-tag` and the build args from `tool-versions.env`, builds and loads the image, then runs the pipeline in it. `CICD_IMAGE_PREBUILT=1` makes a tag mismatch fail rather than rebuild without the cache. `workflow_dispatch` is on, so a branch can be run by hand.
+		- 20261019: checkout fetches the whole history, since the harness builds v3.0.0 from its tag, and a skip there fails a container run.
+	- Verified: 20261019, run 39264636641 on a cold cache: 8m0s in all, image 3m56s, pipeline 3m39s. Run 39265938492 with every layer cached: 7m21s, image 1m7s, pipeline 5m43s. The pipeline step's time varies between runners. The vet, test and build job took under 30 s each time.
+	- Verified: each new check fails with its code broken: `--image-tag` ignoring the contexts, no prebuilt guard, a pin written into a workflow, an action pinned to a full version, the guard dropped from `ci.yml`, the tag step dropped, and a new named context in the Dockerfile that `ci.yml` doesn't pass.
+	- Branch: hostci
+	- Commit: b1f4ecf
+	- Test case: Et9eteN, Et9etf7 (CI engine section), Et9etfx, Et9etgg (hosted CI workflow).
+	- Swept: release.yml and pages.yml name no pin of their own and pin actions by major version, checked by Et9etfx. contributing.md, development.md, design.md and the changelog no longer say hosted CI only vets, tests and builds. The README badge still points at `ci.yml`.
+	- Acceptance signoff: Self-closed: did what the decision asked, passed on the runner twice with the cache hitting, and its checks fail with the code broken.
+	- Closed: 20261019-071600
 
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812

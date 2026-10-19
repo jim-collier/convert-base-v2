@@ -138,6 +138,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - CodeQL in the leak checks, from a pinned copy in the pipeline image. It scans the Go code with its dependencies vendored in, using the stock security-and-quality queries without the style ones, and any result fails the run. Its SARIF report is kept.  [20261019]
 
+- Hosted CI runs the pipeline too. It builds the pipeline image on the runner from a layer cache, and runs a `--quick` pass in it, so the integration tests, the comparison tests against the reference implementations, shellcheck, and ruff run on every push and pull request. The plain Go vet, test, and build job stays.  [20261019]
+
 ## v3.0.0 - 2026-08-04
 
 ### Notes
