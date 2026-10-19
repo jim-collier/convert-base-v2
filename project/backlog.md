@@ -37,8 +37,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Hosted CI fails at the native build on every dev push since the `install.ps1` merge.
 	- ID: 2026101911072100
 	- Type: Bug
-	- Status: Waiting for testing
-	- Needs external testing: Yes. Hosted CI's pipeline job on the next dev push.
+	- Status: Done
 	- Priority: High
 	- Opened: 20261019-110721
 	- Opened by: JC
@@ -53,6 +52,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261019, on a new volume, the old image fails with the same `permission denied` making the Go cache, and the new one makes it. The old image fails the new last step.
 	- Test case: `EtAgsNr` the Dockerfile's last step checks `/cache/home`. `EtAgsOV` nothing root-owned in the container's HOME, which failed on the old image and a new volume.
 	- Branch: cleanup
+	- Closed: 20261019. Hosted CI passed on dev, run 39325671266.
 
 - Updates to CICD script flags.
 	- ID: 2026101816351431
