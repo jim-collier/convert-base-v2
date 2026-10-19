@@ -46,6 +46,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The Windows `.exe` files and installers have an icon, the project mascot, and version details that Explorer shows on the Properties tab.
 
+- A PowerShell install script, `install.ps1`, for Windows PowerShell 5.1 and PowerShell 7 on any OS. Like the Bash one, it checks the download against `checksums.txt`, shows its plan, and asks first. On Windows it installs for the user by default and adds the folder to the PATH.
+
 - Release notes list the downloads in a table, with the OS in rows and the CPU in columns, and end with the version line the release's build prints, build number included.
 
 - Library: `UpgradeConfig` converts the text of a config file written for an older SHCL format, so it loads to the same bases. `LoadConfig` uses it. The library is now v0.2.0.
@@ -137,6 +139,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The pipeline has a fast `--gate` run of the format check, lint and unit tests, which a pre-push hook runs for `dev` and `main`. A full run fast-forwards from the remote first.  [20261014]
 
 - A pipeline run with no flags includes the long tests. `--quick` still cross-compiles and packages, which takes seconds, and leaves out the checks that reach other hosts.  [20261019]
+
+- The lint stage checks the PowerShell files with PSScriptAnalyzer, and the pipeline image has PowerShell 7 for it.  [20261019]
 
 - Leak checks in the pipeline. Every Go test package fails on a goroutine left running after its tests, through goleak. A full run, or `--leakcheck`, also runs the Go tests under the race detector and a soak test that fails when the heap or goroutine count keeps growing, and keeps its heap profiles.  [20261019]
 

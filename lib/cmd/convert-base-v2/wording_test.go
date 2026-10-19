@@ -61,7 +61,7 @@ func TestMessagesUseContractions(t *testing.T) {
 	}
 
 	// Outside the module, so absent from a module download.
-	for _, p := range []string{"../../../install.bash", "../../../web/index.html"} {
+	for _, p := range []string{"../../../install.bash", "../../../install.ps1", "../../../web/index.html"} {
 		text, err := os.ReadFile(p)
 		if os.IsNotExist(err) {
 			continue

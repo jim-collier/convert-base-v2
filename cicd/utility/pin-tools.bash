@@ -69,5 +69,6 @@ fPinWarn(){
 }
 fPinWarn shellcheck "${SHELLCHECK_VERSION}" --version
 fPinWarn ruff       "${RUFF_VERSION}"       --version
+fPinWarn pwsh       "${PWSH_VERSION}"       --version
 
 ((changed)) || echo "[ pins ok ]"
