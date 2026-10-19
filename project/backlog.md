@@ -71,26 +71,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: flags
 	- Commit: 2abd0ac
 
-- A bare `tail: ,` in a config reads as no tail.
-	- ID: 2026101411014813
-	- Type: Bug
-	- Status: Stalled
-	- Severity: Low
-	- Opened: 20261014-110148
-	- Opened by: split from 2026100417280514
-	- Related IDs: 2026100417280514, 2026100508035901
-	- Target OS: Any
-	- Steps to reproduce:
-		- A config base with `tail: ,` or `tail: , ,`.
-		- Smallest repro in shcl: parse `x: ,` and read `x` as a list. It comes back empty, the same as `x:`.
-	- Incorrect behavior: the base loads with no tail, and nothing is said.
-	- Expected behavior: a comma tail, or an error that names the line. A quoted `","` reaches the loader and is refused as only commas.
-	- Reproduced: 20261005, on shcl 2317df56.
-	- Note: shcl friction, a silent wrong answer. The config loads at exit 0, and the base isn't the one the file describes.
-	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
-	- Progress log:
-		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
-
 - Leak, memory, and correctness checks in the CICD process, for the code end users run.
 	- ID: 2026101816351432
 	- Type: Enhancement
@@ -155,6 +135,26 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Et9VxXX` leak checks on a plain run, off under `--quick`, back with `--leakcheck`, never in the gate. `Et9VxYE` `--leakcheck` reaches the container run. `Et9VxYy` no cgo warns, and fails where every tool must be there. `Et9WfaT` race and leak reports shown from the top. `Et9UPKp` the soak margins. `Et9UPKC` is the soak test itself, and goleak runs in every package's `TestMain`.
 	- Branch: leaks
 	- Commit: 64f06f5
+
+- A bare `tail: ,` in a config reads as no tail.
+	- ID: 2026101411014813
+	- Type: Bug
+	- Status: Stalled
+	- Severity: Low
+	- Opened: 20261014-110148
+	- Opened by: split from 2026100417280514
+	- Related IDs: 2026100417280514, 2026100508035901
+	- Target OS: Any
+	- Steps to reproduce:
+		- A config base with `tail: ,` or `tail: , ,`.
+		- Smallest repro in shcl: parse `x: ,` and read `x` as a list. It comes back empty, the same as `x:`.
+	- Incorrect behavior: the base loads with no tail, and nothing is said.
+	- Expected behavior: a comma tail, or an error that names the line. A quoted `","` reaches the loader and is refused as only commas.
+	- Reproduced: 20261005, on shcl 2317df56.
+	- Note: shcl friction, a silent wrong answer. The config loads at exit 0, and the base isn't the one the file describes.
+	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
+	- Progress log:
+		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
 
 - Hosted CI runs only vet, the Go tests and the build.
 	- ID: 2026101009523062
