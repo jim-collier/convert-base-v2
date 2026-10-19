@@ -272,7 +272,7 @@ func TestFinalizeRefusesInvalidUTF8(t *testing.T) {
 			if err == nil {
 				t.Fatal("accepted")
 			}
-			if !strings.Contains(err.Error(), c.want+" is not valid UTF-8") || !strings.Contains(err.Error(), `base "custom(`) {
+			if !strings.Contains(err.Error(), c.want+" isn't valid UTF-8") || !strings.Contains(err.Error(), `base "custom(`) {
 				t.Fatalf("got %v, want the base and %s", err, c.want)
 			}
 		})
@@ -280,11 +280,11 @@ func TestFinalizeRefusesInvalidUTF8(t *testing.T) {
 	// A config's list form skips the spec parser and goes straight to Finalize.
 	reg := newReg(t)
 	if err := reg.Register(&Base{Aliases: []string{"listed"}, Symbols: []string{"a", "b\x80"}}); err == nil ||
-		!strings.Contains(err.Error(), `base "listed": digit "b\x80" at index 1 is not valid UTF-8`) {
+		!strings.Contains(err.Error(), `base "listed": digit "b\x80" at index 1 isn't valid UTF-8`) {
 		t.Errorf("list form: %v", err)
 	}
 	if err := loadConfigText(t, "base: strung\n\tsymbols: \"\x80 \x81 a b\"\n##    Format   3\n"); err == nil ||
-		!strings.Contains(err.Error(), `base "strung": digit "\x80" at index 0 is not valid UTF-8`) {
+		!strings.Contains(err.Error(), `base "strung": digit "\x80" at index 0 isn't valid UTF-8`) {
 		t.Errorf("config: %v", err)
 	}
 	// Spec escapes and control digits are plain ASCII, so they stay accepted.

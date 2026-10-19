@@ -91,7 +91,7 @@ func ApplyOptions(base *Base, o *Options) (*Base, error) {
 	// Sign and fractions are meaningless for raw bytes, and every byte value is
 	// already a digit, so there is nothing a marker could be set to.
 	if base.Binary {
-		return nil, fmt.Errorf("base %q is raw bytes; %s do not apply to it", base.Name(), o.flag("neg/-dec/-pad/-tail"))
+		return nil, fmt.Errorf("base %q is raw bytes; %s don't apply to it", base.Name(), o.flag("neg/-dec/-pad/-tail"))
 	}
 	overridden := *base
 	if err := o.apply(&overridden); err != nil {

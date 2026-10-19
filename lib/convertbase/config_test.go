@@ -357,7 +357,7 @@ func TestConfigInvalidUTF8InQuotes(t *testing.T) {
 			if err == nil {
 				t.Fatal("loaded")
 			}
-			if want := `base "badutf": ` + c.want + " is not valid UTF-8"; !strings.Contains(err.Error(), want) {
+			if want := `base "badutf": ` + c.want + " isn't valid UTF-8"; !strings.Contains(err.Error(), want) {
 				t.Fatalf("got %v, want %s", err, want)
 			}
 		})

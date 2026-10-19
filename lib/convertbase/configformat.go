@@ -48,7 +48,7 @@ func UpgradeConfig(text string) (*ConfigUpgrade, error) {
 		from = unstampedFormat
 	}
 	refuse := func(err error) (*ConfigUpgrade, error) {
-		return nil, fmt.Errorf("written for SHCL format %d, and cannot be converted to format %d as it is: %w",
+		return nil, fmt.Errorf("written for SHCL format %d, and can't be converted to format %d as it is: %w",
 			from, shcl.FormatMajor, err)
 	}
 	// Workaround for shcl's Migrate, which turns old selector sugar such as
@@ -65,7 +65,7 @@ func UpgradeConfig(text string) (*ConfigUpgrade, error) {
 	// comes back unchanged and unstamped, with nothing to say why. Unstamped,
 	// it would be taken for an old file again on every load.
 	if v, ok := shcl.FormatVersion(m.Text); !ok || v < shcl.FormatMajor {
-		return refuse(errors.New("the conversion did not finish; check for a raw block with no closing fence"))
+		return refuse(errors.New("the conversion didn't finish; check for a raw block with no closing fence"))
 	}
 	// Registering checks nothing against the bases already there, so an empty
 	// registry finds every fault a real load would, without building the

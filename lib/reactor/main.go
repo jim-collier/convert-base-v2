@@ -135,7 +135,7 @@ func hostBytes(ptr, n uint32) ([]byte, bool) {
 			return buf[off : off+n], true
 		}
 	}
-	setErr(errBadArg, "pointer and length do not fall inside an allocated region")
+	setErr(errBadArg, "pointer and length don't fall inside an allocated region")
 	return nil, false
 }
 

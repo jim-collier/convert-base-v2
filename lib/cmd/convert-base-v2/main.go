@@ -202,7 +202,7 @@ func parseFlags(args []string) (*cliFlags, error) {
 	fs.BoolVar(&f.lower, "lower", false, "lowercase output (errors if the output base can't read its digits back in lower case)")
 	fs.BoolVar(&f.upper, "upper", false, "uppercase output (errors if the output base can't read its digits back in upper case)")
 	fs.BoolVar(&f.escapeCtrl, "escape-controls", false, "write control-character digits as named escapes (⊳LF, ⊳HT, ...); input accepts them either way")
-	fs.BoolVar(&f.noNewline, "no-newline", false, "do not append a trailing newline to text output (like echo -n)")
+	fs.BoolVar(&f.noNewline, "no-newline", false, "don't append a trailing newline to text output (like echo -n)")
 	fs.BoolVar(&f.noNewline, "n", false, "alias for -no-newline")
 	fs.BoolVar(&f.binary, "binary", false, "treat both sides as raw byte data (byte encode/decode, like basenc); an omitted --from/--to defaults to bytes")
 	fs.BoolVar(&f.binary, "bin", false, "alias for -binary")
@@ -1532,7 +1532,7 @@ Exit status:
   1                    The conversion failed, such as an unknown base, a value
                        the base can't take, a digit not in the base, or a
                        failed write
-  2                    The command line could not be used, such as an unknown
+  2                    The command line couldn't be used, such as an unknown
                        flag or a bad flag value, flags that can't go together,
                        a flag after the NUMBER or an extra argument, or no
                        NUMBER or BASE was given

@@ -90,6 +90,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The install script picks the newest release by version, not by the order GitHub lists them, so a pre-release sorts below its final and beta10 above beta9. With no stable release yet, stable takes the newest pre-release. It takes `--name=value` as well as `--name value`, and has `--version`. `--arch` is gone, since the CPU is always detected, and an answer of Ctrl-D at the prompt is a no.
 
+- Error messages, notes and help text use contractions, such as "can't decode" for "cannot decode" and "isn't valid UTF-8" for "is not valid UTF-8". That includes the library's error text, so a program matching on the old wording needs a change. The error types and the reactor and browser error codes are the same.
+
 ### Fixed
 
 - A config field indented under another field, such as `decimal:` under `negative:`, was never read, and an empty field above it still switched its marker off. The base was built wrong with no error. It is refused now, naming the base, the field and the line.

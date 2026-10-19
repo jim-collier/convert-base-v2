@@ -60,7 +60,7 @@ func upgradeConfigFile(path string, now time.Time) string {
 		if !up.Respelled {
 			return ""
 		}
-		return fmt.Sprintf("note: %s is written for SHCL format %d and could not be converted (%s); it was read the old way for this run",
+		return fmt.Sprintf("note: %s is written for SHCL format %d and couldn't be converted (%s); it was read the old way for this run",
 			path, up.FromFormat, errReason(err))
 	}
 	return fmt.Sprintf("note: converted %s to SHCL format %d; the original is now %s", path, shcl.FormatMajor, backup)

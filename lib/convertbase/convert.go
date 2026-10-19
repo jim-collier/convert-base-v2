@@ -329,7 +329,7 @@ func convertSmallBits(input string, from, to *Base, kIn, kOut int) (string, erro
 		// but not the actual mistake - and the streaming decoder already
 		// says it properly, so say the same thing here.
 		if strings.Contains(input, from.PadSymbol) {
-			return "", fmt.Errorf("cannot decode from %s: data after padding %q", from.Name(), from.PadSymbol)
+			return "", fmt.Errorf("can't decode from %s: data after padding %q", from.Name(), from.PadSymbol)
 		}
 	}
 	out, err := convertBitPacked(input, from, to, kIn, kOut)
@@ -587,7 +587,7 @@ func convertBitPacked(input string, from, to *Base, kIn, kOut int) (string, erro
 			// bit is set, the source wasn't a padded encoding of a binary
 			// blob, and discarding would corrupt data.
 			if acc != 0 {
-				return "", fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
+				return "", fmt.Errorf("can't decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
 			}
 		} else {
 			// Pad LSB with zeros to make one more full output digit.
@@ -660,7 +660,7 @@ func decodeDigitsToBytes(input string, from *Base, kIn int) (string, error) {
 		}
 	}
 	if accBits > 0 && acc != 0 {
-		return "", fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
+		return "", fmt.Errorf("can't decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
 	}
 	return string(out), nil
 }
@@ -1023,7 +1023,7 @@ func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
 				// A digit after padding means the pad wasn't a trailing run - the
 				// buffered path rejects this too (interior pad), so match it.
 				if padSeen {
-					return fmt.Errorf("cannot decode from %s: data after padding %q", from.Name(), from.PadSymbol)
+					return fmt.Errorf("can't decode from %s: data after padding %q", from.Name(), from.PadSymbol)
 				}
 				acc = acc<<kIn | uint64(v)
 				accBits += kIn
@@ -1056,7 +1056,7 @@ func streamDecode(r io.Reader, w io.Writer, from *Base, kIn int) error {
 		}
 	}
 	if accBits > 0 && acc != 0 {
-		return fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
+		return fmt.Errorf("can't decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
 	}
 	return nil
 }
@@ -1214,7 +1214,7 @@ func streamDecodeWide(r io.Reader, w io.Writer, from *Base, kIn int) error {
 		symCount++
 		if v, ok := from.runeValue[rn]; ok {
 			if padSeen {
-				return fmt.Errorf("cannot decode from %s: data after padding %q", from.Name(), from.PadSymbol)
+				return fmt.Errorf("can't decode from %s: data after padding %q", from.Name(), from.PadSymbol)
 			}
 			bits := kIn
 			if swap {
@@ -1223,7 +1223,7 @@ func streamDecodeWide(r io.Reader, w io.Writer, from *Base, kIn int) error {
 			if rust && last {
 				bits = rustFinalBits(symCount, kIn)
 				if v >= (1 << bits) {
-					return fmt.Errorf("cannot decode from %s: final digit carries more bits than the input length allows", from.Name())
+					return fmt.Errorf("can't decode from %s: final digit carries more bits than the input length allows", from.Name())
 				}
 			}
 			acc = acc<<bits | uint64(v)
@@ -1234,20 +1234,20 @@ func streamDecodeWide(r io.Reader, w io.Writer, from *Base, kIn int) error {
 		if hasTail {
 			ti, ok := from.tailValue[string(rn)]
 			if !ok {
-				return fmt.Errorf("cannot decode from %s: symbol %q is not in the base", from.Name(), string(rn))
+				return fmt.Errorf("can't decode from %s: symbol %q isn't in the base", from.Name(), string(rn))
 			}
 			if !last {
-				return fmt.Errorf("cannot decode from %s: tail symbol %q appears before the end", from.Name(), string(rn))
+				return fmt.Errorf("can't decode from %s: tail symbol %q appears before the end", from.Name(), string(rn))
 			}
 			bits := kTail
 			if rust {
 				bits = 8 - accBits%8 // exact bits needed to finish the last byte
 				if bits == 0 || bits > kTail {
-					return fmt.Errorf("cannot decode from %s: misplaced tail symbol %q", from.Name(), string(rn))
+					return fmt.Errorf("can't decode from %s: misplaced tail symbol %q", from.Name(), string(rn))
 				}
 			}
 			if ti >= (1 << bits) {
-				return fmt.Errorf("cannot decode from %s: tail digit out of range", from.Name())
+				return fmt.Errorf("can't decode from %s: tail digit out of range", from.Name())
 			}
 			acc = acc<<bits | uint64(ti)
 			accBits += bits
@@ -1302,7 +1302,7 @@ func streamDecodeWide(r io.Reader, w io.Writer, from *Base, kIn int) error {
 			}
 			rn, size := utf8.DecodeRune(inbuf[i:total])
 			if rn == utf8.RuneError && size <= 1 {
-				return fmt.Errorf("cannot decode from %s: input is not valid UTF-8", from.Name())
+				return fmt.Errorf("can't decode from %s: input isn't valid UTF-8", from.Name())
 			}
 			i += size
 			if perr := process(rn); perr != nil {
@@ -1341,16 +1341,16 @@ func streamDecodeWide(r io.Reader, w io.Writer, from *Base, kIn int) error {
 	switch {
 	case !hasTail:
 		if accBits > 0 && acc != 0 {
-			return fmt.Errorf("cannot decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
+			return fmt.Errorf("can't decode to binary: %d trailing bit(s) are nonzero, so the input didn't come from a binary encoding (e.g. odd-length hex has no byte representation)", accBits)
 		}
 	case rust:
 		if accBits != 0 {
-			return fmt.Errorf("cannot decode from %s: input is not a whole number of bytes", from.Name())
+			return fmt.Errorf("can't decode from %s: input isn't a whole number of bytes", from.Name())
 		}
 	default:
 		// qntm pads the tail with 1-bits; anything else is not a valid encoding.
 		if acc != uint64(1)<<accBits-1 {
-			return fmt.Errorf("cannot decode from %s: bad trailing padding", from.Name())
+			return fmt.Errorf("can't decode from %s: bad trailing padding", from.Name())
 		}
 	}
 	return nil
@@ -1410,7 +1410,7 @@ func decodeBinaryPrefixed(input string, from *Base, k int) (string, error) {
 	// Any remaining sub-byte bits are zero padding from the encoder; ignore them.
 	n, m := binary.Uvarint(buf)
 	if m <= 0 || n > uint64(len(buf)-m) {
-		return "", fmt.Errorf("cannot decode to binary: input is not a valid %s binary encoding", from.Name())
+		return "", fmt.Errorf("can't decode to binary: input isn't a valid %s binary encoding", from.Name())
 	}
 	return string(buf[m : m+int(n)]), nil
 }
@@ -1481,7 +1481,7 @@ func decodeBase45(input string, b *Base) (string, error) {
 		}
 		v := b.byteValue[c]
 		if v < 0 {
-			return "", fmt.Errorf("cannot decode from %s: byte %#02x (%q) is not a base-45 symbol", b.Name(), c, string(c))
+			return "", fmt.Errorf("can't decode from %s: byte %#02x (%q) isn't a base-45 symbol", b.Name(), c, string(c))
 		}
 		vals = append(vals, v)
 	}
@@ -1490,7 +1490,7 @@ func decodeBase45(input string, b *Base) (string, error) {
 	for ; i+3 <= len(vals); i += 3 {
 		n := vals[i] + vals[i+1]*45 + vals[i+2]*45*45
 		if n > 0xFFFF {
-			return "", fmt.Errorf("cannot decode from %s: a 3-symbol group is out of range", b.Name())
+			return "", fmt.Errorf("can't decode from %s: a 3-symbol group is out of range", b.Name())
 		}
 		out = append(out, byte(n>>8), byte(n))
 	}
@@ -1499,11 +1499,11 @@ func decodeBase45(input string, b *Base) (string, error) {
 	case 2:
 		n := vals[i] + vals[i+1]*45
 		if n > 0xFF {
-			return "", fmt.Errorf("cannot decode from %s: the 2-symbol tail is out of range", b.Name())
+			return "", fmt.Errorf("can't decode from %s: the 2-symbol tail is out of range", b.Name())
 		}
 		out = append(out, byte(n))
 	default: // a lone leftover symbol can't complete a group
-		return "", fmt.Errorf("cannot decode from %s: input length is not a valid base-45 encoding", b.Name())
+		return "", fmt.Errorf("can't decode from %s: input length isn't a valid base-45 encoding", b.Name())
 	}
 	return string(out), nil
 }
@@ -1557,7 +1557,7 @@ func decodeASCII85(input string, b *Base) (string, error) {
 			n = n*85 + uint64(group[k])
 		}
 		if n > 0xFFFFFFFF {
-			return fmt.Errorf("cannot decode from %s: a 5-symbol group overflows 32 bits", b.Name())
+			return fmt.Errorf("can't decode from %s: a 5-symbol group overflows 32 bits", b.Name())
 		}
 		v := uint32(n)
 		full := [4]byte{byte(v >> 24), byte(v >> 16), byte(v >> 8), byte(v)}
@@ -1568,7 +1568,7 @@ func decodeASCII85(input string, b *Base) (string, error) {
 		c := input[i]
 		if c == 'z' { // all-zero group shortcut, only on a group boundary
 			if gi != 0 {
-				return "", fmt.Errorf("cannot decode from %s: 'z' shortcut inside a group", b.Name())
+				return "", fmt.Errorf("can't decode from %s: 'z' shortcut inside a group", b.Name())
 			}
 			out = append(out, 0, 0, 0, 0)
 			continue
@@ -1578,7 +1578,7 @@ func decodeASCII85(input string, b *Base) (string, error) {
 		}
 		v := b.byteValue[c]
 		if v < 0 {
-			return "", fmt.Errorf("cannot decode from %s: byte %#02x (%q) is not an Ascii85 symbol", b.Name(), c, string(c))
+			return "", fmt.Errorf("can't decode from %s: byte %#02x (%q) isn't an Ascii85 symbol", b.Name(), c, string(c))
 		}
 		group[gi] = v
 		gi++
@@ -1590,7 +1590,7 @@ func decodeASCII85(input string, b *Base) (string, error) {
 		}
 	}
 	if gi == 1 {
-		return "", fmt.Errorf("cannot decode from %s: a single trailing symbol is not a valid group", b.Name())
+		return "", fmt.Errorf("can't decode from %s: a single trailing symbol isn't a valid group", b.Name())
 	}
 	if gi > 0 {
 		if err := flush(gi); err != nil {
@@ -1607,7 +1607,7 @@ func decodeASCII85(input string, b *Base) (string, error) {
 
 func encodeZ85(data string, b *Base) (string, error) {
 	if len(data)%4 != 0 {
-		return "", fmt.Errorf("cannot encode to %s: Z85 (ZeroMQ RFC 32) requires the input length to be a multiple of 4 bytes; got %d", b.Name(), len(data))
+		return "", fmt.Errorf("can't encode to %s: Z85 (ZeroMQ RFC 32) requires the input length to be a multiple of 4 bytes; got %d", b.Name(), len(data))
 	}
 	var sb strings.Builder
 	sb.Grow(len(data) / 4 * 5)
@@ -1632,12 +1632,12 @@ func decodeZ85(input string, b *Base) (string, error) {
 		}
 		v := b.byteValue[c]
 		if v < 0 {
-			return "", fmt.Errorf("cannot decode from %s: byte %#02x (%q) is not a Z85 symbol", b.Name(), c, string(c))
+			return "", fmt.Errorf("can't decode from %s: byte %#02x (%q) isn't a Z85 symbol", b.Name(), c, string(c))
 		}
 		vals = append(vals, v)
 	}
 	if len(vals)%5 != 0 {
-		return "", fmt.Errorf("cannot decode from %s: Z85 requires the symbol count to be a multiple of 5; got %d", b.Name(), len(vals))
+		return "", fmt.Errorf("can't decode from %s: Z85 requires the symbol count to be a multiple of 5; got %d", b.Name(), len(vals))
 	}
 	var out []byte
 	for i := 0; i+5 <= len(vals); i += 5 {
@@ -1646,7 +1646,7 @@ func decodeZ85(input string, b *Base) (string, error) {
 			n = n*85 + uint64(vals[i+k])
 		}
 		if n > 0xFFFFFFFF {
-			return "", fmt.Errorf("cannot decode from %s: a 5-symbol group overflows 32 bits", b.Name())
+			return "", fmt.Errorf("can't decode from %s: a 5-symbol group overflows 32 bits", b.Name())
 		}
 		v := uint32(n)
 		out = append(out, byte(v>>24), byte(v>>16), byte(v>>8), byte(v))
@@ -1706,7 +1706,7 @@ func decodeBase91(input string, b *Base) (string, error) {
 			if c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\v' || c == '\f' {
 				continue
 			}
-			return "", fmt.Errorf("cannot decode from %s: byte %#02x (%q) is not a base-91 symbol", b.Name(), c, string(c))
+			return "", fmt.Errorf("can't decode from %s: byte %#02x (%q) isn't a base-91 symbol", b.Name(), c, string(c))
 		}
 		if v < 0 {
 			v = d
@@ -1862,7 +1862,7 @@ func decodeBigBaseNative(input string, big *Base) (string, error) {
 				idx = swap16(idx)
 			}
 			if idx >= (1 << bits) {
-				return "", fmt.Errorf("cannot decode from %s: final digit carries more bits than the input length allows", big.Name())
+				return "", fmt.Errorf("can't decode from %s: final digit carries more bits than the input length allows", big.Name())
 			}
 			acc = (acc << bits) | uint64(idx)
 			accBits += bits
@@ -1873,20 +1873,20 @@ func decodeBigBaseNative(input string, big *Base) (string, error) {
 		s := string(r)
 		idx, ok := big.tailValue[s]
 		if !ok {
-			return "", fmt.Errorf("cannot decode from %s: symbol %q is not in the base", big.Name(), s)
+			return "", fmt.Errorf("can't decode from %s: symbol %q isn't in the base", big.Name(), s)
 		}
 		if !last {
-			return "", fmt.Errorf("cannot decode from %s: tail symbol %q appears before the end", big.Name(), s)
+			return "", fmt.Errorf("can't decode from %s: tail symbol %q appears before the end", big.Name(), s)
 		}
 		bits := kTail
 		if rust {
 			bits = 8 - (accBits % 8) // exact bits needed to finish the last byte
 			if bits == 0 || bits > kTail {
-				return "", fmt.Errorf("cannot decode from %s: misplaced tail symbol %q", big.Name(), s)
+				return "", fmt.Errorf("can't decode from %s: misplaced tail symbol %q", big.Name(), s)
 			}
 		}
 		if idx >= (1 << bits) {
-			return "", fmt.Errorf("cannot decode from %s: tail digit out of range", big.Name())
+			return "", fmt.Errorf("can't decode from %s: tail digit out of range", big.Name())
 		}
 		acc = (acc << bits) | uint64(idx)
 		accBits += bits
@@ -1895,11 +1895,11 @@ func decodeBigBaseNative(input string, big *Base) (string, error) {
 
 	if rust {
 		if accBits != 0 {
-			return "", fmt.Errorf("cannot decode from %s: input is not a whole number of bytes", big.Name())
+			return "", fmt.Errorf("can't decode from %s: input isn't a whole number of bytes", big.Name())
 		}
 	} else if acc != (uint64(1)<<accBits)-1 {
 		// qntm pads the tail with 1-bits; anything else is not a valid encoding.
-		return "", fmt.Errorf("cannot decode from %s: bad trailing padding", big.Name())
+		return "", fmt.Errorf("can't decode from %s: bad trailing padding", big.Name())
 	}
 	return string(out), nil
 }

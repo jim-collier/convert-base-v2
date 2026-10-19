@@ -114,7 +114,7 @@ fi
 fEcho "Looking up the newest ${RELEASE} release"
 ## The list, not releases/latest, which is stable-only and 404s while every
 ## release is a pre-release. The API returns one field per line.
-releaseJson="$(curl -fsSL "${API}?per_page=100")" || fDie "could not reach the GitHub API (offline, or rate-limited?)"
+releaseJson="$(curl -fsSL "${API}?per_page=100")" || fDie "couldn't reach the GitHub API (offline, or rate-limited?)"
 ## Tag, then 1 for a pre-release. Drafts aren't public, but skip them anyway.
 fListReleases(){
 	awk '
@@ -150,7 +150,7 @@ if [[ "${RELEASE}" == "stable" ]]; then
 else
 	tag="$(fNewest <<<"${releases}" || true)"
 fi
-[[ -n "${tag}" ]] || fDie "could not determine the ${RELEASE} release tag"
+[[ -n "${tag}" ]] || fDie "couldn't determine the ${RELEASE} release tag"
 
 asset="${PKG}-${os}-${ARCH}"
 url="https://github.com/${REPO}/releases/download/${tag}/${asset}"
@@ -215,7 +215,7 @@ fi
 fEcho "Installed: $("${destPath}" --version)"
 case ":${PATH}:" in
 	*":${destDir}:"*) : ;;
-	*) fEcho "NOTE: ${destDir} is not in your PATH" ;;
+	*) fEcho "NOTE: ${destDir} isn't in your PATH" ;;
 esac
 
 echo
