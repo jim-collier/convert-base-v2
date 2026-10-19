@@ -115,6 +115,10 @@ SHELLCHECK_EXCLUDE=(
 )
 RUFF_PROBE=(ruff --version)
 RUFF_CMD=(ruff check --output-format concise)
+## PSScriptAnalyzer takes every tracked .ps1, .psm1 and .psd1, with the rules
+## in PSScriptAnalyzerSettings.psd1 at the root. The probe needs pwsh and the module.
+PSSA_PROBE=(pwsh -NoProfile -NonInteractive -Command 'Import-Module PSScriptAnalyzer -ErrorAction Stop')
+PSSA_CMD=(pwsh -NoProfile -NonInteractive -File cicd/utility/pssa-lint.ps1)
 
 ## Stage 4a: unit tests (Go, run inside SRC_DIR) plus the integration harness
 ## (cicd/test.bash, run from root against the staged binary via CICDTEST_EXE).
@@ -272,3 +276,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-10-19 JC: --quick keeps the cross stage.
 ##		- 2026-10-19 JC: Leak checks: the race detector run adn the soak test.
 ##		- 2026-10-19 JC: CodeQL in the leak checks.
+##		- 2026-10-19 JC: PSScriptAnalyzer in the lint stage.

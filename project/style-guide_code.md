@@ -3,7 +3,7 @@
 <!-- markdownlint-disable MD041 -- First line in a file should be a top-level heading -->
 # Code style
 
-How the code in this repo is written, and why. It covers Go, Bash and Python. How to build, test and send a change is in [contributing.md](../contributing.md).
+How the code in this repo is written, and why. It covers Go, Bash, Python and PowerShell. How to build, test and send a change is in [contributing.md](../contributing.md).
 
 Where a language has a standard formatter, its output is the style. Where it has none, the house style below applies, and the linter still has the last word. The checks to run are listed in [contributing.md](../contributing.md#checks-to-run).
 
@@ -15,7 +15,7 @@ Where a language has a standard formatter, its output is the style. Where it has
 
 - Comments say why, not what. Most code needs none. Save them for what the code can't show, such as an order that matters or a guard against a bug that was hard to find. A long explanation belongs in [design.md](design.md), with a short comment pointing to it.
 
-- Comments are plain ASCII. The `©` in copyright lines is the exception, and so is a comment about a Unicode character, where the character is the point.
+- Comments are plain ASCII. The `©` in copyright lines is the exception, and so is a comment about a Unicode character, where the character is the point, except in PowerShell files, which are ASCII throughout.
 
 - No banner comments or decorative dividers.
 
@@ -94,3 +94,15 @@ Python here is tooling only: the pipeline helpers under `cicd/utility/` and the 
 - Use `with` for files and anything else that needs closing, and f-strings for formatting.
 
 - Keep functions small and return early. A plain loop beats a comprehension that doesn't fit on one line.
+
+## PowerShell
+
+The PowerShell here is `install.ps1` and the lint runner in `cicd/utility/`. PSScriptAnalyzer checks them, with the settings in `PSScriptAnalyzerSettings.psd1`.
+
+- The installer runs on Windows PowerShell 5.1 as well as PowerShell 7, so it uses no syntax 7 added: no `??`, `?.`, `? :`, `&&` or `||` between commands, and no `ForEach-Object -Parallel`. The analyzer checks syntax for both versions. It can't tell which .NET members 5.1 lacks, so the code tests for those, as the installer does before it reads `$IsWindows`.
+
+- PowerShell files are plain ASCII with no byte-order mark, and the copyright line says `(C)`. `irm` keeps a mark, and the one-liner then fails to parse. Without a mark, 5.1 reads a file in the ANSI code page. The test suite checks both.
+
+- The installer's body runs inside `& { }`, since the one-liner runs it in the user's own shell. Strict mode and the preference settings stay inside that block, and only a run of the file itself may `exit`.
+
+- Full cmdlet and parameter names, approved verbs, and `[CmdletBinding()]` on functions.

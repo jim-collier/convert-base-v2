@@ -18,7 +18,7 @@
 ##		- Options take "--name value" or "--name=value".
 ##		- The OS and CPU are detected. With no stable release yet, stable takes the newest pre-release.
 ##		- Needs bash 3.2+, curl, and sha256sum or shasum.
-##		- Windows: use the installer .exe from the Releases page instead.
+##		- Windows: use install.ps1, or the installer .exe from the Releases page.
 ##		- Re-running is safe; an already-current install is left alone.
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 
@@ -29,7 +29,7 @@
 
 set -Eeuo pipefail
 
-INSTALLER_VERSION="1.1.0"
+INSTALLER_VERSION="1.1.1"
 PKG="convert-base-v2"
 REPO="jim-collier/convert-base-v2"
 API="https://api.github.com/repos/${REPO}/releases"
@@ -58,7 +58,7 @@ Notes:
 	- Options take "--name value" or "--name=value".
 	- The OS and CPU are detected. With no stable release yet, stable takes the newest pre-release.
 	- Needs bash 3.2+, curl, and sha256sum or shasum.
-	- Windows: use the installer .exe from the Releases page instead.
+	- Windows: use install.ps1, or the installer .exe from the Releases page.
 	- Re-running is safe; an already-current install is left alone.
 EOF
 }
@@ -86,7 +86,7 @@ case "$(uname -s)" in
 	Linux)   os="linux" ;;
 	Darwin)  os="darwin" ;;
 	FreeBSD) os="freebsd" ;;
-	*) fDie "unsupported OS '$(uname -s)'. Windows: use the installer .exe from the Releases page." ;;
+	*) fDie "unsupported OS '$(uname -s)'. Windows: use install.ps1, or the installer .exe from the Releases page." ;;
 esac
 
 case "$(uname -m)" in

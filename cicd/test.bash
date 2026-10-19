@@ -29,8 +29,8 @@
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
-##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. The packaged Windows exes and installers have the icon and the version they were built as. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
-##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, what --quick runs and skips, the leak checks, -q, the dogfood copy, and the shellcheck and ruff gates.
+##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. install.ps1 installs from a stand-in release and refuses a tampered checksum, and the PowerShell files are ASCII. The packaged Windows exes and installers have the icon and the version they were built as. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
+##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, what --quick runs and skips, the leak checks, -q, the dogfood copy, and the shellcheck, ruff and PSScriptAnalyzer gates.
 ##			- The harness itself: a run against a program that refuses everything, with Go off the PATH, counts each failure and reaches its summary.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
@@ -2097,6 +2097,153 @@ for inLine in "convert-base-v2 v3.0.0 build abcde" "v3.0.0 build abcde" "v3.0.0"
 done
 rm -f "${inDir}/home/.local/bin/convert-base-v2"
 
+## PowerShell files stay ASCII. The one-liner reads install.ps1 through irm,
+## which keeps a byte-order mark, and the parse then fails. With no mark,
+## Windows PowerShell 5.1 reads anything else in the ANSI code page.
+psFiles="$(git -C "${meDir}/.." ls-files -- '*.ps1' '*.psm1' '*.psd1' 2>/dev/null || true)"; psBad=""
+while IFS= read -r psF; do
+	[[ -n "${psF}" && -f "${meDir}/../${psF}" ]] || continue
+	[[ -z "$(LC_ALL=C tr -d '\000-\177' <"${meDir}/../${psF}" | head -c1)" ]] || psBad+="${psF} "
+done <<<"${psFiles}"
+{ [[ -z "${psBad}" ]] && grep -qx 'install.ps1' <<<"${psFiles}"; } && _pass Et9uoIr "PowerShell files are ASCII" \
+	|| _fail Et9uoIr "PowerShell files are ASCII" "non-ASCII: [${psBad}] tracked: [$(tr '\n' ' ' <<<"${psFiles}")]"
+
+## install.ps1 gets the same checks, plus a real install from a release with a
+## real checksums.txt, a tampered one, a read-only folder, and the prompt. The
+## two web cmdlets are stood in for by functions defined before it runs. Most
+## runs use the README's one-liner form, where an exit would close the caller's
+## shell. A file run is what gives an exit code.
+psIds="Et9uoJX Et9uoKF Et9uoKx Et9uoLd Et9uoMI Et9uoMw Et9uoNc Et9uoOI Et9uoOx Et9uoPc"
+if ! command -v pwsh >/dev/null 2>&1; then
+	_warn "${psIds}" "install.ps1 checks skipped: pwsh not installed"
+else
+	psDir="${CBT_TMP}/ps"; psFix="${psDir}/fix"; psHome="${psDir}/home"; psBin="${psDir}/home/.local/bin/convert-base-v2"
+	mkdir -p "${psFix}/dist" "${psHome}" "${psDir}/tmp"
+	psRaw="$(CBV_PS1="${meDir}/../install.ps1" pwsh -NoProfile -NonInteractive -Command '$t = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($env:CBV_PS1)); $e = $null; $null = [System.Management.Automation.Language.Parser]::ParseInput($t, [ref]$null, [ref]$e); $e.Count' 2>&1 </dev/null)" || true
+	[[ "${psRaw}" == 0 ]] && _pass Et9uoJX "install.ps1 parses from its raw bytes" || _fail Et9uoJX "install.ps1 parses from its raw bytes" "errors=[${psRaw}]"
+	cat >"${psDir}/run.ps1" <<'EOF'
+function Invoke-RestMethod {
+	[CmdletBinding()]
+	param([string]$Uri, [switch]$UseBasicParsing)
+	Add-Content -LiteralPath (Join-Path -Path $env:CBV_FIX -ChildPath 'urls.log') -Value $Uri
+	$json = Join-Path -Path $env:CBV_FIX -ChildPath 'release.json'
+	if (-not (Test-Path -LiteralPath $json)) { throw 'No such host is known.' }
+	Get-Content -Raw -LiteralPath $json | ConvertFrom-Json
+}
+function Invoke-WebRequest {
+	[CmdletBinding()]
+	param([string]$Uri, [string]$OutFile, [switch]$UseBasicParsing)
+	Add-Content -LiteralPath (Join-Path -Path $env:CBV_FIX -ChildPath 'urls.log') -Value $Uri
+	$src = Join-Path -Path (Join-Path -Path $env:CBV_FIX -ChildPath 'dist') -ChildPath ($Uri -replace '^.*/', '')
+	if (-not (Test-Path -LiteralPath $src -PathType Leaf)) { throw 'Response status code does not indicate success: 404 (Not Found).' }
+	Copy-Item -LiteralPath $src -Destination $OutFile
+}
+$mode = $args[0]
+$rest = @(if ($args.Count -gt 1) { $args[1..($args.Count - 1)] })
+if ($mode -eq 'file') {
+	& $env:CBV_PS1 @rest
+	exit $LASTEXITCODE
+}
+& ([scriptblock]::Create([IO.File]::ReadAllText($env:CBV_PS1))) @rest
+## Strict mode left on would throw at the unset variable.
+"caller still here, EAP=$ErrorActionPreference, unset=$($null -eq $notSetAnywhere)"
+EOF
+	psOs="$(uname -s | tr '[:upper:]' '[:lower:]')"; psArch="$(uname -m)"
+	case "${psArch}" in amd64) psArch=x86_64 ;; aarch64) psArch=arm64 ;; esac
+	psAsset="convert-base-v2-${psOs}-${psArch}"
+	## The release the packaging checks made, when they ran, so the asset asked
+	## for has a name package.bash writes. Otherwise a stub that answers
+	## --version the same way, with an archive whose name starts with the
+	## asset's listed first in checksums.txt.
+	if [[ -s "${pkDir:-}/a/checksums.txt" && -f "${pkDir:-}/a/${psAsset}" ]]; then
+		cp "${pkDir}/a/${psAsset}" "${pkDir}/a/checksums.txt" "${psFix}/dist/"; psFrom="packaged"
+	else
+		printf '#!/bin/sh\necho "convert-base-v2 v9.9.9-beta1 build abcde"\n' >"${psFix}/dist/${psAsset}"; echo decoy >"${psFix}/dist/${psAsset}.tgz"
+		(cd "${psFix}/dist" && sha256sum "${psAsset}.tgz" "${psAsset}" >checksums.txt); psFrom="stub"
+	fi
+	chmod +x "${psFix}/dist/${psAsset}"; cp "${psFix}/dist/checksums.txt" "${psDir}/checksums.good"
+	psVerLine="$("${psFix}/dist/${psAsset}" --version 2>/dev/null || true)"; psTag="${psVerLine#convert-base-v2 }"; psTag="${psTag%% *}"
+	## fPsRun STDIN MODE ARGS...: block is the one-liner form, file runs the file.
+	fPsRun(){
+		local psIn="$1"; shift; psRc=0
+		printf '%s' "${psIn}" >"${psDir}/stdin"; : >"${psFix}/urls.log"
+		env -u DISPLAY NO_COLOR=1 HOME="${psHome}" TMPDIR="${psDir}/tmp" CBV_FIX="${psFix}" CBV_PS1="${meDir}/../install.ps1" \
+			"${TIMEOUT[@]}" pwsh -NoProfile -File "${psDir}/run.ps1" "$@" <"${psDir}/stdin" >"${CBT_OUT}" 2>"${CBT_ERR}" || psRc=$?
+		psOut="$(<"${CBT_OUT}")"; psErr="$(<"${CBT_ERR}")"
+	}
+	fPsTail(){ printf 'rc=%s out=[%s] err=[%s]' "${psRc}" "$(tail -4 <<<"${psOut}")" "$(head -c 400 <<<"${psErr}")"; }
+	## Nothing written, nothing left in the temp dir, and only the lookup fetched.
+	fPsUntouched(){ [[ ! -e "${psBin}" && ! -e "${psHome}/.local/bin/.convert-base-v2.new" && -z "$(ls -A "${psDir}/tmp")" ]] && [[ "$(<"${psFix}/urls.log")" == *"/releases?per_page=100" ]]; }
+
+	psOk=""
+	fPsRun "" file -Version; [[ "${psRc}" == 0 && "${psOut}" =~ ^convert-base-v2\ installer\ v[0-9]+\.[0-9]+\.[0-9]+$ ]] && psOk+="version "
+	fPsRun "" block -Help; [[ "${psRc}" == 0 && "${psOut}" == *"-Release stable|dev"* && "${psOut}" == *"-Target user|system"* ]] && psOk+="help "
+	fPsRun "" file -Arch x86_64; grep -qF "'Arch'" "${CBT_ERR}" && [[ ! -s "${psFix}/urls.log" ]] && psOk+="arch"
+	[[ "${psOk}" == "version help arch" ]] && _pass Et9uoKF "install.ps1 options" || _fail Et9uoKF "install.ps1 options" "passed=[${psOk}] $(fPsTail)"
+
+	fInList v3.0.0 v3.1.0-beta2:pre v99.0.0:draft v3.1.0-beta10:pre v3.1.0-beta9:pre v2.0.0 v3.0.1-rc1:pre >"${psFix}/release.json"
+	fPsRun n block; psStable="${psOut}"
+	fPsRun n block -Release dev
+	{ [[ "${psStable}" == *"Release: v3.0.0 (stable)"* && "${psOut}" == *"Release: v3.1.0-beta10 (dev)"* ]]; } && _pass Et9uoKx "install.ps1 picks newest version" \
+		|| _fail Et9uoKx "install.ps1 picks newest version" "stable=[${psStable}] dev=[${psOut}]"
+	fInList v1.0.0-rc2:pre v1.0.0-rc10:pre >"${psFix}/release.json"
+	fPsRun n block
+	{ [[ "${psOut}" == *"No stable release yet"* && "${psOut}" == *"Release: v1.0.0-rc10 (stable)"* ]]; } && _pass Et9uoLd "install.ps1, pre-releases only" \
+		|| _fail Et9uoLd "install.ps1, pre-releases only" "$(fPsTail)"
+
+	## A real install, in the one-liner form. The shell that ran it keeps its
+	## preferences, has no strict mode, and is still there afterward.
+	fInList "${psTag}" >"${psFix}/release.json"
+	fPsRun "" block -Yes
+	psUrls="$(tr '\n' ' ' <"${psFix}/urls.log")"; psU="https://github.com/jim-collier/convert-base-v2/releases/download/${psTag}"
+	{ ((psRc == 0)) && [[ -n "${psTag}" && -x "${psBin}" && "$("${psBin}" --version 2>&1)" == "${psVerLine}" && "${psOut}" == *"[ Installed: ${psVerLine} ]"* ]] \
+		&& [[ "${psUrls}" == *"/releases?per_page=100 ${psU}/${psAsset} ${psU}/checksums.txt " && "${psOut}" == *"caller still here, EAP=Continue, unset=True"* ]] \
+		&& [[ ! -e "${psHome}/.local/bin/.convert-base-v2.new" && -z "$(ls -A "${psDir}/tmp")" ]]; } && _pass Et9uoMI "install.ps1 installs, ${psFrom} release" \
+		|| _fail Et9uoMI "install.ps1 installs, ${psFrom} release" "tag=[${psTag}] urls=[${psUrls}] $(fPsTail)"
+	mkdir -p "${psHome}/.local/bin"
+	for psLine in "convert-base-v2 ${psTag} build abcde" "${psTag} build abcde" "${psTag}"; do
+		printf '#!/bin/sh\necho "%s"\n' "${psLine}" >"${psBin}"; chmod +x "${psBin}"
+		fPsRun "" file -Yes
+		{ ((psRc == 0)) && [[ "${psOut}" == *"is already ${psTag}; nothing to do"* ]]; } && _pass Et9uoMw "install.ps1 sees it's current: ${psLine}" \
+			|| _fail Et9uoMw "install.ps1 sees it's current: ${psLine}" "$(fPsTail)"
+	done
+	rm -f "${psBin}"
+
+	## One changed digit in the asset's checksum.
+	awk -v a="${psAsset}" '$2 == a { $1 = (substr($1, 1, 1) == "0" ? "1" : "0") substr($1, 2); print $1 "  " $2; next } { print }' "${psDir}/checksums.good" >"${psFix}/dist/checksums.txt"
+	fPsRun "" file -Yes
+	{ ((psRc == 1)) && [[ "${psErr}" == *"checksum mismatch"* && ! -e "${psBin}" && ! -e "${psHome}/.local/bin/.convert-base-v2.new" && -z "$(ls -A "${psDir}/tmp")" ]]; } && _pass Et9uoNc "install.ps1 refuses a tampered checksum" \
+		|| _fail Et9uoNc "install.ps1 refuses a tampered checksum" "$(fPsTail)"
+	cp "${psDir}/checksums.good" "${psFix}/dist/checksums.txt"; rm -f "${psBin}"
+
+	## Refused before any download, with the folder named.
+	mkdir -p "${psHome}/.local/bin"; chmod 555 "${psHome}/.local/bin"
+	fPsRun "" file -Yes
+	chmod 755 "${psHome}/.local/bin"; rm -f "${psBin}"
+	{ ((psRc == 1)) && [[ "${psErr}" == *"can't write to ${psHome}/.local/bin - permission denied"* ]] && fPsUntouched; } && _pass Et9uoOI "install.ps1, read-only folder" \
+		|| _fail Et9uoOI "install.ps1, read-only folder" "urls=[$(tr '\n' ' ' <"${psFix}/urls.log")] $(fPsTail)"
+
+	## No, a closed stdin, then yes.
+	psOk=""
+	fPsRun $'n\n' file; { ((psRc == 1)) && [[ "${psOut}" == *"aborted; nothing was touched"* ]] && fPsUntouched; } && psOk+="no "
+	fPsRun "" file; { ((psRc == 1)) && [[ "${psOut}" == *"aborted; nothing was touched"* ]] && fPsUntouched; } && psOk+="closed "
+	fPsRun $'y\n' file; { ((psRc == 0)) && [[ -x "${psBin}" ]]; } && psOk+="yes"
+	[[ "${psOk}" == "no closed yes" ]] && _pass Et9uoOx "install.ps1 prompt" || _fail Et9uoOx "install.ps1 prompt" "passed=[${psOk}] $(fPsTail)"
+	rm -f "${psBin}"
+
+	for psCase in "offline|couldn't reach the GitHub API" "notfound|couldn't determine the stable release tag" "nosum|no checksum for ${psAsset} in checksums.txt"; do
+		case "${psCase%%|*}" in
+			offline) rm -f "${psFix}/release.json" ;;
+			notfound) printf '%s\n' '{"message": "Not Found"}' >"${psFix}/release.json" ;;
+			nosum) fInList "${psTag}" >"${psFix}/release.json"; grep -v " ${psAsset}\$" "${psDir}/checksums.good" >"${psFix}/dist/checksums.txt" || true ;;
+		esac
+		fPsRun "" file -Yes
+		{ ((psRc == 1)) && [[ "${psErr}" == *"${psCase#*|}"* && ! -e "${psBin}" ]]; } && _pass Et9uoPc "install.ps1 says why: ${psCase#*|}" \
+			|| _fail Et9uoPc "install.ps1 says why: ${psCase#*|}" "$(fPsTail)"
+	done
+	cp "${psDir}/checksums.good" "${psFix}/dist/checksums.txt"
+fi
+
 ## magick lists pango first, then more than a pipe holds. Any other call
 ## exits 42, which shows the pango probe passed.
 gsDir="${CBT_TMP}/gs"; mkdir -p "${gsDir}/bin" "${gsDir}/repo/lib"
@@ -2708,6 +2855,44 @@ EOF
 		|| _fail ErmrogW "lint: ruff, no files" "$(fClTail)"
 else
 	_warn "ErmroeI Ermroeo ErmrofR Ermroh4 Ermrofy ErmrogW" "lint stage checks skipped: needs shellcheck and ruff"
+fi
+
+## PSScriptAnalyzer takes every tracked PowerShell file, with the real settings
+## and runner. A finding fails the run, and so does finding nothing to check.
+if pwsh -NoProfile -NonInteractive -Command 'Import-Module PSScriptAnalyzer -ErrorAction Stop' </dev/null >/dev/null 2>&1; then
+	plRepo="${ceDir}/pslint"
+	mkdir -p "${plRepo}/cicd/utility/include" "${plRepo}/lib"
+	cp "${meDir}/cicd.bash" "${plRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${plRepo}/cicd/utility/include/"
+	cp "${meDir}/utility/pssa-lint.ps1" "${plRepo}/cicd/utility/"; cp "${meDir}/../PSScriptAnalyzerSettings.psd1" "${plRepo}/"
+	cp "${ceRepo}/lib/out" "${plRepo}/lib/out"
+	cp "${ceRepo}/cicd/config.bash" "${plRepo}/cicd/config.bash"
+	grep -E '^(PSSA_PROBE|PSSA_CMD)=' "${meDir}/config.bash" >>"${plRepo}/cicd/config.bash"
+	printf '%s\n' 'VET_CMD=(true); TEST_CMD=(true); FUZZ_ENABLE=0; DOGFOOD_FIXED_DESTS=(); SHELLCHECK_CMD=(); RUFF_CMD=()' >>"${plRepo}/cicd/config.bash"
+	printf '%s\n' '[CmdletBinding()]' 'param([string]$Name)' 'Write-Output "hi $Name"' >"${plRepo}/ok.ps1"
+	git -C "${plRepo}" init -q
+	## The module may be in this user's own module dir, which follows HOME.
+	plModPath="$(pwsh -NoProfile -NonInteractive -Command '$env:PSModulePath' </dev/null 2>/dev/null || true)"
+	fPlRun(){
+		plRc=0
+		( cd "${plRepo}" && git add -A && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
+			HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" PSModulePath="${plModPath}" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 bash "${plRepo}/cicd/cicd.bash" -y </dev/null >"${CBT_OUT}" 2>&1 ) || plRc=$?
+		plOut="$(<"${CBT_OUT}")"
+	}
+	fPlTail(){ printf 'rc=%s out=[%s]' "${plRc}" "$(grep -E 'PSScriptAnalyzer|FAILED|ABORTED|\.ps1:' "${CBT_OUT}" | head -4 | tr '\n' ' ')"; }
+	fPlRun
+	{ ((plRc == 0)) && [[ "${plOut}" == *"OK: PSScriptAnalyzer clean (3 files)"* ]]; } && _pass Et9uoQG "lint: PSScriptAnalyzer file selection" \
+		|| _fail Et9uoQG "lint: PSScriptAnalyzer file selection" "$(fPlTail)"
+	printf '%s\n' 'gci .' >"${plRepo}/bad.ps1"
+	fPlRun
+	{ ((plRc != 0)) && [[ "${plOut}" == *"bad.ps1:1:1: warning:"*"[PSAvoidUsingCmdletAliases]"* && "${plOut}" != *"OK: PSScriptAnalyzer clean"* ]]; } && _pass Et9uoQv "lint: PSScriptAnalyzer finding" \
+		|| _fail Et9uoQv "lint: PSScriptAnalyzer finding" "$(fPlTail)"
+	git -C "${plRepo}" rm -q --cached bad.ps1 ok.ps1 PSScriptAnalyzerSettings.psd1 cicd/utility/pssa-lint.ps1
+	printf '%s\n' '*.ps1' '*.psd1' >"${plRepo}/.gitignore"
+	fPlRun
+	{ ((plRc != 0)) && [[ "${plOut}" == *"FAILED: PSScriptAnalyzer: no PowerShell files found to check"* ]]; } && _pass Et9uoRc "lint: PSScriptAnalyzer, no files" \
+		|| _fail Et9uoRc "lint: PSScriptAnalyzer, no files" "$(fPlTail)"
+else
+	_warn "Et9uoQG Et9uoQv Et9uoRc" "PowerShell lint checks skipped: needs pwsh and PSScriptAnalyzer"
 fi
 
 ## Hosted CI. The workflows read their pins from tool-versions.env and name

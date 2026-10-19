@@ -4,8 +4,9 @@
 #
 # The tag is a hash of this dir and cicd/tool-versions.env, so editing either
 # means a new image. The go-installed tools, shellcheck, ruff and CodeQL take
-# their versions from tool-versions.env as build args. Bump one there without its
-# checksum here and the build fails on the checksum.
+# their versions from tool-versions.env as build args, and so do pwsh and
+# PSScriptAnalyzer. Bump one there without its checksum here and the build
+# fails on the checksum.
 #
 # Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]
 # SPDX-License-Identifier: MIT
@@ -110,3 +111,26 @@ RUN test -n "${CODEQL_VERSION}" \
 	&& cd / && rm -rf /tmp/codeql \
 	&& /opt/codeql/codeql version --format=terse | grep -qxF "${CODEQL_VERSION}"
 ENV PATH=/opt/codeql:${PATH}
+
+# pwsh runs the install.ps1 checks, and PSScriptAnalyzer lints the PowerShell
+# files. Last for the same reason as CodeQL. pwsh's checksum is from the
+# release's hashes.sha256. The gallery posts none for the module, so its
+# checksum was taken from the download, 20261019. pwsh needs libicu.
+ARG PWSH_VERSION
+ARG PWSH_SHA256=ddbc4a2d113bbd46d283cfedcbcd117a70caefd7673f41f2b4e0000badf103bc
+ARG PSSA_VERSION
+ARG PSSA_SHA256=14e634c828eb98efb9f40b2918ba90f139ed5eccdf663a2a747736d996995d60
+RUN test -n "${PWSH_VERSION}" && test -n "${PSSA_VERSION}" \
+	&& apt-get update && apt-get install -y --no-install-recommends libicu76 && rm -rf /var/lib/apt/lists/* \
+	&& mkdir /tmp/pwsh && cd /tmp/pwsh \
+	&& curl -fsSLo pwsh.tgz "https://github.com/PowerShell/PowerShell/releases/download/v${PWSH_VERSION}/powershell-${PWSH_VERSION}-linux-x64.tar.gz" \
+	&& echo "${PWSH_SHA256}  pwsh.tgz" | sha256sum -c - \
+	&& mkdir /opt/pwsh && tar -C /opt/pwsh -xzf pwsh.tgz && chmod 0755 /opt/pwsh/pwsh && ln -s /opt/pwsh/pwsh /usr/local/bin/pwsh \
+	&& curl -fsSLo pssa.nupkg "https://www.powershellgallery.com/api/v2/package/PSScriptAnalyzer/${PSSA_VERSION}" \
+	&& echo "${PSSA_SHA256}  pssa.nupkg" | sha256sum -c - \
+	&& mkdir -p "/opt/pwsh/Modules/PSScriptAnalyzer/${PSSA_VERSION}" \
+	&& unzip -q pssa.nupkg -d "/opt/pwsh/Modules/PSScriptAnalyzer/${PSSA_VERSION}" \
+	&& cd / && rm -rf /tmp/pwsh \
+	&& pwsh -NoProfile -NonInteractive -Command "Import-Module PSScriptAnalyzer -RequiredVersion ${PSSA_VERSION} -ErrorAction Stop; \$PSVersionTable.PSVersion.ToString()" | grep -qxF "${PWSH_VERSION}"
+ENV POWERSHELL_TELEMETRY_OPTOUT=1 \
+	POWERSHELL_UPDATECHECK=Off

@@ -90,6 +90,14 @@ Grab a package or installer for Linux, Windows, macOS, or FreeBSD from the [Rele
 bash <(curl -fsSL https://raw.githubusercontent.com/jim-collier/convert-base-v2/main/install.bash)
 ~~~
 
+On Windows, or anywhere else PowerShell runs:
+
+~~~powershell
+& ([scriptblock]::Create((irm https://raw.githubusercontent.com/jim-collier/convert-base-v2/main/install.ps1)))
+~~~
+
+Both use sensible defaults and ask before they install anything. Pass `--help` or `-Help` for the options.
+
 [install.md](install.md) covers every package, the install script's options and dev releases, and building it yourself.
 
 ## Usage

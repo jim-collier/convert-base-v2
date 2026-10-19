@@ -24,7 +24,7 @@
 ##	- Stages (fail-fast, any error aborts before the next stage):
 ##	   1. format (gofmt)
 ##	   2. native build (staged aside so the cross stage can't clobber it)
-##	   3. lint (go vet gating; golangci-lint, staticcheck, shellcheck and ruff if installed)
+##	   3. lint (go vet gating; golangci-lint, staticcheck, shellcheck, ruff and PSScriptAnalyzer if installed)
 ##	   4. tests (unit + integration harness + fuzz + govulncheck security + leak checks)
 ##	   5. profiler (flamegraph SVG; non-gating artifact - see failure policy)
 ##	   6. cross-compile + package every shipping platform (archives, deb/rpm, Windows installers, checksums)
@@ -106,6 +106,7 @@ source "${here}/config.bash"
 [[ -v RACE_TEST_CMD ]] || RACE_TEST_CMD=()
 [[ -v SOAK_CMD ]] || SOAK_CMD=()
 [[ -v CODEQL_CMD ]] || CODEQL_CMD=()
+[[ -v PSSA_CMD ]] || PSSA_CMD=()
 ## Personal dogfood dirs, kept out of the repo. Before the options, so --no-dogfood still wins.
 # shellcheck source=/dev/null
 if [[ -n "${DOGFOOD_LOCAL:-}" && -f "${root}/${DOGFOOD_LOCAL}" ]]; then source "${root}/${DOGFOOD_LOCAL}"; fi
@@ -121,7 +122,7 @@ while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
 	--no-fmt)                 FMT_CMD=(); FMT_CHECK_CMD=(); inner_args+=("$1"); shift ;;
-	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); SHELLCHECK_CMD=(); RUFF_CMD=(); inner_args+=("$1"); shift ;;
+	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); SHELLCHECK_CMD=(); RUFF_CMD=(); PSSA_CMD=(); inner_args+=("$1"); shift ;;
 	--no-cross)               BUILD_CROSS=0; inner_args+=("$1"); shift ;;
 	--no-profile)             PROFILE_ENABLE=0; shift ;;
 	--no-dogfood)             DOGFOOD_FIXED_DESTS=(); DOGFOOD_CROSS=(); shift ;;
@@ -280,11 +281,11 @@ fRunContainer(){
 	"${engine}" run --rm --init --user "$(id -u):$(id -g)" "${mounts[@]}" -w "${root}" "${image}" \
 		bash "${root}/cicd/cicd.bash" "${inner[@]}" || fDie "the run in the container failed; its output is above"
 }
-## Stage 3, and the gate. go vet is gating; golangci-lint, staticcheck, shellcheck
-## and ruff run when installed (a failed probe skips that one with a warning). Any
-## finding from one that runs aborts.
+## Stage 3, and the gate. go vet is gating; golangci-lint, staticcheck, shellcheck,
+## ruff and PSScriptAnalyzer run when installed (a failed probe skips that one with
+## a warning). Any finding from one that runs aborts.
 fLint(){
-	local -a shellFiles=()
+	local -a shellFiles=() psFiles=()
 	local pyCount
 	if ((${#VET_CMD[@]} == 0)); then
 		fEcho_Chat "lint skipped"
@@ -323,6 +324,15 @@ fLint(){
 			"${RUFF_CMD[@]}"; fEcho "OK: ruff clean (${pyCount} files)"
 		else
 			fSkip "ruff skipped (not installed: pipx install ruff)"
+		fi
+	fi
+	if [[ -n "${PSSA_CMD[*]:-}" ]]; then
+		if "${PSSA_PROBE[@]}" >/dev/null 2>&1; then
+			mapfile -t psFiles < <(git -C "${root}" ls-files -- '*.ps1' '*.psm1' '*.psd1')
+			((${#psFiles[@]})) || fDie "PSScriptAnalyzer: no PowerShell files found to check"
+			"${PSSA_CMD[@]}" "${psFiles[@]}"; fEcho "OK: PSScriptAnalyzer clean (${#psFiles[@]} files)"
+		else
+			fSkip "PSScriptAnalyzer skipped (needs pwsh, then Install-Module PSScriptAnalyzer)"
 		fi
 	fi
 }
@@ -481,7 +491,7 @@ fEcho_Chat "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debu
 ((${#RELEASE_BUILD_CMD[@]})) && \
 fEcho_Chat "                       ${RELEASE_BUILD_CMD[*]} -> ${STAGED_RELEASE_BIN} (release, dogfooded)"
 if ((${#VET_CMD[@]})); then
-	fEcho_Chat "Lint ................: ${VET_CMD[*]}  (+ golangci-lint, staticcheck, shellcheck, ruff if installed)"
+	fEcho_Chat "Lint ................: ${VET_CMD[*]}  (+ golangci-lint, staticcheck, shellcheck, ruff, PSScriptAnalyzer if installed)"
 else
 	fEcho_Chat "Lint ................: (skipped)"
 fi
@@ -613,9 +623,9 @@ else
 		fEcho "OK: release build: ${STAGED_RELEASE_BIN} ($(du -h "${STAGED_RELEASE_BIN}" | cut -f1))  ($("${STAGED_RELEASE_BIN}" --version))"
 	fi
 
-	## Stage 3: lint. go vet is gating; golangci-lint, staticcheck, shellcheck and ruff
-	## run when installed (a failed probe skips that one with a warning). Any finding
-	## from one that runs aborts. All output lands in the run log.
+	## Stage 3: lint. go vet is gating; golangci-lint, staticcheck, shellcheck, ruff and
+	## PSScriptAnalyzer run when installed (a failed probe skips that one with a
+	## warning). Any finding from one that runs aborts. All output lands in the run log.
 	fSection "3/8  Lint"
 	fLint
 
@@ -873,3 +883,4 @@ fEcho_Clean
 ##		- 2026-10-19 JC: A plain run has the long tests. --quick still cross-compiles, and skips the checks that reach another host.
 ##		- 2026-10-19 JC: --leakcheck: the Go tests under the race detector, and a soak test. A plain run has them.
 ##		- 2026-10-19 JC: CodeQL in the leak checks.
+##		- 2026-10-19 JC: PSScriptAnalyzer in the lint stage.
