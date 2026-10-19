@@ -65,12 +65,14 @@ ARG GOLANGCI_LINT_VERSION
 ARG STATICCHECK_VERSION
 ARG GOVULNCHECK_VERSION
 ARG NFPM_VERSION
-RUN test -n "${GOLANGCI_LINT_VERSION}" && test -n "${STATICCHECK_VERSION}" && test -n "${GOVULNCHECK_VERSION}" && test -n "${NFPM_VERSION}" \
+ARG GOVERSIONINFO_VERSION
+RUN test -n "${GOLANGCI_LINT_VERSION}" && test -n "${STATICCHECK_VERSION}" && test -n "${GOVULNCHECK_VERSION}" && test -n "${NFPM_VERSION}" && test -n "${GOVERSIONINFO_VERSION}" \
 	&& export GOBIN=/opt/gotools/bin GOPATH=/tmp/gopath GOCACHE=/tmp/gocache \
 	&& go install "github.com/golangci/golangci-lint/v2/cmd/golangci-lint@${GOLANGCI_LINT_VERSION}" \
 	&& go install "honnef.co/go/tools/cmd/staticcheck@${STATICCHECK_VERSION}" \
 	&& go install "golang.org/x/vuln/cmd/govulncheck@${GOVULNCHECK_VERSION}" \
 	&& go install "github.com/goreleaser/nfpm/v2/cmd/nfpm@${NFPM_VERSION}" \
+	&& go install "github.com/josephspurrier/goversioninfo/cmd/goversioninfo@${GOVERSIONINFO_VERSION}" \
 	&& rm -rf /tmp/gopath /tmp/gocache
 
 # The gif's other fallback fonts, such as Arial Unicode and Tahoma, which no

@@ -17,7 +17,7 @@ Prerequisites, in the order you are likely to need them.
 
 - Docker, for the default pipeline run, which builds and tests in an image with every tool pinned. `--host` runs without it.
 
-- Optional tools, for `--host` runs only, are skipped with a warning when missing: `golangci-lint`, `staticcheck`, `shellcheck`, `ruff`, `govulncheck`, a C compiler such as `gcc` for the race detector, `nfpm` and `makensis` for packaging, `node` and `cargo` for the third-party comparison tests, `gifsicle` and Python with Pillow for the demo animation. CodeQL, for the leak checks, is only in the image, so a `--host` run skips it with a warning.
+- Optional tools, for `--host` runs only, are skipped with a warning when missing: `golangci-lint`, `staticcheck`, `shellcheck`, `ruff`, `govulncheck`, a C compiler such as `gcc` for the race detector, `nfpm`, `makensis` and `goversioninfo` for packaging, `node` and `cargo` for the third-party comparison tests, `gifsicle` and Python with Pillow for the demo animation. CodeQL, for the leak checks, is only in the image, so a `--host` run skips it with a warning.
 
 The Go tree is under `lib/`. The command is in `lib/cmd/convert-base-v2/`, the conversion core in `lib/convertbase/`, and the WebAssembly entry points in `lib/wasm/` and `lib/reactor/`.
 

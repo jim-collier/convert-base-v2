@@ -17,6 +17,9 @@
 # it rebuilds offline from the vendored source in a few seconds.
 /cicd/utility/interop/build
 
+# The Windows resource package.bash writes for the Windows builds and removes after.
+/lib/cmd/convert-base-v2/resource_windows_*.syso
+
 # Built host harness for the reactor module; the tests build it into a temp dir.
 /cicd/utility/reactor-host/reactor-host
 
