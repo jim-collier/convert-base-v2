@@ -37,8 +37,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Updates to CICD script flags.
 	- ID: 2026101816351431
 	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes. One plain `cicd/cicd.bash -y --no-publish --no-dogfood` and one with `--quick` in the container, to see the real stage 6 under `--quick` and what the long tests now add to a plain run. Then signoff, since `--quick` keeping sync, publish, and all of stage 6 is a reading of the requirement.
+	- Status: Waiting on signoff
+	- Note: needs signoff, since `--quick` keeping sync, publish, and all of stage 6 is a reading of the requirement.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage in 9.5 minutes, with the long tests, the race detector, the soak test, and CodeQL with no results from 54 queries.
+	- Verified: 20261019, the same with `--quick` passed in 4.2 minutes. It built all 25 cross artifacts, and skipped the long tests, the leak checks, the pin checks, and govulncheck.
 	- Priority: High
 	- Opened: 20261018-163514
 	- Opened by: JC
@@ -71,83 +73,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: flags
 	- Commit: 2abd0ac
 
-- Leak, memory, and correctness checks in the CICD process, for the code end users run.
-	- ID: 2026101816351432
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs local test suite run?: Yes. One plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container. The image with the `gcc` and CodeQL lines is built. That run is the first full one with the race detector, the soak test, and CodeQL in it.
-	- Priority: Avg
-	- Opened: 20261018-163514
-	- Opened by: JC
-	- Related IDs: 2026101816351431
-	- Target OS: Linux
-	- Estimated effort: High
-	- Requirements:
-		- For all code:
-			- The checks cover first-party and third-party code. Vendored code is included.
-				- On third-party code, run the leak, memory, and correctness checks named here, not style lints. Style findings in someone else's module aren't ours to fix.
-				- CodeQL reports only on source inside the database's root. For its run, vendor the dependencies into the tree first (`go mod vendor`).
-			- Any report fails the test that made it.
-			- Any leak is fixed. If the fix has to wait, it gets a backlog item, and the test that shows it turns the check off with that item's ID beside it.
-			- A `--leakcheck` flag adds the slow checks:
-				- CodeQL, from a pinned CLI run locally. No hosted service.
-				- A soak test. It loops through the program's main actions headless, and fails if the heap at round 2N is larger than at round N by more than a set margin. The heap report is kept as a pipeline artifact.
-			- Every tool is pinned and runs in the build container or lint image, never installed on the host.
-			- Each new gate is watched to fail before it's trusted, by planting the leak it's meant to catch and seeing it go red.
-			- Known-advisory scans run on every full run: `govulncheck`. They cover third-party code only, which is the point.
-		- For Go:
-			- Go leaks are goroutines that never exit, and references held too long: a map or slice that only grows, or a small slice keeping a big backing array alive.
-			- Every package's tests run `goleak.VerifyTestMain(m)` from `go.uber.org/goleak`, pinned in go.mod. A goroutine still running after the tests fails the run, whether our code or a dependency started it.
-			- Every full run runs the whole test suite with `-race`.
-			- If the code uses cgo, every full run also runs the tests with `-asan`, in a build dir of its own.
-			- Every full run runs `go vet` and `staticcheck`. `go vet`'s `lostcancel` and `copylocks` checks are the leak-related ones.
-			- The soak test reads `runtime.MemStats.HeapInuse` and `runtime.NumGoroutine()` at round N and 2N, after `runtime.GC()`. Its heap profile (`pprof`) is kept as the artifact, and `go tool pprof -base` shows what grew.
-			- Traps:
-				- `goleak.VerifyNone` per test doesn't work with `t.Parallel()`. Use `VerifyTestMain`.
-				- goleak ignores by function name. That's the only form of suppression allowed.
-				- `go test` caches a pass. Run with `-count=1`.
-				- One `runtime.GC()` can leave garbage behind. Call it twice before reading the stats, or the margin has to be wide enough to hide a real leak.
-				- `-race` needs cgo on some platforms. A job with `CGO_ENABLED=0` fails to build it or skips it, so check the job's env.
-				- `-race` is 2 to 20 times slower and uses 5 to 10 times the memory. Size the job's timeout for it.
-	- Note: the command, the library, and the browser and reactor modules are all Go, and none uses cgo. The other code in the tree is pipeline scripts, research tools, and interop test copies, so the C, C++, Rust, and Python parts of the list weren't logged.
-	- Note: the vendored code is `lib/shcl/shcl.go`. It's never edited here, so a leak found in it goes to shcl's backlog.
-	- Note: `go vet`, `staticcheck`, and `govulncheck` already run in stages 3 and 4, and container runs fail when one is missing. Release builds use `CGO_ENABLED=0`.
-	- Decisions:
-		- 20261018: a run with no flags runs the `--leakcheck` checks too, per 2026101816351431. The flag adds them to a run whose other flags would skip them, such as `--quick`.
-	- Note: done in 2 parts. This first part has everything but CodeQL, so the CodeQL lines above stay open for the second part, which builds on the `--leakcheck` wiring here.
-	- Done: `--leakcheck` runs the Go tests again under the race detector with `-count=1`, then the soak test. A plain run has both. `--quick` leaves them out unless `--leakcheck` is given too, in either order, and the container run gets the flag the way it gets `--long`. `--gate` never runs them.
-	- Done: every Go package with tests checks for leftover goroutines with goleak v1.3.0, pinned in `lib/go.mod`, which stays at Go 1.21. goleak itself declares Go 1.20. Only test files import it, so the command and library still build offline and library users import nothing new.
-		- The browser module ignores one goroutine by name, `runtime.handleEvent`, which is the js runtime's own.
-		- `cicd/utility/macho-fat` has tests, but it's a release tool in its own module, so it has no goleak.
-	- Done: the soak test loops the command in-process for 200 rounds. Each round converts a number both ways and a fraction, uses a base from the default config file, so the vendored shcl parser runs every time, round-trips 5 byte encodings from stdin, runs a `--binary` pair through the library's pipe goroutine, and runs `--upper` and `--list`.
-		- After 2 GCs at round 100 and 200 it reads the heap in use and the goroutine count. More than 64 KiB plus 5% heap growth fails it, and so does any extra goroutine. Clean runs grew 16 to 24 KiB on a 1 MiB heap, in 14 to 50 seconds.
-		- Both heap profiles are kept in `cicd/artifacts/soak/`, GFS-pruned like the flamegraphs.
-	- Done: `-race` needs cgo. The image has `gcc`, which came in only through `rustc` until now, so the Dockerfile names it. This host has `gcc` too. Without cgo the race run skips with a warning, and fails the run in the container.
-	- Note: `-asan` isn't added, since no package uses cgo.
-	- Done: the timing ratio test `ErmULlt` skips under `-race`, where it failed, since the race detector slows our code and math/big by different amounts.
-	- Done: a failing test or package now shows a race report or goleak list from its top. The old last-20-lines view cut off where the race was.
-	- Note: `go vet` and staticcheck already ran on every run but `--no-lint`, unchanged. vet covers shcl, and staticcheck leaves it out as a style tool. govulncheck runs on a plain run and `--quick` skips it, pinned by `Et9RcHq`.
-	- Verified: each gate went red on a planted fault, each undone by copy. A goroutine left blocked in `ConvertStream` failed goleak, also through the pipeline. A map growing 128 bytes per `Convert` call failed the soak test, and `go tool pprof -base` on its profiles named `Convert`. A counter written on both sides of the `--binary` pipe failed the race run, also through the pipeline.
-	- Verified: no real leak or race turned up, in our code or in shcl.
-	- Verified: the Go tests plain and under `-race`, the browser module tests under node, the soak test, `go vet` native and js/wasm, staticcheck, golangci-lint, the harness CI engine and remote sync sections at 44 of 44, its test-ids checks at 4 of 4, `bash -n`, shellcheck, ruff, and `test-ids.py check`. The 3 new engine checks failed against the old `cicd.bash`, and `Et9WfaT` against the old `test-ids.py`.
-	- Done: the help, `config.bash` comments, contributing.md, development.md, the style guide, the workflow comments, shcl's README, and the changelog say so.
-	- Swept: `git grep` for `go.sum`, `standard library only`, `third-party`, `--long`, `--quick` and `full_extras`. install.md stays as it is, since the build still fetches nothing.
-	- Done: part 2, CodeQL. It runs last in the leak checks, from CodeQL 2.27.2's Go-only bundle, pinned in `tool-versions.env` with its checksum in the Dockerfile. It's never installed on the host, so a host run skips it with a warning, and the container fails without it.
-		- The bundle is the Dockerfile's last layer, so a new version rebuilds only that layer. It adds 259 MB to the image, now 3.1 GB.
-	- Done: it scans a scratch copy of `lib/` with `go mod vendor` run in it. The database has our code and tests, shcl, goleak, and the browser and reactor modules, each built for wasm. The step fails if any of those is missing from it, or if no queries ran.
-	- Done: the queries are the stock `go-security-and-quality` suite less its maintainability queries, in `cicd/utility/codeql/leak-checks.qls`, the same for every file.
-		- It's the one stock suite with both the memory queries (allocation size, integer conversion) and the correctness ones (index out of bounds, shift out of range, unhandled file close, nil checks).
-		- The maintainability queries are style. On our code ineffassign and staticcheck already catch the same useless assignments, so third-party code gets only the leak, memory, and correctness checks.
-	- Done: any result fails the stage. The SARIF is kept in `cicd/artifacts/codeql/`, GFS-pruned like the soak profiles.
-	- Verified: no results in our code, shcl, or goleak, so nothing needed a fix or a check turned off.
-	- Verified: an off-by-one index planted in a scratch copy of `convertbase` failed the stage through the pipeline, and one planted in the vendored goleak was reported. Both undone by copy. A database with no goleak in it failed the missing-parts check.
-	- Verified: a CodeQL version bump without its checksum rebuilds only the last layer and fails there on the checksum.
-	- Verified: the harness CI engine and remote sync sections at 47 of 47. The 4 changed or new checks failed against the old `cicd.bash`. `bash -n`, shellcheck, and `test-ids.py check` pass.
-	- Swept: `git grep` for `SOAK_OUT_DIR`, `RACE_PROBE`, `leak check`, and `tool-versions.env` over the repo. `pin-tools.bash` leaves CodeQL alone, since it's container-only.
-	- Test case: `Et9VxXX` leak checks on a plain run, off under `--quick`, back with `--leakcheck`, never in the gate, with the CodeQL step counted. `Et9VxYE` `--leakcheck` reaches the container run. `Et9VxYy` no cgo warns, and fails where every tool must be there. `Et9WfaT` race and leak reports shown from the top. `Et9UPKp` the soak margins. `Et9UPKC` is the soak test itself, and goleak runs in every package's `TestMain`. `Et9ZqiY` CodeQL runs under `--leakcheck` and not under `--quick`. `Et9ZqjD` a CodeQL result fails the stage. `Et9Zqjy` no CodeQL warns on the host and fails in the container.
-	- Branch: leaks, then codeql
-	- Commit: 64f06f5, then 0595e36
-
 - The Windows `.exe` files have no icon or version information resource.
 	- ID: 2026101411014805
 	- Type: Enhancement
@@ -165,6 +90,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Decisions:
 		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
 	- Verified: `make release` builds both exes and both installers with the icon (16 to 256 px) and the right version, read back from the files. The release assets still rebuild to the same bytes, with and without every packaging tool required.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, packaging included.
 	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
 	- Branch: winres
 	- Commit: 22399be
@@ -174,7 +100,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- ID: 2026101411014803
 	- Type: Feature
 	- Status: Waiting for testing
-	- Needs local test suite run?: Yes. One full `cicd/cicd.bash` in the container. The image with pwsh and PSScriptAnalyzer is built, and the harness passed in it, but not the whole pipeline.
 	- Needs external testing: Yes. On vm925w or b29w, in both Windows PowerShell 5.1 and pwsh 7: the one-liner with no options, answered y, then run again to see it's current; a new shell finding `convert-base-v2` on PATH, and the user PATH still REG_EXPAND_SZ; `-Target system` from a plain shell (refused) and an elevated one, over a setup `.exe` install; a prompt answered n; and `-Help`. Optionally pwsh on b26. The one-liner's URL only works once `install.ps1` is on main.
 	- Priority: Low
 	- Opened: 20261014-110148
@@ -194,6 +119,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
 	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
 	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
 	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
 	- Swept: each `install.bash` check has a twin here (`Erm3T0M`, `EshY04X`, `EshY05J`, `EshY061`, `Esj2Pos`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
 	- Test case: `Et9uoIr` PowerShell files are ASCII. `Et9uoJX` parses from its raw bytes. `Et9uoKF` options. `Et9uoKx` and `Et9uoLd` the version pick. `Et9uoMI` installs in the one-liner form and leaves the caller's shell alone. `Et9uoMw` already current. `Et9uoNc` tampered checksum. `Et9uoOI` read-only folder. `Et9uoOx` the prompt. `Et9uoPc` says why. `Et9uoQG`, `Et9uoQv` and `Et9uoRc` the lint step. `Et9kwvY` now reads `install.ps1` too.
@@ -692,6 +618,85 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next beta. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
+
+- Leak, memory, and correctness checks in the CICD process, for the code end users run.
+	- ID: 2026101816351432
+	- Type: Enhancement
+	- Status: Done
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage in 9.5 minutes, with the long tests, the race detector, the soak test, and CodeQL with no results from 54 queries.
+	- Acceptance signoff: Self-closed: its checks pass, and each gate failed on a planted fault.
+	- Closed: 20261019-084500
+	- Priority: Avg
+	- Opened: 20261018-163514
+	- Opened by: JC
+	- Related IDs: 2026101816351431
+	- Target OS: Linux
+	- Estimated effort: High
+	- Requirements:
+		- For all code:
+			- The checks cover first-party and third-party code. Vendored code is included.
+				- On third-party code, run the leak, memory, and correctness checks named here, not style lints. Style findings in someone else's module aren't ours to fix.
+				- CodeQL reports only on source inside the database's root. For its run, vendor the dependencies into the tree first (`go mod vendor`).
+			- Any report fails the test that made it.
+			- Any leak is fixed. If the fix has to wait, it gets a backlog item, and the test that shows it turns the check off with that item's ID beside it.
+			- A `--leakcheck` flag adds the slow checks:
+				- CodeQL, from a pinned CLI run locally. No hosted service.
+				- A soak test. It loops through the program's main actions headless, and fails if the heap at round 2N is larger than at round N by more than a set margin. The heap report is kept as a pipeline artifact.
+			- Every tool is pinned and runs in the build container or lint image, never installed on the host.
+			- Each new gate is watched to fail before it's trusted, by planting the leak it's meant to catch and seeing it go red.
+			- Known-advisory scans run on every full run: `govulncheck`. They cover third-party code only, which is the point.
+		- For Go:
+			- Go leaks are goroutines that never exit, and references held too long: a map or slice that only grows, or a small slice keeping a big backing array alive.
+			- Every package's tests run `goleak.VerifyTestMain(m)` from `go.uber.org/goleak`, pinned in go.mod. A goroutine still running after the tests fails the run, whether our code or a dependency started it.
+			- Every full run runs the whole test suite with `-race`.
+			- If the code uses cgo, every full run also runs the tests with `-asan`, in a build dir of its own.
+			- Every full run runs `go vet` and `staticcheck`. `go vet`'s `lostcancel` and `copylocks` checks are the leak-related ones.
+			- The soak test reads `runtime.MemStats.HeapInuse` and `runtime.NumGoroutine()` at round N and 2N, after `runtime.GC()`. Its heap profile (`pprof`) is kept as the artifact, and `go tool pprof -base` shows what grew.
+			- Traps:
+				- `goleak.VerifyNone` per test doesn't work with `t.Parallel()`. Use `VerifyTestMain`.
+				- goleak ignores by function name. That's the only form of suppression allowed.
+				- `go test` caches a pass. Run with `-count=1`.
+				- One `runtime.GC()` can leave garbage behind. Call it twice before reading the stats, or the margin has to be wide enough to hide a real leak.
+				- `-race` needs cgo on some platforms. A job with `CGO_ENABLED=0` fails to build it or skips it, so check the job's env.
+				- `-race` is 2 to 20 times slower and uses 5 to 10 times the memory. Size the job's timeout for it.
+	- Note: the command, the library, and the browser and reactor modules are all Go, and none uses cgo. The other code in the tree is pipeline scripts, research tools, and interop test copies, so the C, C++, Rust, and Python parts of the list weren't logged.
+	- Note: the vendored code is `lib/shcl/shcl.go`. It's never edited here, so a leak found in it goes to shcl's backlog.
+	- Note: `go vet`, `staticcheck`, and `govulncheck` already run in stages 3 and 4, and container runs fail when one is missing. Release builds use `CGO_ENABLED=0`.
+	- Decisions:
+		- 20261018: a run with no flags runs the `--leakcheck` checks too, per 2026101816351431. The flag adds them to a run whose other flags would skip them, such as `--quick`.
+	- Note: done in 2 parts. This first part has everything but CodeQL, so the CodeQL lines above stay open for the second part, which builds on the `--leakcheck` wiring here.
+	- Done: `--leakcheck` runs the Go tests again under the race detector with `-count=1`, then the soak test. A plain run has both. `--quick` leaves them out unless `--leakcheck` is given too, in either order, and the container run gets the flag the way it gets `--long`. `--gate` never runs them.
+	- Done: every Go package with tests checks for leftover goroutines with goleak v1.3.0, pinned in `lib/go.mod`, which stays at Go 1.21. goleak itself declares Go 1.20. Only test files import it, so the command and library still build offline and library users import nothing new.
+		- The browser module ignores one goroutine by name, `runtime.handleEvent`, which is the js runtime's own.
+		- `cicd/utility/macho-fat` has tests, but it's a release tool in its own module, so it has no goleak.
+	- Done: the soak test loops the command in-process for 200 rounds. Each round converts a number both ways and a fraction, uses a base from the default config file, so the vendored shcl parser runs every time, round-trips 5 byte encodings from stdin, runs a `--binary` pair through the library's pipe goroutine, and runs `--upper` and `--list`.
+		- After 2 GCs at round 100 and 200 it reads the heap in use and the goroutine count. More than 64 KiB plus 5% heap growth fails it, and so does any extra goroutine. Clean runs grew 16 to 24 KiB on a 1 MiB heap, in 14 to 50 seconds.
+		- Both heap profiles are kept in `cicd/artifacts/soak/`, GFS-pruned like the flamegraphs.
+	- Done: `-race` needs cgo. The image has `gcc`, which came in only through `rustc` until now, so the Dockerfile names it. This host has `gcc` too. Without cgo the race run skips with a warning, and fails the run in the container.
+	- Note: `-asan` isn't added, since no package uses cgo.
+	- Done: the timing ratio test `ErmULlt` skips under `-race`, where it failed, since the race detector slows our code and math/big by different amounts.
+	- Done: a failing test or package now shows a race report or goleak list from its top. The old last-20-lines view cut off where the race was.
+	- Note: `go vet` and staticcheck already ran on every run but `--no-lint`, unchanged. vet covers shcl, and staticcheck leaves it out as a style tool. govulncheck runs on a plain run and `--quick` skips it, pinned by `Et9RcHq`.
+	- Verified: each gate went red on a planted fault, each undone by copy. A goroutine left blocked in `ConvertStream` failed goleak, also through the pipeline. A map growing 128 bytes per `Convert` call failed the soak test, and `go tool pprof -base` on its profiles named `Convert`. A counter written on both sides of the `--binary` pipe failed the race run, also through the pipeline.
+	- Verified: no real leak or race turned up, in our code or in shcl.
+	- Verified: the Go tests plain and under `-race`, the browser module tests under node, the soak test, `go vet` native and js/wasm, staticcheck, golangci-lint, the harness CI engine and remote sync sections at 44 of 44, its test-ids checks at 4 of 4, `bash -n`, shellcheck, ruff, and `test-ids.py check`. The 3 new engine checks failed against the old `cicd.bash`, and `Et9WfaT` against the old `test-ids.py`.
+	- Done: the help, `config.bash` comments, contributing.md, development.md, the style guide, the workflow comments, shcl's README, and the changelog say so.
+	- Swept: `git grep` for `go.sum`, `standard library only`, `third-party`, `--long`, `--quick` and `full_extras`. install.md stays as it is, since the build still fetches nothing.
+	- Done: part 2, CodeQL. It runs last in the leak checks, from CodeQL 2.27.2's Go-only bundle, pinned in `tool-versions.env` with its checksum in the Dockerfile. It's never installed on the host, so a host run skips it with a warning, and the container fails without it.
+		- The bundle is the Dockerfile's last layer, so a new version rebuilds only that layer. It adds 259 MB to the image, now 3.1 GB.
+	- Done: it scans a scratch copy of `lib/` with `go mod vendor` run in it. The database has our code and tests, shcl, goleak, and the browser and reactor modules, each built for wasm. The step fails if any of those is missing from it, or if no queries ran.
+	- Done: the queries are the stock `go-security-and-quality` suite less its maintainability queries, in `cicd/utility/codeql/leak-checks.qls`, the same for every file.
+		- It's the one stock suite with both the memory queries (allocation size, integer conversion) and the correctness ones (index out of bounds, shift out of range, unhandled file close, nil checks).
+		- The maintainability queries are style. On our code ineffassign and staticcheck already catch the same useless assignments, so third-party code gets only the leak, memory, and correctness checks.
+	- Done: any result fails the stage. The SARIF is kept in `cicd/artifacts/codeql/`, GFS-pruned like the soak profiles.
+	- Verified: no results in our code, shcl, or goleak, so nothing needed a fix or a check turned off.
+	- Verified: an off-by-one index planted in a scratch copy of `convertbase` failed the stage through the pipeline, and one planted in the vendored goleak was reported. Both undone by copy. A database with no goleak in it failed the missing-parts check.
+	- Verified: a CodeQL version bump without its checksum rebuilds only the last layer and fails there on the checksum.
+	- Verified: the harness CI engine and remote sync sections at 47 of 47. The 4 changed or new checks failed against the old `cicd.bash`. `bash -n`, shellcheck, and `test-ids.py check` pass.
+	- Swept: `git grep` for `SOAK_OUT_DIR`, `RACE_PROBE`, `leak check`, and `tool-versions.env` over the repo. `pin-tools.bash` leaves CodeQL alone, since it's container-only.
+	- Test case: `Et9VxXX` leak checks on a plain run, off under `--quick`, back with `--leakcheck`, never in the gate, with the CodeQL step counted. `Et9VxYE` `--leakcheck` reaches the container run. `Et9VxYy` no cgo warns, and fails where every tool must be there. `Et9WfaT` race and leak reports shown from the top. `Et9UPKp` the soak margins. `Et9UPKC` is the soak test itself, and goleak runs in every package's `TestMain`. `Et9ZqiY` CodeQL runs under `--leakcheck` and not under `--quick`. `Et9ZqjD` a CodeQL result fails the stage. `Et9Zqjy` no CodeQL warns on the host and fails in the container.
+	- Branch: leaks, then codeql
+	- Commit: 64f06f5, then 0595e36
 
 - Hosted CI runs only vet, the Go tests and the build.
 	- ID: 2026101009523062
