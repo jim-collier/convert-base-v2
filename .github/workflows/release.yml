@@ -39,6 +39,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y nsis
           go install "github.com/goreleaser/nfpm/v2/cmd/nfpm@$(sed -n 's/^NFPM_VERSION=//p' cicd/tool-versions.env)"
+          go install "github.com/josephspurrier/goversioninfo/cmd/goversioninfo@$(sed -n 's/^GOVERSIONINFO_VERSION=//p' cicd/tool-versions.env)"
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
       # Every binary is stamped with this commit's time as its build number,

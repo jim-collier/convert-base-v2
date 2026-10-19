@@ -29,7 +29,7 @@
 ##			- Fuzz: random values round-tripped through every defined base (bases enumerated from the binary itself).
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
-##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
+##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. The packaged Windows exes and installers have the icon and the version they were built as. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
 ##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, what --quick runs and skips, the leak checks, -q, the dogfood copy, and the shellcheck and ruff gates.
 ##			- The harness itself: a run against a program that refuses everything, with Go off the PATH, counts each failure and reaches its summary.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
@@ -1950,7 +1950,7 @@ make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc
 	|| _fail Erm3Syv "make clean: own dist only" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
 ## The two full packaging runs take several seconds each, so --quick skips them.
 if ((doQuick)); then
-	_warn "ErlP6B8 Erm3SyD ErlP6Bg ErlP6CE" "packaging rebuild checks skipped: --quick" asked
+	_warn "ErlP6B8 Erm3SyD ErlP6Bg ErlP6CE Et9pfRW Et9pfS9" "packaging rebuild checks skipped: --quick" asked
 else
 	pkDir="${CBT_TMP}/pk"; pkrc=0
 	pkArgs=(--version v9.9.9-beta1 --build-epoch 1700000000)
@@ -1966,6 +1966,36 @@ else
 	## The mark stays out of checksums.txt, which lists what gets uploaded.
 	{ [[ -s "${pkSums}" && -f "${pkDir}/a/${pgMark}" ]] && ! grep -qF -- "${pgMark}" "${pkSums}"; } && _pass Erm3SyD "dist mark is not a release asset" \
 		|| _fail Erm3SyD "dist mark is not a release asset" "mark: $([[ -f "${pkDir}/a/${pgMark}" ]] && echo yes || echo no), sums: $(grep -cF -- "${pgMark}" "${pkSums}" 2>/dev/null || true)"
+	## Explorer's icon and Details tab. The fixed version is four numbers, and a
+	## beta is flagged prerelease (0x2) in the exe. The installer gets the same
+	## icon and version, less the flag. The resource is gone from the source dir
+	## after, so no later build picks up a stale one.
+	pkWant=(icon_groups=1 "icon_sizes=16,32,48,64,128,256" fixed_file_version=9.9.9.0 fixed_product_version=9.9.9.0
+		string.FileVersion=9.9.9-beta1 string.ProductVersion=9.9.9-beta1 "string.CompanyName=Jim Collier")
+	## Prints what's missing, if anything. No ID marker in LegalCopyright, since Explorer shows it.
+	fPeHas(){
+		local file="$1" want got; shift
+		got="$(python3 -I "${meDir}/utility/pe-resources.py" "${file}" 2>&1 || true)"
+		for want in "$@"; do grep -qxF -- "${want}" <<<"${got}" || { printf 'missing [%s] in: %s' "${want}" "$(tr '\n' ' ' <<<"${got}")"; return 1; }; done
+		grep -qE '^string\.LegalCopyright=Copyright © [0-9-]+ Jim Collier\.' <<<"${got}" || { printf 'LegalCopyright: [%s]' "$(grep -F LegalCopyright <<<"${got}" || true)"; return 1; }
+	}
+	if ! command -v goversioninfo >/dev/null 2>&1; then
+		_warn "Et9pfRW Et9pfS9" "Windows resource checks skipped: goversioninfo not installed"
+	else
+		for pkExe in convert-base-v2-windows-x86_64.exe convert-base-v2-windows-arm64.exe; do
+			pkWhy="$(fPeHas "${pkDir}/a/${pkExe}" "${pkWant[@]}" fixed_flags=0x2 string.OriginalFilename=convert-base-v2.exe)" \
+				&& [[ -z "$(find "${meDir}/../lib/cmd/convert-base-v2" -name '*.syso')" ]] \
+				&& _pass Et9pfRW "Windows exe icon and version: ${pkExe}" || _fail Et9pfRW "Windows exe icon and version: ${pkExe}" "${pkWhy:-a .syso was left in lib/cmd/convert-base-v2}"
+		done
+		if ! command -v makensis >/dev/null 2>&1; then
+			_warn Et9pfS9 "installer resource check skipped: makensis not installed"
+		else
+			for pkExe in convert-base-v2-windows-x86_64-setup.exe convert-base-v2-windows-arm64-setup.exe; do
+				pkWhy="$(fPeHas "${pkDir}/a/${pkExe}" "${pkWant[@]}")" \
+					&& _pass Et9pfS9 "installer icon and version: ${pkExe}" || _fail Et9pfS9 "installer icon and version: ${pkExe}" "${pkWhy}"
+			done
+		fi
+	fi
 	if ! command -v nfpm >/dev/null 2>&1; then
 		_warn "ErlP6Bg ErlP6CE" "prerelease package checks skipped: nfpm not installed"
 	elif [[ -s "${pkSums}" ]]; then

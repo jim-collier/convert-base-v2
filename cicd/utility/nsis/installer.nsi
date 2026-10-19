@@ -10,6 +10,9 @@
 ; overwrites an existing install (that is the "update if already installed"
 ; path). Defines come from the packager:
 ;   APPVERSION  version string (with leading v stripped)
+;   APPVERNUM   the same as four numbers, for the Details tab (optional)
+;   COPYRIGHT   LegalCopyright on the Details tab (optional)
+;   ICONPATH    .ico for the installer and uninstaller (optional)
 ;   APPARCH     x86_64 | arm64  (display only)
 ;   EXEPATH     path to the source .exe to embed
 ;   OUTFILE     installer path to write
@@ -44,12 +47,30 @@ InstallDirRegKey HKLM "Software\${APPNAME}" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
+!ifdef ICONPATH
+  !define MUI_ICON   "${ICONPATH}"
+  !define MUI_UNICON "${ICONPATH}"
+!endif
+
 !insertmacro MUI_PAGE_WELCOME
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
 !insertmacro MUI_UNPAGE_CONFIRM
 !insertmacro MUI_UNPAGE_INSTFILES
 !insertmacro MUI_LANGUAGE "English"
+
+!ifdef APPVERNUM
+  VIProductVersion "${APPVERNUM}"
+  VIFileVersion    "${APPVERNUM}"
+  VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductName"     "${APPNAME}"
+  VIAddVersionKey /LANG=${LANG_ENGLISH} "CompanyName"     "${PUBLISHER}"
+  VIAddVersionKey /LANG=${LANG_ENGLISH} "FileDescription" "${APPNAME} installer (${APPARCH})"
+  VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion"     "${APPVERSION}"
+  VIAddVersionKey /LANG=${LANG_ENGLISH} "ProductVersion"  "${APPVERSION}"
+  !ifdef COPYRIGHT
+    VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "${COPYRIGHT}"
+  !endif
+!endif
 
 ; StrContains: pushes needle then haystack; pops the needle back if present, "" if not.
 Function StrContains
@@ -90,6 +111,7 @@ Section "Install"
   WriteRegStr   HKLM "${ARPKEY}" "DisplayName"     "${APPNAME}"
   WriteRegStr   HKLM "${ARPKEY}" "DisplayVersion"  "${APPVERSION}"
   WriteRegStr   HKLM "${ARPKEY}" "Publisher"       "${PUBLISHER}"
+  WriteRegStr   HKLM "${ARPKEY}" "DisplayIcon"     "$INSTDIR\${APPNAME}.exe"
   WriteRegStr   HKLM "${ARPKEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr   HKLM "${ARPKEY}" "UninstallString" "$\"$INSTDIR\uninstall.exe$\""
   WriteRegDWORD HKLM "${ARPKEY}" "NoModify" 1

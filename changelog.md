@@ -44,6 +44,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Releases include the WASI build of the command, `convert-base-v2.wasm`, for any WebAssembly runtime.
 
+- The Windows `.exe` files and installers have an icon, the project mascot, and version details that Explorer shows on the Properties tab.
+
 - Release notes list the downloads in a table, with the OS in rows and the CPU in columns, and end with the version line the release's build prints, build number included.
 
 - Library: `UpgradeConfig` converts the text of a config file written for an older SHCL format, so it loads to the same bases. `LoadConfig` uses it. The library is now v0.2.0.

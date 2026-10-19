@@ -54,6 +54,7 @@ fPinModule(){
 	go install "${module}@${want}" || echo "[ pin: WARNING: ${exe} install failed; keeping what's there ]"
 }
 fPinModule nfpm "${NFPM_VERSION}" github.com/goreleaser/nfpm/v2/cmd/nfpm
+fPinModule goversioninfo "${GOVERSIONINFO_VERSION}" github.com/josephspurrier/goversioninfo/cmd/goversioninfo
 
 ## Not ours to install, so only say when one differs. A missing one is the
 ## lint stage's to report.

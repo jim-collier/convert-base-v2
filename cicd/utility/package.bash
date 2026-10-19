@@ -15,11 +15,13 @@
 ##		    - .deb and .rpm per Linux arch (nfpm - cross-arch, no native tooling)
 ##		    - single-file Windows installer .exe per arch (makensis / NSIS)
 ##		    - checksums.txt
+##		- Windows exes, installers too, get the icon and version details
+##		  Explorer shows. gen-winres.bash writes the resource for each arch.
 ##		- Go builds are fully static (CGO off), so nothing here bundles a runtime.
 ##		- nfpm is a pinned go-installed tool (cicd/tool-versions.env); it writes
 ##		  deb and rpm directly for any arch, sidestepping rpmbuild's host-arch
-##		  cross-build check. makensis/nfpm each probe-skip with a warning if
-##		  missing, so a bare machine still gets the archives. Under
+##		  cross-build check. makensis, nfpm and goversioninfo each probe-skip with
+##		  a warning if missing, so a bare machine still gets the archives. Under
 ##		  CICD_NO_SKIP=1, as in the container, a missing or failed one is an error.
 ##		- Same script runs locally (via `make release` / cicd) and in the release
 ##		  workflow, so what ships is what was built and tested here.
@@ -84,7 +86,7 @@ esac; done
 [[ -z "${BUILD_EPOCH}" || "${BUILD_EPOCH}" =~ ^[0-9]+$ ]] || { echo "--build-epoch takes unix seconds, not '${BUILD_EPOCH}'" >&2; exit 2; }
 ## Before the cross builds, so a missing packager fails in a second, not a minute.
 if [[ "${CICD_NO_SKIP:-0}" == "1" ]]; then
-	for tool in nfpm makensis; do command -v "${tool}" >/dev/null 2>&1 || fSkip "${tool} missing"; done
+	for tool in nfpm makensis goversioninfo; do command -v "${tool}" >/dev/null 2>&1 || fSkip "${tool} missing"; done
 fi
 
 ## A relative --out is resolved against the caller's CWD (make/cicd invoke from
@@ -109,6 +111,13 @@ fTgz(){
 ## itself (Debian/RPM read '~' as "sorts before the final"); the NSIS installer
 ## just displays it. Only the file name loses the ~, at the end.
 plainver="${VERSION#v}"
+## Windows wants four numbers. The fourth is how many commits past the tag, so a
+## dev build doesn't claim to be the release. No X.Y.Z at all gives 0.0.0.0.
+winver="0.0.0.0"
+if [[ "${plainver}" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+) ]]; then
+	winver="${BASH_REMATCH[1]}.${BASH_REMATCH[2]}.${BASH_REMATCH[3]}"
+	if [[ "${plainver}" =~ -([0-9]+)-g[0-9a-f]+(-dirty)?$ ]]; then winver+=".${BASH_REMATCH[1]}"; else winver+=".0"; fi
+fi
 
 
 #•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -122,7 +131,11 @@ platforms=(
 )
 
 work="$(mktemp -d)"
-trap 'rm -rf "${work}"' EXIT
+## The linker only takes a .syso from the package dir itself (go build -overlay
+## doesn't cover them), so the resource goes there for the Windows builds and no
+## longer. The _windows_<arch> suffix keeps it out of every other target.
+winres=""
+trap 'rm -rf "${work}"; [[ -z "${winres}" ]] || rm -f "${winres}"' EXIT
 
 ## Only a dir with the mark is cleared, so --out can't empty someone's folder.
 ## An empty dir is taken over. lib/Makefile writes the same mark.
@@ -143,11 +156,22 @@ for p in "${platforms[@]}"; do
 	ext=""; [[ "${os}" == windows ]] && ext=".exe"
 	bindir="${work}/${os}-${arch}"; mkdir -p "${bindir}"
 	binpath="${bindir}/${EXE}${ext}"
+	if [[ "${os}" == windows ]]; then
+		winres="${src}/cmd/convert-base-v2/resource_windows_${arch}.syso"
+		rm -f "${winres}"
+		wrc=0; bash "${here}/gen-winres.bash" -q --version "${plainver}" --numeric "${winver}" --arch "${arch}" -o "${winres}" || wrc=$?
+		case "${wrc}" in
+			0) ;;
+			3) fSkip "goversioninfo missing; ${os}/${arch} exe has no icon or version info - go install github.com/josephspurrier/goversioninfo/cmd/goversioninfo" ;;
+			*) fSkip "gen-winres failed (${arch}); exe has no icon or version info"; rm -f "${winres}" ;;
+		esac
+	fi
 
 	## No VCS stamp or build ID, so a dirty tree or a source tarball of the
 	## same commit builds the same bytes.
 	( cd "${src}" && CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" \
 		go build -trimpath -buildvcs=false -ldflags "-s -w -buildid= -X main.version=${VERSION} -X main.buildEpoch=${BUILD_EPOCH}" -o "${binpath}" ./cmd/convert-base-v2 )
+	[[ -z "${winres}" ]] || { rm -f "${winres}"; winres=""; }
 	fStamp "${binpath}"
 
 	if [[ "${os}" == windows ]]; then
@@ -245,8 +269,14 @@ fBuildNsis(){
 	command -v makensis >/dev/null 2>&1 || { fSkip "makensis missing; skipping installer (${arch})"; return 0; }
 	local label="${arch}"; [[ "${arch}" == amd64 ]] && label="x86_64"
 	local outfile="${OUT}/${PKG}-windows-${label}-setup.exe"
-	if makensis -V1 \
-		"-DAPPVERSION=${plainver}" "-DAPPARCH=${label}" \
+	## Same text gen-winres.bash puts in the exe, years from the program.
+	local years copyright
+	years="$(sed -n 's/^[[:space:]]*copyrightYear[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "${src}/cmd/convert-base-v2/main.go")"
+	copyright="Copyright © ${years} Jim Collier. Licensed under the GNU GPL v2.0 or later."
+	## Under LC_ALL=C makensis refuses the © in its arguments outright.
+	if LC_ALL=C.UTF-8 makensis -V1 \
+		"-DAPPVERSION=${plainver}" "-DAPPVERNUM=${winver}" "-DAPPARCH=${label}" \
+		"-DICONPATH=${root}/assets/${EXE}.ico" "-DCOPYRIGHT=${copyright}" \
 		"-DEXEPATH=${bin}" "-DOUTFILE=${outfile}" \
 		"${here}/nsis/installer.nsi" >/dev/null 2>&1; then
 		fEcho "built installer (${label})"
@@ -292,3 +322,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt ! -name "
 ##		- 2026-10-04: Archives, packages and installers rebuild to the same bytes. Names GitHub would change are changed first.
 ##		- 2026-10-04: --out is cleared only when a build made it.
 ##		- 2026-10-10: A skipped package is an error under CICD_NO_SKIP=1.
+##		- 2026-10-19: Windows exes and installers get an icon and version info.
