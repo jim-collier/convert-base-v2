@@ -257,6 +257,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `Et9kwvY` TestMessagesUseContractions, which fails on a long-form negation in any of the swept strings.
 	- Acceptance signoff: Self-closed: mechanical, and its test passes.
 	- Branch: contractions
+	- Commit: b8252f0
 	- Closed: 20261019-073500
 
 - Run on the last Core 2 Duo, and AMD CPUs from that era.
