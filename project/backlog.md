@@ -57,7 +57,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Updates to CICD script flags.
 	- ID: 2026101816351431
 	- Type: Enhancement
-	- Status: Waiting on signoff
+	- Status: Done
 	- Note: needs signoff, since `--quick` keeping sync, publish, and all of stage 6 is a reading of the requirement.
 	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage in 9.5 minutes, with the long tests, the race detector, the soak test, and CodeQL with no results from 54 queries.
 	- Verified: 20261019, the same with `--quick` passed in 4.2 minutes. It built all 25 cross artifacts, and skipped the long tests, the leak checks, the pin checks, and govulncheck.
