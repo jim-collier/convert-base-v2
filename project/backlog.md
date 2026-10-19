@@ -207,6 +207,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
 			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
 
+- Verify or ensure that builds clean up stale artifacts and side-effects after they're done: caches, container cruft, tmp files, etc.
+	- ID: 2026101910123200
+	- Type: Enhancement
+	- Status: Queued
+	- Opened: 20261019-101232
+	- Opened by: JC
+	- Note: pre-next-cut.
+
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002
 	- Type: Bug
