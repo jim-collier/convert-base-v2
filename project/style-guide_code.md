@@ -32,7 +32,7 @@ Where a language has a standard formatter, its output is the style. Where it has
 
 - `go vet` must pass, and so must golangci-lint and staticcheck when they are installed. `lib/.golangci.yml` has the linter set, with a note on why each extra linter is there.
 
-- Standard library only. The module has no third-party dependencies and no `go.sum`, so a fresh clone builds offline. A new dependency needs a very good reason.
+- Standard library only. The command and the library import no third-party module, so a fresh clone builds offline. The tests use one, goleak, to catch leftover goroutines. A new dependency needs a very good reason.
 
 - The minimum is Go 1.21, set in `lib/go.mod`. The reactor module needs 1.24 for `//go:wasmexport`. It builds separately, so the rest still builds on 1.21.
 

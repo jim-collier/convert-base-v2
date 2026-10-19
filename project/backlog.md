@@ -71,30 +71,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: flags
 	- Commit: 2abd0ac
 
-- A bare `tail: ,` in a config reads as no tail.
-	- ID: 2026101411014813
-	- Type: Bug
-	- Status: Stalled
-	- Severity: Low
-	- Opened: 20261014-110148
-	- Opened by: split from 2026100417280514
-	- Related IDs: 2026100417280514, 2026100508035901
-	- Target OS: Any
-	- Steps to reproduce:
-		- A config base with `tail: ,` or `tail: , ,`.
-		- Smallest repro in shcl: parse `x: ,` and read `x` as a list. It comes back empty, the same as `x:`.
-	- Incorrect behavior: the base loads with no tail, and nothing is said.
-	- Expected behavior: a comma tail, or an error that names the line. A quoted `","` reaches the loader and is refused as only commas.
-	- Reproduced: 20261005, on shcl 2317df56.
-	- Note: shcl friction, a silent wrong answer. The config loads at exit 0, and the base isn't the one the file describes.
-	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
-	- Progress log:
-		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
-
 - Leak, memory, and correctness checks in the CICD process, for the code end users run.
 	- ID: 2026101816351432
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes. One plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container. It rebuilds the image for the `gcc` line, then runs the race detector and the soak test there for the first time.
 	- Priority: Avg
 	- Opened: 20261018-163514
 	- Opened by: JC
@@ -133,6 +114,47 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: `go vet`, `staticcheck`, and `govulncheck` already run in stages 3 and 4, and container runs fail when one is missing. Release builds use `CGO_ENABLED=0`.
 	- Decisions:
 		- 20261018: a run with no flags runs the `--leakcheck` checks too, per 2026101816351431. The flag adds them to a run whose other flags would skip them, such as `--quick`.
+	- Note: done in 2 parts. This first part has everything but CodeQL, so the CodeQL lines above stay open for the second part, which builds on the `--leakcheck` wiring here.
+	- Done: `--leakcheck` runs the Go tests again under the race detector with `-count=1`, then the soak test. A plain run has both. `--quick` leaves them out unless `--leakcheck` is given too, in either order, and the container run gets the flag the way it gets `--long`. `--gate` never runs them.
+	- Done: every Go package with tests checks for leftover goroutines with goleak v1.3.0, pinned in `lib/go.mod`, which stays at Go 1.21. goleak itself declares Go 1.20. Only test files import it, so the command and library still build offline and library users import nothing new.
+		- The browser module ignores one goroutine by name, `runtime.handleEvent`, which is the js runtime's own.
+		- `cicd/utility/macho-fat` has tests, but it's a release tool in its own module, so it has no goleak.
+	- Done: the soak test loops the command in-process for 200 rounds. Each round converts a number both ways and a fraction, uses a base from the default config file, so the vendored shcl parser runs every time, round-trips 5 byte encodings from stdin, runs a `--binary` pair through the library's pipe goroutine, and runs `--upper` and `--list`.
+		- After 2 GCs at round 100 and 200 it reads the heap in use and the goroutine count. More than 64 KiB plus 5% heap growth fails it, and so does any extra goroutine. Clean runs grew 16 to 24 KiB on a 1 MiB heap, in 14 to 50 seconds.
+		- Both heap profiles are kept in `cicd/artifacts/soak/`, GFS-pruned like the flamegraphs.
+	- Done: `-race` needs cgo. The image has `gcc`, which came in only through `rustc` until now, so the Dockerfile names it. This host has `gcc` too. Without cgo the race run skips with a warning, and fails the run in the container.
+	- Note: `-asan` isn't added, since no package uses cgo.
+	- Done: the timing ratio test `ErmULlt` skips under `-race`, where it failed, since the race detector slows our code and math/big by different amounts.
+	- Done: a failing test or package now shows a race report or goleak list from its top. The old last-20-lines view cut off where the race was.
+	- Note: `go vet` and staticcheck already ran on every run but `--no-lint`, unchanged. vet covers shcl, and staticcheck leaves it out as a style tool. govulncheck runs on a plain run and `--quick` skips it, pinned by `Et9RcHq`.
+	- Verified: each gate went red on a planted fault, each undone by copy. A goroutine left blocked in `ConvertStream` failed goleak, also through the pipeline. A map growing 128 bytes per `Convert` call failed the soak test, and `go tool pprof -base` on its profiles named `Convert`. A counter written on both sides of the `--binary` pipe failed the race run, also through the pipeline.
+	- Verified: no real leak or race turned up, in our code or in shcl.
+	- Verified: the Go tests plain and under `-race`, the browser module tests under node, the soak test, `go vet` native and js/wasm, staticcheck, golangci-lint, the harness CI engine and remote sync sections at 44 of 44, its test-ids checks at 4 of 4, `bash -n`, shellcheck, ruff, and `test-ids.py check`. The 3 new engine checks failed against the old `cicd.bash`, and `Et9WfaT` against the old `test-ids.py`.
+	- Done: the help, `config.bash` comments, contributing.md, development.md, the style guide, the workflow comments, shcl's README, and the changelog say so.
+	- Swept: `git grep` for `go.sum`, `standard library only`, `third-party`, `--long`, `--quick` and `full_extras`. install.md stays as it is, since the build still fetches nothing.
+	- Test case: `Et9VxXX` leak checks on a plain run, off under `--quick`, back with `--leakcheck`, never in the gate. `Et9VxYE` `--leakcheck` reaches the container run. `Et9VxYy` no cgo warns, and fails where every tool must be there. `Et9WfaT` race and leak reports shown from the top. `Et9UPKp` the soak margins. `Et9UPKC` is the soak test itself, and goleak runs in every package's `TestMain`.
+	- Branch: leaks
+	- Commit: 64f06f5
+
+- A bare `tail: ,` in a config reads as no tail.
+	- ID: 2026101411014813
+	- Type: Bug
+	- Status: Stalled
+	- Severity: Low
+	- Opened: 20261014-110148
+	- Opened by: split from 2026100417280514
+	- Related IDs: 2026100417280514, 2026100508035901
+	- Target OS: Any
+	- Steps to reproduce:
+		- A config base with `tail: ,` or `tail: , ,`.
+		- Smallest repro in shcl: parse `x: ,` and read `x` as a list. It comes back empty, the same as `x:`.
+	- Incorrect behavior: the base loads with no tail, and nothing is said.
+	- Expected behavior: a comma tail, or an error that names the line. A quoted `","` reaches the loader and is refused as only commas.
+	- Reproduced: 20261005, on shcl 2317df56.
+	- Note: shcl friction, a silent wrong answer. The config loads at exit 0, and the base isn't the one the file describes.
+	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
+	- Progress log:
+		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
 
 - Hosted CI runs only vet, the Go tests and the build.
 	- ID: 2026101009523062

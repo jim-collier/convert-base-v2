@@ -34,7 +34,7 @@ jobs:
       - uses: actions/setup-go@v7
         with:
           go-version-file: .go-version
-          # standard library only, so there is no go.sum and nothing to cache
+          # the only module is goleak, for the tests, so nothing worth caching
           cache: false
 
       - name: build browser module

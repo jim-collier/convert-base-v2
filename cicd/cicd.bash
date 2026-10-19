@@ -25,7 +25,7 @@
 ##	   1. format (gofmt)
 ##	   2. native build (staged aside so the cross stage can't clobber it)
 ##	   3. lint (go vet gating; golangci-lint, staticcheck, shellcheck and ruff if installed)
-##	   4. tests (unit + integration harness + fuzz + govulncheck security)
+##	   4. tests (unit + integration harness + fuzz + govulncheck security + leak checks)
 ##	   5. profiler (flamegraph SVG; non-gating artifact - see failure policy)
 ##	   6. cross-compile + package every shipping platform (archives, deb/rpm, Windows installers, checksums)
 ##	   7. dogfood (install the optimized native build locally, fixed name, and any cross builds listed) + screenshots + demo gif
@@ -51,17 +51,20 @@
 ##	                       container, no publish. The git pre-push hook runs this for dev and main.
 ##	   --long              the exhaustive tests (CICDTEST_DO_LONGTEST=1). A run without --quick has them
 ##	                       already, so this is for adding them back to a --quick run.
+##	   --leakcheck         the leak checks: the Go tests again under the race detector, then the soak
+##	                       test, which keeps its heap profiles under cicd/artifacts. A run without
+##	                       --quick has them already, so this is for adding them to a --quick run.
 ##	   --quick             the fast checks only. Skips the profiler, screenshots, demo gif, the long tests,
-##	                       and the checks that reach another host (vendor and interop pins, govulncheck).
-##	                       Fuzz is shorter, and the harness skips its perf section and packaging rebuild
-##	                       check. It still cross-compiles and packages, which takes seconds.
+##	                       the leak checks, and the checks that reach another host (vendor and interop pins,
+##	                       govulncheck). Fuzz is shorter, and the harness skips its perf section and packaging
+##	                       rebuild check. It still cross-compiles and packages, which takes seconds.
 ##	   --container         run stages 1 to 4, 6 and the demo gif in the pinned image from cicd/container/,
 ##	                       where a missing tool is an error. The profiler, dogfood and publish then run here.
 ##	                       The default when config.bash sets CONTAINER_DEFAULT=1.
 ##	   --host              run every stage here, with whatever tools this machine has
 ##	   -h, --help          show this help
-##	- A run with no flags runs everything, the long tests included. --quick leaves them out,
-##	  and --long puts them back, whichever comes first.
+##	- A run with no flags runs everything, the long tests and leak checks included. --quick
+##	  leaves them out, and --long and --leakcheck put them back, whichever comes first.
 ##	- --quick still fetches first and publishes last. --no-sync and --no-publish skip those.
 ##	- If neither -q/-y nor -m is given, the run prompts once for a commit message
 ##	  (blank = git editor; Ctrl+C aborts the whole run), then finishes unattended.
@@ -95,6 +98,8 @@ export GOMAXPROCS="${CPU_CAP}"
 source "${here}/config.bash"
 [[ -v FMT_CHECK_CMD ]] || FMT_CHECK_CMD=()   ## older configs
 [[ -v DOGFOOD_CROSS ]] || DOGFOOD_CROSS=()
+[[ -v RACE_TEST_CMD ]] || RACE_TEST_CMD=()
+[[ -v SOAK_CMD ]] || SOAK_CMD=()
 ## Personal dogfood dirs, kept out of the repo. Before the options, so --no-dogfood still wins.
 # shellcheck source=/dev/null
 if [[ -n "${DOGFOOD_LOCAL:-}" && -f "${root}/${DOGFOOD_LOCAL}" ]]; then source "${root}/${DOGFOOD_LOCAL}"; fi
@@ -105,7 +110,7 @@ export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the En
 
 ## Parse options. The originals are kept for a restart after the sync.
 orig_args=("$@")
-assume_yes=0; quiet=0; quick=0; do_long=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0
+assume_yes=0; quiet=0; quick=0; do_long=""; do_leakcheck=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0
 while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
@@ -122,6 +127,7 @@ while (($#)); do case "$1" in
 	--no-sync)                do_sync=0; shift ;;
 	--gate)                   gate=1; shift ;;
 	--long)                   do_long=1; inner_args+=("$1"); shift ;;
+	--leakcheck)              do_leakcheck=1; inner_args+=("$1"); shift ;;
 	--quick)                  quick=1; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
 	--message=*|--msg=*|-m=*) cli_message="${1#*=}"; shift ;;
 	-m|--message|--msg)       cli_message="${2-}"; shift; (($#)) && shift ;;
@@ -130,7 +136,7 @@ while (($#)); do case "$1" in
 esac; done
 ## The slow extras a plain run does and --quick doesn't. Each starts empty, and
 ## its flag sets it to 1, so naming one keeps it in a quick run.
-full_extras=(do_long)
+full_extras=(do_long do_leakcheck)
 for extra in "${full_extras[@]}"; do [[ -n "${!extra}" ]] || printf -v "${extra}" '%s' "$(( ! quick ))"; done
 ## --quick stays on this machine. These checks reach another host.
 if ((quick)); then VENDOR_CHECK_CMD=(); INTEROP_CHECK_CMD=(); VULN_CMD=(); fi
@@ -313,14 +319,41 @@ fLint(){
 }
 ## Every test has its own ID, so a failure, a backlog item and a commit can all
 ## name the same one. Each prints with its ID.
+fGoTests(){
+	if ((${#TEST_ID_CMD[@]})); then in_src "$@" 2>&1 | (cd "${root}" && "${TEST_ID_CMD[@]}" report)
+	else in_src "$@"; fi
+}
 fUnitTests(){
 	if ((${#TEST_ID_CMD[@]})); then
 		(cd "${root}" && "${TEST_ID_CMD[@]}" check) || fDie "a test has no ID, a bad one, or shares one"
-		in_src "${UNIT_TEST_CMD[@]}" 2>&1 | (cd "${root}" && "${TEST_ID_CMD[@]}" report) || fDie "unit tests failed"
-	else
-		in_src "${UNIT_TEST_CMD[@]}"
 	fi
+	fGoTests "${UNIT_TEST_CMD[@]}" || fDie "unit tests failed"
 	fEcho "OK: unit tests"
+}
+## Stage 4d, the slow leak checks, on a plain run or with --leakcheck. The Go
+## tests again under the race detector, then the soak test, which keeps its
+## heap profiles.
+fLeakCheck(){
+	if ((! do_leakcheck)); then
+		fEcho_Chat "leak checks skipped"
+		return 0
+	fi
+	if ((${#RACE_TEST_CMD[@]})); then
+		if in_src "${RACE_PROBE[@]}" >/dev/null 2>&1; then
+			fGoTests "${RACE_TEST_CMD[@]}" || fDie "tests failed under the race detector"
+			fEcho "OK: race detector clean"
+		else
+			fSkip "race detector skipped (it needs cgo and a C compiler)"
+		fi
+	fi
+	if ((${#SOAK_CMD[@]})); then
+		local soakDir="${root}/${SOAK_OUT_DIR}"
+		mkdir -p "${soakDir}"
+		fGoTests env "CICD_SOAK_OUT=${soakDir}" "${SOAK_CMD[@]}" || fDie "soak test failed; its heap profiles are in ${SOAK_OUT_DIR}/"
+		gfs_rotate "${soakDir}" heap-n pprof >/dev/null 2>&1 || true
+		gfs_rotate "${soakDir}" heap-2n pprof >/dev/null 2>&1 || true
+		fEcho "OK: soak test, heap profiles in ${SOAK_OUT_DIR}/"
+	fi
 }
 ## gitsby picks the account for the folder; plain git where it isn't installed.
 fGit(){ if command -v gitsby >/dev/null 2>&1; then gitsby raw git "$@"; else git "$@"; fi; }
@@ -437,6 +470,13 @@ else
 	fEcho_Chat "Fuzz ................: (disabled)"
 fi
 if ((${#VULN_CMD[@]})); then fEcho_Chat "Security ............: ${VULN_CMD[*]}  (if installed)"; else fEcho_Chat "Security ............: (skipped)"; fi
+if ((do_leakcheck)); then
+	fEcho_Chat "Leak checks .........: ${RACE_TEST_CMD[*]:-(no race run)}"
+	((${#SOAK_CMD[@]})) && \
+	fEcho_Chat "                       ${SOAK_CMD[*]} -> ${SOAK_OUT_DIR}/"
+else
+	fEcho_Chat "Leak checks .........: (skipped)"
+fi
 if ((PROFILE_ENABLE)); then
 	fEcho_Chat "Profiler ............: bench ${PROFILE_BENCH} ${PROFILE_TIME} -> flamegraph SVG"
 	fEcho_Chat "  output dir ........: ${profile_dir}"
@@ -556,7 +596,8 @@ else
 	fLint
 
 	## Stage 4: tests. Unit (Go), integration harness (against the staged binary),
-	## fuzz (one target per invocation), and govulncheck security (module + deps).
+	## fuzz (one target per invocation), govulncheck security (module + deps), and
+	## the leak checks.
 	fSection "4/8  Tests"
 	## Every test has its own ID, so a failure, a backlog item and a commit can all
 	## name the same one. Each prints with its ID.
@@ -610,6 +651,9 @@ else
 			fSkip "govulncheck skipped (not installed: go install golang.org/x/vuln/cmd/govulncheck@latest)"
 		fi
 	fi
+
+	## 4d: race detector and soak test.
+	fLeakCheck
 	fEcho "OK: tests passed"
 fi
 
@@ -802,3 +846,4 @@ fEcho_Clean
 ##		- 2026-10-14 JC: --gate and its pre-push hook; fetch and fast-forward before building, --no-sync to skip.
 ##		- 2026-10-14 JC: Dogfood the cross builds too (DOGFOOD_CROSS), with personal dirs read from DOGFOOD_LOCAL.
 ##		- 2026-10-19 JC: A plain run has the long tests. --quick still cross-compiles, and skips the checks that reach another host.
+##		- 2026-10-19 JC: --leakcheck: the Go tests under the race detector, and a soak test. A plain run has them.

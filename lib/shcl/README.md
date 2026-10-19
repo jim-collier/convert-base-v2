@@ -10,6 +10,6 @@ The pin lives in `cicd/vendor-pins.env`, and `cicd/utility/check-vendor.bash` ch
 
 Do not edit it here, not even in a tree-wide sweep. To pick up a fix, copy the upstream file over this one and bump the pin in `cicd/vendor-pins.env` in the same commit. `shcl_windows.go` upstream is an optional companion for Windows saves and is not copied, since nothing here saves through the library yet.
 
-Upstream is a real Go module (`github.com/yottacore/shcl/source/go/v2` at this commit), so `go get` would work. The copy is still deliberate: it leaves this program at standard library plus its own source, with no `go.sum` and nothing to fetch at build time.
+Upstream is a real Go module (`github.com/yottacore/shcl/source/go/v2` at this commit), so `go get` would work. The copy is still deliberate: it leaves this program at standard library plus its own source, with nothing to fetch at build time.
 
 That is now the only reason left. Upstream used to declare `go 1.24`, so depending on it would have raised the toolchain floor here from 1.21; v1.1.0 dropped that directive to 1.20 and the objection went with it.
