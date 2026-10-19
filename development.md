@@ -9,7 +9,7 @@ Back to the [README](README.md).
 
 Prerequisites, in the order you are likely to need them.
 
-- Go 1.21 or newer is the only requirement for the command, the library, and the tests. There are no third-party modules to fetch, so no network access is needed after the clone.
+- Go 1.21 or newer is the only requirement for the command, the library, and the tests. The build fetches nothing, so it works offline after the clone. The tests use one third-party module, goleak, which Go fetches the first time they run.
 
 - Go 1.24 or newer is required only to build the reactor module, which uses a newer export directive. The declared minimum stays at 1.21, so an older toolchain builds everything else.
 
@@ -17,7 +17,7 @@ Prerequisites, in the order you are likely to need them.
 
 - Docker, for the default pipeline run, which builds and tests in an image with every tool pinned. `--host` runs without it.
 
-- Optional tools, for `--host` runs only, are skipped with a warning when missing: `golangci-lint`, `staticcheck`, `shellcheck`, `ruff`, `govulncheck`, `nfpm` and `makensis` for packaging, `node` and `cargo` for the third-party comparison tests, `gifsicle` and Python with Pillow for the demo animation.
+- Optional tools, for `--host` runs only, are skipped with a warning when missing: `golangci-lint`, `staticcheck`, `shellcheck`, `ruff`, `govulncheck`, a C compiler such as `gcc` for the race detector, `nfpm` and `makensis` for packaging, `node` and `cargo` for the third-party comparison tests, `gifsicle` and Python with Pillow for the demo animation.
 
 The Go tree is under `lib/`. The command is in `lib/cmd/convert-base-v2/`, the conversion core in `lib/convertbase/`, and the WebAssembly entry points in `lib/wasm/` and `lib/reactor/`.
 
@@ -34,7 +34,7 @@ Build targets, all run from `lib/`.
 | `make reactor`          | The callable WebAssembly module
 | `make release`          | Cross-builds and packages every platform
 
-Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. A plain run includes the exhaustive tests. `--quick` skips them and the other slow parts, `--long` adds them back to a quick run, `--gate` runs only the quick checks, and most stages have a `--no-...` switch. The build and test stages run in a docker image that has every tool installed at a pinned version, and `--host` runs them on your own machine instead. A plain run also copies the build into a local bin folder, and commits and pushes, so use `cicd/cicd.bash --quick --no-dogfood --no-publish -y` for a local check.
+Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. A plain run includes the exhaustive tests and the leak checks. `--quick` skips them and the other slow parts, `--long` and `--leakcheck` add them back to a quick run, `--gate` runs only the quick checks, and most stages have a `--no-...` switch. The build and test stages run in a docker image that has every tool installed at a pinned version, and `--host` runs them on your own machine instead. A plain run also copies the build into a local bin folder, and commits and pushes, so use `cicd/cicd.bash --quick --no-dogfood --no-publish -y` for a local check.
 
 Tests sandbox their own config directory, so running them won't read or write the config file in your home directory.
 

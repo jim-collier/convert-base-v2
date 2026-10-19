@@ -200,6 +200,19 @@ def collect() -> tuple[dict[str, str], list[str]]:
 	return named, problems
 
 
+## Where a failure's own report starts. A race report or a goleak list is
+## usually longer than the tail that's shown, and its top names the culprit.
+REPORT_START = ("WARNING: DATA RACE", "goleak: ")
+
+
+def failure_lines(lines: list[str]) -> list[str]:
+	"""The last 20 lines, or up to 60 from the start of a race or leak report."""
+	for i, line in enumerate(lines):
+		if line.lstrip().startswith(REPORT_START):
+			return lines[i:i + 60]
+	return lines[-20:]
+
+
 def report() -> int:
 	"""One line per top-level Go test, from `go test -json` on stdin."""
 	ids = {k: v.tid for k, v in go_tests().items()}
@@ -242,13 +255,13 @@ def report() -> int:
 		print(f"{tag} {tid}  {key[1]} ({short_name(key[0])})")
 		if st == "fail":
 			failed += 1
-			for line in output.get(key, [])[-20:]:
+			for line in failure_lines(output.get(key, [])):
 				print("       " + line.rstrip())
 	for pkg in pkgfail:
 		if not any(k[0] == pkg and state[k] == "fail" for k in order):
 			failed += 1
-			print(f" FAIL -------  {pkg} (package did not build or run)")
-			for line in output.get((pkg, None), [])[-20:]:
+			print(f" FAIL -------  {pkg} (package failed outside its tests: a build error, or the leak check in TestMain)")
+			for line in failure_lines(output.get((pkg, None), [])):
 				print("       " + line.rstrip())
 	print(f"  {len(order) - failed}/{len(order)} Go tests passed" if not failed else f"  {failed} Go test(s) failed")
 	return 1 if failed or pkgfail else 0
@@ -294,3 +307,4 @@ if __name__ == "__main__":
 ##		- 2026-10-04 JC: Created.
 ##		- 2026-10-04 JC: A bash array of words is no test call.
 ##		- 2026-10-04 JC: Go tests are keyed by import path, not directory name, and a compile error prints under its package. Type hints and named records.
+##		- 2026-10-19 JC: A failing test or package shows a race report or goleak list from its top.

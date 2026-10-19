@@ -30,7 +30,7 @@
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
 ##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
-##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, what --quick runs and skips, -q, the dogfood copy, and the shellcheck and ruff gates.
+##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, what --quick runs and skips, the leak checks, -q, the dogfood copy, and the shellcheck and ruff gates.
 ##			- The harness itself: a run against a program that refuses everything, with Go off the PATH, counts each failure and reaches its summary.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
@@ -2327,6 +2327,20 @@ tgRep="$(printf '%s\n' '{"ImportPath":"example.com/m/a/util [example.com/m/a/uti
 	| python3 "${tgDir}/cicd/utility/test-ids.py" report 2>&1 || true)"
 grep -qF "undefined: oops" <<<"${tgRep}" && _pass ErnEiCC "test-ids compile error" \
 	|| _fail ErnEiCC "test-ids compile error" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
+## A race report is longer than the usual tail, and its top says where the race
+## is, so it shows from there. The same goes for goleak's list after the tests.
+tgRep="$( {
+	printf '%s\n' '{"Action":"output","Package":"example.com/m/a/util","Test":"TestSame","Output":"WARNING: DATA RACE\n"}' \
+		'{"Action":"output","Package":"example.com/m/a/util","Test":"TestSame","Output":"Write at 0x00c by goroutine 7:\n"}'
+	for i in $(seq 30); do printf '{"Action":"output","Package":"example.com/m/a/util","Test":"TestSame","Output":"  frame %s\\n"}\n' "$i"; done
+	printf '%s\n' '{"Action":"fail","Package":"example.com/m/a/util","Test":"TestSame"}' \
+		'{"Action":"output","Package":"example.com/m/b/util","Output":"goleak: Errors on successful test run: found unexpected goroutines:\n"}'
+	for i in $(seq 30); do printf '{"Action":"output","Package":"example.com/m/b/util","Output":"  leaked %s\\n"}\n' "$i"; done
+	printf '%s\n' '{"Action":"fail","Package":"example.com/m/b/util"}'
+} | python3 "${tgDir}/cicd/utility/test-ids.py" report 2>&1 || true)"
+{ grep -qF "Write at 0x00c by goroutine 7" <<<"${tgRep}" && grep -qF "frame 30" <<<"${tgRep}" && grep -qF "goleak: Errors on successful test run" <<<"${tgRep}"; } \
+	&& _pass Et9WfaT "test-ids race and leak reports from the top" \
+	|| _fail Et9WfaT "test-ids race and leak reports from the top" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -2352,6 +2366,7 @@ DOGFOOD_FIXED_DESTS=(${CE_DEST:+"${CE_DEST}"}); DOGFOOD_CROSS=(); DOGFOOD_LOCAL=
 DO_SCREENSHOTS=0; SCREENSHOT_CMD=(none); DO_DEMOGIF=${CE_GIF:-0}; DEMOGIF_CMD=(gif.py); DEMOGIF_OUT="gif/demo.gif"; DEMOGIF_ARCHIVE_DIR="gif/old"; DEMOGIF_CONTAINER_ONLY=1
 PREPUBLISH_HOOK=""; GIT_PUBLISH=(); PUBLISH_AUTO_MESSAGE=""
 [[ -z "${CE_NET:-}" ]] || { VENDOR_CHECK_CMD=(echo vendor-net); INTEROP_CHECK_CMD=(echo interop-net); VULN_PROBE=(true); VULN_CMD=(echo vuln-net); }
+RACE_PROBE=("${CE_RACE_PROBE:-true}"); RACE_TEST_CMD=(echo race-ran); SOAK_CMD=(sh -c 'echo "soak-ran $CICD_SOAK_OUT"'); SOAK_OUT_DIR="soak"
 EOF
 cat >"${ceBin}/go" <<'EOF'
 #!/bin/sh
@@ -2438,6 +2453,22 @@ CE_CROSS=1 fCeRun -y --quick --no-cross
 { ((ceQuickCross && ceNoCross == 0 && ceRc == 0)) && [[ ! -e "${ceRepo}/dist" && "${ceOut}" == *"cross + package skipped"* ]]; } && _pass Et9RcH7 "--quick cross-compiles, --no-cross wins" \
 	|| _fail Et9RcH7 "--quick cross-compiles, --no-cross wins" "quick made it: ${ceQuickCross}; $(fCeTail)"
 rm -rf "${ceRepo}/dist"
+
+## A plain run has the leak checks, and --quick leaves them out unless
+## --leakcheck is named too, before or after it. The gate never runs them.
+ceLeak=""
+for ceArgs in "-y" "-y --quick" "-y --quick --leakcheck" "-y --leakcheck --quick" "--gate"; do
+	fCeRun ${ceArgs}; ceLeak+="$(grep -cxE "race-ran|soak-ran ${ceRepo}/soak" <<<"${ceOut}" || true);"
+done
+{ [[ "${ceLeak}" == "2;0;2;2;0;" && -d "${ceRepo}/soak" ]]; } && _pass Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" \
+	|| _fail Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" "got=[${ceLeak}] $(fCeTail)"
+## -race needs cgo. Without it the race run warns and the soak test still runs,
+## except where every tool must be there.
+CE_RACE_PROBE=false fCeRun -y --quick --leakcheck; ceNoCgo=0
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"WARNING: race detector skipped"* ]] && grep -q '^soak-ran ' <<<"${ceOut}" && ! grep -qx 'race-ran' <<<"${ceOut}"; } && ceNoCgo=1
+CE_RACE_PROBE=false CE_NO_SKIP=1 fCeRun -y --quick --leakcheck
+{ ((ceNoCgo && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: race detector skipped"* ]]; } && _pass Et9VxYy "race detector without cgo" \
+	|| _fail Et9VxYy "race detector without cgo" "warned=${ceNoCgo} $(fCeTail)"
 
 ## The vendor and interop pin checks and govulncheck reach another host, so
 ## --quick leaves them out.
@@ -2529,6 +2560,10 @@ rm -f "${ceRepo}/gif/demo.gif"; CE_GIF=1 fCeRun -y; ceGifHost=0; [[ -e "${ceRepo
 CE_GIF=1 CE_INSIDE=1 fCeRun -y
 { ((ceRc == 0 && ! ceGifHost)) && [[ -s "${ceRepo}/gif/demo.gif" ]]; } && _pass EsJpWaD "demo gif container-only" \
 	|| _fail EsJpWaD "demo gif container-only" "host made it: ${ceGifHost}; $(fCeTail)"
+## --leakcheck goes to the run inside, as --long does.
+CE_HAVE_IMAGE=1 fCeRun -y --container --quick --leakcheck
+{ ((ceRc == 0)) && grep -qE '^run .* --no-publish --quick --leakcheck$' <<<"${ceDocker}"; } && _pass Et9VxYE "--leakcheck reaches the container run" \
+	|| _fail Et9VxYE "--leakcheck reaches the container run" "docker=[${ceDocker}] $(fCeTail)"
 CE_INSIDE=1 fCeRun -y --container
 { ((ceRc == 2)) && [[ "${ceOut}" == *"--container is for the host"* && -z "${ceDocker}" ]]; } && _pass EsJjVyJ "--container is refused inside the container" \
 	|| _fail EsJjVyJ "--container is refused inside the container" "docker=[${ceDocker}] $(fCeTail)"

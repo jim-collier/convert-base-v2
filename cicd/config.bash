@@ -23,7 +23,7 @@
 ##		- The engine (cicd.bash) stays generic; everything project-specific lives here.
 ##		- To reuse the pipeline elsewhere, copy the cicd/ directory and edit this file.
 ##		- All command arrays run from the repo root. Go tool stages (vet, lint, unit
-##		  tests, fuzz, vuln, profile) run inside SRC_DIR - the engine does the cd.
+##		  tests, fuzz, vuln, leak checks, profile) run inside SRC_DIR - the engine does the cd.
 ##		  The engine prepends ~/.go/bin to PATH so `go install`ed tools win.
 ##	History: At bottom of script.
 
@@ -122,7 +122,7 @@ UNIT_TEST_CMD=(go test -json ./...)
 
 ## Test IDs: checked before the tests run, and used to print one line per Go
 ## test and fuzz target. Run from root. Empty it to skip both, and then
-## UNIT_TEST_CMD should drop -json.
+## UNIT_TEST_CMD, RACE_TEST_CMD and SOAK_CMD should drop -json.
 TEST_ID_CMD=(python3 cicd/utility/test-ids.py)
 TEST_CMD=(cicd/test.bash)
 
@@ -149,6 +149,20 @@ FUZZ_MINIMIZE_TIME_QUICK="1s"
 ## comes from cicd/tool-versions.env via the pin step.
 VULN_PROBE=(govulncheck -version)
 VULN_CMD=(govulncheck ./...)
+
+## Stage 4d: leak checks, on a plain run or with --leakcheck, and never under
+## --quick alone. First the whole Go suite again with the race detector, uncached.
+## -race needs cgo and a C compiler, though release builds use CGO_ENABLED=0, so
+## the probe asks Go whether cgo is on. It skips with a warning where it isn't,
+## and fails the run in the container, which has gcc. Empty a command to skip it.
+RACE_PROBE=(sh -c 'test "$(go env CGO_ENABLED)" = 1')
+RACE_TEST_CMD=(go test -json -race -count=1 ./...)
+## Then the soak test (TestSoak), which runs the command's main jobs in a loop
+## and fails when the heap or the goroutine count grows from round N to 2N. It
+## writes a heap profile at each, kept in SOAK_OUT_DIR (gitignored, GFS-pruned
+## like the flamegraphs); `go tool pprof -base` on the pair shows what grew.
+SOAK_CMD=(go test -json -count=1 -run '^TestSoak$' ./cmd/convert-base-v2)
+SOAK_OUT_DIR="cicd/artifacts/soak"
 
 ## Stage 5: profiler (non-gating artifact, not a pass/fail test). Runs the
 ## BenchmarkProfile workload (big-int math/big path + streaming codec path) under
@@ -248,3 +262,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-10-14 JC: FMT_CHECK_CMD for --gate.
 ##		- 2026-10-14 JC: Dogfood dirs moved to DOGFOOD_LOCAL; DOGFOOD_CROSS for the Windows and macOS builds.
 ##		- 2026-10-19 JC: --quick keeps the cross stage.
+##		- 2026-10-19 JC: Leak checks: the race detector run adn the soak test.

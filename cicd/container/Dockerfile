@@ -17,9 +17,10 @@ FROM debian:trixie-slim@sha256:a29215f6a35e51e22adffa17f89e9d2ef06214e64a2bad10d
 # Debian has byte for byte; the rest come from gif-fonts below. No other fonts,
 # since one the host lacks could win a glyph there and change the gif.
 # rpm and dpkg only read what nfpm writes. cargo builds the llfourn interop adapter.
+# gcc is for go test -race, which needs cgo. rustc pulls it in too, but that's luck.
 RUN apt-get update \
 	&& apt-get install -y --no-install-recommends \
-		bash ca-certificates curl git make xz-utils zip unzip file bc xxd time openssl \
+		bash ca-certificates curl git make xz-utils zip unzip file bc xxd time openssl gcc libc6-dev \
 		nsis rpm dpkg cargo rustc gifsicle \
 		python3 python3-pil python3-fonttools python3-gi python3-gi-cairo python3-cairo gir1.2-pango-1.0 \
 		fontconfig fonts-freefont-ttf fonts-vlgothic fonts-dzongkha \

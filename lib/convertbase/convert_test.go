@@ -110,6 +110,9 @@ func TestNumberPathUsesTokenValues(t *testing.T) {
 // give a busy box enough quiet moments for both minimums.
 // Test ID: ErmULlt
 func TestPositionalNearMathBig(t *testing.T) {
+	if raceDetector {
+		t.Skip("timing ratio means nothing under -race")
+	}
 	reg := newReg(t)
 	from, to := base(t, reg, "10"), base(t, reg, "36")
 	input := benchDigits(1000)
