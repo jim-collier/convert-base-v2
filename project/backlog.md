@@ -148,6 +148,28 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: leaks, then codeql
 	- Commit: 64f06f5, then 0595e36
 
+- The Windows `.exe` files have no icon or version information resource.
+	- ID: 2026101411014805
+	- Type: Enhancement
+	- Status: Waiting for testing
+	- Needs external testing: Yes. On Windows, check the icon in Explorer and the Details tab on both exes and both installers, and the Add/Remove Programs icon after an install.
+	- Priority: Low
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: Windows
+	- Note: Explorer shows a generic icon and an empty Details tab.
+	- Requirements:
+		- Each `.exe` has the project icon and version information.
+	- Progress log:
+		- 20261019: The resource is built at packaging time from the stamped version, not committed, so `--version` and the Details tab agree. goversioninfo is pinned and in the container image. The installers get the same icon and version details. Design notes are in design.md under packaging.
+	- Decisions:
+		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
+	- Verified: `make release` builds both exes and both installers with the icon (16 to 256 px) and the right version, read back from the files. The release assets still rebuild to the same bytes, with and without every packaging tool required.
+	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
+	- Branch: winres
+	- Commit: 22399be
+	- Test case: Et9pfRW (bare exes), Et9pfS9 (installers). Both failed before the change and pass after.
+
 - A bare `tail: ,` in a config reads as no tail.
 	- ID: 2026101411014813
 	- Type: Bug
@@ -222,28 +244,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- A permission problem gets a clear error.
 		- ASCII only.
 		- The README shows the one-line install.
-
-- The Windows `.exe` files have no icon or version information resource.
-	- ID: 2026101411014805
-	- Type: Enhancement
-	- Status: Waiting for testing
-	- Needs external testing: Yes. On Windows, check the icon in Explorer and the Details tab on both exes and both installers, and the Add/Remove Programs icon after an install.
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: Windows
-	- Note: Explorer shows a generic icon and an empty Details tab.
-	- Requirements:
-		- Each `.exe` has the project icon and version information.
-	- Progress log:
-		- 20261019: The resource is built at packaging time from the stamped version, not committed, so `--version` and the Details tab agree. goversioninfo is pinned and in the container image. The installers get the same icon and version details. Design notes are in design.md under packaging.
-	- Decisions:
-		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
-	- Verified: `make release` builds both exes and both installers with the icon (16 to 256 px) and the right version, read back from the files. The release assets still rebuild to the same bytes, with and without every packaging tool required.
-	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
-	- Branch: winres
-	- Commit: 22399be
-	- Test case: Et9pfRW (bare exes), Et9pfS9 (installers). Both failed before the change and pass after.
 
 - Run on the last Core 2 Duo, and AMD CPUs from that era.
 	- ID: 2026101301161880
