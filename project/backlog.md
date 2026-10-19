@@ -77,7 +77,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- ID: 2026101411014805
 	- Type: Enhancement
 	- Status: Waiting for testing
-	- Needs external testing: Yes. On Windows, check the icon in Explorer and the Details tab on both exes and both installers, and the Add/Remove Programs icon after an install.
+	- Needs external testing: Yes. On Windows, look at the icon in Explorer on both exes and both installers, and the Add/Remove Programs icon after an install.
 	- Priority: Low
 	- Opened: 20261014-110148
 	- Opened by: Repo review 20261014
@@ -91,6 +91,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
 	- Verified: `make release` builds both exes and both installers with the icon (16 to 256 px) and the right version, read back from the files. The release assets still rebuild to the same bytes, with and without every packaging tool required.
 	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, packaging included.
+	- Verified: 20261019, on vm925w, Windows PowerShell 5.1 and pwsh 7 read the version info on both exes and both installers: product, description, version, prerelease flag on the exes, company, original filename, and the copyright with its real U+00A9. Windows pulls the icon from each of the 4 files. The x86_64 exe runs and its `--version` matches.
 	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
 	- Branch: winres
 	- Commit: 22399be
