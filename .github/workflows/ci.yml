@@ -1,11 +1,14 @@
-# Bare-bones safety net: prove the module vets, tests, and builds off the dev
-# box. The full pipeline (fuzz, profiling, dogfood, publish) stays local.
+# Two jobs. "build" is the bare safety net: the module vets, tests and builds
+# with nothing but Go. "pipeline" runs the container part of cicd/cicd.bash in
+# the image from cicd/container, so the harness, interop, shellcheck and ruff
+# run here too. Profiling, dogfood, publish and the demo gif stay local.
 name: ci
 
 on:
   push:
     branches: [main, dev]
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -30,3 +33,39 @@ jobs:
         run: go test ./...
       - name: build
         run: go build ./...
+
+  # The image is built on every run from the Actions layer cache and loaded
+  # here, never pushed. It's tagged the way cicd.bash looks for it, so the run
+  # uses it, and CICD_IMAGE_PREBUILT makes a tag mismatch fail rather than
+  # rebuild without the cache. The gif fonts live outside the repo, so the
+  # build gets an empty dir for them and the run skips the gif.
+  pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # the harness builds v3.0.0 from its tag
+          fetch-depth: 0
+      - name: image tag and pins
+        id: image
+        run: |
+          echo "tag=$(bash cicd/cicd.bash --image-tag)" >>"$GITHUB_OUTPUT"
+          { echo 'args<<EOF'; grep -E '^[A-Z_]+=' cicd/tool-versions.env; echo 'EOF'; } >>"$GITHUB_OUTPUT"
+          mkdir -p "$RUNNER_TEMP/no-gif-fonts"
+      - uses: docker/setup-buildx-action@v4
+      - uses: docker/build-push-action@v7
+        with:
+          context: cicd/container
+          build-contexts: gif-fonts=${{ runner.temp }}/no-gif-fonts
+          build-args: ${{ steps.image.outputs.args }}
+          tags: ${{ steps.image.outputs.tag }}
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=min
+      # --quick leaves out the long tests, the leak checks and the checks that
+      # reach another host.
+      - name: pipeline
+        env:
+          CICD_IMAGE_PREBUILT: "1"
+        run: bash cicd/cicd.bash --container --quick -y --no-sync --no-publish --no-dogfood

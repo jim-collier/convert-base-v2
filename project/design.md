@@ -234,7 +234,7 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 - A pipeline run fetches first and fast-forwards when only behind, since publish pulls after the tests and would otherwise push a remote change nobody tested. Edits in the tree are stashed around the fast-forward. A diverged branch stops the run before anything is built. Offline, or with no upstream, it warns and builds what's there. When the fast-forward changed `cicd/`, the run starts over on the new copy, since Bash reads a script while it runs it.
 
-- Hosted CI is a bare safety net: vet, test, and build on every push to main or dev and every pull request. The full pipeline (fuzz, profiling, dogfood, package, publish) stays local.
+- Hosted CI runs on every push to main or dev and every pull request, in two jobs. One vets, tests, and builds with Go alone. The other builds the pipeline image on the runner from the GitHub Actions layer cache, and runs the container stages as a `--quick` run, so the harness, the interop suite, and every linter run there too. Nothing goes to a registry. The long tests, the leak checks, profiling, the demo gif, dogfood and publish stay local.
 
 - Two native builds. The debug build (symbols kept) is what tests and the profiler run against. The optimized build (stripped) is smoke-checked and used day to day, and matches what is released.
 

@@ -2411,7 +2411,7 @@ fCeRun(){
 	( cd "${ceDir}" && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
 		HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${ceDir}/knobs" CE_SUDO_LOG="${ceDir}/sudo.log" \
 		CICD_NO_SKIP="${CE_NO_SKIP:-0}" CICD_IN_CONTAINER="${CE_INSIDE:-0}" CICD_DOCKER="${ceBin}/docker" CE_DOCKER_LOG="${ceDir}/docker.log" \
-		bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
+		CICD_IMAGE_PREBUILT="${CE_PREBUILT:-0}" bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
 	ceOut="$(<"${CBT_OUT}")"; ceKnobs="$(<"${ceDir}/knobs")"; ceSudo="$(<"${ceDir}/sudo.log")"; ceTmp="$(ls -A "${ceDir}/tmp")"
 	ceDocker="$(<"${ceDir}/docker.log")"
 }
@@ -2594,6 +2594,22 @@ ceCtx="$(sed -n 's/.*--build-context ctx=\([^ ]*\) .*/\1/p' <<<"${ceDocker}")"
 	&& grep -qE '^run .* --no-publish --no-demogif$' <<<"${ceDocker}"; } && _pass EsKCVVh "missing build context" \
 	|| _fail EsKCVVh "missing build context" "ctx=[${ceCtx}] docker=[${ceDocker}] $(fCeTail)"
 
+## Hosted CI builds the image under the tag --image-tag prints, before the
+## run, so that has to be the tag the run looks for, with the context there or
+## not. Under CICD_IMAGE_PREBUILT=1 a missing image fails rather than build.
+ceTagGot=""
+for ceCtxCase in ctxdir nope; do
+	CE_CTX="${ceCtxCase}" fCeRun --image-tag; ceTagOut="${ceOut}"; ceTagRc="${ceRc}"; ceTagDocker="${ceDocker}"
+	CE_CTX="${ceCtxCase}" CE_HAVE_IMAGE=1 CE_PREBUILT=1 fCeRun -y --container
+	{ ((ceTagRc == 0 && ceRc == 0)) && [[ -z "${ceTagDocker}" && "${ceTagOut}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceTagOut}" == "$(fCeTag)" && "${ceTagGot}" != "${ceTagOut}" ]] \
+		&& grep -q '^run ' <<<"${ceDocker}"; } && _pass Et9eteN "--image-tag is the tag a run uses: context ${ceCtxCase}" \
+		|| _fail Et9eteN "--image-tag is the tag a run uses: context ${ceCtxCase}" "printed=[${ceTagOut}] rc=${ceTagRc} docker=[${ceDocker}] $(fCeTail)"
+	ceTagGot="${ceTagOut}"
+done
+CE_PREBUILT=1 fCeRun -y --container
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"CICD_IMAGE_PREBUILT=1 says it was built before this run"* && "${ceDocker}" != *"build "* && "${ceDocker}" != *"run "* ]]; } && _pass Et9etf7 "CICD_IMAGE_PREBUILT: no image fails, no build" \
+	|| _fail Et9etf7 "CICD_IMAGE_PREBUILT: no image fails, no build" "docker=[${ceDocker}] $(fCeTail)"
+
 ## With CONTAINER_DEFAULT=1 a plain run goes to the container, --host stays
 ## here, and so does a run already inside.
 CE_CONTAINER_DEFAULT=1 fCeRun -y; ceDefRun=0; grep -q '^run ' <<<"${ceDocker}" && ceDefRun=1
@@ -2663,6 +2679,33 @@ EOF
 else
 	_warn "ErmroeI Ermroeo ErmrofR Ermroh4 Ermrofy ErmrogW" "lint stage checks skipped: needs shellcheck and ruff"
 fi
+
+## Hosted CI. The workflows read their pins from tool-versions.env and name
+## none of them, so a bump there reaches them all. Actions are pinned by major
+## version, which Dependabot keeps current.
+wfDir="${meDir}/../.github/workflows"
+wfPins=""; wfUses=""
+while IFS='=' read -r wfKey wfVal; do
+	[[ "${wfKey}" =~ ^[A-Z_]+$ && -n "${wfVal}" ]] || continue
+	wfPins+="$(grep -rnF -- "${wfVal#v}" "${wfDir}" | sed "s|^${wfDir}/||" || true)"
+done <"${meDir}/tool-versions.env"
+wfUses="$(grep -rhoE 'uses:[[:space:]]*[^[:space:]]+' "${wfDir}" | grep -vE '^uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@v[0-9]+$' || true)"
+{ [[ -z "${wfPins}" && -z "${wfUses}" ]] && grep -qE 'uses:' "${wfDir}/ci.yml"; } && _pass Et9etfx "workflows: no pin of their own, actions by major version" \
+	|| _fail Et9etfx "workflows: no pin of their own, actions by major version" "pins=[${wfPins}] uses=[${wfUses}]"
+## The pipeline job builds the image as cicd.bash would: the tag it prints,
+## the pins as build args, and every named context the Dockerfile copies from.
+## Then the run must find that image rather than build its own.
+wfCi="$(<"${wfDir}/ci.yml")"; wfMiss=""
+wfCtxDir="$(sed -n 's/^CONTAINER_DIR="\(.*\)"$/\1/p' "${meDir}/config.bash")"
+for wfWant in 'bash cicd/cicd.bash --image-tag' "grep -E '^[A-Z_]+=' cicd/tool-versions.env" "context: ${wfCtxDir:-none}" 'load: true' \
+	'cache-from: type=gha' 'cache-to: type=gha' 'CICD_IMAGE_PREBUILT: "1"' 'run: bash cicd/cicd.bash --container --quick -y --no-sync --no-publish --no-dogfood'; do
+	[[ "${wfCi}" == *"${wfWant}"* ]] || wfMiss+="[${wfWant}] "
+done
+while read -r wfFrom; do
+	[[ "${wfCi}" == *[[:space:]]"${wfFrom}="* ]] || wfMiss+="[context ${wfFrom}] "
+done < <(sed -n 's/^COPY --from=\([A-Za-z0-9_-]*\) .*/\1/p' "${meDir}/../${wfCtxDir:-none}/Dockerfile" 2>/dev/null)
+{ [[ -n "${wfCtxDir}" && -z "${wfMiss}" ]] && grep -q '^COPY --from=' "${meDir}/../${wfCtxDir}/Dockerfile"; } && _pass Et9etgg "ci.yml builds the image cicd.bash runs" \
+	|| _fail Et9etgg "ci.yml builds the image cicd.bash runs" "missing: ${wfMiss}"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

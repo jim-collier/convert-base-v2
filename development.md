@@ -36,6 +36,8 @@ Build targets, all run from `lib/`.
 
 Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. A plain run includes the exhaustive tests and the leak checks. `--quick` skips them and the other slow parts, `--long` and `--leakcheck` add them back to a quick run, `--gate` runs only the quick checks, and most stages have a `--no-...` switch. The build and test stages run in a docker image that has every tool installed at a pinned version, and `--host` runs them on your own machine instead. A plain run also copies the build into a local bin folder, and commits and pushes, so use `cicd/cicd.bash --quick --no-dogfood --no-publish -y` for a local check.
 
+Hosted CI on GitHub does much the same: it builds that image from a layer cache and runs a `--quick` pass in it, with no publish and no demo gif, on every push to `dev` or `main` and every pull request. A plain Go vet, test, and build runs beside it.
+
 Tests sandbox their own config directory, so running them won't read or write the config file in your home directory.
 
 To send a change, see [contributing.md](contributing.md). The code style, and the reasons for it, are in the [style guide](project/style-guide_code.md).

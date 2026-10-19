@@ -63,6 +63,8 @@
 ##	                       where a missing tool is an error. The profiler, dogfood and publish then run here.
 ##	                       The default when config.bash sets CONTAINER_DEFAULT=1.
 ##	   --host              run every stage here, with whatever tools this machine has
+##	   --image-tag         print the image tag a container run would use, and exit. Hosted CI
+##	                       builds the image under that tag, with its layer cache, before the run.
 ##	   -h, --help          show this help
 ##	- A run with no flags runs everything, the long tests and leak checks included. --quick
 ##	  leaves them out, and --long and --leakcheck put them back, whichever comes first.
@@ -72,6 +74,8 @@
 ##	- --container needs docker, or CICD_DOCKER naming a program that takes its arguments.
 ##	  The image is built the first time it's needed, and again when anything in its
 ##	  dir or cicd/tool-versions.env changes. Its caches live in a docker volume.
+##	  CICD_IMAGE_PREBUILT=1 makes a missing image an error instead, for a run whose
+##	  image was built before it.
 ##	- Reuse: copy the cicd/ directory into another project and edit config.bash.
 
 ##	History: At bottom of script.
@@ -112,7 +116,7 @@ export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the En
 
 ## Parse options. The originals are kept for a restart after the sync.
 orig_args=("$@")
-assume_yes=0; quiet=0; quick=0; do_long=""; do_leakcheck=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0
+assume_yes=0; quiet=0; quick=0; do_long=""; do_leakcheck=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0; image_tag=0
 while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
@@ -126,6 +130,7 @@ while (($#)); do case "$1" in
 	--no-publish)             GIT_PUBLISH=(); shift ;;
 	--container)              use_container=1; shift ;;
 	--host)                   use_container=0; shift ;;
+	--image-tag)              image_tag=1; shift ;;
 	--no-sync)                do_sync=0; shift ;;
 	--gate)                   gate=1; shift ;;
 	--long)                   do_long=1; inner_args+=("$1"); shift ;;
@@ -234,6 +239,8 @@ fRunContainer(){
 	if "${engine}" image inspect "${image}" >/dev/null 2>&1; then
 		fEcho_Chat "image ${image}"
 	else
+		## A rebuild there would quietly take the slow road, without its cache.
+		[[ "${CICD_IMAGE_PREBUILT:-0}" != "1" ]] || fDie "no image ${image}, and CICD_IMAGE_PREBUILT=1 says it was built before this run"
 		fEcho "building ${image}"
 		local -a buildArgs=()
 		while IFS='=' read -r k v; do
@@ -427,6 +434,8 @@ fInstallGateHook(){
 	fEcho "added the pre-push hook: ${hook}"
 }
 trap 'rc=$?; printf "\n[ CICD ABORTED (exit %s) at line %s: %s ]\n" "$rc" "$LINENO" "$BASH_COMMAND" >&2; exit $rc' ERR
+
+if ((image_tag)); then fContainerImage; echo; exit 0; fi
 
 ## The fast gate: no log, no container, no plan, no publish.
 if ((gate)); then
@@ -858,6 +867,7 @@ fEcho_Clean
 ##		- 2026-10-04 JC: shellcheck and ruff in the lint stage.
 ##		- 2026-10-10 JC: --container runs the tool-heavy stages in a pinned image, where no check may skip.
 ##		- 2026-10-10 JC: Container runs can be the default (CONTAINER_DEFAULT), with --host to opt out. Build contexts from outside the repo.
+##		- 2026-10-19 JC: --image-tag and CICD_IMAGE_PREBUILT, for hosted CI.
 ##		- 2026-10-14 JC: --gate and its pre-push hook; fetch and fast-forward before building, --no-sync to skip.
 ##		- 2026-10-14 JC: Dogfood the cross builds too (DOGFOOD_CROSS), with personal dirs read from DOGFOOD_LOCAL.
 ##		- 2026-10-19 JC: A plain run has the long tests. --quick still cross-compiles, and skips the checks that reach another host.
