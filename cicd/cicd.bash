@@ -254,11 +254,10 @@ fRunContainer(){
 		local c dir empty=""
 		for c in "${CONTAINER_CONTEXTS[@]}"; do
 			dir="$(fContextDir "${c}")"
-			if [[ -z "${dir}" ]]; then [[ -n "${empty}" ]] || empty="$(mktemp -d)"; dir="${empty}"; fi
+			if [[ -z "${dir}" ]]; then empty="${run_tmp}/empty-context"; mkdir -p "${empty}"; dir="${empty}"; fi
 			buildArgs+=(--build-context "${c%%=*}=${dir}")
 		done
 		"${engine}" build -t "${image}" "${buildArgs[@]}" "${root}/${CONTAINER_DIR}" || fDie "could not build ${image}"
-		if [[ -n "${empty}" ]]; then rmdir "${empty}"; fi
 		## What it replaces is a few GB nobody runs again.
 		while IFS= read -r old; do
 			if [[ -z "${old}" || "${old}" == "${image}" ]]; then continue; fi
@@ -564,6 +563,11 @@ if ((! assume_yes)); then
 	fi
 fi
 
+## Scratch for this run, gone however it ends. An abort used to leave the fuzz log.
+run_tmp="$(mktemp -d "${TMPDIR:-/tmp}/cicd-run.XXXXXX")"
+fRunTmpGone(){ if [[ -d "${run_tmp}" && "${run_tmp}" == "${TMPDIR:-/tmp}/cicd-run."* ]]; then rm -rf "${run_tmp}"; fi; }
+trap fRunTmpGone EXIT
+
 ## Tee the rest of the run (all stages) to a gitignored log so warnings from any
 ## stage can be reviewed after the fact. Rotate the prior (closed) logs first.
 if [[ -n "${LINT_LOG_DIR:-}" ]] && mkdir -p "${root}/${LINT_LOG_DIR}" 2>/dev/null; then
@@ -572,7 +576,7 @@ if [[ -n "${LINT_LOG_DIR:-}" ]] && mkdir -p "${root}/${LINT_LOG_DIR}" 2>/dev/nul
 	## Wait for tee to drain on exit, else the shell prompt returns mid-flush and
 	## the last output lands after it (looks like the prompt "came back").
 	tee_pid=$!
-	trap 'exec 1>&- 2>&-; wait "${tee_pid}" 2>/dev/null' EXIT
+	trap 'fRunTmpGone; exec 1>&- 2>&-; wait "${tee_pid}" 2>/dev/null' EXIT
 fi
 
 container_done=0
@@ -650,7 +654,7 @@ else
 		fuzz_min="${FUZZ_MINIMIZE_TIME:-2s}"; ((quick)) && fuzz_min="${FUZZ_MINIMIZE_TIME_QUICK:-1s}"
 		mapfile -t fuzz_targets < <(in_src go test -list '^Fuzz' "${GO_TEST_PKG:-.}" 2>/dev/null | grep -E '^Fuzz' || true)
 		if ((${#fuzz_targets[@]})); then
-			fuzz_log="$(mktemp -t cicd-fuzz.XXXXXX)"
+			fuzz_log="${run_tmp}/fuzz.log"
 			for t in "${fuzz_targets[@]}"; do
 				fEcho_Chat "fuzz ${t} (${ft}) ..."
 				## Only || keeps the ERR trap off a failed run; set +e does not.
@@ -667,13 +671,12 @@ else
 					if grep -q 'Failing input written to' "${fuzz_log}" \
 					|| ! grep -q 'context deadline exceeded' "${fuzz_log}"; then
 						printf ' FAIL %s  %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
-						rm -f "${fuzz_log}"; fDie "fuzz ${t} found a failure"
+						fDie "fuzz ${t} found a failure"
 					fi
 					fEcho "NOTE: fuzz ${t} reported the -fuzztime deadline; no failing input recorded"
 				fi
 				printf '  ok  %s  %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
 			done
-			rm -f "${fuzz_log}"
 			fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"
 		else
 			fEcho_Chat "no Fuzz* targets found; skipping fuzz"
@@ -887,4 +890,5 @@ fEcho_Clean
 ##		- 2026-10-19 JC: --leakcheck: the Go tests under the race detector, and a soak test. A plain run has them.
 ##		- 2026-10-19 JC: CodeQL in the leak checks.
 ##		- 2026-10-19 JC: --no-leakcheck.
+##		- 2026-10-19 JC: Per-run temp dir, removed on exit.
 ##		- 2026-10-19 JC: PSScriptAnalyzer in the lint stage.

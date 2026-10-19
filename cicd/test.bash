@@ -1950,18 +1950,45 @@ make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc
 	|| _fail Erm3Syv "make clean: own dist only" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
 ## The two full packaging runs take several seconds each, so --quick skips them.
 if ((doQuick)); then
-	_warn "ErlP6B8 Erm3SyD ErlP6Bg ErlP6CE Et9pfRW Et9pfS9" "packaging rebuild checks skipped: --quick" asked
+	_warn "ErlP6B8 Erm3SyD EtAjZOv EtAjy1j ErlP6Bg ErlP6CE Et9pfRW Et9pfS9" "packaging rebuild checks skipped: --quick" asked
 else
 	pkDir="${CBT_TMP}/pk"; pkrc=0
 	pkArgs=(--version v9.9.9-beta1 --build-epoch 1700000000)
 	bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/a" >/dev/null 2>"${CBT_ERR}" || pkrc=$?
-	( umask 077; TZ=Pacific/Kiritimati bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/b" >/dev/null 2>>"${CBT_ERR}" ) || pkrc=$?
+	## A stray GOAMD64 must not change the bytes either.
+	( umask 077; TZ=Pacific/Kiritimati GOAMD64=v3 bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/b" >/dev/null 2>>"${CBT_ERR}" ) || pkrc=$?
 	pkSums="${pkDir}/a/checksums.txt"
 	if ((pkrc != 0)) || [[ ! -s "${pkSums}" ]]; then
 		_fail ErlP6B8 "release assets rebuild to the same bytes" "package.bash exit ${pkrc}: $(tail -5 "${CBT_ERR}")"
 	else
 		pkDiff="$(diff "${pkSums}" "${pkDir}/b/checksums.txt" | sed -n 's/^> [0-9a-f]* *//p' | tr '\n' ' ' || true)"
 		[[ -z "${pkDiff}" ]] && _pass ErlP6B8 "release assets rebuild to the same bytes" || _fail ErlP6B8 "release assets rebuild to the same bytes" "differ: ${pkDiff}"
+	fi
+	## Plain x86-64, so a Core 2 Duo or a Phenom II can run them.
+	pkLevels=""
+	for pkBin in "${pkDir}"/b/convert-base-v2-{linux,freebsd,darwin}-x86_64 "${pkDir}/b/convert-base-v2-windows-x86_64.exe"; do
+		pkLevels+="$(go version -m "${pkBin}" 2>/dev/null | sed -n 's/^[[:space:]]*build[[:space:]]*GOAMD64=//p' || true),"
+	done
+	[[ "${pkLevels}" == "v1,v1,v1,v1," ]] && _pass EtAjZOv "x86_64 release builds target plain x86-64" \
+		|| _fail EtAjZOv "x86_64 release builds target plain x86-64" "GOAMD64 by linux,freebsd,darwin,windows: [${pkLevels}]"
+	## And it runs on an emulated Penryn, the last Core 2 Duo, and a Phenom II.
+	## A v2 build is the control, since Go refuses to start on either.
+	if ! command -v qemu-x86_64 >/dev/null 2>&1; then
+		_warn "EtAjy1j" "old CPU check skipped: needs qemu-x86_64, from qemu-user"
+	else
+		pkV2="${pkDir}/convert-base-v2-v2"
+		(cd "${meDir}/../lib" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v2 go build -trimpath -o "${pkV2}" ./cmd/convert-base-v2) >"${CBT_ERR}" 2>&1 || true
+		## Big enough for math/big, which picks its own code by CPU.
+		pkNum="$(printf '9%.0s' {1..120})"
+		pkWant="$("${pkDir}/b/convert-base-v2-linux-x86_64" "${pkNum}" 62 2>&1 || true)"
+		pkCpus=""
+		for pkModel in Penryn phenom; do
+			pkGot="$("${TIMEOUT[@]}" qemu-x86_64 -cpu "${pkModel}" "${pkDir}/b/convert-base-v2-linux-x86_64" "${pkNum}" 62 2>&1 || true)"
+			pkCtl=0; "${TIMEOUT[@]}" qemu-x86_64 -cpu "${pkModel}" "${pkV2}" 255 16 >/dev/null 2>&1 || pkCtl=$?
+			pkCpus+="${pkModel}:$([[ -n "${pkWant}" && "${pkGot}" == "${pkWant}" ]] && echo same || echo "[${pkGot:0:80}]"):$((pkCtl != 0 && pkCtl != 124));"
+		done
+		[[ "${pkCpus}" == "Penryn:same:1;phenom:same:1;" && -x "${pkV2}" ]] && _pass EtAjy1j "x86_64 release build runs on a Core 2 Duo and a Phenom II" \
+			|| _fail EtAjy1j "x86_64 release build runs on a Core 2 Duo and a Phenom II" "model:output:control-refused [${pkCpus}] v2 build: $([[ -x "${pkV2}" ]] && echo ok || head -c 300 "${CBT_ERR}")"
 	fi
 	## The mark stays out of checksums.txt, which lists what gets uploaded.
 	{ [[ -s "${pkSums}" && -f "${pkDir}/a/${pgMark}" ]] && ! grep -qF -- "${pgMark}" "${pkSums}"; } && _pass Erm3SyD "dist mark is not a release asset" \
@@ -2569,6 +2596,7 @@ echo "$*" >>"$CE_DOCKER_LOG"
 case "$1 $2" in
 	"image inspect") [ -n "${CE_HAVE_IMAGE:-}" ]; exit $? ;;
 	"image ls") echo cbv-test-cicd:0ld0ld0ld0ld ;;
+	build*) exit "${CE_BUILD_RC:-0}" ;;
 	run*) echo "inner run"; exit "${CE_RUN_RC:-0}" ;;
 esac
 exit 0
@@ -2780,6 +2808,10 @@ ceCtx="$(sed -n 's/.*--build-context ctx=\([^ ]*\) .*/\1/p' <<<"${ceDocker}")"
 { ((ceRc == 0)) && [[ -n "${ceCtx}" && "${ceCtx}" != *ctxdir* && ! -e "${ceCtx}" && "$(fCeTag)" != "${ceTag}" ]] \
 	&& grep -qE '^run .* --no-publish --no-demogif$' <<<"${ceDocker}"; } && _pass EsKCVVh "missing build context" \
 	|| _fail EsKCVVh "missing build context" "ctx=[${ceCtx}] docker=[${ceDocker}] $(fCeTail)"
+## A failed build used to leave that empty dir in TMPDIR.
+CE_CTX=nope CE_BUILD_RC=1 fCeRun -y --container
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"could not build cbv-test-cicd:"* && -z "${ceTmp}" ]]; } && _pass EtAgsPA "failed image build leaves nothing in TMPDIR" \
+	|| _fail EtAgsPA "failed image build leaves nothing in TMPDIR" "docker=[${ceDocker}] $(fCeTail)"
 
 ## Hosted CI builds the image under the tag --image-tag prints, before the
 ## run, so that has to be the tag the run looks for, with the context there or
@@ -2931,6 +2963,17 @@ while read -r wfFrom; do
 done < <(sed -n 's/^COPY --from=\([A-Za-z0-9_-]*\) .*/\1/p' "${meDir}/../${wfCtxDir:-none}/Dockerfile" 2>/dev/null)
 { [[ -n "${wfCtxDir}" && -z "${wfMiss}" ]] && grep -q '^COPY --from=' "${meDir}/../${wfCtxDir}/Dockerfile"; } && _pass Et9etgg "ci.yml builds the image cicd.bash runs" \
 	|| _fail Et9etgg "ci.yml builds the image cicd.bash runs" "missing: ${wfMiss}"
+## Hosted CI gets a new volume each run, a copy of the image's /cache, so a
+## root-owned dir there broke the Go cache only on the runner. The Dockerfile's
+## last RUN refuses one at build time; layers after it would get past it.
+wfLastRun="$(grep -E '^RUN ' "${meDir}/../${wfCtxDir:-none}/Dockerfile" 2>/dev/null | tail -n 1)"
+[[ "${wfLastRun}" == *"find /cache/home "* ]] && _pass EtAgsNr "the image's last step checks /cache/home is empty" \
+	|| _fail EtAgsNr "the image's last step checks /cache/home is empty" "last RUN=[${wfLastRun}]"
+if [[ "${CICD_IN_CONTAINER:-0}" == "1" && "$(id -u)" != "0" ]]; then
+	wfRootOwned="$(find "${HOME}" -mindepth 1 -maxdepth 2 -user 0 2>/dev/null | head -n 5 || true)"
+	[[ -z "${wfRootOwned}" ]] && _pass EtAgsOV "nothing root-owned in the container's HOME" \
+		|| _fail EtAgsOV "nothing root-owned in the container's HOME" "found=[${wfRootOwned//$'\n'/ }]"
+fi
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
