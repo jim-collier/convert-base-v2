@@ -96,36 +96,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 22399be
 	- Test case: Et9pfRW (bare exes), Et9pfS9 (installers). Both failed before the change and pass after.
 
-- There is no PowerShell installer.
-	- ID: 2026101411014803
-	- Type: Feature
-	- Status: Waiting for testing
-	- Needs external testing: Yes. On vm925w or b29w, in both Windows PowerShell 5.1 and pwsh 7: the one-liner with no options, answered y, then run again to see it's current; a new shell finding `convert-base-v2` on PATH, and the user PATH still REG_EXPAND_SZ; `-Target system` from a plain shell (refused) and an elevated one, over a setup `.exe` install; a prompt answered n; and `-Help`. Optionally pwsh on b26. The one-liner's URL only works once `install.ps1` is on main.
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: Windows, Linux, macOS
-	- Requirements:
-		- `install.ps1` beside `install.bash`, working on Windows PowerShell 5.1 and on pwsh 7 on any OS.
-		- It takes `-Release`, `-Target`, `-Yes`, `-Help` and `-Version`.
-		- It checks the download against `checksums.txt`.
-		- It shows the plan and asks before it installs, unless given `-Yes`.
-		- A permission problem gets a clear error.
-		- ASCII only.
-		- The README shows the one-line install.
-	- Done: `install.ps1` at the repo root, run from raw main like `install.bash`. Same releases list and version sort, same assets, same already-current check. On Windows it installs the bare `.exe` under `%LOCALAPPDATA%\Programs` or `%ProgramFiles%`, and adds the folder to the user or machine PATH through the registry. Elsewhere it uses `~/.local/bin` or `/usr/local/bin`, with sudo, as `install.bash` does.
-	- Done: a read-only folder is refused before any download, with the folder named. A system install on Windows from a plain shell is refused up front, and a running `.exe` that can't be replaced says so.
-	- Done: PSScriptAnalyzer runs in the lint stage over every tracked PowerShell file, with 5.1 and 7.0 syntax checks, and the pipeline image has pwsh 7.6.6 and PSScriptAnalyzer 1.25.0, pinned in `tool-versions.env`. The harness checks that PowerShell files are ASCII.
-	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
-	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
-	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
-	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
-	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
-	- Swept: each `install.bash` check has a twin here (`Erm3T0M`, `EshY04X`, `EshY05J`, `EshY061`, `Esj2Pos`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
-	- Test case: `Et9uoIr` PowerShell files are ASCII. `Et9uoJX` parses from its raw bytes. `Et9uoKF` options. `Et9uoKx` and `Et9uoLd` the version pick. `Et9uoMI` installs in the one-liner form and leaves the caller's shell alone. `Et9uoMw` already current. `Et9uoNc` tampered checksum. `Et9uoOI` read-only folder. `Et9uoOx` the prompt. `Et9uoPc` says why. `Et9uoQG`, `Et9uoQv` and `Et9uoRc` the lint step. `Et9kwvY` now reads `install.ps1` too.
-	- Branch: ps1
-	- Commit: d3d16d7
-
 - A bare `tail: ,` in a config reads as no tail.
 	- ID: 2026101411014813
 	- Type: Bug
@@ -161,6 +131,39 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- A rebuild of the tag with the Go, nfpm and NSIS versions the workflow used gives the same checksums. NSIS comes from the runner's apt, so its version is read from the workflow log.
 		- The release notes table renders, every link downloads, and the notes end with the build line.
 	- Note: once this passes, add one line under Packages and installers in `install.md`: every asset rebuilds to the same bytes from its tagged commit, so the published checksums can be checked against your own build.
+
+- There is no PowerShell installer.
+	- ID: 2026101411014803
+	- Type: Feature
+	- Status: Queued
+	- Needs external testing: Yes. On vm925w or b29w, in both Windows PowerShell 5.1 and pwsh 7: the one-liner with no options, answered y, then run again to see it's current; a new shell finding `convert-base-v2` on PATH, and the user PATH still REG_EXPAND_SZ; `-Target system` from a plain shell (refused) and an elevated one, over a setup `.exe` install; a prompt answered n; and `-Help`. Optionally pwsh on b26. The one-liner's URL only works once `install.ps1` is on main.
+	- Priority: Low
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: Windows, Linux, macOS
+	- Requirements:
+		- `install.ps1` beside `install.bash`, working on Windows PowerShell 5.1 and on pwsh 7 on any OS.
+		- It takes `-Release`, `-Target`, `-Yes`, `-Help` and `-Version`.
+		- It checks the download against `checksums.txt`.
+		- It shows the plan and asks before it installs, unless given `-Yes`.
+		- A permission problem gets a clear error.
+		- ASCII only.
+		- The README shows the one-line install.
+	- Done: `install.ps1` at the repo root, run from raw main like `install.bash`. Same releases list and version sort, same assets, same already-current check. On Windows it installs the bare `.exe` under `%LOCALAPPDATA%\Programs` or `%ProgramFiles%`, and adds the folder to the user or machine PATH through the registry. Elsewhere it uses `~/.local/bin` or `/usr/local/bin`, with sudo, as `install.bash` does.
+	- Done: a read-only folder is refused before any download, with the folder named. A system install on Windows from a plain shell is refused up front, and a running `.exe` that can't be replaced says so.
+	- Done: PSScriptAnalyzer runs in the lint stage over every tracked PowerShell file, with 5.1 and 7.0 syntax checks, and the pipeline image has pwsh 7.6.6 and PSScriptAnalyzer 1.25.0, pinned in `tool-versions.env`. The harness checks that PowerShell files are ASCII.
+	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
+	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
+	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
+	- Reproduced: 20261019, hosted CI run 39278064158 on the merge failed at the native build: `mkdir /cache/home/.cache/go-build: permission denied`.
+	- Cause: the image's pwsh check runs as root with `HOME=/cache/home`, and leaves root-owned `.cache/powershell` and `.local/share/powershell` there. A new `/cache` volume copies them in, so the build user can't make the Go cache. Local runs pass only because the existing volume hides it.
+	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
+	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
+	- Swept: each `install.bash` check has a twin here (`Erm3T0M`, `EshY04X`, `EshY05J`, `EshY061`, `Esj2Pos`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
+	- Test case: `Et9uoIr` PowerShell files are ASCII. `Et9uoJX` parses from its raw bytes. `Et9uoKF` options. `Et9uoKx` and `Et9uoLd` the version pick. `Et9uoMI` installs in the one-liner form and leaves the caller's shell alone. `Et9uoMw` already current. `Et9uoNc` tampered checksum. `Et9uoOI` read-only folder. `Et9uoOx` the prompt. `Et9uoPc` says why. `Et9uoQG`, `Et9uoQv` and `Et9uoRc` the lint step. `Et9kwvY` now reads `install.ps1` too.
+	- Branch: ps1
+	- Commit: d3d16d7
 
 - The repo has no social preview image, so shared links show GitHub's generic card.
 	- ID: 2026101416210405
