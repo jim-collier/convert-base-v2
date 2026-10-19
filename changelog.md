@@ -144,6 +144,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Leak checks in the pipeline. Every Go test package fails on a goroutine left running after its tests, through goleak. A full run, or `--leakcheck`, also runs the Go tests under the race detector and a soak test that fails when the heap or goroutine count keeps growing, and keeps its heap profiles.  [20261019]
 
+- `--no-leakcheck` skips the leak checks on a full pipeline run.  [20261019]
+
 - CodeQL in the leak checks, from a pinned copy in the pipeline image. It scans the Go code with its dependencies vendored in, using the stock security-and-quality queries without the style ones, and any result fails the run. Its SARIF report is kept.  [20261019]
 
 - Hosted CI runs the pipeline too. It builds the pipeline image on the runner from a layer cache, and runs a `--quick` pass in it, so the integration tests, the comparison tests against the reference implementations, shellcheck, and ruff run on every push and pull request. The plain Go vet, test, and build job stays.  [20261019]

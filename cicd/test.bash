@@ -2640,6 +2640,13 @@ for ceArgs in "-y" "-q" "-y --quick" "-y --quick --leakcheck" "-y --leakcheck --
 done
 { [[ "${ceLeak}" == "3;3;0;3;3;0;" && -d "${ceRepo}/soak" && -d "${ceRepo}/codeql" ]]; } && _pass Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" \
 	|| _fail Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" "got=[${ceLeak}] $(fCeTail)"
+## --no-leakcheck drops them from a full run, and the last of the pair wins.
+ceNoLeak=""
+for ceArgs in "-y --no-leakcheck" "-y --leakcheck --no-leakcheck" "-y --no-leakcheck --leakcheck"; do
+	fCeRun ${ceArgs}; ceNoLeak+="${ceRc}:$(grep -cxE "race-ran|soak-ran ${ceRepo}/soak|codeql-ran ${ceRepo}/codeql/codeql_[0-9]{8}-[0-9]{6}\.sarif" <<<"${ceOut}" || true);"
+done
+[[ "${ceNoLeak}" == "0:0;0:0;0:3;" ]] && _pass EtAaLOQ "--no-leakcheck skips the leak checks, last flag wins" \
+	|| _fail EtAaLOQ "--no-leakcheck skips the leak checks, last flag wins" "got=[${ceNoLeak}] $(fCeTail)"
 ## -race needs cgo. Without it the race run warns and the soak test still runs,
 ## except where every tool must be there.
 CE_RACE_PROBE=false fCeRun -y --quick --leakcheck; ceNoCgo=0
@@ -2759,6 +2766,9 @@ CE_GIF=1 CE_INSIDE=1 fCeRun -y
 CE_HAVE_IMAGE=1 fCeRun -y --container --quick --leakcheck
 { ((ceRc == 0)) && grep -qE '^run .* --no-publish --quick --leakcheck$' <<<"${ceDocker}"; } && _pass Et9VxYE "--leakcheck reaches the container run" \
 	|| _fail Et9VxYE "--leakcheck reaches the container run" "docker=[${ceDocker}] $(fCeTail)"
+CE_HAVE_IMAGE=1 fCeRun -y --container --no-leakcheck
+{ ((ceRc == 0)) && grep -qE '^run .* --no-publish --no-leakcheck$' <<<"${ceDocker}"; } && _pass EtAaQDY "--no-leakcheck reaches the container run" \
+	|| _fail EtAaQDY "--no-leakcheck reaches the container run" "docker=[${ceDocker}] $(fCeTail)"
 CE_INSIDE=1 fCeRun -y --container
 { ((ceRc == 2)) && [[ "${ceOut}" == *"--container is for the host"* && -z "${ceDocker}" ]]; } && _pass EsJjVyJ "--container is refused inside the container" \
 	|| _fail EsJjVyJ "--container is refused inside the container" "docker=[${ceDocker}] $(fCeTail)"
