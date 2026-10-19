@@ -55,6 +55,7 @@
 ##	                       test, and CodeQL, which keep their heap profiles and SARIF under
 ##	                       cicd/artifacts. A run without --quick has them already, so this is for
 ##	                       adding them to a --quick run.
+##	   --no-leakcheck      skip the leak checks on a full run
 ##	   --quick             the fast checks only. Skips the profiler, screenshots, demo gif, the long tests,
 ##	                       the leak checks, and the checks that reach another host (vendor and interop pins,
 ##	                       govulncheck). Fuzz is shorter, and the harness skips its perf section and packaging
@@ -68,6 +69,7 @@
 ##	   -h, --help          show this help
 ##	- A run with no flags runs everything, the long tests and leak checks included. --quick
 ##	  leaves them out, and --long and --leakcheck put them back, whichever comes first.
+##	  Of --leakcheck and --no-leakcheck, the last one named wins.
 ##	- --quick still fetches first and publishes last. --no-sync and --no-publish skip those.
 ##	- If neither -q/-y nor -m is given, the run prompts once for a commit message
 ##	  (blank = git editor; Ctrl+C aborts the whole run), then finishes unattended.
@@ -136,6 +138,7 @@ while (($#)); do case "$1" in
 	--gate)                   gate=1; shift ;;
 	--long)                   do_long=1; inner_args+=("$1"); shift ;;
 	--leakcheck)              do_leakcheck=1; inner_args+=("$1"); shift ;;
+	--no-leakcheck)           do_leakcheck=0; inner_args+=("$1"); shift ;;
 	--quick)                  quick=1; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
 	--message=*|--msg=*|-m=*) cli_message="${1#*=}"; shift ;;
 	-m|--message|--msg)       cli_message="${2-}"; shift; (($#)) && shift ;;
@@ -883,4 +886,5 @@ fEcho_Clean
 ##		- 2026-10-19 JC: A plain run has the long tests. --quick still cross-compiles, and skips the checks that reach another host.
 ##		- 2026-10-19 JC: --leakcheck: the Go tests under the race detector, and a soak test. A plain run has them.
 ##		- 2026-10-19 JC: CodeQL in the leak checks.
+##		- 2026-10-19 JC: --no-leakcheck.
 ##		- 2026-10-19 JC: PSScriptAnalyzer in the lint stage.

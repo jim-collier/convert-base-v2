@@ -155,7 +155,7 @@ VULN_PROBE=(govulncheck -version)
 VULN_CMD=(govulncheck ./...)
 
 ## Stage 4d: leak checks, on a plain run or with --leakcheck, and never under
-## --quick alone. First the whole Go suite again with the race detector, uncached.
+## --quick alone or with --no-leakcheck. First the whole Go suite again with the race detector, uncached.
 ## -race needs cgo and a C compiler, though release builds use CGO_ENABLED=0, so
 ## the probe asks Go whether cgo is on. It skips with a warning where it isn't,
 ## and fails the run in the container, which has gcc. Empty a command to skip it.
