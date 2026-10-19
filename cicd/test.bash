@@ -2367,6 +2367,7 @@ DO_SCREENSHOTS=0; SCREENSHOT_CMD=(none); DO_DEMOGIF=${CE_GIF:-0}; DEMOGIF_CMD=(g
 PREPUBLISH_HOOK=""; GIT_PUBLISH=(); PUBLISH_AUTO_MESSAGE=""
 [[ -z "${CE_NET:-}" ]] || { VENDOR_CHECK_CMD=(echo vendor-net); INTEROP_CHECK_CMD=(echo interop-net); VULN_PROBE=(true); VULN_CMD=(echo vuln-net); }
 RACE_PROBE=("${CE_RACE_PROBE:-true}"); RACE_TEST_CMD=(echo race-ran); SOAK_CMD=(sh -c 'echo "soak-ran $CICD_SOAK_OUT"'); SOAK_OUT_DIR="soak"
+CODEQL_PROBE=("${CE_CODEQL_PROBE:-true}"); CODEQL_CMD=(sh -c 'echo "codeql-ran $1"; exit "${CE_CODEQL_RC:-0}"' sh); CODEQL_OUT_DIR="codeql"
 EOF
 cat >"${ceBin}/go" <<'EOF'
 #!/bin/sh
@@ -2458,9 +2459,9 @@ rm -rf "${ceRepo}/dist"
 ## --leakcheck is named too, before or after it. The gate never runs them.
 ceLeak=""
 for ceArgs in "-y" "-y --quick" "-y --quick --leakcheck" "-y --leakcheck --quick" "--gate"; do
-	fCeRun ${ceArgs}; ceLeak+="$(grep -cxE "race-ran|soak-ran ${ceRepo}/soak" <<<"${ceOut}" || true);"
+	fCeRun ${ceArgs}; ceLeak+="$(grep -cxE "race-ran|soak-ran ${ceRepo}/soak|codeql-ran ${ceRepo}/codeql/codeql_[0-9]{8}-[0-9]{6}\.sarif" <<<"${ceOut}" || true);"
 done
-{ [[ "${ceLeak}" == "2;0;2;2;0;" && -d "${ceRepo}/soak" ]]; } && _pass Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" \
+{ [[ "${ceLeak}" == "3;0;3;3;0;" && -d "${ceRepo}/soak" && -d "${ceRepo}/codeql" ]]; } && _pass Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" \
 	|| _fail Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" "got=[${ceLeak}] $(fCeTail)"
 ## -race needs cgo. Without it the race run warns and the soak test still runs,
 ## except where every tool must be there.
@@ -2469,6 +2470,23 @@ CE_RACE_PROBE=false fCeRun -y --quick --leakcheck; ceNoCgo=0
 CE_RACE_PROBE=false CE_NO_SKIP=1 fCeRun -y --quick --leakcheck
 { ((ceNoCgo && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: race detector skipped"* ]]; } && _pass Et9VxYy "race detector without cgo" \
 	|| _fail Et9VxYy "race detector without cgo" "warned=${ceNoCgo} $(fCeTail)"
+## CodeQL is a leak check too: --quick drops it and --leakcheck brings it back,
+## with the SARIF going to its own artifact dir.
+fCeRun -y --quick; ceCqQuick="${ceOut}"
+fCeRun -y --quick --leakcheck
+{ ((ceRc == 0)) && ! grep -q '^codeql-ran' <<<"${ceCqQuick}" && grep -qE "^codeql-ran ${ceRepo}/codeql/codeql_[0-9-]+\.sarif$" <<<"${ceOut}" \
+	&& [[ "${ceOut}" == *"OK: CodeQL clean, SARIF in codeql/"* ]]; } && _pass Et9ZqiY "CodeQL runs under --leakcheck, not under --quick" \
+	|| _fail Et9ZqiY "CodeQL runs under --leakcheck, not under --quick" "$(fCeTail)"
+## Any CodeQL result fails the stage, with its own message.
+CE_CODEQL_RC=1 fCeRun -y --quick --leakcheck
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"FAILED: CodeQL found something"* && "${ceOut}" != *"CICD ABORTED"* ]]; } && _pass Et9ZqjD "CodeQL result fails the stage" \
+	|| _fail Et9ZqjD "CodeQL result fails the stage" "$(fCeTail)"
+## It's only in the image, so a host run warns and goes on, and the container fails.
+CE_CODEQL_PROBE=false fCeRun -y --quick --leakcheck; ceNoCq=0
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"WARNING: CodeQL skipped"* ]] && ! grep -q '^codeql-ran' <<<"${ceOut}"; } && ceNoCq=1
+CE_CODEQL_PROBE=false CE_NO_SKIP=1 fCeRun -y --quick --leakcheck
+{ ((ceNoCq && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: CodeQL skipped"* ]]; } && _pass Et9Zqjy "CodeQL missing: warns here, fails in the container" \
+	|| _fail Et9Zqjy "CodeQL missing: warns here, fails in the container" "warned=${ceNoCq} $(fCeTail)"
 
 ## The vendor and interop pin checks and govulncheck reach another host, so
 ## --quick leaves them out.

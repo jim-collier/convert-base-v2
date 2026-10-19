@@ -3,8 +3,8 @@
 # The profiler, dogfood and publish stay on the host.
 #
 # The tag is a hash of this dir and cicd/tool-versions.env, so editing either
-# means a new image. The go-installed tools, shellcheck and ruff take their
-# versions from tool-versions.env as build args. Bump one there without its
+# means a new image. The go-installed tools, shellcheck, ruff and CodeQL take
+# their versions from tool-versions.env as build args. Bump one there without its
 # checksum here and the build fails on the checksum.
 #
 # Copyright © 2026 Jim Collier [ID: 2უNაɘ«҂թȹɤξπ๙¿ձϖ]
@@ -92,3 +92,19 @@ ENV HOME=/cache/home \
 	CICD_IN_CONTAINER=1 \
 	CICD_NO_SKIP=1
 WORKDIR /
+
+# CodeQL for the leak checks, the Go-only bundle. It goes last so a new version
+# rebuilds only this layer, and its ARG is declared here for the same reason.
+# Upstream posts no checksum for the per-language bundles; this is the
+# release's asset digest, checked against the download, 20261019.
+ARG CODEQL_VERSION
+ARG CODEQL_SHA256=0cfb942cd33fb71d3a3b84dad626ef8895ea3f1ceb097bc8cdb7d4493f032ae9
+RUN test -n "${CODEQL_VERSION}" \
+	&& apt-get update && apt-get install -y --no-install-recommends zstd && rm -rf /var/lib/apt/lists/* \
+	&& mkdir /tmp/codeql && cd /tmp/codeql \
+	&& curl -fsSLo codeql.tzst "https://github.com/github/codeql-action/releases/download/codeql-bundle-v${CODEQL_VERSION}/codeql-bundle-go-linux64.tar.zst" \
+	&& echo "${CODEQL_SHA256}  codeql.tzst" | sha256sum -c - \
+	&& tar -C /opt -I zstd -xf codeql.tzst \
+	&& cd / && rm -rf /tmp/codeql \
+	&& /opt/codeql/codeql version --format=terse | grep -qxF "${CODEQL_VERSION}"
+ENV PATH=/opt/codeql:${PATH}
