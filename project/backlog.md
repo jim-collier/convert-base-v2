@@ -34,6 +34,21 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- Hosted CI fails at the native build on every dev push since the `install.ps1` merge.
+	- ID: 2026101911072100
+	- Type: Bug
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261019-110721
+	- Opened by: JC
+	- Related IDs: 2026101411014803
+	- Target OS: Linux
+	- Reproduced: 20261019, 7 runs in a row, from 39278064158 on the `install.ps1` merge to 39297916319: `mkdir /cache/home/.cache/go-build: permission denied`.
+	- Cause: the pwsh check at the end of the Dockerfile's pwsh `RUN` runs as root with `HOME=/cache/home`. It leaves root-owned `.cache/powershell` and `.local/share/powershell` there, which a new `/cache` volume copies in. Local runs pass because the existing volume hides it.
+	- Probable fix: run that check with a throwaway `HOME`, such as `HOME=/tmp/pwsh`, before the `rm -rf /tmp/pwsh`. Or remove both dirs in the same `RUN`.
+		- Add a harness check that `/cache/home` in the built image has nothing owned by root under it, so the next tool that does this fails here.
+		- Then run on a new docker volume, and watch hosted CI go green.
+
 - Updates to CICD script flags.
 	- ID: 2026101816351431
 	- Type: Enhancement
@@ -163,6 +178,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Reproduced: 20261019, hosted CI run 39278064158 on the merge failed at the native build: `mkdir /cache/home/.cache/go-build: permission denied`.
 	- Cause: the image's pwsh check runs as root with `HOME=/cache/home`, and leaves root-owned `.cache/powershell` and `.local/share/powershell` there. A new `/cache` volume copies them in, so the build user can't make the Go cache. Local runs pass only because the existing volume hides it.
 	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
+	- Note: the fix is its own item, 2026101911072100.
 	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
 	- Swept: each `install.bash` check has a twin here (`Erm3T0M`, `EshY04X`, `EshY05J`, `EshY061`, `Esj2Pos`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
 	- Test case: `Et9uoIr` PowerShell files are ASCII. `Et9uoJX` parses from its raw bytes. `Et9uoKF` options. `Et9uoKx` and `Et9uoLd` the version pick. `Et9uoMI` installs in the one-liner form and leaves the caller's shell alone. `Et9uoMw` already current. `Et9uoNc` tampered checksum. `Et9uoOI` read-only folder. `Et9uoOx` the prompt. `Et9uoPc` says why. `Et9uoQG`, `Et9uoQv` and `Et9uoRc` the lint step. `Et9kwvY` now reads `install.ps1` too.
