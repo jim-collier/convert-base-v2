@@ -1,0 +1,13 @@
+# The leak checks' CodeQL queries, run on our code and on vendored code alike.
+# go-security-and-quality is the stock suite that has both halves: the memory
+# queries (allocation size overflow, uncontrolled allocation size, integer
+# conversion) are tagged security, and the correctness ones (index out of
+# bounds, shift out of range, unhandled file close, and so on) are tagged
+# quality. Its maintainability queries are style, which isn't ours to fix in
+# someone else's module, and in our code ineffassign and staticcheck already
+# catch the same useless assignments.
+- description: Leak, memory, and correctness queries for Go
+- import: codeql-suites/go-security-and-quality.qls
+  from: codeql/go-queries
+- exclude:
+    tags contain: maintainability

@@ -51,9 +51,10 @@
 ##	                       container, no publish. The git pre-push hook runs this for dev and main.
 ##	   --long              the exhaustive tests (CICDTEST_DO_LONGTEST=1). A run without --quick has them
 ##	                       already, so this is for adding them back to a --quick run.
-##	   --leakcheck         the leak checks: the Go tests again under the race detector, then the soak
-##	                       test, which keeps its heap profiles under cicd/artifacts. A run without
-##	                       --quick has them already, so this is for adding them to a --quick run.
+##	   --leakcheck         the leak checks: the Go tests again under the race detector, the soak
+##	                       test, and CodeQL, which keep their heap profiles and SARIF under
+##	                       cicd/artifacts. A run without --quick has them already, so this is for
+##	                       adding them to a --quick run.
 ##	   --quick             the fast checks only. Skips the profiler, screenshots, demo gif, the long tests,
 ##	                       the leak checks, and the checks that reach another host (vendor and interop pins,
 ##	                       govulncheck). Fuzz is shorter, and the harness skips its perf section and packaging
@@ -100,6 +101,7 @@ source "${here}/config.bash"
 [[ -v DOGFOOD_CROSS ]] || DOGFOOD_CROSS=()
 [[ -v RACE_TEST_CMD ]] || RACE_TEST_CMD=()
 [[ -v SOAK_CMD ]] || SOAK_CMD=()
+[[ -v CODEQL_CMD ]] || CODEQL_CMD=()
 ## Personal dogfood dirs, kept out of the repo. Before the options, so --no-dogfood still wins.
 # shellcheck source=/dev/null
 if [[ -n "${DOGFOOD_LOCAL:-}" && -f "${root}/${DOGFOOD_LOCAL}" ]]; then source "${root}/${DOGFOOD_LOCAL}"; fi
@@ -332,7 +334,7 @@ fUnitTests(){
 }
 ## Stage 4d, the slow leak checks, on a plain run or with --leakcheck. The Go
 ## tests again under the race detector, then the soak test, which keeps its
-## heap profiles.
+## heap profiles, then CodeQL, which keeps its SARIF. Any CodeQL result fails.
 fLeakCheck(){
 	if ((! do_leakcheck)); then
 		fEcho_Chat "leak checks skipped"
@@ -353,6 +355,17 @@ fLeakCheck(){
 		gfs_rotate "${soakDir}" heap-n pprof >/dev/null 2>&1 || true
 		gfs_rotate "${soakDir}" heap-2n pprof >/dev/null 2>&1 || true
 		fEcho "OK: soak test, heap profiles in ${SOAK_OUT_DIR}/"
+	fi
+	if ((${#CODEQL_CMD[@]})); then
+		if "${CODEQL_PROBE[@]}" >/dev/null 2>&1; then
+			local codeqlDir="${root}/${CODEQL_OUT_DIR}"
+			mkdir -p "${codeqlDir}"
+			"${CODEQL_CMD[@]}" "${codeqlDir}/codeql_${stamp}.sarif" || fDie "CodeQL found something, or couldn't run; the SARIF is in ${CODEQL_OUT_DIR}/"
+			gfs_rotate "${codeqlDir}" codeql sarif >/dev/null 2>&1 || true
+			fEcho "OK: CodeQL clean, SARIF in ${CODEQL_OUT_DIR}/"
+		else
+			fSkip "CodeQL skipped (it's in the container image, and never installed here)"
+		fi
 	fi
 }
 ## gitsby picks the account for the folder; plain git where it isn't installed.
@@ -474,6 +487,8 @@ if ((do_leakcheck)); then
 	fEcho_Chat "Leak checks .........: ${RACE_TEST_CMD[*]:-(no race run)}"
 	((${#SOAK_CMD[@]})) && \
 	fEcho_Chat "                       ${SOAK_CMD[*]} -> ${SOAK_OUT_DIR}/"
+	((${#CODEQL_CMD[@]})) && \
+	fEcho_Chat "                       ${CODEQL_CMD[*]} -> ${CODEQL_OUT_DIR}/  (if installed)"
 else
 	fEcho_Chat "Leak checks .........: (skipped)"
 fi
@@ -652,7 +667,7 @@ else
 		fi
 	fi
 
-	## 4d: race detector and soak test.
+	## 4d: race detector, soak test and CodeQL.
 	fLeakCheck
 	fEcho "OK: tests passed"
 fi
@@ -847,3 +862,4 @@ fEcho_Clean
 ##		- 2026-10-14 JC: Dogfood the cross builds too (DOGFOOD_CROSS), with personal dirs read from DOGFOOD_LOCAL.
 ##		- 2026-10-19 JC: A plain run has the long tests. --quick still cross-compiles, and skips the checks that reach another host.
 ##		- 2026-10-19 JC: --leakcheck: the Go tests under the race detector, and a soak test. A plain run has them.
+##		- 2026-10-19 JC: CodeQL in the leak checks.

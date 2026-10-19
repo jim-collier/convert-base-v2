@@ -163,6 +163,14 @@ RACE_TEST_CMD=(go test -json -race -count=1 ./...)
 ## like the flamegraphs); `go tool pprof -base` on the pair shows what grew.
 SOAK_CMD=(go test -json -count=1 -run '^TestSoak$' ./cmd/convert-base-v2)
 SOAK_OUT_DIR="cicd/artifacts/soak"
+## Then CodeQL, pinned in the container image and never installed on the host,
+## so a host run skips it with a warning. Run from root and handed the SARIF
+## path, in CODEQL_OUT_DIR (gitignored, GFS-pruned). The helper scans a scratch
+## copy of SRC_DIR with `go mod vendor` run in it, so the database has the
+## dependencies too, using the suite in cicd/utility/codeql/. Any result fails.
+CODEQL_PROBE=(codeql version)
+CODEQL_CMD=(cicd/utility/codeql-scan.bash)
+CODEQL_OUT_DIR="cicd/artifacts/codeql"
 
 ## Stage 5: profiler (non-gating artifact, not a pass/fail test). Runs the
 ## BenchmarkProfile workload (big-int math/big path + streaming codec path) under
@@ -263,3 +271,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-10-14 JC: Dogfood dirs moved to DOGFOOD_LOCAL; DOGFOOD_CROSS for the Windows and macOS builds.
 ##		- 2026-10-19 JC: --quick keeps the cross stage.
 ##		- 2026-10-19 JC: Leak checks: the race detector run adn the soak test.
+##		- 2026-10-19 JC: CodeQL in the leak checks.
