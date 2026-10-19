@@ -106,6 +106,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: a run with no flags still leaves out the `--long` tests.
 	- Decisions:
 		- 20261018: no flags do everything, the `--leakcheck` checks included. `--leakcheck` can be added to other flags that might otherwise skip them.
+		- 20261018: no flags include the `--long` tests too. `--long` stays, for use with other flags that would leave them out.
 
 - Leak, memory, and correctness checks in the CICD process, for the code end users run.
 	- ID: 2026101816351432
@@ -180,6 +181,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: Linux
 	- Related IDs: 2026101009523061
 	- Note: the runners could pull the `--container` image and run the harness, interop, shellcheck and ruff too. Building it on every run takes several minutes, so it needs a registry or a cache.
+	- Decisions:
+		- 20261018: build the image on the runner with the GitHub Actions layer cache. Nothing is published to a registry.
 
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
@@ -255,6 +258,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: Explorer shows a generic icon and an empty Details tab.
 	- Requirements:
 		- Each `.exe` has the project icon and version information.
+	- Decisions:
+		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
 
 - Error and note text says "cannot", "is not", "does not" and the like where a person would use a contraction.
 	- ID: 2026101411014807
