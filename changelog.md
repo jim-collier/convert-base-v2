@@ -132,6 +132,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The pipeline has a fast `--gate` run of the format check, lint and unit tests, which a pre-push hook runs for `dev` and `main`. A full run fast-forwards from the remote first.  [20261014]
 
+- A pipeline run with no flags includes the long tests. `--quick` still cross-compiles and packages, which takes seconds, and leaves out the checks that reach other hosts.  [20261019]
+
 ## v3.0.0 - 2026-08-04
 
 ### Notes

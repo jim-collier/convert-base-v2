@@ -30,12 +30,12 @@
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
 ##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
-##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, -q, the dogfood copy, and the shellcheck and ruff gates.
+##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, what --quick runs and skips, -q, the dogfood copy, and the shellcheck and ruff gates.
 ##			- The harness itself: a run against a program that refuses everything, with Go off the PATH, counts each failure and reaches its summary.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
 ##			- CICDTEST_EXE ..........: path to the binary under test (default: ../lib/bin/convert-base-v2).
-##			- CICDTEST_DO_LONGTEST ..: 1 for the exhaustive run (more fuzz iterations, larger inputs).
+##			- CICDTEST_DO_LONGTEST ..: 1 for the exhaustive run (more fuzz iterations, larger inputs). cicd.bash sets it unless --quick, or with --long.
 ##			- CICDTEST_DO_PERF ......: 1 to run the performance section. cicd.bash sets it unless --quick.
 ##			- CICDTEST_QUICK ........: 1 to skip the packaging rebuild check. cicd.bash sets it under --quick.
 ##			- CICDTEST_FUZZ_ITERS ...: override the fuzz iteration count.
@@ -2351,6 +2351,7 @@ CONTAINER_DEFAULT=${CE_CONTAINER_DEFAULT:-0}; CONTAINER_CONTEXTS=("ctx=${CE_CTX:
 DOGFOOD_FIXED_DESTS=(${CE_DEST:+"${CE_DEST}"}); DOGFOOD_CROSS=(); DOGFOOD_LOCAL="${CE_LOCAL:-}"
 DO_SCREENSHOTS=0; SCREENSHOT_CMD=(none); DO_DEMOGIF=${CE_GIF:-0}; DEMOGIF_CMD=(gif.py); DEMOGIF_OUT="gif/demo.gif"; DEMOGIF_ARCHIVE_DIR="gif/old"; DEMOGIF_CONTAINER_ONLY=1
 PREPUBLISH_HOOK=""; GIT_PUBLISH=(); PUBLISH_AUTO_MESSAGE=""
+[[ -z "${CE_NET:-}" ]] || { VENDOR_CHECK_CMD=(echo vendor-net); INTEROP_CHECK_CMD=(echo interop-net); VULN_PROBE=(true); VULN_CMD=(echo vuln-net); }
 EOF
 cat >"${ceBin}/go" <<'EOF'
 #!/bin/sh
@@ -2420,6 +2421,31 @@ for ceName in Full Quick; do
 done
 { grep -qxF "CICDTEST_QUICK=1" <<<"${ceKnobsQuick}" && grep -qxF "CICDTEST_QUICK=0" <<<"${ceKnobsFull}"; } && _pass ErmCp2H "--quick reaches the harness" \
 	|| _fail ErmCp2H "--quick reaches the harness" "full=[${ceKnobsFull}] quick=[${ceKnobsQuick}]"
+## A plain run has the long tests, and --quick leaves them out unless --long
+## is named too, before or after it.
+ceLong=""
+for ceArgs in "-y" "-y --quick" "-y --quick --long" "-y --long --quick"; do
+	fCeRun ${ceArgs}; ceLong+="$(grep -oxE 'CICDTEST_DO_LONGTEST=[01]' <<<"${ceKnobs}" || echo none);"
+done
+[[ "${ceLong}" == "CICDTEST_DO_LONGTEST=1;CICDTEST_DO_LONGTEST=0;CICDTEST_DO_LONGTEST=1;CICDTEST_DO_LONGTEST=1;" ]] && _pass Et9RcGQ "long tests: plain on, --quick off, --long back on" \
+	|| _fail Et9RcGQ "long tests: plain on, --quick off, --long back on" "got=[${ceLong}]"
+
+## --quick still cross-compiles, and --no-cross wins in either order.
+rm -rf "${ceRepo}/dist"; CE_CROSS=1 fCeRun -y --quick; ceQuickCross=0
+{ ((ceRc == 0)) && [[ -f "${ceRepo}/dist/cbv-test-windows-x86_64.exe" && "${ceOut}" == *"OK: release artifacts"* ]]; } && ceQuickCross=1
+rm -rf "${ceRepo}/dist"; CE_CROSS=1 fCeRun -y --no-cross --quick; ceNoCross="${ceRc}"
+CE_CROSS=1 fCeRun -y --quick --no-cross
+{ ((ceQuickCross && ceNoCross == 0 && ceRc == 0)) && [[ ! -e "${ceRepo}/dist" && "${ceOut}" == *"cross + package skipped"* ]]; } && _pass Et9RcH7 "--quick cross-compiles, --no-cross wins" \
+	|| _fail Et9RcH7 "--quick cross-compiles, --no-cross wins" "quick made it: ${ceQuickCross}; $(fCeTail)"
+rm -rf "${ceRepo}/dist"
+
+## The vendor and interop pin checks and govulncheck reach another host, so
+## --quick leaves them out.
+CE_NET=1 fCeRun -y; ceNetFull="$(grep -oE '^(vendor|interop|vuln)-net$' <<<"${ceOut}" | tr '\n' ' ' || true)"
+CE_NET=1 fCeRun -y --quick; ceNetQuick="$(grep -oE '^(vendor|interop|vuln)-net$' <<<"${ceOut}" | tr '\n' ' ' || true)"
+{ ((ceRc == 0)) && [[ "${ceNetFull}" == "vendor-net interop-net vuln-net " && -z "${ceNetQuick}" ]]; } && _pass Et9RcHq "--quick skips checks that reach another host" \
+	|| _fail Et9RcHq "--quick skips checks that reach another host" "full=[${ceNetFull}] quick=[${ceNetQuick}] $(fCeTail)"
+
 fCeRun -q
 { ((ceRc == 0)) && [[ "${ceOutFull}" == *"Repo root ..."* && "${ceOutFull}" == *"format skipped"* && "${ceOut}" != *"Repo root ..."* && "${ceOut}" != *"format skipped"* \
 	&& "${ceOut}" == *"1/8  Format"* && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass ErmCp2I "-q output" \
