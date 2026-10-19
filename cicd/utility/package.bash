@@ -168,8 +168,9 @@ for p in "${platforms[@]}"; do
 	fi
 
 	## No VCS stamp or build ID, so a dirty tree or a source tarball of the
-	## same commit builds the same bytes.
-	( cd "${src}" && CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" \
+	## same commit builds the same bytes. GOAMD64=v1 keeps old x86-64 CPUs, like
+	## a Core 2 Duo, whatever the shell has set; arm64 builds ignore it.
+	( cd "${src}" && CGO_ENABLED=0 GOOS="${os}" GOARCH="${arch}" GOAMD64=v1 \
 		go build -trimpath -buildvcs=false -ldflags "-s -w -buildid= -X main.version=${VERSION} -X main.buildEpoch=${BUILD_EPOCH}" -o "${binpath}" ./cmd/convert-base-v2 )
 	[[ -z "${winres}" ]] || { rm -f "${winres}"; winres=""; }
 	fStamp "${binpath}"
@@ -323,3 +324,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt ! -name "
 ##		- 2026-10-04: --out is cleared only when a build made it.
 ##		- 2026-10-10: A skipped package is an error under CICD_NO_SKIP=1.
 ##		- 2026-10-19: Windows exes and installers get an icon and version info.
+##		- 2026-10-19: GOAMD64=v1 pinned.

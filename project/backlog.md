@@ -37,7 +37,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Hosted CI fails at the native build on every dev push since the `install.ps1` merge.
 	- ID: 2026101911072100
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs external testing: Yes. Hosted CI's pipeline job on the next dev push.
 	- Priority: High
 	- Opened: 20261019-110721
 	- Opened by: JC
@@ -48,6 +49,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Probable fix: run that check with a throwaway `HOME`, such as `HOME=/tmp/pwsh`, before the `rm -rf /tmp/pwsh`. Or remove both dirs in the same `RUN`.
 		- Add a harness check that `/cache/home` in the built image has nothing owned by root under it, so the next tool that does this fails here.
 		- Then run on a new docker volume, and watch hosted CI go green.
+	- Fixed: the pwsh check runs with `HOME=/tmp/pwsh`, which is removed after. The Dockerfile's last step fails the build if anything is in `/cache/home`.
+	- Verified: 20261019, on a new volume, the old image fails with the same `permission denied` making the Go cache, and the new one makes it. The old image fails the new last step.
+	- Test case: `EtAgsNr` the Dockerfile's last step checks `/cache/home`. `EtAgsOV` nothing root-owned in the container's HOME, which failed on the old image and a new volume.
+	- Branch: cleanup
 
 - Updates to CICD script flags.
 	- ID: 2026101816351431
@@ -210,7 +215,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Run on the last Core 2 Duo, and AMD CPUs from that era.
 	- ID: 2026101301161880
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting for testing
 	- Needs external testing: Yes, on an old CPU or an emulated one.
 	- Priority [Feature|Enhancement] | Severity [Bug]: Low
 	- Opened: 20261013-011618
@@ -225,14 +230,25 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
 			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
+		- 20261019: `package.bash` pins `GOAMD64=v1`. The pipeline image has qemu-user, and the harness runs the linux x86_64 release build as a Penryn and a Phenom II.
+	- Verified: 20261019, under qemu-user, a v1 build converts on Penryn, Phenom and Nehalem. A v2 build is refused on Penryn and Phenom and runs on Nehalem, and a v3 build is refused on all 3.
+	- Note: still open on real hardware, and for the Windows and FreeBSD builds, which are the same code.
+	- Test case: `EtAjZOv` every x86_64 release build says `GOAMD64=v1`. `EtAjy1j` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ErlP6B8` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
+	- Branch: cleanup
 
 - Verify or ensure that builds clean up stale artifacts and side-effects after they're done: caches, container cruft, tmp files, etc.
 	- ID: 2026101910123200
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Opened: 20261019-101232
 	- Opened by: JC
 	- Note: pre-next-cut.
+	- Checked: 20261019. Logs, heap profiles, SARIF and flame graphs in `cicd/artifacts/` are pruned on rotation, and total under 2 MB. `package.bash`, the CodeQL helper and the harness each remove their temp dir on exit. Containers run with `--rm`, and a new image removes the one it replaces.
+	- Checked: the cache volume is 1.1 GB, nearly all the Go build cache, which Go trims by itself.
+	- Fixed: an aborted `cicd.bash` run left its fuzz log in `/tmp`, and a failed image build left an empty dir. Both go in one per-run dir now, removed on exit.
+	- Note: the docker build cache isn't pruned by the pipeline, since `docker builder prune` clears every project's cache.
+	- Test case: `EtAgsPA` a failed image build leaves nothing in TMPDIR, which failed on the old engine. `ErmCp2E` and `ErmCp2F` already cover the fuzz log.
+	- Branch: cleanup
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002

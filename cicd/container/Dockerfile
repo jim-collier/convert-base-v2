@@ -130,7 +130,18 @@ RUN test -n "${PWSH_VERSION}" && test -n "${PSSA_VERSION}" \
 	&& echo "${PSSA_SHA256}  pssa.nupkg" | sha256sum -c - \
 	&& mkdir -p "/opt/pwsh/Modules/PSScriptAnalyzer/${PSSA_VERSION}" \
 	&& unzip -q pssa.nupkg -d "/opt/pwsh/Modules/PSScriptAnalyzer/${PSSA_VERSION}" \
-	&& cd / && rm -rf /tmp/pwsh \
-	&& pwsh -NoProfile -NonInteractive -Command "Import-Module PSScriptAnalyzer -RequiredVersion ${PSSA_VERSION} -ErrorAction Stop; \$PSVersionTable.PSVersion.ToString()" | grep -qxF "${PWSH_VERSION}"
+	&& cd / \
+	&& HOME=/tmp/pwsh pwsh -NoProfile -NonInteractive -Command "Import-Module PSScriptAnalyzer -RequiredVersion ${PSSA_VERSION} -ErrorAction Stop; \$PSVersionTable.PSVersion.ToString()" | grep -qxF "${PWSH_VERSION}" \
+	&& rm -rf /tmp/pwsh
 ENV POWERSHELL_TELEMETRY_OPTOUT=1 \
 	POWERSHELL_UPDATECHECK=Off
+
+# qemu-x86_64 runs the release build as a Core 2 Duo and a Phenom II.
+RUN apt-get update && apt-get install -y --no-install-recommends qemu-user && rm -rf /var/lib/apt/lists/* \
+	&& qemu-x86_64 -cpu help | grep -qw Penryn
+
+# A new volume starts as a copy of /cache, so a root-owned dir left in /cache/home
+# by any step above stops the build user making its Go cache there. The pwsh check
+# did that once. Keep this last.
+RUN test -z "$(find /cache/home -mindepth 1 -maxdepth 2 -print -quit)" \
+	|| { find /cache/home -mindepth 1 -ls; false; }
