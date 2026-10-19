@@ -86,7 +86,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Updates to CICD script flags.
 	- ID: 2026101816351431
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes. One plain `cicd/cicd.bash -y --no-publish --no-dogfood` and one with `--quick` in the container, to see the real stage 6 under `--quick` and what the long tests now add to a plain run. Then signoff, since `--quick` keeping sync, publish, and all of stage 6 is a reading of the requirement.
 	- Priority: High
 	- Opened: 20261018-163514
 	- Opened by: JC
@@ -107,6 +108,17 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Decisions:
 		- 20261018: no flags do everything, the `--leakcheck` checks included. `--leakcheck` can be added to other flags that might otherwise skip them.
 		- 20261018: no flags include the `--long` tests too. `--long` stays, for use with other flags that would leave them out.
+	- Note: stage 6 steps timed one at a time on 16 threads. Each Go cross build takes about 3.4s with an empty cache, 1s after a source edit, and 0.3s when nothing changed. arm64 is no slower than amd64 for any OS. Each tgz or zip takes 0.17s, each deb or rpm 0.2 to 0.3s, and each Windows installer 1.1s. The whole stage is about 38s cold, 17s after an edit, and 8s warm.
+	- Note: what reaches another host. The remote sync fetches from the git host, publish pushes to it, the vendor pin check reads GitHub, the interop pin check downloads from npm and crates.io, govulncheck reads vuln.go.dev, and the pin step runs `go install` when a pin moved. No stage uses a test box.
+	- Done: a plain run includes the long tests. `--quick` leaves them out unless `--long` is given too, in either order.
+	- Done: `--quick` keeps all of stage 6, since no target or package stood out. `--no-cross` still skips it, in either order.
+	- Done: `--quick` skips the vendor and interop pin checks and govulncheck. It keeps the sync and publish, since they're what the run is for and have their own `--no-*` flags. It keeps the pin step, which only goes online when a pin moved.
+	- Done: the help, `config.bash` comments, contributing.md, development.md, and the changelog say so. `--ci` appears nowhere but this item.
+	- Verified: the harness's CI engine and remote sync sections passed 41 of 41. The 3 new checks failed against the old `cicd.bash`. `bash -n`, shellcheck, and `test-ids.py check` pass.
+	- Swept: `git grep` for `--quick`, `--long`, `--ci`, and the `CICDTEST_` knobs over the repo. README.md and design.md don't describe these flags.
+	- Test case: `Et9RcGQ` long tests on a plain run, off under `--quick`, back with `--long`. `Et9RcH7` `--quick` cross-compiles and `--no-cross` wins. `Et9RcHq` `--quick` skips the checks that reach another host. `ErmCp2G` and `ErmCp2H` still pin the perf and quick knobs.
+	- Branch: flags
+	- Commit: 2abd0ac
 
 - Leak, memory, and correctness checks in the CICD process, for the code end users run.
 	- ID: 2026101816351432
