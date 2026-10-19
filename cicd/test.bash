@@ -2632,13 +2632,13 @@ CE_CROSS=1 fCeRun -y --quick --no-cross
 	|| _fail Et9RcH7 "--quick cross-compiles, --no-cross wins" "quick made it: ${ceQuickCross}; $(fCeTail)"
 rm -rf "${ceRepo}/dist"
 
-## A plain run has the leak checks, and --quick leaves them out unless
+## A plain run has the leak checks, -q included, and --quick leaves them out unless
 ## --leakcheck is named too, before or after it. The gate never runs them.
 ceLeak=""
-for ceArgs in "-y" "-y --quick" "-y --quick --leakcheck" "-y --leakcheck --quick" "--gate"; do
+for ceArgs in "-y" "-q" "-y --quick" "-y --quick --leakcheck" "-y --leakcheck --quick" "--gate"; do
 	fCeRun ${ceArgs}; ceLeak+="$(grep -cxE "race-ran|soak-ran ${ceRepo}/soak|codeql-ran ${ceRepo}/codeql/codeql_[0-9]{8}-[0-9]{6}\.sarif" <<<"${ceOut}" || true);"
 done
-{ [[ "${ceLeak}" == "3;0;3;3;0;" && -d "${ceRepo}/soak" && -d "${ceRepo}/codeql" ]]; } && _pass Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" \
+{ [[ "${ceLeak}" == "3;3;0;3;3;0;" && -d "${ceRepo}/soak" && -d "${ceRepo}/codeql" ]]; } && _pass Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" \
 	|| _fail Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" "got=[${ceLeak}] $(fCeTail)"
 ## -race needs cgo. Without it the race run warns and the soak test still runs,
 ## except where every tool must be there.
