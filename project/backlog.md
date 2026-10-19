@@ -75,7 +75,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- ID: 2026101816351432
 	- Type: Enhancement
 	- Status: Waiting for testing
-	- Needs local test suite run?: Yes. One plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container. It rebuilds the image for the `gcc` line, then runs the race detector and the soak test there for the first time.
+	- Needs local test suite run?: Yes. One plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container. The image with the `gcc` and CodeQL lines is built. That run is the first full one with the race detector, the soak test, and CodeQL in it.
 	- Priority: Avg
 	- Opened: 20261018-163514
 	- Opened by: JC
@@ -132,9 +132,21 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: the Go tests plain and under `-race`, the browser module tests under node, the soak test, `go vet` native and js/wasm, staticcheck, golangci-lint, the harness CI engine and remote sync sections at 44 of 44, its test-ids checks at 4 of 4, `bash -n`, shellcheck, ruff, and `test-ids.py check`. The 3 new engine checks failed against the old `cicd.bash`, and `Et9WfaT` against the old `test-ids.py`.
 	- Done: the help, `config.bash` comments, contributing.md, development.md, the style guide, the workflow comments, shcl's README, and the changelog say so.
 	- Swept: `git grep` for `go.sum`, `standard library only`, `third-party`, `--long`, `--quick` and `full_extras`. install.md stays as it is, since the build still fetches nothing.
-	- Test case: `Et9VxXX` leak checks on a plain run, off under `--quick`, back with `--leakcheck`, never in the gate. `Et9VxYE` `--leakcheck` reaches the container run. `Et9VxYy` no cgo warns, and fails where every tool must be there. `Et9WfaT` race and leak reports shown from the top. `Et9UPKp` the soak margins. `Et9UPKC` is the soak test itself, and goleak runs in every package's `TestMain`.
-	- Branch: leaks
-	- Commit: 64f06f5
+	- Done: part 2, CodeQL. It runs last in the leak checks, from CodeQL 2.27.2's Go-only bundle, pinned in `tool-versions.env` with its checksum in the Dockerfile. It's never installed on the host, so a host run skips it with a warning, and the container fails without it.
+		- The bundle is the Dockerfile's last layer, so a new version rebuilds only that layer. It adds 259 MB to the image, now 3.1 GB.
+	- Done: it scans a scratch copy of `lib/` with `go mod vendor` run in it. The database has our code and tests, shcl, goleak, and the browser and reactor modules, each built for wasm. The step fails if any of those is missing from it, or if no queries ran.
+	- Done: the queries are the stock `go-security-and-quality` suite less its maintainability queries, in `cicd/utility/codeql/leak-checks.qls`, the same for every file.
+		- It's the one stock suite with both the memory queries (allocation size, integer conversion) and the correctness ones (index out of bounds, shift out of range, unhandled file close, nil checks).
+		- The maintainability queries are style. On our code ineffassign and staticcheck already catch the same useless assignments, so third-party code gets only the leak, memory, and correctness checks.
+	- Done: any result fails the stage. The SARIF is kept in `cicd/artifacts/codeql/`, GFS-pruned like the soak profiles.
+	- Verified: no results in our code, shcl, or goleak, so nothing needed a fix or a check turned off.
+	- Verified: an off-by-one index planted in a scratch copy of `convertbase` failed the stage through the pipeline, and one planted in the vendored goleak was reported. Both undone by copy. A database with no goleak in it failed the missing-parts check.
+	- Verified: a CodeQL version bump without its checksum rebuilds only the last layer and fails there on the checksum.
+	- Verified: the harness CI engine and remote sync sections at 47 of 47. The 4 changed or new checks failed against the old `cicd.bash`. `bash -n`, shellcheck, and `test-ids.py check` pass.
+	- Swept: `git grep` for `SOAK_OUT_DIR`, `RACE_PROBE`, `leak check`, and `tool-versions.env` over the repo. `pin-tools.bash` leaves CodeQL alone, since it's container-only.
+	- Test case: `Et9VxXX` leak checks on a plain run, off under `--quick`, back with `--leakcheck`, never in the gate, with the CodeQL step counted. `Et9VxYE` `--leakcheck` reaches the container run. `Et9VxYy` no cgo warns, and fails where every tool must be there. `Et9WfaT` race and leak reports shown from the top. `Et9UPKp` the soak margins. `Et9UPKC` is the soak test itself, and goleak runs in every package's `TestMain`. `Et9ZqiY` CodeQL runs under `--leakcheck` and not under `--quick`. `Et9ZqjD` a CodeQL result fails the stage. `Et9Zqjy` no CodeQL warns on the host and fails in the container.
+	- Branch: leaks, then codeql
+	- Commit: 64f06f5, then 0595e36
 
 - A bare `tail: ,` in a config reads as no tail.
 	- ID: 2026101411014813
