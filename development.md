@@ -34,7 +34,7 @@ Build targets, all run from `lib/`.
 | `make reactor`          | The callable WebAssembly module
 | `make release`          | Cross-builds and packages every platform
 
-Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. `--quick` skips the slow stages, `--long` runs the exhaustive tests, `--gate` runs only the quick checks, and most stages have a `--no-...` switch. The build and test stages run in a docker image that has every tool installed at a pinned version, and `--host` runs them on your own machine instead. A plain run also copies the build into a local bin folder, and commits and pushes, so use `cicd/cicd.bash --quick --no-dogfood --no-publish -y` for a local check.
+Everything else runs from one script, `cicd/cicd.bash`. It goes through formatting, build, lint, the test suites, profiling, cross-compiling and packaging every platform, and publishing, and stops at the first thing that fails. A plain run includes the exhaustive tests. `--quick` skips them and the other slow parts, `--long` adds them back to a quick run, `--gate` runs only the quick checks, and most stages have a `--no-...` switch. The build and test stages run in a docker image that has every tool installed at a pinned version, and `--host` runs them on your own machine instead. A plain run also copies the build into a local bin folder, and commits and pushes, so use `cicd/cicd.bash --quick --no-dogfood --no-publish -y` for a local check.
 
 Tests sandbox their own config directory, so running them won't read or write the config file in your home directory.
 

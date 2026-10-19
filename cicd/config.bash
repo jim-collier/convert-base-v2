@@ -75,6 +75,8 @@ PIN_TOOLS_CMD=(bash cicd/utility/pin-tools.bash)
 ## longer matches its pinned tag, since lint skips vendored paths and a wrong
 ## alphabet parser produces output that looks fine. Offline runs warn and carry
 ## on; a newer upstream release is a notice, not a failure. Empty it to skip.
+## --quick skips it, along with the interop refetch and govulncheck, since all
+## three reach another host.
 VENDOR_CHECK_CMD=(bash cicd/utility/check-vendor.bash)
 
 ## The interop suite (cicd/utility/interop) keeps the four big bases honest by
@@ -172,7 +174,7 @@ LINT_LOG_DIR="cicd/artifacts/lint"          # relative to repo root; created if 
 ## `make release` runs cicd/utility/package.bash: archives (tgz/zip) for all of
 ## linux/darwin/freebsd/windows x amd64/arm64, plus .deb/.rpm (nfpm) and Windows
 ## installers (makensis), plus checksums. Doubles as a build-sanity gate. Set
-## BUILD_CROSS=0 (or --no-cross/--quick) to skip.
+## BUILD_CROSS=0 (or --no-cross) to skip. --quick keeps it, since it takes seconds.
 BUILD_CROSS=1
 RELEASE_CMD=(make -C "${SRC_DIR}" release)
 RELEASE_ARTIFACT_DIR="${SRC_DIR}/dist"
@@ -245,3 +247,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-10-10 JC: Container settings, and container runs as the default.
 ##		- 2026-10-14 JC: FMT_CHECK_CMD for --gate.
 ##		- 2026-10-14 JC: Dogfood dirs moved to DOGFOOD_LOCAL; DOGFOOD_CROSS for the Windows and macOS builds.
+##		- 2026-10-19 JC: --quick keeps the cross stage.

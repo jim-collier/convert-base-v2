@@ -34,59 +34,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- `--version` prints `v3.0.0 build ddgee`, with no program name.
-	- ID: 2026101411014809
-	- Type: Task
-	- Status: Done
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Related IDs: 2026100408500169
-	- Target OS: Any
-	- Note: the usual form is `convert-base-v2 v3.0.0 build ddgee`, and `--about` already uses it.
-	- Note: `install.bash` and scripts compare the first word of `--version` with the release tag, so a program name in front would break them.
-	- Progress log:
-		- 20261014: waiting on a choice: keep `--version` as it is, or add the program name and update `install.bash` and the scripts to match.
-		- 20261014: answered: name, version, build, with no space at either end.
-	- Done: `--version` prints `convert-base-v2 v3.0.0 build ddgee`. `install.bash` and the release notes drop the name before comparing the version, so an installed pre-3.0.1 build still reads as current.
-	- Test case: `ErlL5dx` --version one-line format, `ErlL5cs` and `ErlL5dO` in Go, `Esj2Pos` install.bash sees it's current, for the new line and both old ones, and `ErlN8Nk` for the release notes.
-	- Branch: dogfood-ver
-	- Commit: 07a81b5
-	- Acceptance signoff: Self-closed: its checks pass, and fail with the change undone.
-	- Closed: 20261014-180028
-
-- The dogfood stage copies only the native Linux build, and its destination is a private path in the public `cicd/config.bash`.
-	- ID: 2026101411014810
-	- Type: Task
-	- Status: Done
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: Linux, Windows, macOS
-	- Note: stage 7 copies the Linux build to a synced tools dir named in `DOGFOOD_FIXED_DESTS`. The Windows and macOS builds aren't copied to their own synced dirs.
-	- Progress log:
-		- 20261014: waiting on a choice: copy the Windows and macOS builds too, and move the path out of the public config.
-		- 20261014: answered yes to both.
-	- Done: stage 7 also copies the Windows x86_64 exe and the macOS universal build, listed in `DOGFOOD_CROSS`, but only when stage 6 built them in the same run. The dirs moved to a file outside the repo, named by `DOGFOOD_LOCAL`, and the public config lists none.
-	- Test case: `Esj2PpU`, `Esj2Pq1` and `Esj2PqY` for the cross copies, the skip without stage 6, and `--no-dogfood`. `Esj2Pr6` fails if `config.bash` names a personal dir again.
-	- Branch: dogfood-ver
-	- Commit: 07a81b5
-	- Acceptance signoff: Self-closed: its checks pass, and fail with the change undone.
-	- Closed: 20261014-180028
-
-- The repo has no social preview image, so shared links show GitHub's generic card.
-	- ID: 2026101416210405
-	- Type: Task
-	- Status: Queued
-	- Priority: Low
-	- Opened: 20261014-162104
-	- Opened by: Repo review 20261014
-	- Assigned to: JC
-	- Target OS: Any
-	- Note: GitHub takes it only on the repo settings page, with no API for it. A 1280x640 image from the demo gif is ready outside the repo.
-
 - Updates to CICD script flags.
 	- ID: 2026101816351431
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting for testing
+	- Needs local test suite run?: Yes. One plain `cicd/cicd.bash -y --no-publish --no-dogfood` and one with `--quick` in the container, to see the real stage 6 under `--quick` and what the long tests now add to a plain run. Then signoff, since `--quick` keeping sync, publish, and all of stage 6 is a reading of the requirement.
 	- Priority: High
 	- Opened: 20261018-163514
 	- Opened by: JC
@@ -107,6 +59,37 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Decisions:
 		- 20261018: no flags do everything, the `--leakcheck` checks included. `--leakcheck` can be added to other flags that might otherwise skip them.
 		- 20261018: no flags include the `--long` tests too. `--long` stays, for use with other flags that would leave them out.
+	- Note: stage 6 steps timed one at a time on 16 threads. Each Go cross build takes about 3.4s with an empty cache, 1s after a source edit, and 0.3s when nothing changed. arm64 is no slower than amd64 for any OS. Each tgz or zip takes 0.17s, each deb or rpm 0.2 to 0.3s, and each Windows installer 1.1s. The whole stage is about 38s cold, 17s after an edit, and 8s warm.
+	- Note: what reaches another host. The remote sync fetches from the git host, publish pushes to it, the vendor pin check reads GitHub, the interop pin check downloads from npm and crates.io, govulncheck reads vuln.go.dev, and the pin step runs `go install` when a pin moved. No stage uses a test box.
+	- Done: a plain run includes the long tests. `--quick` leaves them out unless `--long` is given too, in either order.
+	- Done: `--quick` keeps all of stage 6, since no target or package stood out. `--no-cross` still skips it, in either order.
+	- Done: `--quick` skips the vendor and interop pin checks and govulncheck. It keeps the sync and publish, since they're what the run is for and have their own `--no-*` flags. It keeps the pin step, which only goes online when a pin moved.
+	- Done: the help, `config.bash` comments, contributing.md, development.md, and the changelog say so. `--ci` appears nowhere but this item.
+	- Verified: the harness's CI engine and remote sync sections passed 41 of 41. The 3 new checks failed against the old `cicd.bash`. `bash -n`, shellcheck, and `test-ids.py check` pass.
+	- Swept: `git grep` for `--quick`, `--long`, `--ci`, and the `CICDTEST_` knobs over the repo. README.md and design.md don't describe these flags.
+	- Test case: `Et9RcGQ` long tests on a plain run, off under `--quick`, back with `--long`. `Et9RcH7` `--quick` cross-compiles and `--no-cross` wins. `Et9RcHq` `--quick` skips the checks that reach another host. `ErmCp2G` and `ErmCp2H` still pin the perf and quick knobs.
+	- Branch: flags
+	- Commit: 2abd0ac
+
+- A bare `tail: ,` in a config reads as no tail.
+	- ID: 2026101411014813
+	- Type: Bug
+	- Status: Stalled
+	- Severity: Low
+	- Opened: 20261014-110148
+	- Opened by: split from 2026100417280514
+	- Related IDs: 2026100417280514, 2026100508035901
+	- Target OS: Any
+	- Steps to reproduce:
+		- A config base with `tail: ,` or `tail: , ,`.
+		- Smallest repro in shcl: parse `x: ,` and read `x` as a list. It comes back empty, the same as `x:`.
+	- Incorrect behavior: the base loads with no tail, and nothing is said.
+	- Expected behavior: a comma tail, or an error that names the line. A quoted `","` reaches the loader and is refused as only commas.
+	- Reproduced: 20261005, on shcl 2317df56.
+	- Note: shcl friction, a silent wrong answer. The config loads at exit 0, and the base isn't the one the file describes.
+	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
+	- Progress log:
+		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
 
 - Leak, memory, and correctness checks in the CICD process, for the code end users run.
 	- ID: 2026101816351432
@@ -151,26 +134,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Decisions:
 		- 20261018: a run with no flags runs the `--leakcheck` checks too, per 2026101816351431. The flag adds them to a run whose other flags would skip them, such as `--quick`.
 
-- A bare `tail: ,` in a config reads as no tail.
-	- ID: 2026101411014813
-	- Type: Bug
-	- Status: Stalled
-	- Severity: Low
-	- Opened: 20261014-110148
-	- Opened by: split from 2026100417280514
-	- Related IDs: 2026100417280514, 2026100508035901
-	- Target OS: Any
-	- Steps to reproduce:
-		- A config base with `tail: ,` or `tail: , ,`.
-		- Smallest repro in shcl: parse `x: ,` and read `x` as a list. It comes back empty, the same as `x:`.
-	- Incorrect behavior: the base loads with no tail, and nothing is said.
-	- Expected behavior: a comma tail, or an error that names the line. A quoted `","` reaches the loader and is refused as only commas.
-	- Reproduced: 20261005, on shcl 2317df56.
-	- Note: shcl friction, a silent wrong answer. The config loads at exit 0, and the base isn't the one the file describes.
-	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
-	- Progress log:
-		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
-
 - Hosted CI runs only vet, the Go tests and the build.
 	- ID: 2026101009523062
 	- Type: Enhancement
@@ -200,24 +163,16 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- The release notes table renders, every link downloads, and the notes end with the build line.
 	- Note: once this passes, add one line under Packages and installers in `install.md`: every asset rebuilds to the same bytes from its tagged commit, so the published checksums can be checked against your own build.
 
-- Run on the last Core 2 Duo, and AMD CPUs from that era.
-	- ID: 2026101301161880
-	- Type: Enhancement
+- The repo has no social preview image, so shared links show GitHub's generic card.
+	- ID: 2026101416210405
+	- Type: Task
 	- Status: Queued
-	- Needs external testing: Yes, on an old CPU or an emulated one.
-	- Priority [Feature|Enhancement] | Severity [Bug]: Low
-	- Opened: 20261013-011618
-	- Opened by: JC
-	- Target OS: Linux, Windows and FreeBSD on x86_64, where this project builds them. Macs that old can't run a current macOS anyway.
-	- Requirements [Feature]:
-		- Release builds run on the last Core 2 Duo (Penryn, 2008), and on AMD Phenom II and Athlon II, if that's reasonably doable.
-			- Penryn has SSSE3 and SSE4.1 but no POPCNT. The AMD ones have POPCNT but no SSSE3. So the shared floor is plain x86-64, also called x86-64-v1.
-		- If that isn't doable, the floor is the first Core i3/i5/i7 (Nehalem, 2008), which is x86-64-v2. AMD's first chip at that level is Bulldozer, 2011.
-		- Faster code for newer CPUs is still fine, but it's picked at run time by a CPU feature test, never by the build target.
-		- Tests run the release build on an emulated Penryn and Phenom II, through Intel SDE or QEMU's `-cpu Penryn` and `-cpu phenom`.
-	- Progress log:
-		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
-			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
+	- Priority: Low
+	- Opened: 20261014-162104
+	- Opened by: Repo review 20261014
+	- Assigned to: JC
+	- Target OS: Any
+	- Note: GitHub takes it only on the repo settings page, with no API for it. A 1280x640 image from the demo gif is ready outside the repo.
 
 - The universal macOS binary hasn't been run on an Apple silicon Mac.
 	- ID: 2026101411014811
@@ -273,6 +228,25 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Requirements:
 		- Each string uses the contraction a person would write.
 		- Tests may match these strings exactly, so each one is checked against the harness and the Go tests before it changes.
+
+- Run on the last Core 2 Duo, and AMD CPUs from that era.
+	- ID: 2026101301161880
+	- Type: Enhancement
+	- Status: Queued
+	- Needs external testing: Yes, on an old CPU or an emulated one.
+	- Priority [Feature|Enhancement] | Severity [Bug]: Low
+	- Opened: 20261013-011618
+	- Opened by: JC
+	- Target OS: Linux, Windows and FreeBSD on x86_64, where this project builds them. Macs that old can't run a current macOS anyway.
+	- Requirements [Feature]:
+		- Release builds run on the last Core 2 Duo (Penryn, 2008), and on AMD Phenom II and Athlon II, if that's reasonably doable.
+			- Penryn has SSSE3 and SSE4.1 but no POPCNT. The AMD ones have POPCNT but no SSSE3. So the shared floor is plain x86-64, also called x86-64-v1.
+		- If that isn't doable, the floor is the first Core i3/i5/i7 (Nehalem, 2008), which is x86-64-v2. AMD's first chip at that level is Bulldozer, 2011.
+		- Faster code for newer CPUs is still fine, but it's picked at run time by a CPU feature test, never by the build target.
+		- Tests run the release build on an emulated Penryn and Phenom II, through Intel SDE or QEMU's `-cpu Penryn` and `-cpu phenom`.
+	- Progress log:
+		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
+			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
 	- ID: 2026100413480002
@@ -769,36 +743,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed: its checks pass, and fail with the host broken.
 	- Closed: 20261014-163433
 
-- A design doc says a test checks the README's Go example, and none does.
-	- ID: 2026101416210403
-	- Type: Bug
-	- Status: Done
-	- Severity: Low
-	- Opened: 20261014-162104
-	- Opened by: Repo review 20261014
-	- Target OS: Any
-	- Actual fix: the harness builds the Go example from `use_in_your_code.md` against this tree and checks its output against the command's. `20260801_go_module.md` names the new file.
-	- Test case: `EsifL7e` Go doc example builds and matches the command. It fails with the example's base changed.
-	- Branch: readme-split
-	- Commit: f482f09
-	- Acceptance signoff: Self-closed: its check passes, and fails with the example changed.
-	- Closed: 20261014-163433
-
-- The demo gif is drawn at 960 wide and shown at 800.
-	- ID: 2026101416210404
-	- Type: Enhancement
-	- Status: Done
-	- Priority: Low
-	- Opened: 20261014-162104
-	- Opened by: Repo review 20261014
-	- Target OS: Any
-	- Done: the scenario's new `width = 800` scales the canvas, window chrome, fonts and scroll speed together, so the gif is drawn at the size it's shown. It went from 9.6 MB to 7.5 MB. With no width set, the output is byte for byte what it was.
-	- Test case: none. The gif is rendered output, made only on container runs.
-	- Branch: readme-split
-	- Commit: f482f09
-	- Acceptance signoff: Self-closed: did what the item asked.
-	- Closed: 20261014-163433
-
 - The streaming route is written twice, and a Go caller has to write it a third time. (Code review 20261005 item 6)
 	- ID: 2026100516265606
 	- Type: Enhancement
@@ -1061,6 +1005,21 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next release. The table renders, every link downloads, and the notes end with the build line.
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
+
+- A design doc says a test checks the README's Go example, and none does.
+	- ID: 2026101416210403
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261014-162104
+	- Opened by: Repo review 20261014
+	- Target OS: Any
+	- Actual fix: the harness builds the Go example from `use_in_your_code.md` against this tree and checks its output against the command's. `20260801_go_module.md` names the new file.
+	- Test case: `EsifL7e` Go doc example builds and matches the command. It fails with the example's base changed.
+	- Branch: readme-split
+	- Commit: f482f09
+	- Acceptance signoff: Self-closed: its check passes, and fails with the example changed.
+	- Closed: 20261014-163433
 
 - `install.bash` has stale options and a few rough edges.
 	- ID: 2026101411014804
@@ -1681,6 +1640,21 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed. The tests fail before the fix and pass after, and the wider refusal of tail, pad and markers follows the same reason as the digits.
 	- Closed: 20261005-084420
 
+- The demo gif is drawn at 960 wide and shown at 800.
+	- ID: 2026101416210404
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261014-162104
+	- Opened by: Repo review 20261014
+	- Target OS: Any
+	- Done: the scenario's new `width = 800` scales the canvas, window chrome, fonts and scroll speed together, so the gif is drawn at the size it's shown. It went from 9.6 MB to 7.5 MB. With no width set, the output is byte for byte what it was.
+	- Test case: none. The gif is rendered output, made only on container runs.
+	- Branch: readme-split
+	- Commit: f482f09
+	- Acceptance signoff: Self-closed: did what the item asked.
+	- Closed: 20261014-163433
+
 - A command line that can't be parsed exits 1, the same as a failed conversion. (Code review 20261005 item 7)
 	- ID: 2026100516265607
 	- Type: Enhancement
@@ -2065,6 +2039,44 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: none, comments only, and the research scripts have no tests.
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-140028
+
+- `--version` prints `v3.0.0 build ddgee`, with no program name.
+	- ID: 2026101411014809
+	- Type: Task
+	- Status: Done
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Related IDs: 2026100408500169
+	- Target OS: Any
+	- Note: the usual form is `convert-base-v2 v3.0.0 build ddgee`, and `--about` already uses it.
+	- Note: `install.bash` and scripts compare the first word of `--version` with the release tag, so a program name in front would break them.
+	- Progress log:
+		- 20261014: waiting on a choice: keep `--version` as it is, or add the program name and update `install.bash` and the scripts to match.
+		- 20261014: answered: name, version, build, with no space at either end.
+	- Done: `--version` prints `convert-base-v2 v3.0.0 build ddgee`. `install.bash` and the release notes drop the name before comparing the version, so an installed pre-3.0.1 build still reads as current.
+	- Test case: `ErlL5dx` --version one-line format, `ErlL5cs` and `ErlL5dO` in Go, `Esj2Pos` install.bash sees it's current, for the new line and both old ones, and `ErlN8Nk` for the release notes.
+	- Branch: dogfood-ver
+	- Commit: 07a81b5
+	- Acceptance signoff: Self-closed: its checks pass, and fail with the change undone.
+	- Closed: 20261014-180028
+
+- The dogfood stage copies only the native Linux build, and its destination is a private path in the public `cicd/config.bash`.
+	- ID: 2026101411014810
+	- Type: Task
+	- Status: Done
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: Linux, Windows, macOS
+	- Note: stage 7 copies the Linux build to a synced tools dir named in `DOGFOOD_FIXED_DESTS`. The Windows and macOS builds aren't copied to their own synced dirs.
+	- Progress log:
+		- 20261014: waiting on a choice: copy the Windows and macOS builds too, and move the path out of the public config.
+		- 20261014: answered yes to both.
+	- Done: stage 7 also copies the Windows x86_64 exe and the macOS universal build, listed in `DOGFOOD_CROSS`, but only when stage 6 built them in the same run. The dirs moved to a file outside the repo, named by `DOGFOOD_LOCAL`, and the public config lists none.
+	- Test case: `Esj2PpU`, `Esj2Pq1` and `Esj2PqY` for the cross copies, the skip without stage 6, and `--no-dogfood`. `Esj2Pr6` fails if `config.bash` names a personal dir again.
+	- Branch: dogfood-ver
+	- Commit: 07a81b5
+	- Acceptance signoff: Self-closed: its checks pass, and fail with the change undone.
+	- Closed: 20261014-180028
 
 - macOS gets a universal binary for both amd64 and ARM.
 	- ID: 2026100313304792

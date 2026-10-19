@@ -31,7 +31,7 @@ make vet
 make test
 ~~~
 
-Before sending a pull request, run the pipeline from the repo root. `--quick` skips the slow stages. `--no-dogfood` keeps it from installing the build over a copy on your PATH, and `--no-publish` from committing and pushing.
+Before sending a pull request, run the pipeline from the repo root. `--quick` skips the slow tests and the checks that reach other hosts. `--no-dogfood` keeps it from installing the build over a copy on your PATH, and `--no-publish` from committing and pushing.
 
 ~~~bash
 cicd/cicd.bash --quick --no-dogfood --no-publish -y

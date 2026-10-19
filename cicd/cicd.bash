@@ -49,14 +49,20 @@
 ##	                       when only behind, and stops when the branch and its upstream have diverged)
 ##	   --gate              the fast merge gate only: format check, lint, unit tests. No log, no
 ##	                       container, no publish. The git pre-push hook runs this for dev and main.
-##	   --long              exhaustive test run (sets CICDTEST_DO_LONGTEST=1)
-##	   --quick             skip the slow stages (cross-compile, profiler, screenshots, demo gif), shorten fuzz,
-##	                       and skip the harness perf section and packaging rebuild check
+##	   --long              the exhaustive tests (CICDTEST_DO_LONGTEST=1). A run without --quick has them
+##	                       already, so this is for adding them back to a --quick run.
+##	   --quick             the fast checks only. Skips the profiler, screenshots, demo gif, the long tests,
+##	                       and the checks that reach another host (vendor and interop pins, govulncheck).
+##	                       Fuzz is shorter, and the harness skips its perf section and packaging rebuild
+##	                       check. It still cross-compiles and packages, which takes seconds.
 ##	   --container         run stages 1 to 4, 6 and the demo gif in the pinned image from cicd/container/,
 ##	                       where a missing tool is an error. The profiler, dogfood and publish then run here.
 ##	                       The default when config.bash sets CONTAINER_DEFAULT=1.
 ##	   --host              run every stage here, with whatever tools this machine has
 ##	   -h, --help          show this help
+##	- A run with no flags runs everything, the long tests included. --quick leaves them out,
+##	  and --long puts them back, whichever comes first.
+##	- --quick still fetches first and publishes last. --no-sync and --no-publish skip those.
 ##	- If neither -q/-y nor -m is given, the run prompts once for a commit message
 ##	  (blank = git editor; Ctrl+C aborts the whole run), then finishes unattended.
 ##	- --container needs docker, or CICD_DOCKER naming a program that takes its arguments.
@@ -99,7 +105,7 @@ export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the En
 
 ## Parse options. The originals are kept for a restart after the sync.
 orig_args=("$@")
-assume_yes=0; quiet=0; quick=0; do_long=0; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0
+assume_yes=0; quiet=0; quick=0; do_long=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0
 while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
@@ -116,12 +122,18 @@ while (($#)); do case "$1" in
 	--no-sync)                do_sync=0; shift ;;
 	--gate)                   gate=1; shift ;;
 	--long)                   do_long=1; inner_args+=("$1"); shift ;;
-	--quick)                  quick=1; BUILD_CROSS=0; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
+	--quick)                  quick=1; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
 	--message=*|--msg=*|-m=*) cli_message="${1#*=}"; shift ;;
 	-m|--message|--msg)       cli_message="${2-}"; shift; (($#)) && shift ;;
 	-h|--help)                sed -n '/^##	- Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##	\{0,1\}//'; exit 0 ;;
 	*) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
 esac; done
+## The slow extras a plain run does and --quick doesn't. Each starts empty, and
+## its flag sets it to 1, so naming one keeps it in a quick run.
+full_extras=(do_long)
+for extra in "${full_extras[@]}"; do [[ -n "${!extra}" ]] || printf -v "${extra}" '%s' "$(( ! quick ))"; done
+## --quick stays on this machine. These checks reach another host.
+if ((quick)); then VENDOR_CHECK_CMD=(); INTEROP_CHECK_CMD=(); VULN_CMD=(); fi
 ## The container run does its part and leaves the rest to the host run that
 ## started it. The host run also keeps the log, so this one doesn't.
 if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then
@@ -424,7 +436,7 @@ if ((FUZZ_ENABLE)); then
 else
 	fEcho_Chat "Fuzz ................: (disabled)"
 fi
-fEcho_Chat "Security ............: ${VULN_CMD[*]}  (if installed)"
+if ((${#VULN_CMD[@]})); then fEcho_Chat "Security ............: ${VULN_CMD[*]}  (if installed)"; else fEcho_Chat "Security ............: (skipped)"; fi
 if ((PROFILE_ENABLE)); then
 	fEcho_Chat "Profiler ............: bench ${PROFILE_BENCH} ${PROFILE_TIME} -> flamegraph SVG"
 	fEcho_Chat "  output dir ........: ${profile_dir}"
@@ -789,3 +801,4 @@ fEcho_Clean
 ##		- 2026-10-10 JC: Container runs can be the default (CONTAINER_DEFAULT), with --host to opt out. Build contexts from outside the repo.
 ##		- 2026-10-14 JC: --gate and its pre-push hook; fetch and fast-forward before building, --no-sync to skip.
 ##		- 2026-10-14 JC: Dogfood the cross builds too (DOGFOOD_CROSS), with personal dirs read from DOGFOOD_LOCAL.
+##		- 2026-10-19 JC: A plain run has the long tests. --quick still cross-compiles, and skips the checks that reach another host.
