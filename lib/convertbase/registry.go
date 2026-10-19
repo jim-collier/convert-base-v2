@@ -224,21 +224,21 @@ func (b *Base) Finalize() error {
 func (b *Base) checkUTF8() error {
 	if !b.Binary {
 		if i := firstInvalidUTF8(b.Symbols); i >= 0 {
-			return fmt.Errorf("base %q: digit %q at index %d is not valid UTF-8", b.Name(), b.Symbols[i], i)
+			return fmt.Errorf("base %q: digit %q at index %d isn't valid UTF-8", b.Name(), b.Symbols[i], i)
 		}
 	}
 	if i := firstInvalidUTF8(b.TailSymbols); i >= 0 {
-		return fmt.Errorf("base %q: tail symbol %q at index %d is not valid UTF-8", b.Name(), b.TailSymbols[i], i)
+		return fmt.Errorf("base %q: tail symbol %q at index %d isn't valid UTF-8", b.Name(), b.TailSymbols[i], i)
 	}
 	if !utf8.ValidString(b.PadSymbol) {
-		return fmt.Errorf("base %q: padding symbol %q is not valid UTF-8", b.Name(), b.PadSymbol)
+		return fmt.Errorf("base %q: padding symbol %q isn't valid UTF-8", b.Name(), b.PadSymbol)
 	}
 	for _, mk := range []struct {
 		kind string
 		mark *string
 	}{{"negative", b.Negative}, {"decimal", b.Decimal}} {
 		if mk.mark != nil && !utf8.ValidString(*mk.mark) {
-			return fmt.Errorf("base %q: %s marker %q is not valid UTF-8", b.Name(), mk.kind, *mk.mark)
+			return fmt.Errorf("base %q: %s marker %q isn't valid UTF-8", b.Name(), mk.kind, *mk.mark)
 		}
 	}
 	return nil
@@ -341,7 +341,7 @@ func (b *Base) addDecodeAliases(singleCase bool) error {
 	for alias, target := range b.DecodeAliases {
 		tv, ok := b.value[target]
 		if !ok {
-			return fmt.Errorf("base %q: decode alias %q targets %q, which is not a digit", b.Name(), alias, target)
+			return fmt.Errorf("base %q: decode alias %q targets %q, which isn't a digit", b.Name(), alias, target)
 		}
 		forms := []string{alias}
 		if singleCase && len(alias) == 1 {
@@ -410,7 +410,7 @@ func (b *Base) resolveMarkers() error {
 		}
 		for _, s := range b.Symbols {
 			if s != mk.mark && strings.Contains(s, mk.mark) {
-				return fmt.Errorf("base %q: %s marker %q appears inside digit symbol %q; pick a marker that is not part of any digit", b.Name(), mk.kind, mk.mark, s)
+				return fmt.Errorf("base %q: %s marker %q appears inside digit symbol %q; pick a marker that isn't part of any digit", b.Name(), mk.kind, mk.mark, s)
 			}
 		}
 	}
@@ -519,7 +519,7 @@ func (b *Base) checkTailDigitsOneChar() error {
 				}
 			}
 		}
-		return fmt.Errorf("base %q: a tail needs every digit to be a single character, and digit %q is not", b.Name(), bad)
+		return fmt.Errorf("base %q: a tail needs every digit to be a single character, and digit %q isn't", b.Name(), bad)
 	}
 	for _, s := range b.TailSymbols {
 		if utf8.RuneCountInString(s) != 1 {
@@ -616,7 +616,7 @@ func (b *Base) digitValues(s string) ([]int, error) {
 			}
 		}
 		if matched == 0 {
-			return nil, fmt.Errorf("cannot tokenize %q in base %q", s, b.Name())
+			return nil, fmt.Errorf("can't tokenize %q in base %q", s, b.Name())
 		}
 		out = append(out, v)
 		s = s[matched:]

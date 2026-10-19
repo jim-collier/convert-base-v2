@@ -119,7 +119,7 @@ func TestUpgradeConfigRefuses(t *testing.T) {
 		{"bracket value", "base: x\n\tsymbols: [ab]\n", "line 2: bracket array syntax"},
 		{"bracket header", "base: [x]\n\tsymbols: ab\n", "line 1: bracket array syntax"},
 		// Migrate hands this back unchanged and unstamped.
-		{"unclosed raw block", "base: x\n\tsymbols: 01\n\ttail:\n\t\t~~~\n\t\tab\n", "did not finish"},
+		{"unclosed raw block", "base: x\n\tsymbols: 01\n\ttail:\n\t\t~~~\n\t\tab\n", "didn't finish"},
 		{"unknown field", "base: x\n\tsybmols: ab\n", `line 2: base "x": unknown field "sybmols"`},
 		// The old rules read a newline here, which has no spelling now.
 		{"windows path newline", "base: x\n\tsymbols: C:\\new x\n", "line 2: value starts like a Windows path"},

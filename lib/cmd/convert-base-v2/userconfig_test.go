@@ -276,7 +276,7 @@ func TestUpgradeConfigFileRefused(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if err := reg.LoadConfig(path); err == nil || !strings.Contains(err.Error(), "cannot be converted") {
+	if err := reg.LoadConfig(path); err == nil || !strings.Contains(err.Error(), "can't be converted") {
 		t.Fatalf("LoadConfig: %v", err)
 	}
 }
@@ -296,7 +296,7 @@ func TestUpgradeConfigFileReadOnlyDir(t *testing.T) {
 	t.Cleanup(func() { _ = os.Chmod(dir, 0o755) }) // lets TempDir remove it; a failure shows there
 
 	note := upgradeConfigFile(path, upgradeTime)
-	if !strings.Contains(note, "could not be converted") || !strings.Contains(note, "read the old way") {
+	if !strings.Contains(note, "couldn't be converted") || !strings.Contains(note, "read the old way") {
 		t.Fatalf("note %q", note)
 	}
 	if got := fileText(t, path); got != oldUserConfig {

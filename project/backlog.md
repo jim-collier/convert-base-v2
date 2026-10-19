@@ -240,7 +240,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Error and note text says "cannot", "is not", "does not" and the like where a person would use a contraction.
 	- ID: 2026101411014807
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
 	- Priority: Low
 	- Opened: 20261014-110148
 	- Opened by: Repo review 20261014
@@ -249,6 +249,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Requirements:
 		- Each string uses the contraction a person would write.
 		- Tests may match these strings exactly, so each one is checked against the harness and the Go tests before it changes.
+	- Done: 56 strings changed, 52 in Go (the command, its help, the library, the reactor), 3 in `install.bash` and 1 in the browser page. "must not be negative" became "can't be negative". The GPL "There is no warranty" line stays as it is.
+	- Note: the library's error text changed, so the changelog says so under beta1. Its errors are typed and matched with `errors.As`, there are no sentinel values, and the reactor and browser codes are the same. No doc quotes any of the changed text.
+	- Done: 9 harness checks and 7 Go test lines that matched the old text now match the new.
+	- Verified: `go test ./...`, vet, staticcheck and golangci-lint pass. The full harness passed 678 of 678, the `lib/wasm` tests under node included. The new test failed on the old `convert.go`, `install.bash` and `index.html`, with 40 hits.
+	- Swept: every string literal in the non-test Go files of `cmd/convert-base-v2`, `convertbase`, `internal/errcode`, `reactor` and `wasm`, and every non-comment line of `install.bash` and `web/index.html`. Comments, `lib/shcl/shcl.go`, the compatibility bases' output, test names and the cicd scripts were left alone.
+	- Test case: `Et9kwvY` TestMessagesUseContractions, which fails on a long-form negation in any of the swept strings.
+	- Acceptance signoff: Self-closed: mechanical, and its test passes.
+	- Branch: contractions
+	- Closed: 20261019-073500
 
 - Run on the last Core 2 Duo, and AMD CPUs from that era.
 	- ID: 2026101301161880

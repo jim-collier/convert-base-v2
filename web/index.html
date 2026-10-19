@@ -213,7 +213,7 @@
 				fetch("convert-base.wasm"), go.importObject);
 			go.run(result.instance);
 		} catch (err) {
-			setStatus("Could not load the module: " + err.message);
+			setStatus("Couldn't load the module: " + err.message);
 			return;
 		}
 

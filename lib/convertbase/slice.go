@@ -43,7 +43,7 @@ func (b *Base) SymbolSlice(s string, start, count int) (string, error) {
 // (the word-safe base 32 starts at "2").
 func (b *Base) Fit(s string, width int) (string, error) {
 	if width < 0 {
-		return "", fmt.Errorf("base %q: fit width must not be negative", b.Name())
+		return "", fmt.Errorf("base %q: fit width can't be negative", b.Name())
 	}
 	digits, err := b.Tokenize(s)
 	if err != nil {

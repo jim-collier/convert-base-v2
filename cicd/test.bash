@@ -581,7 +581,7 @@ fi
 printf 'base: x\n\tsymbols: [ab]\n' >"${CBT_TMP}/oldbad.shcl"
 migdir="$(fMigDir mig2 "${CBT_TMP}/oldbad.shcl")"
 XDG_CONFIG_HOME="$migdir" _run 255 16
-_assert ErgDzUI errmsg "unconvertible old config refused" 'cannot be converted'
+_assert ErgDzUI errmsg "unconvertible old config refused" "can't be converted"
 { cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "${CBT_TMP}/oldbad.shcl" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
 	&& _pass ErgDzUJ "unconvertible old config left alone" || _fail ErgDzUJ "unconvertible old config left alone" "changed, or backups=$(fBackups "$migdir")"
 
@@ -593,7 +593,7 @@ else
 	chmod 555 "${migdir}/convert-base-v2"
 	XDG_CONFIG_HOME="$migdir" _run --from 10 --to oldtab 6
 	_assert ErgDzUK eq "read-only config dir still reads the old way" '12'
-	[[ "$_err" == *"could not be converted"* ]] && _pass ErgDzUL "read-only config dir says so" || _fail ErgDzUL "read-only config dir says so" "err=[$_err]"
+	[[ "$_err" == *"couldn't be converted"* ]] && _pass ErgDzUL "read-only config dir says so" || _fail ErgDzUL "read-only config dir says so" "err=[$_err]"
 	{ cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "$oldcfg" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
 		&& _pass ErgDzUM "read-only config dir loses nothing" || _fail ErgDzUM "read-only config dir loses nothing" "changed, or backups=$(fBackups "$migdir")"
 	chmod 755 "${migdir}/convert-base-v2"
@@ -848,7 +848,7 @@ cvec EjK8KIp "base91 test"     91hk 74657374         "fPNKd"
 ## a pipe as from an argument.
 b91pipe="$(printf 'fPN-Kd' | "${TIMEOUT[@]}" "${EXE}" --from 91hk --to bytes 2>&1)" && b91pipe="rc=0 [$b91pipe]"
 _run --from 91hk --to bytes -- 'fPN-Kd'
-{ ((_rc != 0)) && [[ "$_err" == *"not a base-91 symbol"* ]] && [[ "$b91pipe" == *"not a base-91 symbol"* ]]; } && _pass ErkSf4e "base91 refuses junk, argv and pipe" || _fail ErkSf4e "base91 refuses junk, argv and pipe" "argv rc=$_rc err=[$_err] pipe=[$b91pipe]"
+{ ((_rc != 0)) && [[ "$_err" == *"isn't a base-91 symbol"* ]] && [[ "$b91pipe" == *"isn't a base-91 symbol"* ]]; } && _pass ErkSf4e "base91 refuses junk, argv and pipe" || _fail ErkSf4e "base91 refuses junk, argv and pipe" "argv rc=$_rc err=[$_err] pipe=[$b91pipe]"
 ## The four big bases match the published third-party layouts byte-for-byte.
 ## These fixed vectors (input bytes -> exact output code points) guard that
 ## interop; they come straight from the reference implementations. Each pins the
@@ -939,7 +939,7 @@ ntrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols 
 check El5mcJm errmsg "tail below 8 bits rejected" 'above 256 symbols' -- --from bytes --to 64 --to-tail "⸐ ⸑" 5
 check El5mcJn errmsg "tail not power of 2 rejected" 'power of 2' -- --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑ ⸒" 5
 check El5mcJo errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 1024tz --to-tail "⸐ ⸑" 5
-check El5mcJp errmsg "tail on bytes rejected" 'do not apply' -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
+check El5mcJp errmsg "tail on bytes rejected" "don't apply" -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
 ## Binary decode of a tail base reads one character per digit, so a tail on a
 ## base of longer digits used to encode bytes it could not decode.
 SYM2048W=""; for ((cp=0; cp<2048; cp++)); do printf -v ch '\\U%08x\\U%08x' $((0x4E00 + cp / 64)) $((0x5000 + cp % 64)); printf -v ch "$ch"; SYM2048W+="${ch} "; done
@@ -959,12 +959,12 @@ check ErmufYc errmsg "config comma-only tail names the field" 'line 3: base "cfg
 ## streaming decode refused.
 printf 'hi' >"${CBT_TMP}/hi.bin"
 _run_in "${CBT_TMP}/hi.bin" --from bytes --to-symbols $'\x80 \x81 \xc3\xa9 \xc3\xa8'
-_assert Erq3i2u errmsg "invalid UTF-8 digit refused" 'base "custom(4)": digit "\x80" at index 0 is not valid UTF-8'
+_assert Erq3i2u errmsg "invalid UTF-8 digit refused" 'base "custom(4)": digit "\x80" at index 0 '"isn't valid UTF-8"
 printf -- 'base: cfgbadutf\n\tsymbols: "\xff a b c"\n##    Format   3\n' >"${CBT_TMP}/bad-utf8.shcl"
-check Erq3i3e errmsg "config invalid UTF-8 digit refused" 'base "cfgbadutf": digit "\xff" at index 0 is not valid UTF-8' -- --config "${CBT_TMP}/bad-utf8.shcl" 5 16
+check Erq3i3e errmsg "config invalid UTF-8 digit refused" 'base "cfgbadutf": digit "\xff" at index 0 '"isn't valid UTF-8" -- --config "${CBT_TMP}/bad-utf8.shcl" 5 16
 ## A stray byte later in the quotes made shcl skip the closing quote (E017).
 printf -- 'base: cfgbadutf\n\tsymbols: "a b \x80 c"\n##    Format   3\n' >"${CBT_TMP}/bad-utf8-mid.shcl"
-check ErsoOAv errmsg "config invalid UTF-8 digit mid-quote refused" 'base "cfgbadutf": digit "\x80" at index 2 is not valid UTF-8' -- --config "${CBT_TMP}/bad-utf8-mid.shcl" 5 16
+check ErsoOAv errmsg "config invalid UTF-8 digit mid-quote refused" 'base "cfgbadutf": digit "\x80" at index 2 '"isn't valid UTF-8" -- --config "${CBT_TMP}/bad-utf8-mid.shcl" 5 16
 
 ## Same tail declared in a config file rather than on the command line.
 tailcfg="${CBT_TMP}/tail.shcl"
@@ -974,7 +974,7 @@ cfgrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --fro
 [[ "$cfgrt" == "$tailwant" ]] && _pass El5mcJq "config tail round-trips" || _fail El5mcJq "config tail round-trips" "got='$cfgrt'"
 
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
-check EizUJEC errmsg "odd hex -> binary guarded" 'cannot decode to binary' -- --from 16 --to bytes ABC
+check EizUJEC errmsg "odd hex -> binary guarded" "can't decode to binary" -- --from 16 --to bytes ABC
 
 ## --lower/--upper on piped input give the same bytes as recasing the plain
 ## encode afterward, on the byte path, the --binary route and the wide path.
@@ -2030,7 +2030,7 @@ chmod +x "${inDir}/bin/curl"
 ## The API lists releases one field per line, as GitHub serves it.
 fInList(){ local t; printf '[\n'; for t in "$@"; do printf '  {\n    "tag_name": "%s",\n    "draft": %s,\n    "prerelease": %s\n  },\n' "${t%%:*}" "$( [[ "${t}" == *:draft ]] && echo true || echo false)" "$( [[ "${t}" == *:pre* ]] && echo true || echo false)"; done; printf ']\n'; }
 fInRun(){ inrc=0; HOME="${inDir}/home" FAKE_RELEASE="${inDir}/release.json" PATH="${inDir}/bin:${PATH}" bash "${meDir}/../install.bash" "$@" </dev/null >"${CBT_OUT}" 2>"${CBT_ERR}" || inrc=$?; inOut="$(<"${CBT_OUT}")"; }
-for inCase in '{"message": "Not Found"}|could not determine the stable release tag' 'v9.9.9|no checksum for convert-base-v2-'; do
+for inCase in '{"message": "Not Found"}|'"couldn't determine the stable release tag" 'v9.9.9|no checksum for convert-base-v2-'; do
 	if [[ "${inCase}" == v* ]]; then fInList "${inCase%%|*}" >"${inDir}/release.json"; else printf '%s\n' "${inCase%%|*}" >"${inDir}/release.json"; fi
 	inWant="${inCase#*|}"; fInRun -y
 	{ ((inrc == 1)) && grep -qF -- "${inWant}" "${CBT_ERR}"; } && _pass Erm3T0M "install.bash says why: ${inWant}" \
