@@ -34,6 +34,41 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- Run CICD on GitHub's free arm64 macOS runners.
+	- ID: 2026102318390688
+	- Type: Enhancement
+	- Status: Waiting on automated testing
+	- Priority: Avg
+	- Opened: 20261023-183906
+	- Opened by: JC
+	- Related IDs: 2026101411014811
+	- Target OS: macOS
+	- Requirements:
+		- Build, run the tests, and smoke-test the CLI on the built binary.
+	- Progress log:
+		- 20261023: new `macos-arm64` job in `ci.yml` on `macos-15`. It runs `go test`, builds with the version stamp, checks the binary is arm64, and runs `--version` and 5 conversions, bytes both ways included.
+	- Note: waits on the first hosted run after the merge to dev.
+	- Test case: the job is the test. No local one, since it needs the hosted runner.
+	- Branch: macos-date
+
+- Non-release builds show the date after the build number.
+	- ID: 2026102318392210
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261023-183906
+	- Opened by: JC
+	- Target OS: Any
+	- Requirements:
+		- For non-release builds, include " (YYYY-mm-DD)" after the build number.
+		- Report the date as the local date of whoever views the version.
+	- Progress log:
+		- 20261023: a release is a bare tag, betas and RCs included. A describe suffix, `-dirty`, a bare hash or `dev` adds the commit date in the local time zone. Unstamped builds have no build number and no date. The installers read only the first word, so they're unaffected.
+	- Verified: 20261023, the same build reads 2026-10-19 here and 2026-10-20 with `TZ=Asia/Tokyo`. The date test failed with the date forced to UTC.
+	- Test case: `EtZtfNg` which versions count as releases. `EtZtfOY` the date and its time zone, and no date on a release. `ErlL5dO` now expects the date from a stamped non-release binary.
+	- Branch: macos-date
+	- Closed: 20261023
+
 - Hosted CI fails at the native build on every dev push since the `install.ps1` merge.
 	- ID: 2026101911072100
 	- Type: Bug
@@ -99,7 +134,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The Windows `.exe` files have no icon or version information resource.
 	- ID: 2026101411014805
 	- Type: Enhancement
-	- Status: Waiting for testing
+	- Status: Waiting on UAT
 	- Needs external testing: Yes. On Windows, look at the icon in Explorer on both exes and both installers, and the Add/Remove Programs icon after an install.
 	- Priority: Low
 	- Opened: 20261014-110148
@@ -209,13 +244,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Priority: Low
 	- Opened: 20261014-110148
 	- Opened by: split from 2026100313304792
-	- Related IDs: 2026100313304792
+	- Related IDs: 2026100313304792, 2026102318390688
 	- Target OS: macOS
+	- Note: hosted CI now tests and runs a native darwin/arm64 build on an Apple silicon runner. That isn't the release's universal binary, so this stays open.
 
 - Run on the last Core 2 Duo, and AMD CPUs from that era.
 	- ID: 2026101301161880
 	- Type: Enhancement
-	- Status: Waiting for testing
+	- Status: Waiting on UAT
 	- Needs external testing: Yes, on an old CPU or an emulated one.
 	- Priority [Feature|Enhancement] | Severity [Bug]: Low
 	- Opened: 20261013-011618
@@ -2928,10 +2964,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 	- The ID is the local time to the hundredth of a second. Opened is when it was written down, which may differ. (Use a keyboard macro and possibly something like project 'zuid' to generate.)
 
-	- Status values meaning: Testing means the fix is in and checks are running or still to run. Waiting on signoff means automated testing passed. Moot means something else changed that made it irrelevant. Canceled means it still applies but was decided against. Waiting for testing means the fix is in and waits on a long CI run or an outside test host. Can't reproduce means a real attempt to reproduce it failed.
+	- Status values meaning: Testing means the fix is in and checks are running or still to run. Waiting on signoff means automated testing passed. Moot means something else changed that made it irrelevant. Canceled means it still applies but was decided against. The 4 Waiting on statuses for testing mean the fix is in and waits on what they name, with who does it in brackets: Waiting on automated testing [automated] is a test that runs without a person, such as hosted CI or a soak. Waiting on a partial CICD run [human or automated] and Waiting on a full CICD run [human or automated] are a `cicd.bash` run with or without `--quick` and its skip flags. Waiting on UAT [human] is a person trying it, often on an outside test host. Can't reproduce means a real attempt to reproduce it failed.
 
 	- As issues are worked, and statuses change, place them in correct sorting order within the list:
-		- First by status: Waiting for answers, Waiting on signoff, Testing, Waiting for testing, Can't reproduce, Stalled, Started, Queued, Done, Deferred, Canceled, Moot
+		- First by status: Waiting for answers, Waiting on signoff, Testing, Waiting on automated testing, Waiting on a partial CICD run, Waiting on a full CICD run, Waiting on UAT, Can't reproduce, Stalled, Started, Queued, Done, Deferred, Canceled, Moot
 		- Then by severity|priority: Critical, High, Avg, Low
 		- Then by type: Bugs, [not bugs together]
 
@@ -2942,7 +2978,7 @@ Template:
 - Title
 	- ID: YYYYmmDDHHMMSSNN
 	- Type: [Bug|Feature|Enhancement|Task]
-	- Status: [Queued|Waiting for answers|Waiting on signoff|Waiting for testing|Started|Testing|Stalled|Can't reproduce|Moot|Canceled|Deferred|Done]
+	- Status: [Queued|Waiting for answers|Waiting on signoff|Waiting on automated testing|Waiting on a partial CICD run|Waiting on a full CICD run|Waiting on UAT|Started|Testing|Stalled|Can't reproduce|Moot|Canceled|Deferred|Done]
 	- Needs local test suite run?:
 	- Needs external testing:
 	- Priority [Feature|Enhancement] | Severity [Bug]: [Critical|High|Avg|Low]
