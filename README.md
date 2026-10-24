@@ -133,7 +133,7 @@ convert-base-v2 --show-symbols 64emoji
 
 A base can hold control characters as digits, which are impossible to type at a prompt and invisible on a terminal. Those can be written by name instead, as `⊳LF`, `⊳HT`, `⊳CR` and so on. Input takes the named and the raw forms mixed, always; output writes them only when `--escape-controls` asks for it. The marker is a character no such base uses, so nothing ever needs escaping twice.
 
-Run `convert-base-v2 --help` for the full flag list, or `--examples` for more. `--about` says what the tool is and where it lives, and `--donate` lists the ways to support it. `--version` prints the name, version and build number, as `convert-base-v2 v3.1.0 build dbrk8`; a bug report with that line says exactly which build it was.
+Run `convert-base-v2 --help` for the full flag list, or `--examples` for more. `--about` says what the tool is and where it lives, and `--donate` lists the ways to support it. `--version` prints the name, version and build number, as `convert-base-v2 v3.1.0 build dbrk8`, plus the date for a build between releases. A bug report with that line says exactly which build it was.
 
 Exit status is 0 on success, 1 when the conversion fails, and 2 for a command line that can't be used, so a script can tell them apart.
 

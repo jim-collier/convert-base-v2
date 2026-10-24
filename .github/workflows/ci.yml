@@ -1,7 +1,7 @@
-# Two jobs. "build" is the bare safety net: the module vets, tests and builds
-# with nothing but Go. "pipeline" runs the container part of cicd/cicd.bash in
-# the image from cicd/container, so the harness, interop, shellcheck and ruff
-# run here too. Profiling, dogfood, publish and the demo gif stay local.
+# Three jobs. "build" is the bare safety net: the module vets, tests and builds
+# with nothing but Go. "macos-arm64" tests and runs it on Apple silicon.
+# "pipeline" runs the container part of cicd/cicd.bash in the image from
+# cicd/container, so the harness, interop, shellcheck and ruff run here too. Profiling, dogfood, publish and the demo gif stay local.
 name: ci
 
 on:
@@ -33,6 +33,40 @@ jobs:
         run: go test ./...
       - name: build
         run: go build ./...
+
+  # Native Apple silicon. Cross builds only prove darwin/arm64 links, so this
+  # runs the tests and the built binary on a real arm64 Mac.
+  macos-arm64:
+    runs-on: macos-15
+    defaults:
+      run:
+        working-directory: lib
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # describe and the build stamp need tags and history
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: .go-version
+          cache: false
+      - name: test
+        run: go test ./...
+      - name: build
+        run: |
+          ver="$(git describe --tags --always --dirty --exclude 'lib/*')"
+          go build -trimpath -ldflags "-s -w -X main.version=${ver} -X main.buildEpoch=$(git log -1 --format=%ct)" -o convert-base-v2 ./cmd/convert-base-v2
+      - name: smoke
+        run: |
+          set -euo pipefail
+          file convert-base-v2 | grep -F arm64
+          ./convert-base-v2 --version | tee /dev/stderr | grep -E '^convert-base-v2 v[0-9].* build [0-9a-z]+'
+          check() { got="$("${@:2}")"; [[ "${got}" == "$1" ]] || { echo "got '${got}' from $*" >&2; exit 1; }; }
+          check FF ./convert-base-v2 255 16
+          check 255 ./convert-base-v2 --from 16 FF
+          check aGVsbG8= sh -c "printf hello | ./convert-base-v2 --from bytes --to 64"
+          check hello sh -c "printf aGVsbG8= | ./convert-base-v2 --from 64 --to bytes"
+          check "ɼధശಳপݷટථރŦၓƨ൝" ./convert-base-v2 1234567899999999999999999999999999987654321 2048qntm
 
   # The image is built on every run from the Actions layer cache and loaded
   # here, never pushed. It's tagged the way cicd.bash looks for it, so the run

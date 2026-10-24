@@ -171,9 +171,9 @@ _run --version
 { ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"[1-9]* ]]; } && _pass ErkSf4k "--version: command tag" || _fail ErkSf4k "--version: command tag" "out=[$_out]"
 ## Still one line for scripts: the name, the version, then the build number when
 ## the build was stamped, with no space at either end. Crockford base32, lower
-## case, so no i, l, o or u.
+## case, so no i, l, o or u. A build between releases ends with its date.
 _run --version
-{ ((_rc == 0)) && [[ "$_out" =~ ^convert-base-v2\ v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+)?$ ]]; } && _pass ErlL5dx "--version one-line format" || _fail ErlL5dx "--version one-line format" "out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" =~ ^convert-base-v2\ v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+( \([0-9]{4}-[0-9]{2}-[0-9]{2}\))?)?$ ]]; } && _pass ErlL5dx "--version one-line format" || _fail ErlL5dx "--version one-line format" "out=[$_out]"
 ## make stamps the commit's time, never the clock, so a release rebuilds to its checksums.
 cbEpoch="$(git -C "${meDir}" log -1 --format=%ct 2>/dev/null || true)"
 if [[ -z "${cbEpoch}" ]] || ! command -v make >/dev/null 2>&1; then

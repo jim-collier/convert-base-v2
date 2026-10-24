@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 // Test ID: ErlL5bp
@@ -87,6 +88,62 @@ func TestVersionText(t *testing.T) {
 	}
 }
 
+// Test ID: EtZtfNg
+func TestIsRelease(t *testing.T) {
+	cases := map[string]bool{
+		"v3.0.0":                  true,
+		"v3.0.1-beta1":            true,
+		"v1.0.0-rc3":              true,
+		"v2.0.0-alpha":            true,
+		"v3.0.1-beta1-3-g07d536e": false,
+		"v3.0.0-dirty":            false,
+		"v3.0.1-beta1-dirty":      false,
+		"07d536e":                 false,
+		"dev":                     false,
+		"":                        false,
+		"3.0.0":                   false,
+		"v3.0":                    false,
+		"v3..0":                   false,
+		"v3.0.x":                  false,
+		"v9.8.7-stamped":          false,
+	}
+	for v, want := range cases {
+		if got := isRelease(v); got != want {
+			t.Errorf("isRelease(%q) = %v, want %v", v, got, want)
+		}
+	}
+}
+
+// The date is the viewer's, so the same build reads a day apart across zones.
+// Test ID: EtZtfOY
+func TestVersionTextDate(t *testing.T) {
+	savedEpoch, savedVersion, savedLocal := buildEpoch, version, time.Local
+	defer func() { buildEpoch, version, time.Local = savedEpoch, savedVersion, savedLocal }()
+	buildEpoch = "1792720800" // 2026-10-23 02:00 UTC
+	cases := []struct {
+		version string
+		zone    *time.Location
+		want    string
+	}{
+		{"v3.0.1-beta1-3-g07d536e", time.UTC, "convert-base-v2 v3.0.1-beta1-3-g07d536e build dea3r (2026-10-23)"},
+		{"v3.0.1-beta1-3-g07d536e", time.FixedZone("CDT", -5*3600), "convert-base-v2 v3.0.1-beta1-3-g07d536e build dea3r (2026-10-22)"},
+		{"dev", time.UTC, "convert-base-v2 dev build dea3r (2026-10-23)"},
+		{"v3.0.1-beta1", time.UTC, "convert-base-v2 v3.0.1-beta1 build dea3r"},
+		{"v3.0.0", time.FixedZone("CDT", -5*3600), "convert-base-v2 v3.0.0 build dea3r"},
+	}
+	for _, c := range cases {
+		version, time.Local = c.version, c.zone
+		if got := versionText(); got != c.want {
+			t.Errorf("%s in %s: got %q, want %q", c.version, c.zone, got, c.want)
+		}
+	}
+	// unstamped has no date to give
+	buildEpoch, version = "", "dev"
+	if got := versionText(); got != "convert-base-v2 dev" {
+		t.Errorf("unstamped dev: got %q", got)
+	}
+}
+
 // Like the version, the build stamp only works while it is a var the linker
 // can patch.
 // Test ID: ErlL5dO
@@ -100,11 +157,13 @@ func TestBuildEpochIsPatchable(t *testing.T) {
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("build: %v\n%s", err, out)
 	}
-	out, err := exec.Command(exe, "--version").Output()
+	run := exec.Command(exe, "--version")
+	run.Env = append(run.Environ(), "TZ=UTC")
+	out, err := run.Output()
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := string(out); got != "convert-base-v2 v9.8.7-stamped build dbd05\n" {
-		t.Errorf("--version = %q, want one line, convert-base-v2 v9.8.7-stamped build dbd05", got)
+	if got := string(out); got != "convert-base-v2 v9.8.7-stamped build dbd05 (2026-08-17)\n" {
+		t.Errorf("--version = %q, want one line, convert-base-v2 v9.8.7-stamped build dbd05 (2026-08-17)", got)
 	}
 }
