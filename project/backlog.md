@@ -37,7 +37,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - Run CICD on GitHub's free arm64 macOS runners.
 	- ID: 2026102318390688
 	- Type: Enhancement
-	- Status: Waiting on automated testing
+	- Status: Done
 	- Priority: Avg
 	- Opened: 20261023-183906
 	- Opened by: JC
@@ -47,9 +47,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Build, run the tests, and smoke-test the CLI on the built binary.
 	- Progress log:
 		- 20261023: new `macos-arm64` job in `ci.yml` on `macos-15`. It runs `go test`, builds with the version stamp, checks the binary is arm64, and runs `--version` and 5 conversions, bytes both ways included.
-	- Note: waits on the first hosted run after the merge to dev.
+	- Verified: 20261023, run 40051477372 passed all 3 jobs. The Mac printed `convert-base-v2 v3.0.0-298-g515f6ee build debg3 (2026-10-24)`, the date in the runner's UTC.
 	- Test case: the job is the test. No local one, since it needs the hosted runner.
 	- Branch: macos-date
+	- Closed: 20261023
 
 - Non-release builds show the date after the build number.
 	- ID: 2026102318392210
@@ -65,7 +66,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261023: a release is a bare tag, betas and RCs included. A describe suffix, `-dirty`, a bare hash or `dev` adds the commit date in the local time zone. Unstamped builds have no build number and no date. The installers read only the first word, so they're unaffected.
 	- Verified: 20261023, the same build reads 2026-10-19 here and 2026-10-20 with `TZ=Asia/Tokyo`. The date test failed with the date forced to UTC.
-	- Test case: `EtZtfNg` which versions count as releases. `EtZtfOY` the date and its time zone, and no date on a release. `ErlL5dO` now expects the date from a stamped non-release binary.
+	- Test case: `EtZtfNg` which versions count as releases. `EtZtfOY` the date and its time zone, and no date on a release. `ErlL5dO` now expects the date from a stamped non-release binary. Harness `ErlL5dx` takes the date on the one-line format.
 	- Branch: macos-date
 	- Closed: 20261023
 
