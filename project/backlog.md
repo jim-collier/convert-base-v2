@@ -63,8 +63,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
 	- Note: the fix is its own item, 2026101911072100.
 	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
-	- Swept: each `install.bash` check has a twin here (`Erm3T0M`, `EshY04X`, `EshY05J`, `EshY061`, `Esj2Pos`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
-	- Test case: `Et9uoIr` PowerShell files are ASCII. `Et9uoJX` parses from its raw bytes. `Et9uoKF` options. `Et9uoKx` and `Et9uoLd` the version pick. `Et9uoMI` installs in the one-liner form and leaves the caller's shell alone. `Et9uoMw` already current. `Et9uoNc` tampered checksum. `Et9uoOI` read-only folder. `Et9uoOx` the prompt. `Et9uoPc` says why. `Et9uoQG`, `Et9uoQv` and `Et9uoRc` the lint step. `Et9kwvY` now reads `install.ps1` too.
+	- Swept: each `install.bash` check has a twin here (`ddgke`, `ddydt`, `ddydv`, `ddydw`, `ddys7`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
+	- Test case: `de582` PowerShell files are ASCII. `de583` parses from its raw bytes. `de584` options. `de585` and `de586` the version pick. `de587` installs in the one-liner form and leaves the caller's shell alone. `de588` already current. `de589` tampered checksum. `de58a` read-only folder. `de58b` the prompt. `de58c` says why. `de58d`, `de58e` and `de58f` the lint step. `de56v` now reads `install.ps1` too.
 	- Branch: ps1
 	- Commit: d3d16d7
 
@@ -94,7 +94,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: `cicd.bash` is the only script that runs docker. Hosted CI builds the image with its own action. `development.md`, `contributing.md` and `design.md` now say `--no-container` or a host run.
 	- Branch: docker
 	- Commit: 0f72411
-	- Test case: Etil6xQ (no working docker), Etil6xR (image won't build), EtilQ9a (`--no-container`). EtAgsPA wanted a failed build to fail the run, so it's commented out with the reason.
+	- Test case: dedmd (no working docker), dedme (image won't build), dedmf (`--no-container`). de5e3 wanted a failed build to fail the run, so it's commented out with the reason.
 
 - CICD reset: container cleanup.
 	- ID: 2026102416280102
@@ -128,7 +128,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every docker listing in the cleanup filters on the project label, and nothing calls `rmi -f` or `system prune`.
 	- Branch: docker
 	- Commit: 0f72411
-	- Test case: Etil6xK (labels and names), Etil6xL (cleanup after a pass), Etil6xM (after a failure), Etil6xN (after Ctrl+C), Etil6xO (`--keep-temp`), Etil6xP (volume cap). EsJjVuH and EsJjVvF wanted the old tag gone right after a build and a run line without labels, so they're commented out with the reason.
+	- Test case: dedm7 (labels and names), dedm8 (cleanup after a pass), dedm9 (after a failure), dedma (after Ctrl+C), dedmb (`--keep-temp`), dedmc (volume cap). ddrph and ddrpj wanted the old tag gone right after a build and a run line without labels, so they're commented out with the reason.
 
 - CICD reset: CPU and priority.
 	- ID: 2026102416280103
@@ -160,7 +160,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every tool the pipeline runs in parallel, which is go build, test, vet and fuzz, the race and soak runs, golangci-lint, staticcheck, govulncheck, CodeQL, cargo in the harness, ruff, and the backup. shellcheck, PSScriptAnalyzer, node, nfpm, makensis and the Python helpers use one core. The browser module tests clear the environment, so they get the counts by name, except GOMAXPROCS, since the wasm program dies when it's over 1. `lib/Makefile` keeps its own default for a hand `make`, and the pipeline's count overrides it. Hosted CI's plain Go job runs on its own runner and is left as it was.
 	- Branch: cpu
 	- Commit: a898a75
-	- Test case: EtixvQc (the counts), EtixvQd (nice and idle I/O), EtixvQe (half on a quiet box), EtixvQf (a quarter for the heavy steps), EtixvQg (load checked again before each step), EtiyAAx (at most the container's `--cpus`), EtixvQh (labels and the CPU limit on the container run), retired by the step output item for Etj4gEu, which checks the same. Etil6xK wanted a run line with no CPU limit, so it's commented out with the reason.
+	- Test case: dednt (the counts), dednv (nice and idle I/O), dednw (half on a quiet box), dednx (a quarter for the heavy steps), dedny (load checked again before each step), dedp0 (at most the container's `--cpus`), dednz (labels and the CPU limit on the container run), retired by the step output item for dedps, which checks the same. dedm7 wanted a run line with no CPU limit, so it's commented out with the reason.
 
 - CICD reset: step output.
 	- ID: 2026102416280105
@@ -190,7 +190,34 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every stage header and every message naming a stage number in `cicd.bash`, the pre-push hook, `.github/workflows/`, `lint-report.bash`, contributing.md, development.md and design.md. Comments in `cicd.bash` and `config.bash` still say "stage" for the old order, which nothing prints.
 	- Branch: steps
 	- Commit: 4c69d4b
-	- Test case: Etj4gBl (step lines), Etj4gCV (off steps listed and not counted), Etj4gDF (FAIL on a failed step), Etj4gGf (gate steps), Etj4gE6 (numbers across the container and host runs), Etj4gFi (counted again after a failed image build), Etj4gEu (the step list on the container run line). EtixvQh wanted a run line with no step list, so it's commented out with the reason. ErmCp2I, Et9RcH7, Esj2Pq1, EsJjVwL, Etil6xN, Etil6xQ, Etil6xR, EshVwKS and EshVwMN now match the new text.
+	- Test case: dedpn (step lines), dedpp (off steps listed and not counted), dedpq (FAIL on a failed step), dedpv (gate steps), dedpr (numbers across the container and host runs), dedpt (counted again after a failed image build), dedps (the step list on the container run line). dednz wanted a run line with no step list, so it's commented out with the reason. ddgmj, de54f, ddys9, ddrpk, dedma, dedmd, dedme, ddydm and ddydq now match the new text.
+
+- CICD reset: test IDs.
+	- ID: 2026102416280106
+	- Type: Enhancement
+	- Status: Waiting on a full CICD run
+	- Needs local test suite run?: a full `cicd/cicd.bash` run, for the fuzz lines with their real IDs and the harness in the container with the packaging rebuilds.
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides the 7-character base 62 test IDs in milliseconds.
+		- Every test ID becomes its creation time in whole minutes since 2000-01-01 UTC, in lowercase Crockford base 32. The old IDs are converted once, from the same times. When 2 come out the same, the newer one takes the next free minute.
+		- The ID tool, the harness's ID check, and the `Test case:` rows in this backlog move to the new IDs together.
+		- The run prints one `PASS`, `FAIL`, or `SKIP` line per regression and fuzz test, with its ID and name. The harness prints `ok` now, and the Go tests print no per-test line.
+	- Progress log:
+		- 20261025: every test ID is now the minute the test was written, in lower case Crockford base 32, converted once from the old IDs' times. One map covers 573 IDs: the live tests, 6 commented-out ones, and 3 that the ID tool's own tests use as samples. 465 shared a minute with an older one and took the next free minute, at most 38 minutes later.
+		- 20261025: the IDs changed together in the harness, the Go tests, this backlog with closed items included, and the private notes. Nothing else in those files changed.
+		- 20261025: the ID check takes the new form and refuses the old one. `new` skips a minute that's already taken, and `new N` gives several.
+		- 20261025: each test prints one line, `PASS`, `FAIL` or `SKIP`, then its ID and name. That covers the harness, the Go tests and the fuzz targets.
+	- Verified: 20261025, the map is one to one, and mapping each changed file back gives the old file exactly. No old ID is left in the repo or the private notes.
+	- Verified: the fast gate passed, with 568 IDs checked. The harness passed 735 of 735, with the packaging rebuilds skipped as under `--quick`.
+	- Verified: each new check failed against the code before the change. An old ID planted in the harness and in a Go test was refused, then taken out.
+	- Swept: the ID tool, the harness helpers and the ID tool's tests, the fuzz lines in `cicd.bash`, contributing.md, and every file with an old ID by `git grep`. The pre-push hook, hosted CI and `lint-report.bash` read no per-test line.
+	- Branch: testids
+	- Commit: 7618572
+	- Test case: dedq9 (old IDs refused), dedqa (`new` skips a taken minute), dedq8 (harness PASS, FAIL and SKIP lines), dedqb (fuzz lines). ddgwd now checks the Go test line too.
 
 - The Windows `.exe` files have no icon or version information resource.
 	- ID: 2026101411014805
@@ -214,7 +241,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
 	- Branch: winres
 	- Commit: 22399be
-	- Test case: Et9pfRW (bare exes), Et9pfS9 (installers). Both failed before the change and pass after.
+	- Test case: de57e (bare exes), de57f (installers). Both failed before the change and pass after.
 
 - Run on the last Core 2 Duo, and AMD CPUs from that era.
 	- ID: 2026101301161880
@@ -237,7 +264,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261019: `package.bash` pins `GOAMD64=v1`. The pipeline image has qemu-user, and the harness runs the linux x86_64 release build as a Penryn and a Phenom II.
 	- Verified: 20261019, under qemu-user, a v1 build converts on Penryn, Phenom and Nehalem. A v2 build is refused on Penryn and Phenom and runs on Nehalem, and a v3 build is refused on all 3.
 	- Note: still open on real hardware, and for the Windows and FreeBSD builds, which are the same code.
-	- Test case: `EtAjZOv` every x86_64 release build says `GOAMD64=v1`. `EtAjy1j` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ErlP6B8` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
+	- Test case: `de5ec` every x86_64 release build says `GOAMD64=v1`. `de5ee` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ddge9` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
 	- Branch: cleanup
 
 - A bare `tail: ,` in a config reads as no tail.
@@ -296,20 +323,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- The pre-push hook runs `--merge-gate` on a push to main only. It skips the gate when the commits touch only docs and the other paths listed in one place.
 		- No gate on a push to dev. Hosted CI runs `--merge-gate` as far as the runner can, on push and PR to main, plus the manual trigger, in place of a `--quick` run on every dev push.
 
-- CICD reset: test IDs.
-	- ID: 2026102416280106
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: High
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides the 7-character base 62 test IDs in milliseconds.
-		- Every test ID becomes its creation time in whole minutes since 2000-01-01 UTC, in lowercase Crockford base 32. The old IDs are converted once, from the same times. When 2 come out the same, the newer one takes the next free minute.
-		- The ID tool, the harness's ID check, and the `Test case:` rows in this backlog move to the new IDs together.
-		- The run prints one `PASS`, `FAIL`, or `SKIP` line per regression and fuzz test, with its ID and name. The harness prints `ok` now, and the Go tests print no per-test line.
-
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
 	- Type: Task
@@ -352,7 +365,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Related IDs: 2026102318392210
 	- Requirements:
 		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides the one-line `--version` that `ErlL5cs` pins.
+		- It overrides the one-line `--version` that `ddgdv` pins.
 		- The build number and the date of a non-release build are in. What's left is the copyright line after the version line in `--version`.
 
 - CICD reset: CICD process gaps.
@@ -425,7 +438,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261023: a release is a bare tag, betas and RCs included. A describe suffix, `-dirty`, a bare hash or `dev` adds the commit date in the local time zone. Unstamped builds have no build number and no date. The installers read only the first word, so they're unaffected.
 	- Verified: 20261023, the same build reads 2026-10-19 here and 2026-10-20 with `TZ=Asia/Tokyo`. The date test failed with the date forced to UTC.
-	- Test case: `EtZtfNg` which versions count as releases. `EtZtfOY` the date and its time zone, and no date on a release. `ErlL5dO` now expects the date from a stamped non-release binary. Harness `ErlL5dx` takes the date on the one-line format.
+	- Test case: `debg1` which versions count as releases. `debg2` the date and its time zone, and no date on a release. `ddgdw` now expects the date from a stamped non-release binary. Harness `ddgdx` takes the date on the one-line format.
 	- Branch: macos-date
 	- Closed: 20261023
 
@@ -445,7 +458,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Then run on a new docker volume, and watch hosted CI go green.
 	- Fixed: the pwsh check runs with `HOME=/tmp/pwsh`, which is removed after. The Dockerfile's last step fails the build if anything is in `/cache/home`.
 	- Verified: 20261019, on a new volume, the old image fails with the same `permission denied` making the Go cache, and the new one makes it. The old image fails the new last step.
-	- Test case: `EtAgsNr` the Dockerfile's last step checks `/cache/home`. `EtAgsOV` nothing root-owned in the container's HOME, which failed on the old image and a new volume.
+	- Test case: `de5e1` the Dockerfile's last step checks `/cache/home`. `de5e2` nothing root-owned in the container's HOME, which failed on the old image and a new volume.
 	- Branch: cleanup
 	- Closed: 20261019. Hosted CI passed on dev, run 39325671266.
 
@@ -485,9 +498,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: the help, `config.bash` comments, contributing.md, development.md, and the changelog say so. `--ci` appears nowhere but this item.
 	- Verified: the harness's CI engine and remote sync sections passed 41 of 41. The 3 new checks failed against the old `cicd.bash`. `bash -n`, shellcheck, and `test-ids.py check` pass.
 	- Swept: `git grep` for `--quick`, `--long`, `--ci`, and the `CICDTEST_` knobs over the repo. README.md and design.md don't describe these flags.
-	- Verified: 20261019, a plain run and `-q` both run the leak checks. `Et9VxXX` now covers `-q`, and failed when `-q` was made to skip them.
+	- Verified: 20261019, a plain run and `-q` both run the leak checks. `de550` now covers `-q`, and failed when `-q` was made to skip them.
 	- Done: `--no-leakcheck` skips the leak checks. Of it and `--leakcheck`, the last one named wins, and it goes to the container run. Both new checks failed against a `--no-leakcheck` that did nothing.
-	- Test case: `Et9RcGQ` long tests on a plain run, off under `--quick`, back with `--long`. `Et9RcH7` `--quick` cross-compiles and `--no-cross` wins. `Et9RcHq` `--quick` skips the checks that reach another host. `ErmCp2G` and `ErmCp2H` still pin the perf and quick knobs. `EtAaLOQ` `--no-leakcheck` skips them, last flag wins. `EtAaQDY` `--no-leakcheck` reaches the container run.
+	- Test case: `de54e` long tests on a plain run, off under `--quick`, back with `--long`. `de54f` `--quick` cross-compiles and `--no-cross` wins. `de54g` `--quick` skips the checks that reach another host. `ddgmg` and `ddgmh` still pin the perf and quick knobs. `de5d7` `--no-leakcheck` skips them, last flag wins. `de5d8` `--no-leakcheck` reaches the container run.
 	- Branch: flags
 	- Commit: 2abd0ac
 
@@ -502,7 +515,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Checked: the cache volume is 1.1 GB, nearly all the Go build cache, which Go trims by itself.
 	- Fixed: an aborted `cicd.bash` run left its fuzz log in `/tmp`, and a failed image build left an empty dir. Both go in one per-run dir now, removed on exit.
 	- Note: the docker build cache isn't pruned by the pipeline, since `docker builder prune` clears every project's cache.
-	- Test case: `EtAgsPA` a failed image build leaves nothing in TMPDIR, which failed on the old engine. `ErmCp2E` and `ErmCp2F` already cover the fuzz log.
+	- Test case: `de5e3` a failed image build leaves nothing in TMPDIR, which failed on the old engine. `ddgme` and `ddgmf` already cover the fuzz log.
 	- Branch: cleanup
 
 - The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
@@ -533,13 +546,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every file create in `lib/` and `cicd/`. The migration backup already links with an exclusive fallback. The config rewrite, `keepBackup` and the macho-fat output mean to replace. wasm and reactor write no files.
 	- Branch: exit-fixes, firstrun-excl
 	- Commit: e5892c9, 7a01a50
-	- Test case: `ErlzPLg` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
+	- Test case: `ddgjt` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
 		- Second fix: it now runs 60 trials on two threads, since the gap showed on a small CI runner and almost never with many cores. With the first fix it failed 20 of 20 plain runs here, and 46 of 50 at `-count=50 -cpu 2` before the test change. With this fix it passed 20 of 20 plain runs, and 50 of 50 at `-cpu` 1, 2, 4 and 32 and under the race detector.
-		- `Ermok4L` TestUserConfigCreateKeepsFile: the create step finds a file already there and leaves it. It failed with the first fix's write in its place.
-		- `Ermok4r` TestUserConfigCreateWithoutLinks: with no hard links, one create succeeds, whole, and a second finds the file. It failed with a truncating create in the fallback.
+		- `ddgs5` TestUserConfigCreateKeepsFile: the create step finds a file already there and leaves it. It failed with the first fix's write in its place.
+		- `ddgs6` TestUserConfigCreateWithoutLinks: with no hard links, one create succeeds, whole, and a second finds the file. It failed with a truncating create in the fallback.
 	- Acceptance signoff: closed without it. Tested here and on hosted CI. The dangling symlink case is left alone on purpose, since writing through a link to a missing target is a guess about where the file should live.
 	- Progress log:
-		- 20261004: reopened. `ErlzPLg` fails on hosted CI on every dev push since the merge, 2 runs creating the file. It passes here, so the window is timing.
+		- 20261004: reopened. `ddgjt` fails on hosted CI on every dev push since the merge, 2 runs creating the file. It passes here, so the window is timing.
 		- Cause: `ensureUserConfig` checks that the file is missing, then `shcl.WriteFileAtomic` checks again. A run that finds the file there by its second check replaces it, and still reports it created. So the write is atomic but not exclusive.
 		- Probable fix: create it in `ensureUserConfig` itself. Write a temp file beside it, then `os.Link` it into place; "exists" means another run made it. Where links don't work, an `O_EXCL` create.
 		- 20261004: fixed on firstrun-excl, as the probable fix above. Reproduced here first with `-count=50 -cpu 2`, 46 of 50 runs with 2 to 4 creators.
@@ -572,7 +585,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every way a tail is set goes through `Finalize`: the built-ins, the config `tail:` field, `--from-tail`/`--to-tail` through `ApplyOptions`, and library callers. The browser and reactor modules take no tail. `decodeBigBaseNative` has no other caller.
 	- Branch: bigbase-tail
 	- Commit: 44ed0be
-	- Test case: `Erm5wwf` TestTailNeedsOneCharDigits, `Erm5wxB` "tail on two-character digits rejected" and `Erm5wxg` "config tail on two-character digits rejected". All three fail before the fix and pass after.
+	- Test case: `ddgkk` TestTailNeedsOneCharDigits, `ddgkm` "tail on two-character digits rejected" and `ddgkn` "config tail on two-character digits rejected". All three fail before the fix and pass after.
 	- Acceptance signoff: Closed on review: refusing at definition matches the streaming rule, and the error names the base and the digit.
 	- Closed: 20261004-182334
 
@@ -597,7 +610,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every way a scheme is set. Built-ins all have a tail with a tail layout. The config sets one only with a nonempty tail. `ApplyOptions` clears the layout with an empty tail and sets it with a parsed one, which is now checked. The browser and reactor modules take no tail.
 	- Branch: digit-values
 	- Commit: fbf6380
-	- Test case: `ErmULmP` TestTailSchemeNeedsTail, for each tail layout and for a comma-only tail through `ApplyOptions`, and `ErmULmv` "comma-only tail rejected" on the command. Both fail before the fix and pass after.
+	- Test case: `ddgpn` TestTailSchemeNeedsTail, for each tail layout and for a comma-only tail through `ApplyOptions`, and `ddgpp` "comma-only tail rejected" on the command. Both fail before the fix and pass after.
 	- Acceptance signoff: Closed on review: an error in place of wrong bytes at exit 0, naming the base and the layout.
 	- Related IDs: 2026100417280514
 	- Closed: 20261004-182334
@@ -625,7 +638,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: `make release` and `make clean` now stop on an old `lib/dist` with no mark, and say so. Removing that old dir once clears it.
 	- Branch: bash-traps
 	- Commit: 65ce2be
-	- Test case: harness checks `Erm3Sws` (an `--out` with other files is left alone), `Erm3SxT` (a marked dir is cleared and an empty one taken), `Erm3Syv` (`make clean`) and `Erm3SyD` (the mark is not in `checksums.txt`). The first three fail on dev. `Erm3SyD` fails when the mark is left in the checksum list.
+	- Test case: harness checks `ddgk9` (an `--out` with other files is left alone), `ddgka` (a marked dir is cleared and an empty one taken), `ddgkc` (`make clean`) and `ddgkb` (the mark is not in `checksums.txt`). The first three fail on dev. `ddgkb` fails when the mark is left in the checksum list.
 	- Acceptance signoff: Closed on review: the refusal says what to do, and a marked folder is the usual way a build tool knows its own output.
 	- Closed: 20261004-182334
 
@@ -653,7 +666,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004, the harness sections from CLI surface through control-character escapes pass, 342 of 342, and so do the reactor, browser module and frontend parity sections. Output of 25 sample commands matched the dev build byte for byte, apart from the version stamp. go vet, golangci-lint, staticcheck and `go test ./...` clean.
 	- Branch: exit-fixes
 	- Commit: 7eb27c9
-	- Test case: harness check `Erm02E7`, 13 ways of writing a result to `/dev/full`. On dev 8 of them exit 0. With the fix all 13 fail with the write error.
+	- Test case: harness check `ddgjw`, 13 ways of writing a result to `/dev/full`. On dev 8 of them exit 0. With the fix all 13 fail with the write error.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, the Sweep is answered, and the full suite passed.
 	- Closed: 20261004-165456
 
@@ -684,7 +697,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The new unit test and the new harness check fail on dev and pass on this branch. The full `cicd/test.bash` passed 446 of 446 with the fixed build. Shellcheck finds nothing new in `cicd/test.bash`.
 	- Branch: nested-field
 	- Commit: 5c64d73
-	- Test case: `Erg4X7J` TestConfigRejectsNestedField and the "nested" case in `Em2MFrs` TestConfigErrorsCiteLines; `Erg4X7I` "config nested field rejected" in the harness.
+	- Test case: `ddf59` TestConfigRejectsNestedField and the "nested" case in `dav1v` TestConfigErrorsCiteLines; `ddf58` "config nested field rejected" in the harness.
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261003-150028
 
@@ -709,7 +722,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: release build, 40 runs each, dev against this branch. `255 16` went from 58 ms to 1.5 ms, `--version` stayed at 1.0 ms, and `--list` went from 59 ms to 41 ms.
 	- Verified: `--list`, `--list-compat`, both together, `--get-index-count`, `--get-base-name` and `--show-symbols` and `--show-symbols-0` for every index, `--get-base-name` and a conversion for every listed name, and an unknown-name suggestion are byte-identical to dev. So are five config cases: a stolen alias, a shadowed built-in, and three load errors with their line citations. The name, size, raw flag, markers, digits and tail of every base `.bases()` lists match dev too.
 	- Verified: go vet, golangci-lint, `go test ./...`, the four new tests under `-race`, and the full `test.bash` with the performance section and packaging rebuilds, 569 of 569.
-	- Test case: `ErmQ6z6` TestEveryBuiltinBuilds fails on a duplicate digit put into base 2. `ErmQ6zb` TestLookupBuildsOnlyItsBase and `ErmQ70b` TestNewRegistryCost (at most 2 MiB and 10 ms) fail when `NewRegistry` builds every base. `ErmQ706` TestConcurrentLookup reports a data race under `-race` without the once. `BenchmarkNewRegistry` gives the number.
+	- Test case: `ddgp3` TestEveryBuiltinBuilds fails on a duplicate digit put into base 2. `ddgp4` TestLookupBuildsOnlyItsBase and `ddgp6` TestNewRegistryCost (at most 2 MiB and 10 ms) fail when `NewRegistry` builds every base. `ddgp5` TestConcurrentLookup reports a data race under `-race` without the once. `BenchmarkNewRegistry` gives the number.
 	- Branch: lazy-bases
 	- Commit: f46614b
 	- Acceptance signoff: Closed on review: lookups give the same output as before, and a broken built-in can only come from `bases.go`, which a test catches.
@@ -739,9 +752,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: a pad or tail symbol with a letter in it gets recased too, as it always did in the buffered path, and then won't decode. That is filed as 2026100519145001.
 	- Branch: case-stream
 	- Commit: ae1c431
-	- Test case: `Ersmg45` "case flag streams in constant memory", hex `--lower`, 32c `--upper` and `--binary` 64 to hex `--lower` on 32 MiB, under a 64 MiB ceiling. It failed all 3 before the fix, at 160 to 180 MiB, and passes after at under 6 MiB.
-		- `Ersmg3G` "case flag on a stream matches recased output": byte path, `--binary` route and a 2-byte Greek base on the wide path match the plain encode recased. It passed before too, through the buffered path.
-		- `Ersmg4k` TestRecaseWriterMatchesWholeRecase: every chunk split of mixed-script samples matches recasing the whole string. It fails with the split-rune carry taken out.
+	- Test case: `ddj74` "case flag streams in constant memory", hex `--lower`, 32c `--upper` and `--binary` 64 to hex `--lower` on 32 MiB, under a 64 MiB ceiling. It failed all 3 before the fix, at 160 to 180 MiB, and passes after at under 6 MiB.
+		- `ddj73` "case flag on a stream matches recased output": byte path, `--binary` route and a 2-byte Greek base on the wide path match the plain encode recased. It passed before too, through the buffered path.
+		- `ddj75` TestRecaseWriterMatchesWholeRecase: every chunk split of mixed-script samples matches recasing the whole string. It fails with the split-rune carry taken out.
 	- Acceptance signoff: Self-closed: reproduced, test failed before and passes after, sweep answered.
 	- Closed: 20261005-191450
 
@@ -770,7 +783,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every capture in `cicd/test.bash` that runs the program, `cmp`, `diff`, `grep` or `go`. The trap change covers the rest, and the perf section's bare runs were guarded too.
 	- Branch: harness-abort
 	- Commit: 2590437
-	- Test case: `ErmGPkH` "all-fail run reaches summary", `ErmGPkf` "reactor skip, no Go" and `ErmGPl4` "interop failure detail". They run the harness against a program that refuses everything. All three fail before the fix and pass after. Putting back the old trap, the reactor lookup or one capture alone turns at least two of them red.
+	- Test case: `ddgmx` "all-fail run reaches summary", `ddgmy` "reactor skip, no Go" and `ddgmz` "interop failure detail". They run the harness against a program that refuses everything. All three fail before the fix and pass after. Putting back the old trap, the reactor lookup or one capture alone turns at least two of them red.
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261004-165412
 
@@ -794,7 +807,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004, on dev both cases abort with CICD ABORTED and leave the temp log behind.
 	- Branch: cicd-fixes
 	- Commit: ffeed2e
-	- Test case: `ErmCp2E` "fuzz deadline note" and `ErmCp2F` "fuzz find fails stage". Both fail before the fix and pass after.
+	- Test case: `ddgme` "fuzz deadline note" and `ddgmf` "fuzz find fails stage". Both fail before the fix and pass after.
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after.
 	- Closed: 20261004-161813
 
@@ -817,7 +830,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004, the perf section alone against the current build passes 36 of 36, the constant-memory check on every power-of-2 base included. It adds about 35 s to a normal run.
 	- Branch: cicd-fixes
 	- Commit: ffeed2e
-	- Test case: `ErmCp2G` "harness perf section asked for", for a full and a `--quick` run. It fails before the fix and passes after.
+	- Test case: `ddgmg` "harness perf section asked for", for a full and a `--quick` run. It fails before the fix and passes after.
 	- Acceptance signoff: Self-closed: restores 8df148a, and its test failed before the fix and passes after.
 	- Closed: 20261004-161813
 
@@ -840,7 +853,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004, the screenshot script ran every scene against the current build without drawing anything or touching `assets/`. The benchmark ran at 1 MiB against the current build.
 	- Branch: cicd-fixes
 	- Commit: db57771
-	- Test case: `ErmCp2M` "bench-encoders failed conversion", `ErmCp2N` "bench-encoders rows", `ErmCp2O` "gen-screenshots scenes" and `ErmCp2P` "gen-screenshots stops on failure". `ErmCp2M`, `ErmCp2O` and `ErmCp2P` fail on dev. `ErmCp2N` passes on dev, which hid the errors, and fails with one old name put back.
+	- Test case: `ddgmp` "bench-encoders failed conversion", `ddgmq` "bench-encoders rows", `ddgmr` "gen-screenshots scenes" and `ddgms` "gen-screenshots stops on failure". `ddgmp`, `ddgmr` and `ddgms` fail on dev. `ddgmq` passes on dev, which hid the errors, and fails with one old name put back.
 	- Acceptance signoff: Self-closed: the names are mechanical, and the tests failed before the fix and pass after.
 	- Closed: 20261004-161813
 
@@ -863,7 +876,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004, both checks fail on dev in all five cases, at exit 1, 2 or 128 with no message of the script's own, and pass on this branch. The badge reads the same from the real README. Shellcheck clean.
 	- Branch: bash-traps
 	- Commit: 65ce2be
-	- Test case: harness checks `Erm3Szg` (`check-release.bash` with no `main.go`, outside a repo, and with no badge) and `Erm3T0M` (`install.bash` with a stand-in curl: no tag, and no checksum line).
+	- Test case: harness checks `ddgkd` (`check-release.bash` with no `main.go`, outside a repo, and with no badge) and `ddgke` (`install.bash` with a stand-in curl: no tag, and no checksum line).
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after.
 	- Closed: 20261004-154100
 
@@ -889,7 +902,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004, `.` and `-.` give `no digits in input` at exit 1. Parity passes over 209 cases on both the module and the reactor.
 	- Branch: exit-fixes
 	- Commit: 74cf4ea
-	- Test case: `Erlz3L2` TestMarkersWithoutDigits and harness check `ErlzAd6`. Both fail on dev and pass with the fix.
+	- Test case: `ddgjr` TestMarkersWithoutDigits and harness check `ddgjs`. Both fail on dev and pass with the fix.
 	- Acceptance signoff: Self-closed: reproduced, its tests fail before the fix and pass after, and the sweep is answered.
 	- Closed: 20261004-152620
 
@@ -913,10 +926,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Actual fix: packaging renames any file GitHub would rename to the name GitHub serves, before it writes `checksums.txt`. Two files that would end up with one name stop the run. The version inside the package keeps the `~`.
 	- Sweep: everything that builds or reads an asset name.
 	- Swept: `release-notes.bash` already links the served name, and now finds the renamed packages with no warning. `install.bash` fetches only the bare binary and `checksums.txt`, and neither name has a `~`. The release workflow uploads `lib/dist/*` as written. `cicd.bash` counts the files by extension. The installer shows the version but its file name has none.
-	- Verified: a v9.9.9-beta1 package run names all four packages with a `.`, and `sha256sum -c checksums.txt` passes beside them. `dpkg-deb` and `rpm` read `9.9.9~beta1` from inside them, and dpkg sorts that below 9.9.9. `ErlP6Bg` fails with dev's packaging and passes with the fix. `ErlP6CE` passes on both, and fails when the package version is given a `.` in place of the `~`. Nothing was tagged or published.
+	- Verified: a v9.9.9-beta1 package run names all four packages with a `.`, and `sha256sum -c checksums.txt` passes beside them. `dpkg-deb` and `rpm` read `9.9.9~beta1` from inside them, and dpkg sorts that below 9.9.9. `ddgea` fails with dev's packaging and passes with the fix. `ddgeb` passes on both, and fails when the package version is given a `.` in place of the `~`. Nothing was tagged or published.
 	- Branch: pkg-repro
 	- Commit: cdd002f
-	- Test case: `ErlP6Bg` "prerelease asset names" and `ErlP6CE` "prerelease package version keeps its ~" in the harness.
+	- Test case: `ddgea` "prerelease asset names" and `ddgeb` "prerelease package version keeps its ~" in the harness.
 	- Note: check again at the next beta. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
@@ -976,12 +989,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Both heap profiles are kept in `cicd/artifacts/soak/`, GFS-pruned like the flamegraphs.
 	- Done: `-race` needs cgo. The image has `gcc`, which came in only through `rustc` until now, so the Dockerfile names it. This host has `gcc` too. Without cgo the race run skips with a warning, and fails the run in the container.
 	- Note: `-asan` isn't added, since no package uses cgo.
-	- Done: the timing ratio test `ErmULlt` skips under `-race`, where it failed, since the race detector slows our code and math/big by different amounts.
+	- Done: the timing ratio test `ddgpm` skips under `-race`, where it failed, since the race detector slows our code and math/big by different amounts.
 	- Done: a failing test or package now shows a race report or goleak list from its top. The old last-20-lines view cut off where the race was.
-	- Note: `go vet` and staticcheck already ran on every run but `--no-lint`, unchanged. vet covers shcl, and staticcheck leaves it out as a style tool. govulncheck runs on a plain run and `--quick` skips it, pinned by `Et9RcHq`.
+	- Note: `go vet` and staticcheck already ran on every run but `--no-lint`, unchanged. vet covers shcl, and staticcheck leaves it out as a style tool. govulncheck runs on a plain run and `--quick` skips it, pinned by `de54g`.
 	- Verified: each gate went red on a planted fault, each undone by copy. A goroutine left blocked in `ConvertStream` failed goleak, also through the pipeline. A map growing 128 bytes per `Convert` call failed the soak test, and `go tool pprof -base` on its profiles named `Convert`. A counter written on both sides of the `--binary` pipe failed the race run, also through the pipeline.
 	- Verified: no real leak or race turned up, in our code or in shcl.
-	- Verified: the Go tests plain and under `-race`, the browser module tests under node, the soak test, `go vet` native and js/wasm, staticcheck, golangci-lint, the harness CI engine and remote sync sections at 44 of 44, its test-ids checks at 4 of 4, `bash -n`, shellcheck, ruff, and `test-ids.py check`. The 3 new engine checks failed against the old `cicd.bash`, and `Et9WfaT` against the old `test-ids.py`.
+	- Verified: the Go tests plain and under `-race`, the browser module tests under node, the soak test, `go vet` native and js/wasm, staticcheck, golangci-lint, the harness CI engine and remote sync sections at 44 of 44, its test-ids checks at 4 of 4, `bash -n`, shellcheck, ruff, and `test-ids.py check`. The 3 new engine checks failed against the old `cicd.bash`, and `de553` against the old `test-ids.py`.
 	- Done: the help, `config.bash` comments, contributing.md, development.md, the style guide, the workflow comments, shcl's README, and the changelog say so.
 	- Swept: `git grep` for `go.sum`, `standard library only`, `third-party`, `--long`, `--quick` and `full_extras`. install.md stays as it is, since the build still fetches nothing.
 	- Done: part 2, CodeQL. It runs last in the leak checks, from CodeQL 2.27.2's Go-only bundle, pinned in `tool-versions.env` with its checksum in the Dockerfile. It's never installed on the host, so a host run skips it with a warning, and the container fails without it.
@@ -996,7 +1009,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: a CodeQL version bump without its checksum rebuilds only the last layer and fails there on the checksum.
 	- Verified: the harness CI engine and remote sync sections at 47 of 47. The 4 changed or new checks failed against the old `cicd.bash`. `bash -n`, shellcheck, and `test-ids.py check` pass.
 	- Swept: `git grep` for `SOAK_OUT_DIR`, `RACE_PROBE`, `leak check`, and `tool-versions.env` over the repo. `pin-tools.bash` leaves CodeQL alone, since it's container-only.
-	- Test case: `Et9VxXX` leak checks on a plain run, off under `--quick`, back with `--leakcheck`, never in the gate, with the CodeQL step counted. `Et9VxYE` `--leakcheck` reaches the container run. `Et9VxYy` no cgo warns, and fails where every tool must be there. `Et9WfaT` race and leak reports shown from the top. `Et9UPKp` the soak margins. `Et9UPKC` is the soak test itself, and goleak runs in every package's `TestMain`. `Et9ZqiY` CodeQL runs under `--leakcheck` and not under `--quick`. `Et9ZqjD` a CodeQL result fails the stage. `Et9Zqjy` no CodeQL warns on the host and fails in the container.
+	- Test case: `de550` leak checks on a plain run, off under `--quick`, back with `--leakcheck`, never in the gate, with the CodeQL step counted. `de551` `--leakcheck` reaches the container run. `de552` no cgo warns, and fails where every tool must be there. `de553` race and leak reports shown from the top. `de54t` the soak margins. `de54s` is the soak test itself, and goleak runs in every package's `TestMain`. `de55f` CodeQL runs under `--leakcheck` and not under `--quick`. `de55g` a CodeQL result fails the stage. `de55h` no CodeQL warns on the host and fails in the container.
 	- Branch: leaks, then codeql
 	- Commit: 64f06f5, then 0595e36
 
@@ -1023,8 +1036,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: each new check fails with its code broken: `--image-tag` ignoring the contexts, no prebuilt guard, a pin written into a workflow, an action pinned to a full version, the guard dropped from `ci.yml`, the tag step dropped, and a new named context in the Dockerfile that `ci.yml` doesn't pass.
 	- Branch: hostci
 	- Commit: b1f4ecf
-	- Test case: Et9eteN, Et9etf7 (CI engine section), Et9etfx, Et9etgg (hosted CI workflow).
-	- Swept: release.yml and pages.yml name no pin of their own and pin actions by major version, checked by Et9etfx. contributing.md, development.md, design.md and the changelog no longer say hosted CI only vets, tests and builds. The README badge still points at `ci.yml`.
+	- Test case: de563, de564 (CI engine section), de565, de566 (hosted CI workflow).
+	- Swept: release.yml and pages.yml name no pin of their own and pin actions by major version, checked by de565. contributing.md, development.md, design.md and the changelog no longer say hosted CI only vets, tests and builds. The README badge still points at `ci.yml`.
 	- Acceptance signoff: Self-closed: did what the decision asked, passed on the runner twice with the cache hitting, and its checks fail with the code broken.
 	- Closed: 20261019-071600
 
@@ -1044,7 +1057,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- The pipeline's own publish sets `CICD_GATE_PASSED=1`, so the hook doesn't run the gate again after the full tests.
 	- Branch: tidy
 	- Commit: d363f8c
-	- Test case: `EshVwIZ` gate hook added, `EshVwMN` pre-push: dev/main only, `EshVwNd` pre-push: failed gate refuses, `EshVwMz` gate keeps an existing hook. With the dev/main filter taken out, `EshVwMN` fails.
+	- Test case: `ddydh` gate hook added, `ddydq` pre-push: dev/main only, `ddyds` pre-push: failed gate refuses, `ddydr` gate keeps an existing hook. With the dev/main filter taken out, `ddydq` fails.
 	- Acceptance signoff: Self-closed: did what the item asked, and its checks fail with the hook filter broken.
 	- Closed: 20261014-113459
 
@@ -1064,7 +1077,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: every run that isn't inside the container syncs first, before the plan. Behind only: a fast-forward, with edits in the tree stashed around it. Diverged: stops before stage 1. No upstream, or a failed fetch: a warning, and it builds what's there. A fast-forward that changed `cicd/` starts the run over on the new copy. `--no-sync` skips it.
 	- Branch: tidy
 	- Commit: d363f8c
-	- Test case: `EshVwHv` sync: behind, fast-forward, `EshVwJC` sync: --no-sync, `EshVwJp` sync: pipeline changed, restart, `EshVwKS` sync: diverged stops, `EshVwL6` sync: no upstream warns, `EshVwLj` sync: offline warns. All but `EshVwJC` fail with the sync call taken out.
+	- Test case: `ddydg` sync: behind, fast-forward, `ddydj` sync: --no-sync, `ddydk` sync: pipeline changed, restart, `ddydm` sync: diverged stops, `ddydn` sync: no upstream warns, `ddydp` sync: offline warns. All but `ddydj` fail with the sync call taken out.
 	- Acceptance signoff: Self-closed: did what the item asked, and its checks fail with the sync taken out.
 	- Closed: 20261014-113459
 
@@ -1086,7 +1099,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- New tagline, a try-it link under the gif, a "When to use something else" section, the exit status, and "Why the -v2?" as its own section near the end.
 		- The base 64 claims now say base 85 and base 91 pack tighter. The "one narrow edge case" line is gone.
 		- The demo page footer links GitHub Sponsors and Ko-fi. The GitHub About has a new description, the demo page as its homepage, and 20 topics.
-	- Test case: none for the wording. The bases table check `ElWMN5U` still reads the README, and `EsifL7e` reads the Go example from its new file.
+	- Test case: none for the wording. The bases table check `dakbk` still reads the README, and `ddype` reads the Go example from its new file.
 	- Branch: readme-split
 	- Commit: f482f09
 	- Acceptance signoff: Self-closed: did what the item asked.
@@ -1101,7 +1114,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Opened by: Repo review 20261014
 	- Target OS: Any
 	- Done: the harness builds the WASI module the way `make wasm` does and runs it under wazero, with no env and no dirs. Its stdout and exit status have to match the native command for numbers, errors, and a binary stream both ways.
-	- Test case: `EsifL4h` WASI command matches the native one, `EsifL63` WASI command streams binary both ways. Both fail when the host drops the last argument.
+	- Test case: `ddypc` WASI command matches the native one, `ddypd` WASI command streams binary both ways. Both fail when the host drops the last argument.
 	- Branch: readme-split
 	- Commit: f482f09
 	- Acceptance signoff: Self-closed: its checks pass, and fail with the host broken.
@@ -1131,7 +1144,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: argv input in byte mode still goes through the command's own two `Convert` calls, since there's no reader.
 	- Swept: `StreamConvert`, `StreamBytesRoute` and `bufferedStream` repo-wide. The callers were main.go, the reactor and in-package tests. `lib/wasm`, the module driver, reactor-host and both READMEs name neither. The 2 design docs that list the public surface got a note.
 	- Verified: piped output, exit code and stderr match a build of dev for 29 cases: single-byte, tail base, bytes route, codec fallback, case flags, errors, empty input and a full disk. Peak memory matches within run-to-run noise. Reactor stream output matches its dev build on 100 MB and 20 MB inputs. go vet on 4 targets, golangci-lint and go test pass.
-	- Test case: `ErsydPF` TestConvertStream. A read error after 1 MB shows which step each pair took. It fails with either stream step skipped, and with the line break drop removed.
+	- Test case: `ddj8j` TestConvertStream. A read error after 1 MB shows which step each pair took. It fails with either stream step skipped, and with the line break drop removed.
 	- Branch: stream-api
 	- Commit: 46ddb9a
 	- Acceptance signoff: Self-closed: output and memory match the old routes, its test covers all 3 steps, and the full suite passed.
@@ -1159,7 +1172,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: each new check fails with its code broken: no args for a missing context, no empty dir, the tag not keyed on contexts, no default, `--host` ignored, the inside run not on the host, and the glyph check gone or not reading the font's cmap.
 	- Branch: container2
 	- Commit: f07f147
-	- Test case: EsKCVVh, EsKCVWM (CI engine section), EsKCVWy (demo gif missing glyphs).
+	- Test case: ddrt2, ddrt3 (CI engine section), ddrt4 (demo gif missing glyphs).
 	- Acceptance signoff: Self-closed: did what the requirements asked, and its checks fail with the code broken.
 	- Closed: 20261010-115517
 
@@ -1188,7 +1201,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: every new check fails with its code broken: no-skip off, no `--user`, no old-tag removal, stages 1 to 4 or 6 rerun on the host, the failed inner run not caught, `--container` allowed inside, a host gif, no early packager check, and the `--quick` skip left unmarked.
 	- Branch: container
 	- Commit: 1f9e8ff
-	- Test case: EsJjVsP (self-check), EsJjVtL, EsJjVuH, EsJjVvF, EsJjVwL, EsJjVxK, EsJjVyJ, EsJpWaD (CI engine section), EsJjVzI (package.bash), EsJpWap (demo gif private home).
+	- Test case: ddrpf (self-check), ddrpg, ddrph, ddrpj, ddrpk, ddrpm, ddrpn, ddrq7 (CI engine section), ddrpp (package.bash), ddrq8 (demo gif private home).
 	- Acceptance signoff: Self-closed: did what the requirements asked, and its checks fail with the code broken.
 	- Closed: 20261010-103715
 
@@ -1220,7 +1233,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every tracked shell file through shellcheck and every Python file through ruff, the excluded ones included.
 	- Branch: lint-sh-py
 	- Commit: 294764b
-	- Test case: ErmroeI, Ermroeo, ErmrofR, Ermroh4, Ermrofy, ErmrogW (CI engine section), Ermt58H (pin-tools).
+	- Test case: ddgsh, ddgsj, ddgsk, ddgsp, ddgsm, ddgsn (CI engine section), ddgsq (pin-tools).
 	- Acceptance signoff: Self-closed: did what the item asked, and the new checks failed on the old engine.
 	- Closed: 20261004-210336
 
@@ -1239,7 +1252,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the real peak was twice the estimate, since Pillow's save copied every frame again.
 	- Fixed: frames are encoded 32 at a time as they come in. Each batch is saved behind the last frame of the batch before, then that frame and the header are cut off, so the bytes match one save. Only the last frame's bytes are kept for the duplicate check.
 	- Verified: the full demo from dev's script and from this one, same scenario and binary, is byte-identical with and without the gifsicle pass, and matches the committed gif. Peak RSS went from 3308324 KB to 185140 KB, about 3.2 GB to 181 MB. Render time is about the same.
-	- Test case: `ErmYENq` "demo gif batches match one Pillow save" and `ErmYEP0` "demo gif frame memory", in `cicd/test.bash`. They feed made-up frames and take under a second, where a real render takes over a minute. They fail with the cut point off by one byte, and with every frame held until the save (402 MiB against a 99 MiB bound).
+	- Test case: `ddgq4` "demo gif batches match one Pillow save" and `ddgq5` "demo gif frame memory", in `cicd/test.bash`. They feed made-up frames and take under a second, where a real render takes over a minute. They fail with the cut point off by one byte, and with every frame held until the save (402 MiB against a 99 MiB bound).
 	- Branch: gif-memory
 	- Commit: ba15b41
 	- Acceptance signoff: Self-closed: the output is byte-identical, peak memory is measured before and after, and its checks pass in the full suite.
@@ -1263,7 +1276,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every `Tokenize` caller. The number path and the two binary decoders now use values. `SymbolSlice`, `Fit` and the reactor's symbol count want symbols, so they keep `Tokenize`. No other site looks a digit up by its symbol after tokenizing.
 	- Branch: digit-values
 	- Commit: 6b7629b
-	- Test case: `ErmUk2J` TestNumberPathUsesTokenValues converts with the symbol map removed, so a second lookup reads every digit as zero. `ErmULlt` TestPositionalNearMathBig limits 1K digits to 1.5 times math/big's own conversion. It measured 1.9 before and 1.2 after. Both fail before the change and pass after. `BenchmarkPositional1K` to `64K` give the numbers, and `ElmJ1ea` TestDivideConquerBoundaries, `Elm99Wy` TestDigitChunkBoundaries and `Elm99Wz` TestFractionChunkBoundaries cover correctness.
+	- Test case: `ddgpq` TestNumberPathUsesTokenValues converts with the symbol map removed, so a second lookup reads every digit as zero. `ddgpm` TestPositionalNearMathBig limits 1K digits to 1.5 times math/big's own conversion. It measured 1.9 before and 1.2 after. Both fail before the change and pass after. `BenchmarkPositional1K` to `64K` give the numbers, and `daq6a` TestDivideConquerBoundaries, `daq53` TestDigitChunkBoundaries and `daq54` TestFractionChunkBoundaries cover correctness.
 	- Acceptance signoff: Self-closed: the change does what the item asked, and its tests pass.
 	- Closed: 20261004-172702
 
@@ -1280,7 +1293,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Related IDs: 2026100413480017
 	- Done: a token is split on commas only when it has one, and the placeholder replacer is built once. The token list is reused and the output sized up front. The bare `,` token is still the comma digit, so `85ps` keeps all 85.
 	- Verified: `NewRegistry` went from 54 ms and 224k allocations to 38 ms and 3.8k, before 2026100413480017. The `85ps` ascii85 vectors pass, and so do go vet, golangci-lint and `go test ./...`.
-	- Test case: `ErmOs7S` TestSpecParserAllocs. A 4096-digit spec took 8270 allocations before and passes at most 40 after. It also pins the comma digit, the escapes and a comma group.
+	- Test case: `ddgny` TestSpecParserAllocs. A 4096-digit spec took 8270 allocations before and passes at most 40 after. It also pins the comma digit, the escapes and a comma group.
 	- Branch: lazy-bases
 	- Commit: 83947e6
 	- Acceptance signoff: Self-closed: did what the item asked, and its test failed before and passes after.
@@ -1302,7 +1315,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: `streamDecodeWide` already used the rune table. `decodeBigBaseNative` is the only other per-character lookup for a tail base.
 	- Branch: bigbase-tail
 	- Commit: 7a8f56f
-	- Test case: `Erm5wyD` TestBigBaseDecodeAllocs, which allows at most 8 allocations to decode 64 KiB through five tail bases. It counted 32k to 58k before and 2 after. `BenchmarkDecode65536` and `BenchmarkDecode2048` give the timings.
+	- Test case: `ddgkp` TestBigBaseDecodeAllocs, which allows at most 8 allocations to decode 64 KiB through five tail bases. It counted 32k to 58k before and 2 after. `BenchmarkDecode65536` and `BenchmarkDecode2048` give the timings.
 	- Acceptance signoff: Self-closed: the change does what the item asked and its test passes.
 	- Closed: 20261004-160327
 
@@ -1333,7 +1346,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The four new Go tests and the two new harness checks fail with the version on two lines, `buildEpoch` as a const, or the Makefile without the stamp, and pass with the change. A plain `go build` prints `v3.0.0` alone. `make release` twice a minute apart gives the same checksums for every bare binary. `test-ids.py check` passes. Shellcheck finds nothing new beyond the harness's usual `A && B || C` notes.
 	- Branch: build-num
 	- Commit: d8ac98d
-	- Test case: `ErlL5bp` TestCrockfordBase32, `ErlL5cK` TestBuildNumber, `ErlL5cs` TestVersionText and `ErlL5dO` TestBuildEpochIsPatchable; `ErlL5dx` "--version one-line format" and `ErlL5eT` "make build-epoch stamp" in the harness.
+	- Test case: `ddgds` TestCrockfordBase32, `ddgdt` TestBuildNumber, `ddgdv` TestVersionText and `ddgdw` TestBuildEpochIsPatchable; `ddgdx` "--version one-line format" and `ddgdy` "make build-epoch stamp" in the harness.
 	- Acceptance signoff: Self-closed: the format and placement were the ones asked for, its tests pass, and the full suite passed.
 	- Closed: 20261004-131952
 
@@ -1365,7 +1378,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: the table was made from a real `make release` output of 25 files and reads right. The three new harness checks fail with the old heading match, without the GitHub name rule, with `.wasm` unplaced, or without the warning, and pass with the change. `make release` twice a minute apart gives the same checksums for every bare binary and the `.wasm`. Shellcheck finds nothing in the new script, and nothing new elsewhere beyond the harness's usual `A && B || C` notes. `test-ids.py check` passes. Nothing was tagged or published.
 	- Branch: build-num
 	- Commit: 947757f
-	- Test case: `ErlN8Nk` "release notes: changelog, downloads table, build line", `ErlN8OJ` "release notes: unknown asset warning" and `ErlN8Oq` "release notes: sparse table, no build line" in the harness. The workflow itself only runs on a merge to main.
+	- Test case: `ddge1` "release notes: changelog, downloads table, build line", `ddge2` "release notes: unknown asset warning" and `ddge3` "release notes: sparse table, no build line" in the harness. The workflow itself only runs on a merge to main.
 	- Note: check again at the next release. The table renders, every link downloads, and the notes end with the build line.
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
@@ -1379,7 +1392,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Opened by: Repo review 20261014
 	- Target OS: Any
 	- Actual fix: the harness builds the Go example from `use_in_your_code.md` against this tree and checks its output against the command's. `20260801_go_module.md` names the new file.
-	- Test case: `EsifL7e` Go doc example builds and matches the command. It fails with the example's base changed.
+	- Test case: `ddype` Go doc example builds and matches the command. It fails with the example's base changed.
 	- Branch: readme-split
 	- Commit: f482f09
 	- Acceptance signoff: Self-closed: its check passes, and fails with the example changed.
@@ -1405,7 +1418,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: against the live API, stable and dev both plan v3.0.0, the newest by version.
 	- Branch: tidy
 	- Commit: d363f8c
-	- Test case: `EshY04X` install.bash picks newest version, `EshY05J` install.bash, pre-releases only, `EshY061` install.bash options. With the sort taken out, `EshY04X` and `EshY05J` fail.
+	- Test case: `ddydt` install.bash picks newest version, `ddydv` install.bash, pre-releases only, `ddydw` install.bash options. With the sort taken out, `ddydt` and `ddydv` fail.
 	- Acceptance signoff: Self-closed: did what the item asked, and its checks fail with the sort taken out.
 	- Closed: 20261014-113459
 
@@ -1424,7 +1437,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- `--to-symbols "α β γ δ" --upper 9` writes `ΓΒ`, which the same base refuses too.
 	- Reproduced: 20261005. Again 20261006, plus `--to-symbols "s ſ" --upper 3` writes `SS`, which reads back as 0.
 	- Actual cause: input takes either case only for one-letter ASCII digits, while the flags recase any digit. The checks before only looked for a recased digit that is another digit, the pad, a tail symbol or a marker.
-	- Note: the harness case `Ersmg3G` (greek-lower) relies on `--lower` working on a Greek base, so refusing the flag there would change a tested behavior. Either refuse it for such bases or read those digits in either case.
+	- Note: the harness case `ddj73` (greek-lower) relies on `--lower` working on a Greek base, so refusing the flag there would change a tested behavior. Either refuse it for such bases or read those digits in either case.
 	- Progress log:
 		- 20261005: waited on a choice: refuse the case flags on a base whose digits are read in one case only, or read every such digit in either case when no two differ only by case.
 		- 20261006: answered, see Decisions. Started.
@@ -1435,10 +1448,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: the case flags only exist in the command, and `checkOutputFlags` is the one place they're checked. The browser and reactor builds have none. README, `--examples` and the demo scenario use no case flag on a non-ASCII or multi-letter base.
 	- Branch: case-readback
 	- Commit: d78a437
-	- Test case: `ErvpHV2` "case flag refused": a multi-letter base and a Greek base on argv, a Greek base piped, and `s ſ` with `--upper`. Failed all 4 before the fix and passes after.
-		- `ErvpHVf` "case flag ok": uncased multi-letter, CJK, and CJK beside ASCII letters. Passes before and after.
-		- `Ervq3zH` TestCaseFlagOutputReadsBack: every built-in base and 6 custom ones, both flags. Where a flag is allowed, all the digits recased and run together read back as the same digits, on the number and byte paths. It also pins which custom ones are refused. Failed with the new check turned off, on `48ws_compat_v1` and the 4 cased custom bases, and passes with it.
-		- Changed expectation: `Ersmg3G` greek-lower and `ErsqAZ3` greek-pad now expect the refusal, with a comment giving this ID. The other cases in both loops are as they were.
+	- Test case: `ddjyg` "case flag refused": a multi-letter base and a Greek base on argv, a Greek base piped, and `s ſ` with `--upper`. Failed all 4 before the fix and passes after.
+		- `ddjyh` "case flag ok": uncased multi-letter, CJK, and CJK beside ASCII letters. Passes before and after.
+		- `ddjyk` TestCaseFlagOutputReadsBack: every built-in base and 6 custom ones, both flags. Where a flag is allowed, all the digits recased and run together read back as the same digits, on the number and byte paths. It also pins which custom ones are refused. Failed with the new check turned off, on `48ws_compat_v1` and the 4 cased custom bases, and passes with it.
+		- Changed expectation: `ddj73` greek-lower and `ddj7g` greek-pad now expect the refusal, with a comment giving this ID. The other cases in both loops are as they were.
 	- Acceptance signoff: Self-closed: the fix does what the decision asked, its tests failed before and pass after, and the full suite passed.
 	- Closed: 20261006-075220
 
@@ -1468,9 +1481,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every recase site in `main.go` (`recaseWriter`, `recaseDigits`, the buffered and streamed callers, `checkOutputFlags`). The browser and reactor builds have no case flags. Built-in bases have no cased pad or tail, so their output is unchanged.
 	- Branch: recase-pad
 	- Commit: 24afe1f
-	- Test case: `ErsqAZ3` "case flag leaves pad and tail alone": a one-byte digit base with a pad, the same with the decimal marker equal to the pad, a 2-byte Greek base with a pad and a CJK base with a tail, piped and on argv, each read back by the same base. Failed all 4 before the fix and passes after.
-		- `ErsqAZh` "case flag refused when a digit recases into the ...": pad, tail and negative marker. Failed all 3 before and passes after.
-		- `ErsqAaO` TestRecaseWriterKeepsPadAndTail: every chunk split of samples with kept ASCII, non-ASCII and U+FFFD runes. Fails with the kept set ignored.
+	- Test case: `ddj7g` "case flag leaves pad and tail alone": a one-byte digit base with a pad, the same with the decimal marker equal to the pad, a 2-byte Greek base with a pad and a CJK base with a tail, piped and on argv, each read back by the same base. Failed all 4 before the fix and passes after.
+		- `ddj7h` "case flag refused when a digit recases into the ...": pad, tail and negative marker. Failed all 3 before and passes after.
+		- `ddj7j` TestRecaseWriterKeepsPadAndTail: every chunk split of samples with kept ASCII, non-ASCII and U+FFFD runes. Fails with the kept set ignored.
 	- Acceptance signoff: Self-closed: digits only matches how the flags already treat markers, its tests failed before and pass after, and the full suite passed.
 	- Closed: 20261005-203040
 
@@ -1499,10 +1512,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- With `--to` given, a flag after the NUMBER used to be dropped with a `--to overrides positional output base` note and exit 0. It's refused now like the rest, since the flag was never applied.
 		- A third positional `-3` now says "unexpected extra positional argument" instead of the flags hint, since it reads as a number.
 	- Swept: both positional slots in `checkPositionals`. Query flags (`--show-symbols hex --lower`) still ignore anything after the base. That's left for 2026100516265602, which covers flags that do nothing in a mode.
-	- Verified: 20261005, ErssdCS fails 3 of its 4 cases on dev and passes on the branch. ErssdD7 and ErsskLV pass both ways, as guards.
+	- Verified: 20261005, ddj7t fails 3 of its 4 cases on dev and passes on the branch. ddj7v and ddj80 pass both ways, as guards.
 	- Branch: cli-usage
 	- Commit: 5f318c3
-	- Test case: ErssdCS (flag after the NUMBER, 4 cases), ErssdD7 (`255 -5` stays an unknown base), ErsskLV (config base named `-x`), Go `TestBuiltinNamesNotFlags` ErsskKs.
+	- Test case: ddj7t (flag after the NUMBER, 4 cases), ddj7v (`255 -5` stays an unknown base), ddj80 (config base named `-x`), Go `TestBuiltinNamesNotFlags` ddj7z.
 	- Acceptance signoff: Self-closed: message only, flags-first stands, its tests failed before and pass after, and the full suite passed.
 	- Closed: 20261005-203040
 
@@ -1527,10 +1540,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- The help's usage block shows the pipe form with no NUMBER, and says flags go before the NUMBER. "Base info" says print, then exit, and `--get-base-name`, `--show-symbols` and `--show-symbols-0` show `BASE`. `--by-index` says it stands in for `BASE`.
 		- The config line now says a name defined in the file takes precedence over built-in, rather than that it overrides built-in aliases.
 	- Swept: design.md CLI contract, the help text, the README (it makes neither claim), and the code comments that state the pipe rule, which were already right.
-	- Verified: 20261005, `TestHelpListsEveryFlag` fails on the old help, which has no `BASE` arguments, and when a flag is missing from it. It passes on the branch. The pipe with no NUMBER was already pinned by the pipecheck cases (EjeCdXo for number mode, EjU6h0j for `--binary`).
+	- Verified: 20261005, `TestHelpListsEveryFlag` fails on the old help, which has no `BASE` arguments, and when a flag is missing from it. It passes on the branch. The pipe with no NUMBER was already pinned by the pipecheck cases (d9qds for number mode, d9mzz for `--binary`).
 	- Branch: cli-usage
 	- Commit: 5f318c3
-	- Test case: Go `TestHelpListsEveryFlag` ErsskKE: every flag the parser takes is in the help, and the base-picking query flags show `BASE`. The pipe rule is pinned by EjeCdXo and EjU6h0j.
+	- Test case: Go `TestHelpListsEveryFlag` ddj7y: every flag the parser takes is in the help, and the base-picking query flags show `BASE`. The pipe rule is pinned by d9qds and d9mzz.
 	- Acceptance signoff: Self-closed: wording matches what the program does, and the full suite passed.
 	- Closed: 20261005-203040
 
@@ -1565,12 +1578,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Beside a query flag, every conversion flag gets it, except `--escape-controls` with `--show-symbols`, where it works. `--binary` and `--number` get none there, since the README suggests them as shell aliases. Two query flags run the first one and note the other, except `--list` with `--list-compat`, which print together.
 		- A query refuses an argument after its base, a base given with `--by-index`, and any argument to a query that takes no base, with exit 2. No documented use breaks: the README, `--examples`, the demo scenario, the screenshot script and the harness never pass one.
 		- The flag-pair and mode refusals exit 2, per the decision. A value the base can't take, such as `--lower` on a mixed-case base, a pad on base 10 or a marker on `bytes`, stays 1, as an unknown base does. The help's Exit status block and the changelog entry for 2026100516265607 say so.
-		- The number-or-bytes note starts with `note:` now. The `--by-index` note reads like the rest, so harness check EjeBOHS now looks for "--by-index does nothing" rather than "--by-index is ignored", with a comment giving the reason.
+		- The number-or-bytes note starts with `note:` now. The `--by-index` note reads like the rest, so harness check d9qdj now looks for "--by-index does nothing" rather than "--by-index is ignored", with a comment giving the reason.
 	- Swept: every flag the parser takes, in number, byte and query mode. `TestIdleFlagNotes` fails for a flag with no case in a mode it can be given in, and `TestDesignTableListsEveryFlag` for a flag with no row in the table. `FYI:` appears in no test or doc; the only other hits are code comments in `bases.go`. The scripts that run the binary, `gen-bases-table.py`, `gen-screenshots.bash` and the demo scenario, hit no new note or exit 2. The browser module and reactor take no flags.
-	- Verified: 20261005, the new harness checks fail on dev, 23 in all (ErsveGw, ErswATd, ErswAUX, ErswAVN and the reworded EjeBOHS), and the sections run pass 409 of 409 on the branch. ErswASw passes both ways, as a guard. The Go rule test fails when the byte mode note for `--precision` or the `--by-index` note is taken out. `go vet`, golangci-lint and the command's Go tests pass, and the wasip1 and Windows builds compile.
+	- Verified: 20261005, the new harness checks fail on dev, 23 in all (ddj88, ddj8a, ddj8b, ddj8c and the reworded d9qdj), and the sections run pass 409 of 409 on the branch. ddj89 passes both ways, as a guard. The Go rule test fails when the byte mode note for `--precision` or the `--by-index` note is taken out. `go vet`, golangci-lint and the command's Go tests pass, and the wasip1 and Windows builds compile.
 	- Branch: idle-flags
 	- Commit: 29c24ed
-	- Test case: Go `TestIdleFlagNotes` ErsveFb (every flag in every mode) and `TestDesignTableListsEveryFlag` ErsveGF. Harness ErswATd (one note, same output, 12 cases), ErswAUX (a 3 MB stream is unchanged, one note per flag), ErswAVN (the number-or-bytes note starts with `note:`), ErsveGw (8 refusals exit 2) and ErswASw (3 base refusals stay 1).
+	- Test case: Go `TestIdleFlagNotes` ddj86 (every flag in every mode) and `TestDesignTableListsEveryFlag` ddj87. Harness ddj8a (one note, same output, 12 cases), ddj8b (a 3 MB stream is unchanged, one note per flag), ddj8c (the number-or-bytes note starts with `note:`), ddj88 (8 refusals exit 2) and ddj89 (3 base refusals stay 1).
 	- Acceptance signoff: Self-closed: follows the 20261005 decision, the table is checked against the flag set, and the full suite passed.
 	- Closed: 20261005-203040
 
@@ -1602,7 +1615,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: the new Go test and harness check fail on the old pin with the unterminated quote error and pass on the new one. `go vet`, golangci-lint, `go test ./...`, the browser and reactor builds, the vendor check, and the Config file and Config migration harness sections pass.
 	- Branch: shcl-utf8
 	- Commit: a3a4f3e
-	- Test case: `ErsoOAI` TestConfigInvalidUTF8InQuotes, and harness `ErsoOAv` "config invalid UTF-8 digit mid-quote refused". Both fail before the re-pin and pass after.
+	- Test case: `ddj79` TestConfigInvalidUTF8InQuotes, and harness `ddj7a` "config invalid UTF-8 digit mid-quote refused". Both fail before the re-pin and pass after.
 	- Acceptance signoff: Self-closed: reproduced, its tests failed on the old pin and pass on the new one, and the full suite passed.
 	- Closed: 20261005-203040
 
@@ -1649,12 +1662,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- An empty value still means none on purpose, and never reaches the parser. An empty `--to-tail` clears a tail, an empty `--to-symbols` falls back to the base name, and an empty config `tail:` sets no tail.
 		- SHCL reads a bare `tail: ,` or `tail: , ,` as an empty list, the same as `tail:`. So it stays meaning no tail. Only a quoted `","` reaches the parser.
 		- A lone `,` among other tokens is still the comma digit, as `85ps` needs.
-	- Against: closed item 2026100416041479. Its checks `ErmULmv` and the comma-only part of `ErmULmP` expected "needs tail symbols", naming the base. The parser now refuses first, naming the flag, so both are commented out with the reason. The layout check itself stands, and the rest of `ErmULmP` still pins it.
+	- Against: closed item 2026100416041479. Its checks `ddgpp` and the comma-only part of `ddgpn` expected "needs tail symbols", naming the base. The parser now refuses first, naming the flag, so both are commented out with the reason. The layout check itself stands, and the rest of `ddgpn` still pins it.
 	- Verified: 20261004. `go vet`, `golangci-lint`, `go test ./...` and the harness from CLI surface through Config migration pass. Every built-in base still loads.
 	- Swept: every `ParseSymbolSpec` caller. `--from-symbols` and `--to-symbols` through `ResolveBase`, both tail flags through `ApplyOptions`, config `symbols` and `tail` through `configSpec`, the built-in specs, and the help's base report, which prints the new error. `lib/wasm` gets the new error with no flag name, like its other errors. `lib/reactor` takes base names only.
 	- Branch: help-commas
 	- Commit: 27146f0
-	- Test case: Go `Ermubbp` TestSpecOnlyCommas, and harness `ErmufVw` (`--to-tail`), `ErmufXE` (`--to-symbols`) and `ErmufYc` (config `tail`). All fail before the fix and pass after.
+	- Test case: Go `ddgsw` TestSpecOnlyCommas, and harness `ddgt0` (`--to-tail`), `ddgt1` (`--to-symbols`) and `ddgt2` (config `tail`). All fail before the fix and pass after.
 	- Acceptance signoff: Signed off 20261005.
 	- Closed: 20261005-065102
 
@@ -1740,10 +1753,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: a box well past its core count still slows our side a bit more than math/big's, even at its fastest. Short calls over a longer span are what find the quiet moments. With 401 rounds it still failed 5 and 6 of 100 runs under 32 extra busy processes, and with 1201 none of 200.
 	- Note: the test fails under the race detector, before and after, since that slows our side about twice as much. Nothing here runs it that way.
 	- Verified: 20261004, with 32 extra busy processes: 0 failures in 200 runs, where the old test failed 15 of 200. The double-lookup code from before 6b7629b, with the new test, failed 100 of 100 at ratios of 1.9 to 2.5. `go vet`, golangci-lint and `go test ./...` pass.
-	- Swept: every timed Go test. The only other is `ErmQ70b` TestNewRegistryCost, which times one side against a fixed limit about ten times what it takes, so it was left alone.
+	- Swept: every timed Go test. The only other is `ddgp6` TestNewRegistryCost, which times one side against a fixed limit about ten times what it takes, so it was left alone.
 	- Branch: low-bugs
 	- Commit: cbdb7a1
-	- Test case: `ErmULlt` TestPositionalNearMathBig itself. It still fails on the double-lookup code it was written for, 100 of 100, and no longer fails on a busy box.
+	- Test case: `ddgpm` TestPositionalNearMathBig itself. It still fails on the double-lookup code it was written for, 100 of 100, and no longer fails on a busy box.
 	- Acceptance signoff: Self-closed: reproduced, and the test still fails on the double-lookup code and no longer fails on a busy box.
 	- Closed: 20261004-193613
 
@@ -1769,7 +1782,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: the other two patterns in `test-ids.py` read Go files, not bash.
 	- Branch: low-bugs
 	- Commit: debca16
-	- Test case: `Ermz7B5` runs `test-ids.py check` from a copy against a fixture with three arrays, a plain call and a call in a subshell. It fails before the fix and passes after.
+	- Test case: `ddgth` runs `test-ids.py check` from a copy against a fixture with three arrays, a plain call and a call in a subshell. It fails before the fix and passes after.
 	- Acceptance signoff: Self-closed: reproduced, and its test fails before and passes after.
 	- Closed: 20261004-193613
 
@@ -1791,7 +1804,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every file read in `flame-report.py`. The marker read already caught `OSError`, and the marker write already reported one.
 	- Branch: low-bugs
 	- Commit: d35882b
-	- Test case: `Ermz79l` runs it on a non-UTF-8 SVG and on a mode-000 one, where the mode holds, and wants exit 2 with no traceback. `Ermz7AQ` runs it on a made-up flamegraph whose self time is all in the divide and conquer functions, and wants 100 percent big-int. Both failed before the fix and pass after.
+	- Test case: `ddgte` runs it on a non-UTF-8 SVG and on a mode-000 one, where the mode holds, and wants exit 2 with no traceback. `ddgtf` runs it on a made-up flamegraph whose self time is all in the divide and conquer functions, and wants 100 percent big-int. Both failed before the fix and pass after.
 	- Acceptance signoff: Self-closed: reproduced, and its tests fail before and pass after.
 	- Closed: 20261004-193613
 
@@ -1805,14 +1818,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: Linux
 	- Incorrect behavior: with no `go` on the PATH, both sections count failures.
 	- Expected behavior: they skip with a warning, as the reactor section does.
-	- Reproduced: 20261004, in the harness self-check, which runs with a stub `go` that acts as missing. `EloQXv6` and `ErftBA8` failed there. First seen while testing 2026100413480008.
+	- Reproduced: 20261004, in the harness self-check, which runs with a stub `go` that acts as missing. `daqpm` and `ddf3v` failed there. First seen while testing 2026100413480008.
 	- Actual cause: neither section checked for Go before building or testing with it.
 	- Actual fix: both sections first run `go env GOVERSION`, as the reactor section does. Without Go they skip with a warning that names their checks, the macho-fat Go tests included.
 	- Verified: 20261004, with Go present the sections from binary streaming through the macOS universal binary pass, 316 of 316. shellcheck is clean.
 	- Swept: every Go call in `test.bash`. The reactor and browser module sections already skip. The config migration check skips when `go` is missing from the PATH, though a stub `go` that fails makes it fail. The packaging rebuild checks run `package.bash`, which needs Go, and they skip under `--quick`. Both left as they are.
 	- Branch: low-bugs
 	- Commit: 9c26b3e
-	- Test case: `ErmzVUR` in the harness self-check wants both skip lines and no failure from either section. It failed before the fix and passes after.
+	- Test case: `ddgtm` in the harness self-check wants both skip lines and no failure from either section. It failed before the fix and passes after.
 	- Acceptance signoff: Self-closed: the change does what the item asked, and its test fails before and passes after.
 	- Closed: 20261004-193613
 
@@ -1836,7 +1849,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: both config paths, system and user, and both help callers, `--help` and the no-argument help on stderr. The other `os.Stat` in main is the typed `--config` check, which still refuses outside the help. `lib/wasm` and `lib/reactor` load no config.
 	- Branch: help-commas
 	- Commit: 27146f0
-	- Test case: harness `ErmufTF` (parse error shown, rest printed) and `ErmufUW` (mode 000, default and typed path), and Go `ErmubcQ` TestLoadConfigAllOrNothing. All three fail before the fix and pass after.
+	- Test case: harness `ddgsy` (parse error shown, rest printed) and `ddgsz` (mode 000, default and typed path), and Go `ddgsx` TestLoadConfigAllOrNothing. All three fail before the fix and pass after.
 	- Acceptance signoff: closed without it. Help is the place a broken config should be visible, so showing it there and going on is the least surprise. A conversion still stops at a bad config.
 	- Closed: 20261004-190956
 
@@ -1857,7 +1870,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: no other `sudo` in `cicd/`, `utility/` or `install.bash`, outside `legacy/`.
 	- Branch: cicd-fixes
 	- Commit: ffeed2e
-	- Test case: `ErmCp2J` "dogfood: failed copy under HOME", `ErmCp2K` "dogfood: unattended, no sudo" and `ErmCp2L` "dogfood: attended, sudo -n only". All three fail on dev and pass after.
+	- Test case: `ddgmk` "dogfood: failed copy under HOME", `ddgmm` "dogfood: unattended, no sudo" and `ddgmn` "dogfood: attended, sudo -n only". All three fail on dev and pass after.
 	- Acceptance signoff: Closed on review: `sudo -n` can't hang a run, and an unattended run never escalates.
 	- Closed: 20261004-182334
 
@@ -1882,7 +1895,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004, the packaging section passes in full without the knob, and shows its four checks skipped with it.
 	- Branch: cicd-fixes
 	- Commit: ffeed2e
-	- Test case: `ErmCp2H` "--quick reaches the harness" and `ErmCp2I` "-q output". Both fail on dev and pass after. The harness side of the skip has no check, since that would run the harness inside itself.
+	- Test case: `ddgmh` "--quick reaches the harness" and `ddgmj` "-q output". Both fail on dev and pass after. The harness side of the skip has no check, since that would run the harness inside itself.
 	- Acceptance signoff: Closed on review: `-q` now differs from `-y` the way the help says. Quieting the harness lines too isn't filed.
 	- Closed: 20261004-182334
 
@@ -1911,7 +1924,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 20261004, the four checks fail on dev and pass on this branch, the two pipe ones 10 of 10 runs each way. `fetch.bash --verify` passes, and release notes for v3.0.0 still find the section. Shellcheck clean.
 	- Branch: bash-traps
 	- Commit: 65ce2be
-	- Test case: harness checks `Erm3T0v` (gen-screenshots), `Erm3T1Z` (pin-tools), `Erm3T2D` (release notes) and `Erm3T2q` (interop refresh). None for `test.bash:215`, which can't be made to fail with the current bases.
+	- Test case: harness checks `ddgkf` (gen-screenshots), `ddgkg` (pin-tools), `ddgkh` (release notes) and `ddgkj` (interop refresh). None for `test.bash:215`, which can't be made to fail with the current bases.
 	- Acceptance signoff: Self-closed: each fix's check failed before and passes after; the one part that could not be reproduced is left alone.
 	- Closed: 20261004-154100
 
@@ -1942,7 +1955,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The new unit tests fail against the old loader and pass on this branch, except the empty-block case, which already said missing symbols. The two new harness checks fail on a dev build and pass on this one; the harness up to the end of its config section passed 116 of 116. The README example converts as shown. Shellcheck finds nothing new in `cicd/test.bash`.
 	- Branch: rawblock
 	- Commit: 7c91a52
-	- Test case: `Erg6SWX` TestConfigRejectsRawBlockValue and the "raw marker" and "raw name" cases in `Em2MFrs` TestConfigErrorsCiteLines; `ErgbjuS` "config raw block symbols rejected" and `Erg6SWW` "config raw block alias rejected" in the harness. TestConfigRawBlockSymbols went when blocks under symbols were refused.
+	- Test case: `ddf5h` TestConfigRejectsRawBlockValue and the "raw marker" and "raw name" cases in `dav1v` TestConfigErrorsCiteLines; `ddf9c` "config raw block symbols rejected" and `ddf5g` "config raw block alias rejected" in the harness. TestConfigRawBlockSymbols went when blocks under symbols were refused.
 	- Acceptance signoff: Signed off 20261003.
 	- Closed: 20261003-180637
 
@@ -1966,12 +1979,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Actual fix: every file that goes into an asset gets the commit's time and a fixed mode. The tarballs have fixed owners and no gzip time, the zip is made in UTC without the extra fields, and nfpm takes the commit's time, a fixed build host and a fixed license mode. The Go builds have no VCS stamp or build ID. `checksums.txt` is sorted the same in any locale.
 	- Sweep: every file package.bash writes.
 	- Swept: all 25 files of a full run, the macOS universal build and the `.wasm` included. `make release` runs package.bash, and no other path builds a release asset.
-	- Verified: two package runs a few seconds apart, the second with another umask and time zone, gave the same checksums for all 25 files. So did a run from a dirty tree against one from a clean export of the commit at another path. `ErlP6B8` fails with dev's packaging, naming the 15 files, and passes with the fix. It also fails when the zip loses its fixed time zone. The macho-fat tests pass and the universal build still has both slices.
+	- Verified: two package runs a few seconds apart, the second with another umask and time zone, gave the same checksums for all 25 files. So did a run from a dirty tree against one from a clean export of the commit at another path. `ddge9` fails with dev's packaging, naming the 15 files, and passes with the fix. It also fails when the zip loses its fixed time zone. The macho-fat tests pass and the universal build still has both slices.
 	- Note: no part was left open. The installer rebuilt the same once its input had a fixed time.
 	- Note: matching a published checksum needs the same tool versions. Go and nfpm are pinned. NSIS, tar, gzip and zip come from the OS, and NSIS is the one most likely to differ between a runner and a local box.
 	- Branch: pkg-repro
 	- Commit: cdd002f
-	- Test case: `ErlP6B8` "release assets rebuild to the same bytes" in the harness.
+	- Test case: `ddge9` "release assets rebuild to the same bytes" in the harness.
 	- Note: check again after the next release. Rebuild its tag with the Go, nfpm and NSIS versions the workflow used, and compare with its `checksums.txt`. NSIS comes from the runner's apt, so its version has to be read from the workflow log.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
@@ -1980,7 +1993,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- ID: 2026100507565201
 	- Type: Bug
 	- Status: Done
-	- Needs local test suite run?: Done. A full `cicd/test.bash` run with perf on passed 595 of 595 on dev at c2132c5, `Erq3i2u` and `Erq3i3e` included. Hosted CI passed too.
+	- Needs local test suite run?: Done. A full `cicd/test.bash` run with perf on passed 595 of 595 on dev at c2132c5, `ddhj5` and `ddhj6` included. Hosted CI passed too.
 	- Severity: Low
 	- Opened: 20261005-075652
 	- Opened by: found while working 2026100507495201
@@ -2000,7 +2013,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: the new Go tests and harness checks fail on the old code and pass on the fix. `go vet`, golangci-lint, `go test ./...`, the `lib/wasm` tests and the reactor build pass.
 	- Branch: utf8-digits
 	- Commit: 62ba851
-	- Test case: `Erq3i1c` TestFinalizeRefusesInvalidUTF8, `Erq3i2I` TestRuneTableKeysAreDigits over every built-in base, and harness `Erq3i2u` "invalid UTF-8 digit refused" and `Erq3i3e` "config invalid UTF-8 digit refused". All 4 fail before the fix and pass after.
+	- Test case: `ddhj3` TestFinalizeRefusesInvalidUTF8, `ddhj4` TestRuneTableKeysAreDigits over every built-in base, and harness `ddhj5` "invalid UTF-8 digit refused" and `ddhj6` "config invalid UTF-8 digit refused". All 4 fail before the fix and pass after.
 	- Acceptance signoff: Self-closed. The tests fail before the fix and pass after, and the wider refusal of tail, pad and markers follows the same reason as the digits.
 	- Closed: 20261005-084420
 
@@ -2021,7 +2034,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: 9 harness checks and 7 Go test lines that matched the old text now match the new.
 	- Verified: `go test ./...`, vet, staticcheck and golangci-lint pass. The full harness passed 678 of 678, the `lib/wasm` tests under node included. The new test failed on the old `convert.go`, `install.bash` and `index.html`, with 40 hits.
 	- Swept: every string literal in the non-test Go files of `cmd/convert-base-v2`, `convertbase`, `internal/errcode`, `reactor` and `wasm`, and every non-comment line of `install.bash` and `web/index.html`. Comments, `lib/shcl/shcl.go`, the compatibility bases' output, test names and the cicd scripts were left alone.
-	- Test case: `Et9kwvY` TestMessagesUseContractions, which fails on a long-form negation in any of the swept strings.
+	- Test case: `de56v` TestMessagesUseContractions, which fails on a long-form negation in any of the swept strings.
 	- Acceptance signoff: Self-closed: mechanical, and its test passes.
 	- Branch: contractions
 	- Commit: b8252f0
@@ -2065,10 +2078,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261005: the open question is answered by 2026100516265602. `--precision foo`, `--binary` with `--number`, `--lower` with `--upper` and `--escape-controls` in byte mode exit 2 now, and the help and changelog say so. A value the base can't take stays 1.
 	- Actual fix: a `usageError` type exits 2 from `main`. Flag parse errors, the positional checks and the missing query base use it. The help gets an "Exit status" block. The changelog says a script testing for 1 will see 2.
 	- Swept: `cicd/test.bash`, the helper scripts, README and design.md. Nothing expected exit 1 on these cases, so no test changed. The browser module and reactor keep their own codes, as 2026100516265608 covers them.
-	- Verified: 20261005, ErssdDk fails all 7 cases on dev, at exit 1, and passes on the branch. ErssdER passes both ways.
+	- Verified: 20261005, ddj7w fails all 7 cases on dev, at exit 1, and passes on the branch. ddj7x passes both ways.
 	- Branch: cli-usage
 	- Commit: 5f318c3
-	- Test case: ErssdDk (7 usage errors exit 2 with an `error:` line), ErssdER (4 failed conversions still exit 1). Eje9ui2 already pins exit 2 with no arguments.
+	- Test case: ddj7w (7 usage errors exit 2 with an `error:` line), ddj7x (4 failed conversions still exit 1). d9qdc already pins exit 2 with no arguments.
 	- Acceptance signoff: Self-closed: does what the item asked, the changelog warns scripts, and the full suite passed.
 	- Closed: 20261005-203040
 
@@ -2092,10 +2105,10 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- A good result has no `code`, as before.
 	- Done: every failure from `convert()` has `code` beside `error`. `bases()` can't fail. A registry that fails to build still only logs to the console, since there is no result to put a code in. README, the reactor README, both design docs and the demo page JS mention `code`.
 	- Swept: every `fail(` in `lib/wasm/main.go`, and the reactor's `classify`, which now calls the shared mapping.
-	- Verified: Ert2MSr and Ert2MTh fail on dev's browser module and pass on the branch. Ert2MTh also fails when the added cases stop reaching code 6. `make web`, `make reactor`, `go vet`, staticcheck and golangci-lint are clean.
+	- Verified: ddj92 and ddj93 fail on dev's browser module and pass on the branch. ddj93 also fails when the added cases stop reaching code 6. `make web`, `make reactor`, `go vet`, staticcheck and golangci-lint are clean.
 	- Branch: web-codes
 	- Commit: 3ab36a1
-	- Test case: Ert2MTh (browser answers and codes match the reactor over the parity requests plus added failures, reaching codes 1, 2, 5 and 6), Ert2MSr (every browser failure kind has its code, 3 and 4 included, which the reactor can't be given), Ert2MSA (each code from a real library error, and the reactor README table), Ert30AN (browser answers match the command).
+	- Test case: ddj93 (browser answers and codes match the reactor over the parity requests plus added failures, reaching codes 1, 2, 5 and 6), ddj92 (every browser failure kind has its code, 3 and 4 included, which the reactor can't be given), ddj91 (each code from a real library error, and the reactor README table), ddj94 (browser answers match the command).
 	- Acceptance signoff: Self-closed: codes match the reactor's for every failure, its tests failed before and pass after, and the full suite passed.
 	- Closed: 20261005-203040
 
@@ -2198,7 +2211,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: no other `find` result in the five files goes unchecked, and no other private Pillow call is left. The report's test keys and its build-output key both moved to import path. Callers checked: `cicd.bash`, `config.bash`, `test.bash`, contributing.md and the style guide.
 	- Branch: py-style
 	- Commit: de915f7
-	- Test case: `ErnEi9h` (one-word command), `ErnEiAv` (same directory name), `ErnEiCC` (compile error). Each fails on the old code and passes now. The private Pillow call has no test, since nothing visible changed: the new check matched the old one on every codepoint tried.
+	- Test case: `ddgwc` (one-word command), `ddgwd` (same directory name), `ddgwe` (compile error). Each fails on the old code and passes now. The private Pillow call has no test, since nothing visible changed: the new check matched the old one on every codepoint tried.
 	- Acceptance signoff: closed without it. The compile-error fix is the same keying code as the listed bug, and has its own test.
 	- Closed: 20261004-203448
 
@@ -2219,7 +2232,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: `lib/wasm` has its own `maxPrecision`, and both modules build their limit messages from the constants.
 	- Swept: every `_` drop in our Go code under `lib/` and `cicd/`, shcl left out as vendored. The ones in `stream.go`, `configupgrade.go`, `userconfig_test.go` and the reactor-host runtime close got a short reason too. The section signs still in `bases.go` are digits in a listed alphabet. No 100000 literal is left beside its constant.
 	- Verified: 20261004. go vet (linux, windows, darwin, js, wasip1), golangci-lint and `go test ./...` clean. `make reactor` and `make web` build. Each benchmark runs once clean, and reactor-host passes.
-	- Test case: `Ern7YZg` TestPrecisionBound in the browser module, and new cap checks in reactor-host, `Elmd2Y4`. They pin both modules' 100000 caps to the command's, and fail with either cap moved to 99999. The rest is style, with no behavior to test.
+	- Test case: `ddgvg` TestPrecisionBound in the browser module, and new cap checks in reactor-host, `daq8s`. They pin both modules' 100000 caps to the command's, and fail with either cap moved to 99999. The rest is style, with no behavior to test.
 	- Branch: go-lows
 	- Commit: 36e8857
 	- Acceptance signoff: Self-closed: mechanical. `SpecOpts` left as public API, as the note says.
@@ -2238,7 +2251,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Origin: `reactor/main.go:136-148`, from 36d7ccc on 2026-08-02. Not seen by an earlier round. Confirmed with a scratch reactor-host bench.
 	- Done: as the probable fix. A pointer to a region's start is found in the map at once. Only a pointer into the middle of a region still walks them all.
 	- Verified: 20261004. 25 converts took about 0.8 ms with no other regions open. With 10,000 open they took 38 ms before and 0.8 ms after, 46 times as long against 1.1. go vet, golangci-lint, `go test ./...` and `make reactor` clean.
-	- Test case: `Ern7YaC`, reactor-host `--regions`. It fails when a convert with 10,000 regions open takes over 3 times as long as with none. It failed at 44 to 46 times before the fix and passed at 1.1 after, run through the harness section too. reactor-host `Elmd2Y4` now also passes an interior pointer, and a length past a region's end from its start and from its middle.
+	- Test case: `ddgvh`, reactor-host `--regions`. It fails when a convert with 10,000 regions open takes over 3 times as long as with none. It failed at 44 to 46 times before the fix and passed at 1.1 after, run through the harness section too. reactor-host `daq8s` now also passes an interior pointer, and a length past a region's end from its start and from its middle.
 	- Branch: go-lows
 	- Commit: 314421e
 	- Acceptance signoff: Self-closed: did what the item asked, and its test fails before and passes after.
@@ -2265,7 +2278,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: no changelog line. The migration is new since v3.0.0.
 	- Swept: `keepBackup` has one caller. The other link-based write, `createFile`, makes a new file and has nothing to lose.
 	- Verified: 20261004. go vet (linux, windows, darwin), golangci-lint and `go test ./...` clean. The three tests pass 20 times over under the race detector.
-	- Test case: `Ern8m1y` TestUpgradeConfigFileEditDuringWrite, plain and through a symlink, and `Ern925t` TestUpgradeEditInBackup. Both fail on the old code and pass now. `Ern924g` TestUpgradeConfigFileKeepsBackup pins the missing and written-through cases, and passes both ways.
+	- Test case: `ddgvn` TestUpgradeConfigFileEditDuringWrite, plain and through a symlink, and `ddgvq` TestUpgradeEditInBackup. Both fail on the old code and pass now. `ddgvp` TestUpgradeConfigFileKeepsBackup pins the missing and written-through cases, and passes both ways.
 	- Branch: go-lows
 	- Commit: 6e8854e
 	- Acceptance signoff: closed without it. Putting the edited file back keeps the edit where the user expects it, and matches what the code already did for a change seen before the write. The two gaps left need a compare-and-swap replace the OS doesn't give, so they stay as notes here.
@@ -2305,7 +2318,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: the other ASCII case code. `asciiUpper` in `escapes.go` only uppercases escape names, so it stays. `canLowercase`/`canUppercase` in `main.go` belong to item 23c.
 	- Branch: finalize-split
 	- Commit: b062cd7
-	- Test case: no new test, since nothing changed that a test could see. The existing suite covers `Finalize`: `EjeDvPT` TestFinalizeRejections, `EjeDvPQ` TestCrockfordAsymmetric, `ErmQ6z6` TestEveryBuiltinBuilds, `El51s2F` TestPadRejections, `El5mcJt` TestTailValidation, `Erm5wwf` TestTailNeedsOneCharDigits, `ErmULmP` TestTailSchemeNeedsTail, `El4bQL2` TestApplyMarkers and `Erlz3L2` TestMarkersWithoutDigits. Case flips on the command: `El4bQKx` and `Eje5hGL`.
+	- Test case: no new test, since nothing changed that a test could see. The existing suite covers `Finalize`: `d9qe1` TestFinalizeRejections, `d9qdy` TestCrockfordAsymmetric, `ddgp3` TestEveryBuiltinBuilds, `dacsb` TestPadRejections, `daczb` TestTailValidation, `ddgkk` TestTailNeedsOneCharDigits, `ddgpn` TestTailSchemeNeedsTail, `dacp7` TestApplyMarkers and `ddgjr` TestMarkersWithoutDigits. Case flips on the command: `dacp2` and `d9qct`.
 	- Acceptance signoff: Self-closed: the intent was clear, and the change does what it asked and no more.
 	- Closed: 20261005-075552
 
@@ -2327,7 +2340,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: `StreamConvert` picks the non-binary side the same way, and needed no change. The comments in `bases.go` and `registry.go` that name `convertBitPacked` and `Convert()` still hold.
 	- Branch: convert-split
 	- Commit: c6b1bf0
-	- Test case: `Erq97xg` TestFractionRoundingCarries, new, for a fraction rounding up into the integer part. The existing number, codec and stream tests cover the rest.
+	- Test case: `ddhjs` TestFractionRoundingCarries, new, for a fraction rounding up into the integer part. The existing number, codec and stream tests cover the rest.
 	- Acceptance signoff: Self-closed: a refactor whose output and errors are the same before and after.
 	- Closed: 20261005-082456
 
@@ -2348,7 +2361,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every flag with an alias: `--binary`/`--bin`/`-b`, `--number`/`--num`/`-N` and `--no-newline`/`-n`. The info flags already shared one value. `os.Exit` in `lib/cmd` is now only in `main`. Nothing else in the repo calls `canLowercase`, `canUppercase` or reads `flag.CommandLine`.
 	- Branch: run-split
 	- Commit: 76bcdb1
-	- Test case: `ErqCOGX` TestFlagAliasesShareOneValue is new. It checks every alias spelling sets its flag, and that a later `=false` on another spelling turns it off. It fails when an alias is bound to the wrong field. The old code had no `parseFlags` to test. Exit 2 with help on stderr is the existing harness check `Eje9ui2`, and the rest is the existing harness.
+	- Test case: `ddhk6` TestFlagAliasesShareOneValue is new. It checks every alias spelling sets its flag, and that a later `=false` on another spelling turns it off. It fails when an alias is bound to the wrong field. The old code had no `parseFlags` to test. Exit 2 with help on stderr is the existing harness check `d9qdc`, and the rest is the existing harness.
 	- Acceptance signoff: Self-closed. Last one wins is the usual rule for repeated flags, and `-h`/`--help` already worked that way, so the `=false` change is the least surprise. It is in the changelog. The rest of the refactor changes no output.
 	- Closed: 20261005-083847
 
@@ -2441,7 +2454,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261014: waiting on a choice: keep `--version` as it is, or add the program name and update `install.bash` and the scripts to match.
 		- 20261014: answered: name, version, build, with no space at either end.
 	- Done: `--version` prints `convert-base-v2 v3.0.0 build ddgee`. `install.bash` and the release notes drop the name before comparing the version, so an installed pre-3.0.1 build still reads as current.
-	- Test case: `ErlL5dx` --version one-line format, `ErlL5cs` and `ErlL5dO` in Go, `Esj2Pos` install.bash sees it's current, for the new line and both old ones, and `ErlN8Nk` for the release notes.
+	- Test case: `ddgdx` --version one-line format, `ddgdv` and `ddgdw` in Go, `ddys7` install.bash sees it's current, for the new line and both old ones, and `ddge1` for the release notes.
 	- Branch: dogfood-ver
 	- Commit: 07a81b5
 	- Acceptance signoff: Self-closed: its checks pass, and fail with the change undone.
@@ -2459,7 +2472,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261014: waiting on a choice: copy the Windows and macOS builds too, and move the path out of the public config.
 		- 20261014: answered yes to both.
 	- Done: stage 7 also copies the Windows x86_64 exe and the macOS universal build, listed in `DOGFOOD_CROSS`, but only when stage 6 built them in the same run. The dirs moved to a file outside the repo, named by `DOGFOOD_LOCAL`, and the public config lists none.
-	- Test case: `Esj2PpU`, `Esj2Pq1` and `Esj2PqY` for the cross copies, the skip without stage 6, and `--no-dogfood`. `Esj2Pr6` fails if `config.bash` names a personal dir again.
+	- Test case: `ddys8`, `ddys9` and `ddysa` for the cross copies, the skip without stage 6, and `--no-dogfood`. `ddysb` fails if `config.bash` names a personal dir again.
 	- Branch: dogfood-ver
 	- Commit: 07a81b5
 	- Acceptance signoff: Self-closed: its checks pass, and fail with the change undone.
@@ -2483,7 +2496,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: a full package run made all three macOS assets, and `checksums.txt` checks out. `file` reports a universal binary with x86_64 and arm64 executables. Each slice is byte-identical to its per-arch binary, and starts on a 4K or 16K boundary. Every page hash in the arm64 signature matches the slice as it sits in the universal file. A `--no-arm` run makes no universal asset.
 	- Branch: mac-universal
 	- Commit: 22452c9
-	- Test case: `ErftBA8` "macho-fat tests", which runs `ErftBA9` TestLayout, `ErftBAA` TestSecondSliceAlignment, `ErftBAB` TestRejects, `ErftBAC` TestVerifyCatchesChangedSlice and `ErftBAD` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
+	- Test case: `ddf3v` "macho-fat tests", which runs `ddf3w` TestLayout, `ddf3x` TestSecondSliceAlignment, `ddf3y` TestRejects, `ddf3z` TestVerifyCatchesChangedSlice and `ddf40` TestRealCommand from `cicd/utility/macho-fat/main_test.go`. They fail with the arm64 alignment or slice order broken.
 	- Verified: 20261004, on an Intel Mac with macOS 15.8.1. The universal binary, the per-arch x86_64 one and the one from the universal `.tgz` all print the same version and build line. A hex to base-62 conversion and a bytes to base-64 one match the Linux build. Gatekeeper rejects the universal and per-arch builds the same way, unsigned, with and without the quarantine flag.
 	- Acceptance signoff: Closed on review: the arm64 slice is byte-identical to the per-arch build, and its signature's page hashes match in place. The Apple silicon run is split out as 2026101411014811.
 	- Closed: 20261004-182334
@@ -2513,7 +2526,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: go vet, golangci-lint and the new unit tests pass. The six new harness checks fail on the dev build and pass on this one.
 	- Branch: about-donate
 	- Commit: c420170, 67d980e
-	- Test case: `Erfqe2I` TestInfoFlagOrder, `Erfqe2J` TestPrintInfoLone, `Erfqe2K` TestPrintInfoSeparation and `Erfqe2L` TestAboutAndDonateContent; `Erfqe2C` to `Erfqe2H` and `ErgVwO8` in the harness.
+	- Test case: `ddf3q` TestInfoFlagOrder, `ddf3r` TestPrintInfoLone, `ddf3s` TestPrintInfoSeparation and `ddf3t` TestAboutAndDonateContent; `ddf3h` to `ddf3p` and `ddf8n` in the harness.
 	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
 	- Closed: 20261003-180637
 
@@ -2576,8 +2589,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: go vet, golangci-lint, staticcheck and `go test ./...` pass. The full `cicd/test.bash` passed 445 of 445. The command builds for every release target and the three WASM ones. The vendor check failed on a made-up commit, a wrong commit, an edited copy, and the old tag against the new file. The new tests fail against the old build or the old shcl.
 	- Branch: shcl3, cfg-migrate
 	- Commit: 51f59b6, 9acc437
-	- Test case: `Erg0gZ2` TestConfigBackslashLayers and `Erg0gZ1` TestUserConfigIsStamped; `Erg0gYy`, `Erg0gYz` and `Erg0gZ0` in the harness.
-		- Second half: `ErgDzUX` TestUpgradeConfigKeepsOldMeaning, `ErgDzUY` TestUpgradeConfigCurrentIsLeftAlone, `ErgDzUZ` TestUpgradeConfigRefuses, the TestUpgradeConfigFile tests `ErgDzUQ` to `ErgDzUV`, and `ErgDzUW` TestExplicitConfigNote; the "Config migration" section, `ErgDzU8` to `ErgDzUP`, in the harness.
+	- Test case: `ddf4x` TestConfigBackslashLayers and `ddf4w` TestUserConfigIsStamped; `ddf4s`, `ddf4t` and `ddf4v` in the harness.
+		- Second half: `ddf76` TestUpgradeConfigKeepsOldMeaning, `ddf77` TestUpgradeConfigCurrentIsLeftAlone, `ddf78` TestUpgradeConfigRefuses, the TestUpgradeConfigFile tests `ddf6z` to `ddf74`, and `ddf75` TestExplicitConfigNote; the "Config migration" section, `ddf6d` to `ddf6y`, in the harness.
 	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
 	- Closed: 20261003-180637
 
@@ -2601,7 +2614,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 			- Verified: the full `cicd/test.bash` passed 467 of 467. Against a dev build 15 of the new checks fail, against a build without the command's part 6 fail, and the "left alone", "keeps its comments" and "loses nothing" checks each failed with a fault put in.
 	- Branch: cfg-migrate
 	- Commit: 9acc437
-	- Test case: the "Config migration" section, `ErgDzU8` to `ErgDzUP`, plus the tests named on the parent.
+	- Test case: the "Config migration" section, `ddf6d` to `ddf6y`, plus the tests named on the parent.
 	- Acceptance signoff: Self-closed: its tests pass, and the full `cicd/test.bash` passed 467 of 467.
 	- Closed: 20261003-180637
 
@@ -2659,7 +2672,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Cause: the package tag and the tool's tag are on the same commit, and the command that reads the newest tag picked the package one.
 	- Fixed: that command now skips the package tags. Released builds were never affected, since the workflow passes the version in.
 	- Verified: a fresh build reports the tool's version again.
-	- Test case: `ErkSf4k` "--version: command tag". Only a build from a clone can show it, and dev is such a commit today.
+	- Test case: `ddg7f` "--version: command tag". Only a build from a clone can show it, and dev is such a commit today.
 
 - ✅ Two kinds of config file mistake were accepted and then ignored.
 	- Reproduced: a field written twice, and a field whose name is in quotes. Both loaded without complaint, and the base came out different from what the file said.
@@ -2667,7 +2680,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Fixed: the check now walks the field names as written, keeping repeats, and refuses both. It names the base and the field.
 	- Note: this is the third thing the config loader is strict about on purpose. A wrong alphabet produces output that looks fine, so a mistake has to be refused where it is written.
 	- Verified: new tests for each field a repeat can hit and each shape a quoted name can take. All nine fail against the previous build.
-	- Test case: `Em1008w` TestConfigRejectsRepeatedField and `Em1008x` TestConfigRejectsQuotedUnknownField; `Em1008v` and `Em1008u` in the harness.
+	- Test case: `datqe` TestConfigRejectsRepeatedField and `datqf` TestConfigRejectsQuotedUnknownField; `datqd` and `datqc` in the harness.
 
 - ✅ Slicing a value with a very large count crashed instead of clamping. (Code review 20260802 item 1)
 	- Reproduced: asking for more symbols than the value holds is documented to clamp, and it does, until the count approaches the largest whole number the machine handles. Then it crashes.
@@ -2675,7 +2688,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Fixed: the count is compared against how many symbols are left instead, which cannot wrap.
 	- Note: reachable from the library and from a 32-bit build long before the limit, and not from the module, whose count is a smaller number.
 	- Verified: a new test covers both ends, and the rest of the suite is unchanged.
-	- Test case: `ElprYuW` TestSymbolSliceHugeCount.
+	- Test case: `dar1p` TestSymbolSliceHugeCount.
 
 - ✅ A wild fixed-width value from a host killed the module instead of being refused. (Code review 20260802 item 2)
 	- Reproduced: asking the module to pad a value to the largest width its argument can express stops the module dead. The host gets a crash, not an error.
@@ -2683,18 +2696,18 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the conversion call already caps its precision for the same reason, so the two were inconsistent.
 	- Fixed: width is capped at the same generous limit, and anything larger is refused. The fields this exists for are tens of symbols wide.
 	- Verified: the host exerciser now asks for the largest possible width and requires a refusal. Confirmed to fail before the fix.
-	- Test case: `Elmd2Y4` reactor ABI. Its host asks for the largest width and wants a refusal.
+	- Test case: `daq8s` reactor ABI. Its host asks for the largest width and wants a refusal.
 
 - ✅ Writing control characters by name got slower the longer the value was. (Code review 20260802 item 3)
 	- Cause: one control character's name can run into the text after it, so each name is read back against what follows before it is written. That check was copying the whole rest of the value every time, which turns a long value into a lot of copying.
 	- Fixed: only a name's worth of the following text can change how a name reads, so that is all the check looks at now.
 	- Verified: cost now rises evenly with length instead of with its square. A 200 KB value went from about a third of a second to seven thousandths, and the gap widens from there. Output is unchanged, and the test covering every control against every character it can be followed by still passes.
-	- Test case: `ErkSf4f` TestEscapeControlsIsLinear. It counts bytes allocated, since a timing check would be noise on a shared machine.
+	- Test case: `ddg7a` TestEscapeControlsIsLinear. It counts bytes allocated, since a timing check would be noise on a shared machine.
 
 - ✅ The browser module reported a confusing error for a value that was not a real number. (Code review 20260802 item 4)
 	- Cause: a number that is not finite was formatted as a word and then reported as an unrecognized digit. The precision setting already checked for this and the value did not.
 	- Fixed: it is refused with a message that says what is wrong.
-	- Test case: `ErkSf4h` TestConvertRefusesNonFinite, run under node by `ErkSf4j` "browser module tests".
+	- Test case: `ddg7c` TestConvertRefusesNonFinite, run under node by `ddg7e` "browser module tests".
 
 - ✅ The fuzz stage failed a run with nothing but "context deadline exceeded".
 	- Reproduced: intermittent, and only at the point where the run's time limit expires. No failing input was ever recorded, and the same target passes on a rerun.
@@ -2708,78 +2721,78 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Reproduced: encode to base 45, wrap the text at any width, decode it back, and the newline is reported as not a base-45 symbol. Every other raw-byte base tolerates wraps.
 	- Cause: base-45 has space as a digit, so it skipped no whitespace at all. CR and LF are not digits, so there was never a reason to include them in that.
 	- Fixed: base-45 decoding drops CR and LF and nothing else. Space still means what it always did.
-	- Test case: `El5P4dm` TestWrappedBinaryDecode, and `El5P4dk` "wrapped input decodes" over every raw base.
+	- Test case: `dacw6` TestWrappedBinaryDecode, and `dacw4` "wrapped input decodes" over every raw base.
 
 - ✅ Stale base names in the README table, the changelog, and the tests.
 	- Cause: `64programmer`, `69nice`, and `69emoji` were renamed, and nothing checked that a documented name still resolves.
 	- Fixed: names corrected, and the test suite now fails if any base named in the README table no longer resolves.
-	- Test case: `ElWMN5U` "README bases table resolves".
+	- Test case: `dakbk` "README bases table resolves".
 
 - ✅ Piped input was ignored when a value was also given on the command line. (BxZNl-1)
 	- Note: the command line still wins. Changing that would break scripts that pass a value while their input happens to be an inherited pipe, and could consume a pipe the tool should not touch.
 	- Fixed: a pipe carrying data, plus a lone argument that names a known base, now prints a note pointing at the `-` form. The usage line was corrected to require `-` for reading a pipe.
-	- Test case: `ErkSf4l` and `ErkSf4t`, for the note and for its absence.
+	- Test case: `ddg7g` and `ddg7r`, for the note and for its absence.
 
 - ✅ Custom alphabets where one symbol started another decoded wrong. (BxZNl-2)
 	- Cause: reading left to right, the shorter symbol matched first and the rest of the longer one was read as separate digits.
 	- Fixed: such an alphabet is now refused where it is defined. Only multi-character symbols can hit this, so no built-in base was affected.
-	- Test case: `EjeDvPT` TestFinalizeRejections.
+	- Test case: `d9qe1` TestFinalizeRejections.
 
 - ✅ A marker inside a multi-character digit corrupted parsing. (BxZNl-3)
 	- Fixed: a base whose negative or decimal marker appears inside any digit is refused where it is defined.
-	- Test case: `EjeDvPT` TestFinalizeRejections and `EjeFbjH` "spec marker-in-digit".
+	- Test case: `d9qe1` TestFinalizeRejections and `d9qef` "spec marker-in-digit".
 
 - ✅ Streaming encode treated a read error as the end of the input. (BxZNl-4)
 	- Cause: any read failure finished the output as though the data had run out, so a truncated read produced a complete-looking result.
 	- Fixed: a real read error is reported. Only a genuine end of input finishes the stream.
-	- Test case: `ErkSf4b` TestStreamReadErrorIsReported, both directions on both streaming paths.
+	- Test case: `ddg76` TestStreamReadErrorIsReported, both directions on both streaming paths.
 
 - ✅ Tab and newline escapes in symbol specs did nothing. (BxZNl-5)
 	- Cause: they were expanded before the spec was split on whitespace, so they were consumed as separators.
 	- Fixed: they are held aside during the split, the same way an escaped space already was.
-	- Test case: The "bare tab escape" case in `Erg0gZ2` TestConfigBackslashLayers, and `EjeFbjG` "spec escaped-space digit".
+	- Test case: The "bare tab escape" case in `ddf4x` TestConfigBackslashLayers, and `d9qee` "spec escaped-space digit".
 
 - ✅ Decoding was stricter from a pipe than from an argument. (BxZNl-6)
 	- Fixed: line breaks are tolerated either way, a digit after padding is refused either way, and base91 refuses junk instead of skipping it.
-	- Test case: `Em1DQ5d` and `Em1DQ5e` for padding, `El5P4dk` for line breaks, and `ErkSf4e` "base91 refuses junk, argv and pipe".
+	- Test case: `dats7` and `dats8` for padding, `dacw4` for line breaks, and `ddg79` "base91 refuses junk, argv and pipe".
 
 - ✅ Fractional output was cut short instead of rounded. (BxZNl-7)
 	- Fixed: the fraction rounds half up, and a carry rolls into the whole part. Converting `0.1` to another base and back is stable now.
-	- Test case: `EjYV8Gm` "fractional rounding", `EjeFbjA`, and the rounding case in `EjeDvPM` TestNumberVectors.
+	- Test case: `d9p1r` "fractional rounding", `d9qe8`, and the rounding case in `d9qdt` TestNumberVectors.
 
 - ✅ Tiny fractions printed as "0.000" or "-0.000". (BxZNl-8)
 	- Fixed: a value smaller than one output digit rounds to nothing, so there is no invented zero fraction and no sign on it. Same rewrite as the item above.
-	- Test case: `ErkSf4c` TestTinyFractionRoundsToZero.
+	- Test case: `ddg77` TestTinyFractionRoundsToZero.
 
 - ✅ The version stamped into release builds was discarded. (BxZNl-9)
 	- Cause: the version was a constant, and the linker can only patch a variable. The build flag looked right and did nothing.
 	- Fixed: it is a variable.
-	- Test case: `ErkSf4g` TestVersionIsPatchable. It builds the command with a stamp and reads it back.
+	- Test case: `ddg7b` TestVersionIsPatchable. It builds the command with a stamp and reads it back.
 
 - ✅ A config file that replaced a built-in base left the base list wrong. (BxZNl-10)
 	- Fixed: a built-in that is fully replaced drops out of the list and the index, and only names that still resolve are shown.
-	- Test case: `ErkSf4Z` TestConfigShadowsBuiltin.
+	- Test case: `ddg74` TestConfigShadowsBuiltin.
 
 - ✅ A mistyped `--config` path was ignored instead of reported. (BxZNl-11)
 	- Fixed: a config file named on the command line has to exist. The two paths nobody types stay optional.
-	- Test case: `EjeFbjL` "explicit missing config errors".
+	- Test case: `d9qek` "explicit missing config errors".
 
 - ✅ The check that a base alias is not a bare number was easy to slip past. (BxZNl-12)
 	- Fixed: every alias is checked, not only the first, and against its normalized form.
-	- Test case: `ErkSf4Y` TestRegisterChecksEveryNumericAlias.
+	- Test case: `ddg73` TestRegisterChecksEveryNumericAlias.
 
 - ✅ Comma-separated digits only worked in a single-token spec. (BxZNl-13)
 	- Fixed: every token is split on commas, so `0,1 2 3` is four digits.
-	- Test case: `EjeFbjF` "spec comma-split -> base4" and `EjeDvPS` TestSpecParser.
+	- Test case: `d9qed` "spec comma-split -> base4" and `d9qe0` TestSpecParser.
 
 - ✅ An empty `pad:` in a config file could not switch padding off. (BxZNl-14)
 	- Fixed: an empty value clears it. A separate field allows a pad that is accepted on input but never written.
-	- Test case: `ErkSf4u` TestConfigPadFields.
+	- Test case: `ddg7s` TestConfigPadFields.
 
 - ✅ A reserved noncharacter in a spec silently became a space digit. (BxZNl-15)
 	- Cause: those characters are used internally to hold escaped whitespace aside during the split.
 	- Fixed: a spec containing one is refused up front.
-	- Test case: `ErkSf4d` TestSpecRejectsNoncharacters.
+	- Test case: `ddg78` TestSpecRejectsNoncharacters.
 
 #### Done - Features and enhancements
 
@@ -2794,7 +2807,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: the vendored parser moved up to its 1.2.0 release, which added the call that answers with every line a name was bound on.
 	- Done: all eight ways a config file can be refused now cite a line, and a repeat names both the line it recurred on and the line it was first given.
 	- Verified: a test pins the line for each of the eight, and the rest of the suite is unchanged.
-	- Test case: `Em2MFrs` TestConfigErrorsCiteLines, plus the harness refusals that name a line, such as `ElHp3yZ` and `Erg4X7I`.
+	- Test case: `dav1v` TestConfigErrorsCiteLines, plus the harness refusals that name a line, such as `dafvy` and `ddf58`.
 
 - ✅ Retire `2048tt`, and rebuild the family on code-point-ordered alphabets.
 	- Cause: the alphabet was assembled out of code point order, so `2048tt` could not be corrected without leaving two different alphabets answering to one name.
@@ -2806,7 +2819,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Fixed: the base 1024 block was named `1024tt` while drawing from the `tz` alphabet, which its own comment and the family rule both contradicted. It is `1024tz`.
 	- Fixed: the two alphabets are equal through 384 symbols, not the 369 the comments claimed.
 	- Verified: harness 426/426, unit tests, vet, and gofmt clean. Every base round-trips as a number and as a byte stream, and the README table was regenerated from the binary.
-	- Test case: `ErkSf4W` TestTTFamilyOrdered: code point order, the shared 384, each size a prefix of its family, and `2048tt` gone.
+	- Test case: `ddg71` TestTTFamilyOrdered: code point order, the shared 384, each size a prefix of its family, and `2048tt` gone.
 
 - ✅ Cut and pad a value on symbol boundaries, for callers with fixed-width fields.
 	- Done: two new calls on a base. One takes a range of symbols out of a value, the other fits a value to a width. Fitting left-fills with the base's own zero symbol and keeps the rightmost symbols when the value is too long.
@@ -2814,7 +2827,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: three matching reactor exports, including a combined convert-then-fit, since that is the pairing a caller asked for.
 	- Done: the empty-result rule is now part of the reactor contract. A zero return with no error means an empty result, not a failure.
 	- Verified: unit tests over single-byte and multi-byte bases, the host exerciser drives all three exports, full suite passes.
-	- Test case: `ElpbexU` TestSymbolSlice, `ElpbexV` TestFit, and `Elmd2Y4` reactor ABI for the exports.
+	- Test case: `daqzq` TestSymbolSlice, `daqzr` TestFit, and `daq8s` reactor ABI for the exports.
 
 - ✅ For base "keyboard", allow encoding tab, newline, CR, etc.
 	- Done: they can be written by name, as `⊳LF`, `⊳TAB`, `⊳CR`, and so on for every control character. Input takes named and raw forms mixed, in one value, always. Output writes them only when `--escape-controls` asks, so nothing that already reads that base's output changes.
@@ -2823,7 +2836,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: `--show-symbols --escape-controls` prints the alphabet legibly, which it could not do before.
 	- Note: an escape naming something the base does not have fails exactly as the raw character would, as an unrecognized digit. Asking for escaped output in byte mode is refused rather than accepted and ignored.
 	- Note: the one thing that can go wrong is a name running into the text after it, since one control's name is the start of another's. Output checks each name against what follows and writes the hex form where the name would not survive. A test covers every control against every character it could be followed by, and was confirmed to catch the mistake before the real code went in.
-	- Test case: `Elotfax` to `Elotfb2` in escapes_test.go, and `Elotfai` to `Elotfaw` in the harness.
+	- Test case: `daqtq` to `daqtw` in escapes_test.go, and `daqt8` to `daqtp` in the harness.
 
 - ✅ A WebAssembly reactor module, so other languages can call this instead of running it. Design: `design_docs/20260801_wasm_reactor.md`.
 	- Done: the one-shot half. Conversion, base lookup, the radix and padding symbol of a base, symbol counting, the memory calls, a stable numeric error code set, and readable error text. The contract is written down beside the module.
@@ -2831,14 +2844,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: a host-side exerciser drives the whole contract each test run, including leak checks that must end with nothing left allocated and a memory ceiling that catches a stream quietly buffering.
 	- Done: frontend parity in the test suite. The same requests run through the command, the Go module directly, and the reactor, and the answers must agree byte for byte over every base, both directions, errors included. Piped payloads run through the command and the reactor streams the same way. The compat and interop suites stay on the command; parity extends what they prove to the other two.
 	- The `go.mod` floor stays at 1.21. Only the toolchain building this one target has to be 1.24 or newer.
-	- Test case: `Elmd2Y4` reactor ABI, `EloQXv8` "reactor answers match the command" and `EloQXv9` "stream parity".
+	- Test case: `daq8s` reactor ABI, `daqpp` "reactor answers match the command" and `daqpq` "stream parity".
 
 - ✅ Library error text no longer names command-line flags.
 	- Cause: messages like "see --list for all bases" came from the library, so a Go program or a browser page got advice about flags that do not exist there.
 	- Fixed: the library states these conditions in neutral terms, and the command adds its own pointers on the way out. Four cases: an unknown base (the "did you mean" suggestions stay, since those help everywhere), a missing negative or decimal marker, a default marker that collides with a digit, and a retired marker token in a symbol spec. Each is a distinct error type, so any caller can recognize the condition and add advice in its own words.
 	- Verified: the command's output is unchanged. Every affected error path was compared against the previous build character for character, including the wrapped forms, and the full test suite passes.
 	- Note: this also sets up the planned WebAssembly reactor module, which wants to hand error text to a host program. That text now reads correctly outside a terminal.
-	- Test case: `ErkSf4a` TestLibraryErrorsNameNoFlags.
+	- Test case: `ddg75` TestLibraryErrorsNameNoFlags.
 
 - ✅ Speed-up and advanced conversion algorithms epic:
 	- ✅ Say publicly which algorithms the number path uses, and what they are worth.
@@ -2857,7 +2870,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Note: the split seams are the one place this can go wrong. A short lower half must keep its leading zeros, and a mistake there still looks like a plausible number. New tests pin every seam, and they were confirmed to catch both seeded mistakes before the real code went in.
 		- Note: delegating half the work to the standard library was considered, measured as no faster end to end, and declined. One algorithm everywhere beats two things to get right.
 		- Note: the fuzzing length cap rose from 256 to 1,024 digits now that long values are cheap, so fuzzing reaches the new seams too.
-		- Test case: `ElmJ1ea` TestDivideConquerBoundaries. Speed itself is a benchmark, not a test, since timing is noise on a shared machine.
+		- Test case: `daq6a` TestDivideConquerBoundaries. Speed itself is a benchmark, not a test, since timing is noise on a shared machine.
 	- ✅ Speed up converting long numbers between two bases that are not powers of two. Second of three planned passes.
 		- Cause: the number was read in one digit at a time and written out one digit at a time. Each of those steps costs a pass over the whole number, however long it is, so a short digit gets the same expensive treatment as the entire value.
 		- Fixed: digits are now handled a batch at a time, as many as fit in one of the machine's own numbers. That is nineteen digits at once for base ten, twelve for base thirty-six, five for base 2048. The batch is assembled with ordinary arithmetic, which is free next to a pass over a long number.
@@ -2865,14 +2878,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Verified: results were compared against the previous build across about 1,200 conversions covering every length near a batch boundary, plus fractions, negatives, and both fixed and automatic precision. All identical.
 		- Note: two new tests pin the batch boundaries, one for whole numbers and one for fractions. That is the only place this could go wrong, and a wrong answer there would still look like a plausible number.
 		- Note: one more pass is planned, changing the method itself rather than its cost per step.
-		- Test case: `Elm99Wy` TestDigitChunkBoundaries and `Elm99Wz` TestFractionChunkBoundaries.
+		- Test case: `daq53` TestDigitChunkBoundaries and `daq54` TestFractionChunkBoundaries.
 	- ✅ Speed up converting long numbers between two bases that are not powers of two. First of three planned passes.
 		- Cause: each new digit of the answer was added to the front of a list. Everything already in the list has to shift along to make room, so the effort grows with the square of the answer's length. That was piled on top of the arithmetic, which is already the slow part for a long number.
 		- Fixed: digits are now collected in the order the arithmetic hands them back, and the list is flipped around once at the end. Same answer, none of the shuffling. The list is also sized up front rather than being regrown as it fills.
 		- Verified: a 16,000 digit conversion went from 251 to 29 milliseconds, and from 882 megabytes of scratch memory down to about one. Shorter numbers gain too, roughly four times faster at 1,000 digits.
 		- Note: new benchmarks cover this path at three input lengths, because the cost curves upward rather than rising evenly, so one length would not show the shape. Run them with `go test -run x -bench Positional ./convertbase`.
 		- Note: long numbers are still slower than they need to be. Two further passes are planned, one to cut the constant cost and one to change the method itself.
-		- Test case: `EjeDvPV` TestRoundTripNumber and `EizUJEA` "oversized input round-trips". Speed is in the benchmarks.
+		- Test case: `d9qe3` TestRoundTripNumber and `d9dnc` "oversized input round-trips". Speed is in the benchmarks.
 
 - ✅ Animated gif demo: run the motion at 50 frames per second, and make the scroll and the cursor buttery smooth.
 	- Done: every moving frame is now 20 ms. That is the fastest a gif can run, since browsers clamp shorter delays up to a tenth of a second. Motion used to sit at 80 ms.
@@ -2897,7 +2910,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: 20261014: Pages is on, and the demo page is live.
 	- Note: a C shared library is no longer the obvious next step. WebAssembly reaches the same languages with no permanent ABI, no cgo, and no per-platform build, so the C interface waits for someone who specifically needs in-process native speed.
 	- Note: an unreadable config file used to be fatal even for the path nobody types, which showed up first under WebAssembly. Only "not there" was forgiven, so a sandbox reporting a different error killed every run.
-	- Test case: `EloQXv6` "module answers match the command", and `ErkSf4j` "browser module tests". The license split has nothing to test.
+	- Test case: `daqpm` "module answers match the command", and `ddg7e` "browser module tests". The license split has nothing to test.
 
 - ✅ Test the four big bases against the implementations that defined them, instead of against vectors copied down by hand.
 	- Done: qntm's base2048, base32768 and base65536, and LLFourn's separate base2048, are kept verbatim from their published releases under `cicd/utility/interop/thirdparty`, with the version, download and hash of each recorded next to them.
@@ -2905,13 +2918,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: sample lengths count up from zero before turning random, since every disagreement these bases have ever had was about the final partial chunk.
 	- Done: an edited or missing reference fails the run. A reference that has been changed is worse than none, because everything would still pass, against something nobody published. A missing toolchain only warns, since that means the checks did not run rather than that they failed.
 	- Verified: all four agree in all three directions. 370 checks, up from 357.
-	- Test case: `EleGcFX`, `EleGcFU`, `EleGcFV` and `EleGcFW`.
+	- Test case: `dan8h`, `dan8e`, `dan8f` and `dan8g`.
 
 - ✅ Make every `69emoji` digit a graphical emoji.
 	- Cause: four of the sixty-nine were text-presentation by Unicode definition, so they drew as line art rather than color. One of those was also carrying a presentation selector to force the issue, which made it the only multi-codepoint digit in the base.
 	- Fixed: scissors became crossed fingers, the heavy black heart became revolving hearts, the curving arrow became a rocket, and the bed became a person in bed. Alphabet re-sorted into code point order.
 	- Verified: checked against `emoji-data.txt` from unicode.org, so the call is the Unicode property and not how one font happens to draw it.
-	- Test case: `ErkSf4X` TestEmojiDigits. It has no copy of the Unicode data, so it checks one code point per digit, no selector or skin tone, and none of the four old ones.
+	- Test case: `ddg72` TestEmojiDigits. It has no copy of the Unicode data, so it checks one code point per digit, no selector or skin tone, and none of the four old ones.
 
 - ✅ Trim the README bases table so it stops overflowing on GitHub.
 	- Done: dropped the Description and Specification columns, renamed Chars to Char count, added UTF-8 byte count next to it, and renamed Number representation to Output.
@@ -2921,13 +2934,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: narrowed again, since the widest rows still ran off the page. Target width dropped from thirty to twenty, and a digit above the basic plane counts as double width now, which is what `10rods` and `20mayan` needed. Nothing has a rendered width over twenty.
 	- Done: the table reads the default config, so `10emoji` is listed alongside the built-ins. A fresh install has it, so leaving it out was misleading. Pass `--config /dev/null` for built-ins only.
 	- Done: `64emoji` shows the signed fractional form now that it has the markers.
-	- Test case: None. The table is generated. `ElWMN5U` keeps its names resolving.
+	- Test case: None. The table is generated. `dakbk` keeps its names resolving.
 
 - ✅ Rationalize base names and aliases, per `design_docs/20260730_base_naming.md`.
 	- Done: one scheme now. Lowercase, radix first, at most four aliases in a fixed order, and bare numbers only where unambiguous. Every v1/v1b name still resolves; dropped spellings error with a near-match suggestion.
 	- Done: legacy maps in test.bash fixed (`code64` had gone stale) and moved to the new canonical names; README bases table rebuilt from the binary, now with a single First alias column; examples, changelog, and demo scenario updated.
 	- Verified: 356/356 harness checks, including both legacy cross-check suites.
-	- Test case: `ElXEFcO` TestLegacyAliasesArePreserved, the v1 and v1b checks, and `Eje7f0i` "unknown base near-match".
+	- Test case: `dakj9` TestLegacyAliasesArePreserved, the v1 and v1b checks, and `d9qd1` "unknown base near-match".
 
 - ✅ Cover the added and renamed power-of-2 bases in the tests, and cross-check the compatibility bases against both older tools.
 	- Cause: the test lists named bases by hand, so a base added or renamed after they were written was never tested. `64tt` and `256tt` were missing from the length sweeps, and the rename to `code64` had already broken the cross-checks against both older tools.
@@ -2937,13 +2950,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Done: a base each older tool shares is checked against both, one only a single tool has is checked against that one, and every output base either tool offers must be mapped or listed as excused.
 	- Done: a missing older script skips its suite and warns, and the summary repeats the warning so it can't read as a pass.
 	- Verified: 389 checks pass, and both the coverage guard and the skip path were exercised on purpose.
-	- Test case: The scrape floors `EjeFbjM`, `ElWMN5V` and `EjeFbjN`, coverage `ElWMN5X` and `ElWMN5Y`, and `El5P4dl` "constant memory".
+	- Test case: The scrape floors `d9qem`, `dakbm` and `d9qen`, coverage `dakbp` and `dakbq`, and `dacw5` "constant memory".
 
 - ✅ Hold the alias notes in `bases.go` to the alias lists, and settle the two older bases that have no counterpart here.
 	- Note: `bases.go` marks each alias the older tools call, and says which tool needs it. Nothing read those notes, so a rename could drop one and only the older tools would notice.
 	- Done: a test reads those notes and checks each named alias is still on the base it sits on, and still resolves. Eighteen of them.
 	- Done: every alphabet either older tool offers was walked symbol by symbol against every base here, which confirmed all the cross-check pairings and turned up exactly two with no counterpart: v1's 38-symbol username and v1's hex-ordered base 64. Both are permanent, so they are recorded as excused and named in the passing line rather than reported as a problem every run.
-	- Test case: `ElXEFcO` TestLegacyAliasesArePreserved, and `ElWMN5X` names the two excused bases.
+	- Test case: `dakj9` TestLegacyAliasesArePreserved, and `dakbp` names the two excused bases.
 
 - ✅ Pin the vendored SHCL binding to an upstream release and check it on every pipeline run.
 	- Note: SHCL reached v1.0.0, so the question was whether to depend on it as a Go module instead of keeping the copy.
@@ -2960,14 +2973,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the default config is embedded in the binary and written on first run, so the built-in example and the file people edit cannot drift apart. `example.conf` is gone.
 	- Note: an unknown field is now an error. A typo that silently dropped a marker would give a wrong alphabet, and no output would ever reveal it.
 	- Verified: harness at 306 checks, including both list spellings, an alias, a disabled marker, a symbol carrying a space, two rejected typos, and the first-run creation itself.
-	- Test case: The config section, `EjeFbjJ` to `EjeFbjL` and `ElHp3yS` to `ElHp3yZ`, plus `ElHp3ya` "first run creates the user config" and `ElczR2W`.
+	- Test case: The config section, `d9qeh` to `d9qek` and `dafvq` to `dafvy`, plus `dafvz` "first run creates the user config" and `damym`.
 
 - ✅ Base set overhaul: bases and aliases added, renamed, and removed, and the v1/v1b compatibility bases split out into their own group.
 	- Note: `Base.Compat` marks them; `--list` skips them and the new `--list-compat` shows only them. Both listings stay contiguous because compatibility bases sort last, so `--by-index` still reaches every base.
 	- Verified: every compatibility alphabet matches the bundled `convert-base-v1` and `convert-base-v1b` scripts symbol for symbol, and the harness now cross-checks against both binaries instead of only v1b.
 	- Fixed: `69emoji` was one emoji short, with a stray presentation selector standing in as an invisible digit.
 	- Note: three legacy bases are left uncovered on purpose. Two have no counterpart here, and the third differs only in case.
-	- Test case: `ElG9gVM`, `ElG9gVN`, `ElG9gVO` and `ElG9gVP`, and the v1 and v1b checks `ElG9gVS`, `ElG9gVT`, `Ej0q2ga` and `Ej0q2gb`.
+	- Test case: `dafew`, `dafex`, `dafey` and `dafez`, and the v1 and v1b checks `daff2`, `daff3`, `d9dyp` and `d9dyq`.
 
 - ✅ Document the shell aliases that keep binary mode and number mode apart.
 	- Done: added to the end of the README Usage section, right after the help pointer, so it reads as a follow-on to the examples.
@@ -2982,7 +2995,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: 625 streamed-against-buffered comparisons, 121000 fuzz round-trips, harness at 252 checks including a peak-memory ceiling per base.
 	- Done: closed the last gap with a `tail:` config field and `--from-tail`/`--to-tail` flags, so a base of your own above 8 bits can stream too. A 24 MB encode drops from 244 MB to 21 MB. Without a tail the length-prefixed layout still works, so nothing had to change.
 	- Verified: round-trips at every awkward length on both layouts, the width and overlap guards reject a tail that could never be used, and the config and flag forms agree.
-	- Test case: `El5P4dl` "constant memory", `EjeDvPU` TestStreamBufferedEquivalence, `El5mcJr` TestUserDefinedTail, `El5mcJt` TestTailValidation, and `El5mcJk` to `El5mcJq`.
+	- Test case: `dacw5` "constant memory", `d9qe2` TestStreamBufferedEquivalence, `dacz9` TestUserDefinedTail, `daczb` TestTailValidation, and `dacz2` to `dacz8`.
 
 - ✅ User-defined alphabets:
 	- Need flags to define negative, decimal, and pad - not all in one string.
@@ -2992,7 +3005,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- A symbol spec is digits only. Config files keep their `negative:`, `decimal:` and `pad:` fields, and the in-string form is gone from both.
 	- The retired `neg=`/`dec=`/`pad=` tokens are a hard error naming the replacement, so a stale spec can't quietly turn one into a digit and shift the alphabet.
 	- Designed in `design_docs/20260725_neg_dec_pad_config_cli.md`.
-	- Test case: `El4bQKu` to `El4bQL0` in the harness, `El4bQL1` TestRetiredMarkerTokensRejected and `El4bQL2` TestApplyMarkers.
+	- Test case: `dacnz` to `dacp5` in the harness, `dacp6` TestRetiredMarkerTokensRejected and `dacp7` TestApplyMarkers.
 
 - ✅ Design new bases (all just shorter versions of the `tt` alphabet, which starts with base 62h):
 	- ✅ Blocks: ▁ ▂ ▃ ▄ ▅ ▆ ▇ █ ▒ ▓
@@ -3003,13 +3016,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- ✅ 128tt
 	- ✅ 64tt
 	- ✅ 32tt
-	- Test case: `ErkSf4W` TestTTFamilyOrdered, `EizUJED` "all-base matrix" and `ElWMN5W` "binary round-trip".
+	- Test case: `ddg71` TestTTFamilyOrdered, `d9dnf` "all-base matrix" and `dakbn` "binary round-trip".
 
 - ✅ Automatic fractional precision.
 	- Done: `--precision` defaults to `auto`, which sizes the output fraction to the input's own precision instead of always stretching to fifty digits. A short decimal input no longer grows an invented tail in another base.
 	- Done: `--precision N` still forces a fixed count, for padded or lossless round-trip output.
 	- Note: automatic round-trips are lossy by design, since each hop keeps only the digits the input justified.
-	- Test case: `Ejlud4y` to `Ejlud55` in the harness, and `Ejlud57` TestAutoPrecision.
+	- Test case: `d9s8z` to `d9s96` in the harness, and `d9s98` TestAutoPrecision.
 
 - ✅ CI/CD improvements. The v1.1.0-beta7 release was cut by the new flow itself.
 	- ✅ Minimal hosted CI: `.github/workflows/ci.yml` vets, tests, and builds on every push and PR to dev and main. The full local pipeline is unchanged.
@@ -3031,116 +3044,116 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Fixed: the serial number example named the wrong base, one example output row was stale, and one example used a base name that no longer existed.
 	- Fixed: the byte-count table for UTF-16 and UTF-32 was wrong in the companion document, a config claim about disabling a marker was wrong, and one config field was undocumented.
 	- Fixed: year typos in the changelog.
-	- Test case: `ElWMN5U`. The rest was doc text.
+	- Test case: `dakbk`. The rest was doc text.
 
 - ✅ Closed the blind spots in the test suite. (BxZNl-23)
 	- Cause: several bases were only ever checked against themselves, so a round trip could be wrong in both directions and still pass.
 	- Done: known values pinned for those bases, plus more fractional cases, config file loading, alphabet parser edge cases, and a symbol count pin.
 	- Done: minimum counts on the base listings, so a listing that quietly shrinks fails.
 	- Done: a missing older reference script now reports as skipped instead of passing quietly.
-	- Test case: The pins `EjeFbjB` to `EjeFbjE`, `ElG9gVQ` and `ElG9gVR`, the scrape floors, and `ElG9gVM`.
+	- Test case: The pins `d9qe9` to `d9qec`, `daff0` and `daff1`, the scrape floors, and `dafew`.
 
 - ✅ Two binary paths kept separate but pinned, rather than merged. (BxZNl-25)
 	- Note: streaming and buffered conversion are different jobs with different costs, and the fast streaming path was hard won. Merging them was judged the wrong move.
 	- Done: the two are held together by an equivalence test instead, which fails if they ever disagree.
-	- Test case: `EjeDvPU` TestStreamBufferedEquivalence.
+	- Test case: `d9qe2` TestStreamBufferedEquivalence.
 
 - ✅ Real unit tests, so `make test` covers the conversion logic instead of running only benchmarks. (BxZNl-22)
 	- Done: fixed values for signs, fractions, leading zeros and rounding, the codec and big-base reference values, padding, the asymmetric Crockford rule, custom alphabets and markers, and the cases that should be refused.
 	- Done: the streaming-against-buffered equivalence test, which is the one that matters most. It compares both paths byte for byte across every power-of-two base at many lengths.
-	- Test case: The Go tests themselves, `EjeDvPM` to `EjeDvPV` first.
+	- Test case: The Go tests themselves, `d9qdt` to `d9qe3` first.
 
 - ✅ Padding settled: it depends on the mode, not on the base. (BxZNl-20)
 	- Done: number output is never padded. Binary-to-text output pads every RFC 4648 variant to the group boundary, which is what the strict standard decoders expect.
 	- Done: decoding stays lenient, and takes padded or unpadded input either way.
-	- Test case: `EjGXlOS` to `EjGXlOZ` and `EjeCdXk` to `EjeCdXn`, `EjeCdXo` "base64url number unpadded" and `EjeDvPP` TestRFCPaddingVectors.
+	- Test case: `d9hqj` to `d9hqs` and `d9qdn` to `d9qdr`, `d9qds` "base64url number unpadded" and `d9qdx` TestRFCPaddingVectors.
 
 - ✅ `--list` now has a leading INDEX column (the value `--by-index` takes), and `--by-index` outside a query prints a stderr note that it is ignored. (BxZNl-19) Help wording for `--by-index` now points at the INDEX column instead of a fragile "above".
 	- Note: since 2026100516265602 the note reads "--by-index does nothing".
-	- Test case: `EjeBOHQ`, `EjeBOHR` and `EjeBOHS`.
+	- Test case: `d9qdg`, `d9qdh` and `d9qdj`.
 
 - ✅ `--help` and `--examples` now write to stdout when explicitly requested, so `--help | less` works. (BxZNl-18) The no-args error path keeps help on stderr (exit 2, clean stdout). Threaded a writer through printHelp/printExamples/printCopyright.
-	- Test case: `Eje9ui0`, `Eje9ui1` and `Eje9ui2`.
+	- Test case: `d9qda`, `d9qdb` and `d9qdc`.
 
 - ✅ Conflicting base selectors now emit a stderr note instead of silently picking one. (BxZNl-17) `--from-symbols` over `--from`, `--to-symbols` over any output name, and `--to` over a positional OUTBASE. A `--to` and positional that name the same base stay quiet. Behavior unchanged (note only), matching the BxZNl-1 approach.
-	- Test case: `Eje8sS8`, `Eje8sS9` and `Eje8sSA`.
+	- Test case: `d9qd6`, `d9qd7` and `d9qd8`.
 
 - ✅ Friendlier messages for the four common stumbles. (BxZNl-16) Flags after the NUMBER now say flags come first; a bare `-123` points at the `--` separator; an unknown flag points at `--help`; an unknown base points at `--list` and suggests near matches (prefix or small edit distance, closest tier only). Flag parsing moved to ContinueOnError so these can be caught.
-	- Test case: `Eje7f0i` to `Eje7f0m`.
+	- Test case: `d9qd1` to `d9qd5`.
 
 - ✅ Crockford base 32 now follows its own asymmetric rule. (BxZNl-21)
 	- Done: on input it reads O as zero and I or L as one, in either case. Output stays strict.
 	- Done: this needed a general input-only alias mechanism on a base, which any base can now use.
-	- Test case: `Eje5hGK` to `Eje5hGP`, and `EjeDvPQ` TestCrockfordAsymmetric.
+	- Test case: `d9qcs` to `d9qcy`, and `d9qdy` TestCrockfordAsymmetric.
 
 - ✅ Allow any base to be prefaced with "base", "base-", or "base_", and still work. (github #8)
-	- Test case: `EjUSzQO` to `EjUSzQT`.
+	- Test case: `d9n2q` to `d9n2w`.
 
 - ✅ `--show-symbols` should list with no delimiters. (Currently lists with newline in between each.) #1n4xq9d
 	- Now concatenated with a single trailing newline. Added `--show-symbols-0` (NUL-separated) so scripts can still split multi-char symbols; fuzz harness uses it.
-	- Test case: `EjUH4Lo`. The NUL form is read by `EjeFbjI` and the symbol fuzz.
+	- Test case: `d9n17`. The NUL form is read by `d9qeg` and the symbol fuzz.
 
 - ✅ Added a `--upper` flag, the opposite of `--lower`. Uppercases text output, and like `--lower` errors on a mixed-case output base (where changing case would collide two distinct digits). The two flags reject each other.
-	- Test case: `ErkSf4m`, `ErkSf4n` and `ErkSf4o`, plus `Em1DQ5Z` for markers.
+	- Test case: `ddg7h`, `ddg7j` and `ddg7k`, plus `dats3` for markers.
 
 - ✅ Byte-mode re-encoding between text bases. Two power-of-2 text bases (e.g. hex and base-64) used to convert only as a positional number, which silently drops leading zeros and is not a byte re-encoding.
 	- Now `--binary` (`--bin`, `-b`) re-encodes them as byte data the way `basenc` does, by routing through the raw-byte base; piped input streams.
 	- `--number` (`--num`, `-N`) asserts the numeric reading.
 	- With neither flag, a power-of-2 text-to-text conversion prints a note on stderr so the ambiguity is no longer silent.
-	- Test case: The --binary section, `EjU6h0i` to `EjU6h0s`.
+	- Test case: The --binary section, `d9mzy` to `d9n08`.
 
 - ✅ Renamed the 256-value raw-byte base to `bytes` and dropped its `binary`/`bin`/`raw` aliases, so the base name no longer collides with the new `--binary` mode flag (and "binary" no longer misleadingly names the byte base rather than base-2).
-	- Test case: `ErkSf4p` "retired byte-base names gone".
+	- Test case: `ddg7m` "retired byte-base names gone".
 
 - ✅ Renamed the `--raw` output flag to `--no-newline` (`-n`), matching `echo -n`; its old name was unclear and overlapped the raw-byte base.
-	- Test case: `EjTpGMi`, and `ErkSf4q` "--raw is not a flag".
+	- Test case: `d9mxs`, and `ddg7n` "--raw is not a flag".
 
 - ✅ Raw binary conversion now covers, besides the powers of two, the defined streaming binary-to-text codecs: base45, Ascii85, Z85, and base91, each implemented per its official spec.
 	- Any other non-2^N base has no byte-exact mapping and is refused in binary mode.
 	- `--list` shows which bases qualify (RAW column). (An earlier attempt to make every base work via whole-value base-x was reverted in favor of this, since a positional whole-value encoding isn't what a streaming codec means.)
-	- Test case: `EjK8KIi` "raw round-trip", the codec vectors `EjK8KIk` to `EjK8KIp`, and `EjK8KIj` for the refusals.
+	- Test case: `d9jk6` "raw round-trip", the codec vectors `d9jk8` to `d9jkd`, and `d9jk7` for the refusals.
 
 - ✅ Screenshots retired. The README no longer shows them and the CICD stage is off by default; the generator is kept so they can be made again if wanted. Dropped the orphaned image files.
 	- Test case: None. A pipeline setting.
 
 - ✅ Rigorous CICD testing. Raw round-trips now cover every base (not just powers of two) at lengths that force padding, with fixed base-x vectors pinning the leading-zero convention. Added a resource profile (peak memory and wall time) and a base-x timing guard, both skipped by `--quick`.
-	- Test case: `EjK8KIi`, plus `EjGnHfk` and `EjK8KIq` on runs with the performance section.
+	- Test case: `d9jk6`, plus `d9hsg` and `d9jke` on runs with the performance section.
 
 - ✅ Create a new base that covers all possible printable keyboard characters in a plain text document. (Including programming code, regular human writing, email addresses, newline, return, tab, etc.)
 	- Without worrying about higher unicode alternatives (e.g. curly-quotes, mdash, etc.) - those would have to go through some separate conversion preprocessing in order to work with this base. I believe this should also covers Rich-Text format (which I believe has no special characters), MD, HTML, XML, JSON, embedded base64, etc., as-is.
-	- Test case: `EjGqhx2` and `EjGqhx3`.
+	- Test case: `d9hsx` and `d9hsy`.
 
 - ✅ Create a base64 that's all emojis
 	- Only emojis noted/suggested by unicode to print graphically.
 	- Symbols in LANG=C order.
 	- Use generic yellow emojis for skintone-based ones, not skin-tone variants.
 	- Skip emojis that look too similar; use only the first one.
-	- Test case: `ErkSf4X` TestEmojiDigits for the order and the single code points.
+	- Test case: `ddg72` TestEmojiDigits for the order and the single code points.
 
 - ✅ Improve the performance of streaming binary-to-text conversion and vice-versa, to better approach existing linux utilities. Go should be able to get close.
-	- Test case: `EjGnHfk` "perf" and `El5P4dl` "constant memory". The throughput number is information, not a pass mark.
+	- Test case: `d9hsg` "perf" and `dacw5` "constant memory". The throughput number is information, not a pass mark.
 
 - ✅ An optional padding scheme for custom bases (not necessarily `===`). The published big bases and the RFC base32/base64 bases already pad correctly; this is about letting user-defined bases opt into padding too.
-	- Test case: `EjGkfrU` to `EjGkfrX`.
+	- Test case: `d9hs5` to `d9hs8`.
 
 - ✅ Update comments in code, help output, readme.md, and design.md to properly use "radix" and/or "base" in context, etc. But not the actual program interface, don't change that.
 	- Test case: None. Wording only.
 
 - ✅ Base64 (RFC 4648 s4) and base32 (RFC 4648 s6) binary output is now padded with `=` to the standard group boundary, matching the RFC test vectors. The URL and hex variants stay unpadded, and decoding accepts input with or without padding.
 	- Note: superseded by BxZNl-20. The URL and hex variants pad too.
-	- Test case: `EjGXlOS` to `EjGXlOZ` and `EjeCdXk` to `EjeCdXn`, and `EjeDvPP` TestRFCPaddingVectors.
+	- Test case: `d9hqj` to `d9hqs` and `d9qdn` to `d9qdr`, and `d9qdx` TestRFCPaddingVectors.
 
 - ✅ Binary conversions to the big published bases (both base 2048's, 32768, 65536) round-trip at any input length and match the reference encoders byte-for-byte, using each one's own secondary alphabet for the final partial chunk. Odd-length tails no longer come back a byte long. Fixed vectors from the reference implementations guard the interop.
-	- Test case: `EjGTP6O` to `EjGTP6b`, and the interop checks.
+	- Test case: `d9hq1` to `d9hqe`, and the interop checks.
 
 - ✅ Bases with '-' in the symbol set now use '~' as the negative marker instead of the en-dash. '~' was free in all four affected bases (45, 64u, 64h, 69prsh).
-	- Test case: `ErkSf4r` "dash digit vs neg marker", over every base.
+	- Test case: `ddg7p` "dash digit vs neg marker", over every base.
 
 - ✅ Help: clarified the text for the index-related flags (`--get-index-count`, `--get-base-name`, `--show-symbols`, `--by-index`).
 	- Test case: None. Wording only.
 
 - ✅ `--list`: the NAME is no longer repeated in the ALIASES column.
-	- Test case: `ErkSf4s` "--list alias/name dupes".
+	- Test case: `ddg7q` "--list alias/name dupes".
 
 ### Deferred
 

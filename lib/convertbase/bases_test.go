@@ -28,7 +28,7 @@ func ascending(syms []string) int {
 
 // The tt and tz families are prefixes of two ordered alphabets that agree for
 // their first 384 symbols. Below 512 a tt and a tz name are one base.
-// Test ID: ErkSf4W
+// Test ID: ddg71
 func TestTTFamilyOrdered(t *testing.T) {
 	tt, tz := strings.Fields(base_534tt), strings.Fields(base_2048tz)
 	if i := ascending(tt); i >= 0 {
@@ -75,7 +75,7 @@ func TestTTFamilyOrdered(t *testing.T) {
 // Emoji digits are single code points that draw in color on their own: no
 // presentation selector, no skin tone, and none of the four text-presentation
 // ones 69emoji used to carry. Both bases are in code point order.
-// Test ID: ErkSf4X
+// Test ID: ddg72
 func TestEmojiDigits(t *testing.T) {
 	reg := newReg(t)
 	textStyle := map[rune]bool{0x2702: true, 0x2764: true, 0x2934: true, 0x1F6CF: true}

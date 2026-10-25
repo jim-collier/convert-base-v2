@@ -47,7 +47,7 @@ func soakCheck(n, n2 soakSample) error {
 	return nil
 }
 
-// Test ID: Et9UPKp
+// Test ID: de54t
 func TestSoakCheck(t *testing.T) {
 	base := soakSample{heapInuse: 4 << 20, goroutines: 3}
 	cases := []struct {
@@ -178,7 +178,7 @@ func soakTake(t *testing.T, outDir, name string) soakSample {
 	return s
 }
 
-// Test ID: Et9UPKC
+// Test ID: de54s
 func TestSoak(t *testing.T) {
 	outDir := os.Getenv("CICD_SOAK_OUT")
 	if outDir == "" {

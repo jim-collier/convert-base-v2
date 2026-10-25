@@ -19,7 +19,7 @@ import (
 // Each code comes from a real library failure, not a hand-built error value,
 // so a library change that swaps an error's type shows up here. The numbers
 // are checked against the table hosts read in the reactor README.
-// Test ID: Ert2MSA
+// Test ID: ddj91
 func TestCodesMatchLibraryAndReadme(t *testing.T) {
 	reg, err := convertbase.NewRegistry()
 	if err != nil {

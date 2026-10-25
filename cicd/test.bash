@@ -98,15 +98,15 @@ _run(){    _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@"        >"${CBT_OUT}" 2>"${CBT_ER
 _run_in(){ local f="$1"; shift; _rc=0; "${TIMEOUT[@]}" "${EXE}" "$@" <"$f" >"${CBT_OUT}" 2>"${CBT_ERR}" || _rc=$?; _out="$(<"${CBT_OUT}")"; _err="$(<"${CBT_ERR}")"; }
 
 ## Every check has an ID, the first argument here: when the test was written,
-## as milliseconds since 2000-01-01 UTC in base 62. `utility/test-ids.py new`
-## makes one, and `test-ids.py check` refuses a check without one or two tests
-## sharing one. Loops share their site's ID, and the label tells the runs apart.
+## as minutes since 2000-01-01 UTC in lower case Crockford base 32.
+## `utility/test-ids.py new` makes one, and `test-ids.py check` refuses a check
+## without one or two tests sharing one. Loops share their site's ID, and the label tells the runs apart.
 ## A bad ID fails the check, so a function handed an empty one shows up.
 _pass(){
-	[[ "$1" =~ ^[0-9A-Za-z]{7}$ ]] || { _fail "$1" "$2" "bad test ID"; return; }
-	PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); printf '%s  ok  %s  %s%s\n' "${dim}" "$1" "$2" "${rst}"
+	[[ "$1" =~ ^[0-9a-hjkmnp-tv-z]{5,}$ ]] || { _fail "$1" "$2" "bad test ID"; return; }
+	PASS=$((PASS + 1)); TOTAL=$((TOTAL + 1)); printf '%sPASS %s %s%s\n' "${dim}" "$1" "$2" "${rst}"
 }
-_fail(){ FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); printf '%s FAIL %-7s  %s%s\n       %s\n' "${red}" "$1" "$2" "${rst}" "$3"; FAILURES+=("$1 $2 :: $3"); }
+_fail(){ FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); printf '%sFAIL %s %s%s\n     %s\n' "${red}" "$1" "$2" "${rst}" "$3"; FAILURES+=("$1 $2 :: $3"); }
 ## A suite that did not run at all. Not a failure, but it must not read as one
 ## more quiet line either, so the summary repeats every one of these. IDS is a
 ## space-separated list of the checks that were skipped, one line each. A third
@@ -114,7 +114,7 @@ _fail(){ FAIL=$((FAIL + 1)); TOTAL=$((TOTAL + 1)); printf '%s FAIL %-7s  %s%s\n 
 _warn(){
 	local wid
 	for wid in $1; do
-		printf '%s SKIP %s  %s%s\n' "${ylw}" "$wid" "$2" "${rst}"
+		printf '%sSKIP %s %s%s\n' "${ylw}" "$wid" "$2" "${rst}"
 		if [[ "${3:-}" != "asked" ]]; then UNASKED+=("$wid"); fi
 	done
 	WARNINGS+=("$2 ($1)")
@@ -160,81 +160,81 @@ _rand_int(){
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "CLI surface"
 _run --version
-{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"* ]]; } && _pass EizUJDc "--version prints a version" || _fail EizUJDc "--version prints a version" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"* ]]; } && _pass d9dma "--version prints a version" || _fail d9dma "--version prints a version" "rc=$_rc out=[$_out]"
 for _vflag in -v -V; do
 	_run "$_vflag"
-	{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"* ]]; } && _pass ErgVwO8 "$_vflag prints a version" || _fail ErgVwO8 "$_vflag prints a version" "rc=$_rc out=[$_out]"
+	{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"* ]]; } && _pass ddf8n "$_vflag prints a version" || _fail ddf8n "$_vflag prints a version" "rc=$_rc out=[$_out]"
 done
 ## The library's lib/vX.Y.Z tags sit on the command's release commits, and a
 ## build from a clone once stamped the library's version on the command.
 _run --version
-{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"[1-9]* ]]; } && _pass ErkSf4k "--version: command tag" || _fail ErkSf4k "--version: command tag" "out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"[1-9]* ]]; } && _pass ddg7f "--version: command tag" || _fail ddg7f "--version: command tag" "out=[$_out]"
 ## Still one line for scripts: the name, the version, then the build number when
 ## the build was stamped, with no space at either end. Crockford base32, lower
 ## case, so no i, l, o or u. A build between releases ends with its date.
 _run --version
-{ ((_rc == 0)) && [[ "$_out" =~ ^convert-base-v2\ v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+( \([0-9]{4}-[0-9]{2}-[0-9]{2}\))?)?$ ]]; } && _pass ErlL5dx "--version one-line format" || _fail ErlL5dx "--version one-line format" "out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" =~ ^convert-base-v2\ v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+( \([0-9]{4}-[0-9]{2}-[0-9]{2}\))?)?$ ]]; } && _pass ddgdx "--version one-line format" || _fail ddgdx "--version one-line format" "out=[$_out]"
 ## make stamps the commit's time, never the clock, so a release rebuilds to its checksums.
 cbEpoch="$(git -C "${meDir}" log -1 --format=%ct 2>/dev/null || true)"
 if [[ -z "${cbEpoch}" ]] || ! command -v make >/dev/null 2>&1; then
-	_warn ErlL5eT "make build stamp not checked (needs git and make)"
+	_warn ddgdy "make build stamp not checked (needs git and make)"
 else
 	cbMake="$(make -n -C "${meDir}/../lib" local debug wasm release 2>/dev/null || true)"
-	{ (($(grep -cF -- "-X main.buildEpoch=${cbEpoch}" <<<"$cbMake") == 3)) && grep -qF -- "--build-epoch '${cbEpoch}'" <<<"$cbMake"; } && _pass ErlL5eT "make build-epoch stamp" || _fail ErlL5eT "make build-epoch stamp" "want ${cbEpoch} in local, debug, wasm and release: [$cbMake]"
+	{ (($(grep -cF -- "-X main.buildEpoch=${cbEpoch}" <<<"$cbMake") == 3)) && grep -qF -- "--build-epoch '${cbEpoch}'" <<<"$cbMake"; } && _pass ddgdy "make build-epoch stamp" || _fail ddgdy "make build-epoch stamp" "want ${cbEpoch} in local, debug, wasm and release: [$cbMake]"
 fi
-check EizUJDd ok  "--help exits 0"          -   --help
-check EizUJDe ok  "-h exits 0"              -   -h
-check EizUJDf ok  "--examples exits 0"      -   --examples
+check d9dmb ok  "--help exits 0"          -   --help
+check d9dmc ok  "-h exits 0"              -   -h
+check d9dmd ok  "--examples exits 0"      -   --examples
 ## Explicit --help/--examples go to stdout so they can be piped (BxZNl-18).
 _run --help
-{ ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Usage* ]]; } && _pass Eje9ui0 "--help writes to stdout" || _fail Eje9ui0 "--help writes to stdout" "rc=$_rc outlen=${#_out}"
+{ ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Usage* ]]; } && _pass d9qda "--help writes to stdout" || _fail d9qda "--help writes to stdout" "rc=$_rc outlen=${#_out}"
 _run --examples
-{ ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Examples* ]]; } && _pass Eje9ui1 "--examples writes to stdout" || _fail Eje9ui1 "--examples writes to stdout" "rc=$_rc outlen=${#_out}"
+{ ((_rc == 0)) && [[ -n "$_out" ]] && [[ "$_out" == *Examples* ]]; } && _pass d9qdb "--examples writes to stdout" || _fail d9qdb "--examples writes to stdout" "rc=$_rc outlen=${#_out}"
 _run --version; cbVer="$_out"
 _run --about
-{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n'* ]] && [[ "$_out" == *"Copyright ©"* ]] && [[ "$_out" == *GPL-2.0-or-later* ]] && [[ "$_out" == *"https://github.com/jim-collier/convert-base-v2"* ]]; } && _pass Erfqe2C "--about names version, copyright, license, home" || _fail Erfqe2C "--about names version, copyright, license, home" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n'* ]] && [[ "$_out" == *"Copyright ©"* ]] && [[ "$_out" == *GPL-2.0-or-later* ]] && [[ "$_out" == *"https://github.com/jim-collier/convert-base-v2"* ]]; } && _pass ddf3h "--about names version, copyright, license, home" || _fail ddf3h "--about names version, copyright, license, home" "rc=$_rc out=[$_out]"
 _run --donate
-{ ((_rc == 0)) && [[ "$_out" == *"https://github.com/sponsors/jim-collier"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]]; } && _pass Erfqe2D "--donate lists both support links" || _fail Erfqe2D "--donate lists both support links" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == *"https://github.com/sponsors/jim-collier"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]]; } && _pass ddf3j "--donate lists both support links" || _fail ddf3j "--donate lists both support links" "rc=$_rc out=[$_out]"
 ## Several informational flags each print once, in the order given.
 _run --donate --version
-{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 is free"* ]] && [[ "$_out" == *$'\n\n'"${cbVer}" ]]; } && _pass Erfqe2E "--donate --version prints both, in order" || _fail Erfqe2E "--donate --version prints both, in order" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "convert-base-v2 is free"* ]] && [[ "$_out" == *$'\n\n'"${cbVer}" ]]; } && _pass ddf3k "--donate --version prints both, in order" || _fail ddf3k "--donate --version prints both, in order" "rc=$_rc out=[$_out]"
 _run --version --donate
-{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n\n'"convert-base-v2 is free"* ]]; } && _pass Erfqe2F "--version --donate prints both, in order" || _fail Erfqe2F "--version --donate prints both, in order" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n\n'"convert-base-v2 is free"* ]]; } && _pass ddf3m "--version --donate prints both, in order" || _fail ddf3m "--version --donate prints both, in order" "rc=$_rc out=[$_out]"
 _run --help --donate --help
-{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]] && (($(grep -c '^Usage:' <<<"$_out") == 1)); } && _pass Erfqe2G "--help --donate --help prints help once, then donate" || _fail Erfqe2G "--help --donate --help prints help once, then donate" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "${cbVer}"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]] && (($(grep -c '^Usage:' <<<"$_out") == 1)); } && _pass ddf3n "--help --donate --help prints help once, then donate" || _fail ddf3n "--help --donate --help prints help once, then donate" "rc=$_rc out=[$_out]"
 ## --about opens with the version line, so --version adds nothing to it.
 _run --about --version
-{ ((_rc == 0)) && (($(grep -cxF -- "${cbVer}" <<<"$_out") == 1)); } && _pass Erfqe2H "--about covers --version" || _fail Erfqe2H "--about covers --version" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && (($(grep -cxF -- "${cbVer}" <<<"$_out") == 1)); } && _pass ddf3p "--about covers --version" || _fail ddf3p "--about covers --version" "rc=$_rc out=[$_out]"
 ## No-args error path keeps help on stderr, exit 2, stdout empty.
 _run
-{ ((_rc == 2)) && [[ -z "$_out" ]] && [[ -n "$_err" ]]; } && _pass Eje9ui2 "no-args help stays on stderr" || _fail Eje9ui2 "no-args help stays on stderr" "rc=$_rc outlen=${#_out} errlen=${#_err}"
+{ ((_rc == 2)) && [[ -z "$_out" ]] && [[ -n "$_err" ]]; } && _pass d9qdc "no-args help stays on stderr" || _fail d9qdc "no-args help stays on stderr" "rc=$_rc outlen=${#_out} errlen=${#_err}"
 _run --list
-{ ((_rc == 0)) && [[ "$_out" == *NAME* ]]; } && _pass EizUJDg "--list lists bases" || _fail EizUJDg "--list lists bases" "rc=$_rc"
+{ ((_rc == 0)) && [[ "$_out" == *NAME* ]]; } && _pass d9dme "--list lists bases" || _fail d9dme "--list lists bases" "rc=$_rc"
 ## --list has an INDEX column, and row 0's name matches --by-index=0 (BxZNl-19).
 _run --list
-{ ((_rc == 0)) && [[ "$_out" == *INDEX* ]]; } && _pass EjeBOHQ "--list has an INDEX column" || _fail EjeBOHQ "--list has an INDEX column" "rc=$_rc"
+{ ((_rc == 0)) && [[ "$_out" == *INDEX* ]]; } && _pass d9qdg "--list has an INDEX column" || _fail d9qdg "--list has an INDEX column" "rc=$_rc"
 ## awk consumes the whole stream (NR==2 is the first data row) to avoid a SIGPIPE.
 list_idx0="$("${EXE}" --list 2>/dev/null | awk 'NR==2{print $2}' || true)"
 _run --get-base-name --by-index=0; byidx0="$_out"
-[[ "$list_idx0" == "$byidx0" && -n "$byidx0" ]] && _pass EjeBOHR "--list INDEX 0 matches --by-index=0" || _fail EjeBOHR "--list INDEX 0 matches --by-index=0" "list=[$list_idx0] byidx=[$byidx0]"
+[[ "$list_idx0" == "$byidx0" && -n "$byidx0" ]] && _pass d9qdh "--list INDEX 0 matches --by-index=0" || _fail d9qdh "--list INDEX 0 matches --by-index=0" "list=[$list_idx0] byidx=[$byidx0]"
 ## --list-compat shows only the v1/v1b compatibility bases, --list only the rest,
 ## and the two together cover every index exactly once. A compat base must still
 ## be reachable by name, it just isn't advertised in the everyday listing.
 list_n="$("${EXE}" --list 2>/dev/null | awk '$1 ~ /^[0-9]+$/' | wc -l || true)"
 compat_n="$("${EXE}" --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/' | wc -l || true)"
 _run --get-index-count; total_n="$_out"
-(( compat_n > 0 )) && _pass ElG9gVM "--list-compat lists compatibility bases (${compat_n})" || _fail ElG9gVM "--list-compat lists compatibility bases" "got ${compat_n}"
-(( list_n + compat_n == total_n )) && _pass ElG9gVN "--list plus --list-compat covers every index" || _fail ElG9gVN "--list plus --list-compat covers every index" "list=${list_n} compat=${compat_n} total=${total_n}"
+(( compat_n > 0 )) && _pass dafew "--list-compat lists compatibility bases (${compat_n})" || _fail dafew "--list-compat lists compatibility bases" "got ${compat_n}"
+(( list_n + compat_n == total_n )) && _pass dafex "--list plus --list-compat covers every index" || _fail dafex "--list plus --list-compat covers every index" "list=${list_n} compat=${compat_n} total=${total_n}"
 _run --list
-{ ((_rc == 0)) && [[ "$_out" != *_compat_* ]]; } && _pass ElG9gVO "--list hides compatibility bases" || _fail ElG9gVO "--list hides compatibility bases" "rc=$_rc"
-check ElG9gVP eq  "compat base still resolves" 128_compat_v1 -- --get-base-name 128v1compat
+{ ((_rc == 0)) && [[ "$_out" != *_compat_* ]]; } && _pass dafey "--list hides compatibility bases" || _fail dafey "--list hides compatibility bases" "rc=$_rc"
+check dafez eq  "compat base still resolves" 128_compat_v1 -- --get-base-name 128v1compat
 ## The byte base gave up these names to the --binary flag.
 oldnames=""
 for oldname in binary bin raw; do "${EXE}" --get-base-name "$oldname" >/dev/null 2>&1 && oldnames+=" $oldname"; done
-[[ -z "$oldnames" ]] && _pass ErkSf4p "retired byte-base names gone" || _fail ErkSf4p "retired byte-base names gone" "still resolve:${oldnames}"
+[[ -z "$oldnames" ]] && _pass ddg7m "retired byte-base names gone" || _fail ddg7m "retired byte-base names gone" "still resolve:${oldnames}"
 ## The ALIASES column lists the other names only. Columns: INDEX NAME SIZE NEG DEC RAW ALIASES
 aliasdup="$("${EXE}" --list --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/ { for (i = 7; i <= NF; i++) { a = $i; sub(/,$/, "", a); if (a == $2) print $2 } }' || true)"
-[[ -z "$aliasdup" ]] && _pass ErkSf4s "--list alias/name dupes" || _fail ErkSf4s "--list alias/name dupes" "repeated on: ${aliasdup}"
+[[ -z "$aliasdup" ]] && _pass ddg7q "--list alias/name dupes" || _fail ddg7q "--list alias/name dupes" "repeated on: ${aliasdup}"
 ## A dash digit can't double as the negative marker, so those bases use "~" or
 ## none. Every base is checked. One already on "~" or off can't break the rule,
 ## so its digits aren't read.
@@ -246,7 +246,7 @@ while read -r dnidx dnname _ dnneg _; do
 	[[ $'\n'"${dnsyms}"$'\n' == *$'\n-\n'* ]] || continue
 	dashneg+=" ${dnname}=${dnneg}"
 done < <("${EXE}" --list --list-compat 2>/dev/null)
-[[ -z "$dashneg" ]] && _pass ErkSf4r "dash digit vs neg marker" || _fail ErkSf4r "dash digit vs neg marker" "bases:${dashneg}"
+[[ -z "$dashneg" ]] && _pass ddg7p "dash digit vs neg marker" || _fail ddg7p "dash digit vs neg marker" "bases:${dashneg}"
 ## The README bases table is generated from the binary, so a renamed base leaves
 ## it pointing at a name that no longer exists. Nothing else notices that.
 README_MD="${meDir}/../README.md"
@@ -267,19 +267,19 @@ if [[ -r "${README_MD}" ]]; then
 		"${TIMEOUT[@]}" "${EXE}" --get-base-name "$rname" >/dev/null 2>&1 || readme_stale+=" ${rname}"
 	done < <(grep -oP '^\| *[0-9]+ \| *\K[^ |]+' "${README_MD}" | sort -u)
 	{ (( readme_n >= 20 )) && [[ -z "$readme_stale" ]]; } \
-		&& _pass ElWMN5U "README bases table resolves (${readme_n} names)" \
-		|| _fail ElWMN5U "README bases table resolves" "scraped=${readme_n} stale:${readme_stale:- none}"
+		&& _pass dakbk "README bases table resolves (${readme_n} names)" \
+		|| _fail dakbk "README bases table resolves" "scraped=${readme_n} stale:${readme_stale:- none}"
 else
-	_warn ElWMN5U "README bases table not checked: no readable file at ${README_MD}"
+	_warn dakbk "README bases table not checked: no readable file at ${README_MD}"
 fi
 ## The Go example in the library doc has to build against this tree and give
 ## the command's answer. It's the first ~~~go block there, run as main's body.
 GODOC_MD="${meDir}/../use_in_your_code.md"
 GODOC_DIR="${CBT_TMP}/godoc"
 if ! go env GOVERSION >/dev/null 2>&1; then
-	_warn EsifL7e "Go doc example skipped: needs a Go toolchain"
+	_warn ddype "Go doc example skipped: needs a Go toolchain"
 elif ! gdBody="$(awk '/^~~~go$/ {on = 1; next} on && /^~~~$/ {exit} on' "${GODOC_MD}" 2>/dev/null)" || [[ -z "$gdBody" ]]; then
-	_fail EsifL7e "Go doc example" "no ~~~go block in ${GODOC_MD}"
+	_fail ddype "Go doc example" "no ~~~go block in ${GODOC_MD}"
 else
 	mkdir -p "${GODOC_DIR}"
 	printf 'module godoc\n\ngo 1.21\n\nrequire github.com/jim-collier/convert-base-v2/lib v0.0.0\n\nreplace github.com/jim-collier/convert-base-v2/lib => %s\n' \
@@ -291,145 +291,145 @@ else
 	} >"${GODOC_DIR}/main.go"
 	gdWant="$("${EXE}" --from 10 --to 62 86434491232548995369 2>/dev/null || true)"
 	if gdGot="$(cd "${GODOC_DIR}" && GOFLAGS=-mod=mod GOPROXY=off go run . 2>"${CBT_ERR}")" && [[ -n "$gdWant" && "$gdGot" == "$gdWant" ]]; then
-		_pass EsifL7e "Go doc example builds and matches the command"
+		_pass ddype "Go doc example builds and matches the command"
 	else
-		_fail EsifL7e "Go doc example builds and matches the command" "want=[$gdWant] got=[${gdGot:-}] $(tail -2 "${CBT_ERR}" | tr '\n' ' ')"
+		_fail ddype "Go doc example builds and matches the command" "want=[$gdWant] got=[${gdGot:-}] $(tail -2 "${CBT_ERR}" | tr '\n' ' ')"
 	fi
 fi
 ## --by-index outside a query mode is ignored, with a stderr note. The note
 ## reads like every other unused flag's since 2026100516265602, so the wording
 ## checked changed from "--by-index is ignored".
 _run --by-index 3 255 16
-{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"--by-index does nothing"* ]]; } && _pass EjeBOHS "--by-index note in conversion mode" || _fail EjeBOHS "--by-index note in conversion mode" "rc=$_rc out=[$_out] err=[$_err]"
+{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"--by-index does nothing"* ]]; } && _pass d9qdj "--by-index note in conversion mode" || _fail d9qdj "--by-index note in conversion mode" "rc=$_rc out=[$_out] err=[$_err]"
 
 ## Base-introspection query flags (used by the full-coverage fuzz below).
 _run --get-index-count
-{ ((_rc == 0)) && [[ "$_out" =~ ^[0-9]+$ ]] && ((_out > 0)); } && _pass Ej1HnoG "--get-index-count prints a count" || _fail Ej1HnoG "--get-index-count prints a count" "rc=$_rc out=[$_out]"
-check Ej1HnoH eq     "--get-base-name --by-index=0" 2               -- --get-base-name --by-index=0
-check Ej1HnoI eq     "--get-base-name alias hex"    16              -- --get-base-name hex
-check Ej1HnoJ errmsg "--by-index out of range"      'out of range'  -- --get-base-name --by-index=999999
-check Ej1HnoK errmsg "query needs a selector"       'select a base' -- --get-base-name
+{ ((_rc == 0)) && [[ "$_out" =~ ^[0-9]+$ ]] && ((_out > 0)); } && _pass d9e24 "--get-index-count prints a count" || _fail d9e24 "--get-index-count prints a count" "rc=$_rc out=[$_out]"
+check d9e25 eq     "--get-base-name --by-index=0" 2               -- --get-base-name --by-index=0
+check d9e26 eq     "--get-base-name alias hex"    16              -- --get-base-name hex
+check d9e27 errmsg "--by-index out of range"      'out of range'  -- --get-base-name --by-index=999999
+check d9e28 errmsg "query needs a selector"       'select a base' -- --get-base-name
 _run --show-symbols 16
-{ ((_rc == 0)) && [[ "$_out" == "0123456789ABCDEF" ]]; } && _pass EjUH4Lo "--show-symbols 16 concatenates 16 symbols" || _fail EjUH4Lo "--show-symbols 16 concatenates 16 symbols" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == "0123456789ABCDEF" ]]; } && _pass d9n17 "--show-symbols 16 concatenates 16 symbols" || _fail d9n17 "--show-symbols 16 concatenates 16 symbols" "rc=$_rc out=[$_out]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Basic conversions and aliases
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Basic conversions and aliases"
-check EizUJDh eq  "255 -> 16"               FF        -- 255 16
-check EizUJDi eq  "255 -> 8"                377       -- 255 8
-check EizUJDj eq  "255 -> 2"                11111111  -- 255 2
-check EizUJDk eq  "hex FF -> 10"            255       -- --from 16 FF
-check EizUJDl eq  "bin 11111111 -> 10"     255       -- --from 2 11111111
-check EizUJDm eq  "alias hex -> 10"         255       -- --from hex FF
-check EizUJDn eq  "alias octal out"         377       -- 255 octal
-check EizUJDo eq  "alias decimal in"        2A        -- --from decimal 42 16
-check EizUJDp eq  "leading zeros ignored"   FF        -- 000255 16
-check EizUJDq eq  "--to flag beats posn"    FF        -- --to 16 255 10
+check d9dmf eq  "255 -> 16"               FF        -- 255 16
+check d9dmg eq  "255 -> 8"                377       -- 255 8
+check d9dmh eq  "255 -> 2"                11111111  -- 255 2
+check d9dmj eq  "hex FF -> 10"            255       -- --from 16 FF
+check d9dmk eq  "bin 11111111 -> 10"     255       -- --from 2 11111111
+check d9dmm eq  "alias hex -> 10"         255       -- --from hex FF
+check d9dmn eq  "alias octal out"         377       -- 255 octal
+check d9dmp eq  "alias decimal in"        2A        -- --from decimal 42 16
+check d9dmq eq  "leading zeros ignored"   FF        -- 000255 16
+check d9dmr eq  "--to flag beats posn"    FF        -- --to 16 255 10
 ## "base"/"base-"/"base_"/"base " prefix on any name or alias.
-check EjUSzQO eq  "base16 prefix"           FF        -- 255 base16
-check EjUSzQP eq  "base-16 prefix"          FF        -- 255 base-16
-check EjUSzQQ eq  "base_16 prefix"          FF        -- 255 base_16
-check EjUSzQR eq  "base hex prefix"         FF        -- 255 "base hex"
-check EjUSzQS eq  "base-hex prefix in"      255       -- --from base-hex FF
-check EjUSzQT eq  "base_ prefix on alias"   255       -- --from base_hex FF
+check d9n2q eq  "base16 prefix"           FF        -- 255 base16
+check d9n2r eq  "base-16 prefix"          FF        -- 255 base-16
+check d9n2s eq  "base_16 prefix"          FF        -- 255 base_16
+check d9n2t eq  "base hex prefix"         FF        -- 255 "base hex"
+check d9n2v eq  "base-hex prefix in"      255       -- --from base-hex FF
+check d9n2w eq  "base_ prefix on alias"   255       -- --from base_hex FF
 ## Crockford base32 is asymmetric: reads O as 0, I/L as 1 (case-insensitive),
 ## but never emits them. O1=1, I1=L1=33, LO=32; output for 24 stays R (no O/I/L).
-check Eje5hGK eq  "32c decode O->0"          1         -- --from 32c --to 10 -- O1
-check Eje5hGL eq  "32c decode o->0"          1         -- --from 32c --to 10 -- o1
-check Eje5hGM eq  "32c decode I->1"          33        -- --from 32c --to 10 -- I1
-check Eje5hGN eq  "32c decode L->1"          33        -- --from 32c --to 10 -- L1
-check Eje5hGO eq  "32c decode l->1"          33        -- --from 32c --to 10 -- l1
-check Eje5hGP eq  "32c encode stays strict"  r         -- --from 10 --to 32c -- 24
+check d9qcs eq  "32c decode O->0"          1         -- --from 32c --to 10 -- O1
+check d9qct eq  "32c decode o->0"          1         -- --from 32c --to 10 -- o1
+check d9qcv eq  "32c decode I->1"          33        -- --from 32c --to 10 -- I1
+check d9qcw eq  "32c decode L->1"          33        -- --from 32c --to 10 -- L1
+check d9qcx eq  "32c decode l->1"          33        -- --from 32c --to 10 -- l1
+check d9qcy eq  "32c encode stays strict"  r         -- --from 10 --to 32c -- 24
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Negatives, fractionals, precision, lower, raw
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Negatives, fractionals, precision, lower, raw"
-check EizUJDr eq  "negative -- guard"       -1E240    -- -- -123456 16
-check EizUJDs eq  "fractional 1.5 -> 16"    1.8       -- 1.5 16
+check d9dms eq  "negative -- guard"       -1E240    -- -- -123456 16
+check d9dmt eq  "fractional 1.5 -> 16"    1.8       -- 1.5 16
 ## 1.5 -> base3 is 1.1111...; at precision 2 it rounds half-up (0.111.. -> "12"3), not truncates.
-check EjYV8Gm eq  "fractional rounding"     1.12      -- --precision 2 1.5 3
+check d9p1r eq  "fractional rounding"     1.12      -- --precision 2 1.5 3
 ## More fixed fractional pins (fuzz only does integers, so the frac path needs
 ## its own coverage): signed fractions, a clean power-of-two fraction, and the
 ## imprecise 0.1 tail rounded to precision.
-check EjeFbj6 eq  "fraction 0.5 -> 16"       0.8       -- --number 0.5 16
-check EjeFbj7 eq  "neg fraction -0.5 -> 2"   -0.1      -- --number --precision 6 -- -0.5 2
-check EjeFbj8 eq  "neg mixed -255.5 -> 16"   -FF.8     -- --number -- -255.5 16
-check EjeFbj9 eq  "fraction 255.5 -> 16"     FF.8      -- --number 255.5 16
-check EjeFbjA eq  "fraction 0.1 -> 16 p6"     0.19999A -- --number --precision 6 0.1 16
+check d9qe4 eq  "fraction 0.5 -> 16"       0.8       -- --number 0.5 16
+check d9qe5 eq  "neg fraction -0.5 -> 2"   -0.1      -- --number --precision 6 -- -0.5 2
+check d9qe6 eq  "neg mixed -255.5 -> 16"   -FF.8     -- --number -- -255.5 16
+check d9qe7 eq  "fraction 255.5 -> 16"     FF.8      -- --number 255.5 16
+check d9qe8 eq  "fraction 0.1 -> 16 p6"     0.19999A -- --number --precision 6 0.1 16
 ## Auto precision (the default): output frac length tracks the input's scaled by
 ## base size, so a short decimal input does not grow an invented tail. Weird
 ## corners: widening (dec->bin), narrowing (hex->dec), an odd base ratio, a
 ## terminating value that trims, and a big base down to a small one.
-check Ejlud4y eq  "auto 0.1 -> 16"            0.1A      -- --number 0.1 16
-check Ejlud4z eq  "auto 0.1 -> 2"             0.00011   -- --number 0.1 2
-check Ejlud50 eq  "auto 0.1 -> 3"             0.0022    -- --number 0.1 3
-check Ejlud51 eq  "auto FF.8 -> 10"           255.5     -- --from 16 --to 10 FF.8
-check Ejlud52 eq  "auto 0.5 -> 2 (trims)"     0.1       -- --number 0.5 2
-check Ejlud53 eq  "auto 0.9 -> 2 (round up)"  0.11101   -- --number 0.9 2
-check Ejlud54 eq  "auto 288 -> 10"            0.0035    -- --from 288j1 --to 10 0.1
-check Ejlud55 eq  "auto tiny 0.000001 -> 16"  0.000011  -- --number 0.000001 16
+check d9s8z eq  "auto 0.1 -> 16"            0.1A      -- --number 0.1 16
+check d9s90 eq  "auto 0.1 -> 2"             0.00011   -- --number 0.1 2
+check d9s91 eq  "auto 0.1 -> 3"             0.0022    -- --number 0.1 3
+check d9s92 eq  "auto FF.8 -> 10"           255.5     -- --from 16 --to 10 FF.8
+check d9s93 eq  "auto 0.5 -> 2 (trims)"     0.1       -- --number 0.5 2
+check d9s94 eq  "auto 0.9 -> 2 (round up)"  0.11101   -- --number 0.9 2
+check d9s95 eq  "auto 288 -> 10"            0.0035    -- --from 288j1 --to 10 0.1
+check d9s96 eq  "auto tiny 0.000001 -> 16"  0.000011  -- --number 0.000001 16
 ## Independent (non-round-trip) known-value pins for bases that otherwise only
 ## get self-round-trip fuzz, so a bug mirrored in encode+decode can't hide.
-check ElG9gVQ eq  "pin 1000000 -> 60tc"      4cmf      -- --number 1000000 60tc
-check ElG9gVR eq  "pin 65535 -> 60tc"        JCF       -- --number 65535 60tc
-check EjeFbjB eq  "pin 1000000 -> 62"        4C92      -- --number 1000000 62
-check EjeFbjC eq  "pin 1000000 -> 36"        LFLS      -- --number 1000000 36
-check EjeFbjD eq  "pin 1000000 -> 85ipv6"    1rYy      -- --number 1000000 85ipv6
-check EjeFbjE eq  "pin 65535 -> 62"          H31       -- --number 65535 62
-check EizUJDt eq  "--lower on hex"          ff        -- --lower 255 16
-check EizUJDu errmsg "--lower on mixed-case" "--lower is invalid for mixed-case" -- --lower 9 62
-check ErkSf4m eq  "--upper on 32c"          R         -- --upper --to 32c 24
-check ErkSf4n errmsg "--upper on mixed-case" "--upper is invalid for mixed-case" -- --upper 255 62
-check ErkSf4o errmsg "--upper with --lower"  'not both' -- --upper --lower 255 16
+check daff0 eq  "pin 1000000 -> 60tc"      4cmf      -- --number 1000000 60tc
+check daff1 eq  "pin 65535 -> 60tc"        JCF       -- --number 65535 60tc
+check d9qe9 eq  "pin 1000000 -> 62"        4C92      -- --number 1000000 62
+check d9qea eq  "pin 1000000 -> 36"        LFLS      -- --number 1000000 36
+check d9qeb eq  "pin 1000000 -> 85ipv6"    1rYy      -- --number 1000000 85ipv6
+check d9qec eq  "pin 65535 -> 62"          H31       -- --number 65535 62
+check d9dmv eq  "--lower on hex"          ff        -- --lower 255 16
+check d9dmw errmsg "--lower on mixed-case" "--lower is invalid for mixed-case" -- --lower 9 62
+check ddg7h eq  "--upper on 32c"          R         -- --upper --to 32c 24
+check ddg7j errmsg "--upper on mixed-case" "--upper is invalid for mixed-case" -- --upper 255 62
+check ddg7k errmsg "--upper with --lower"  'not both' -- --upper --lower 255 16
 ## The case flags apply to digits only. A marker is not a digit, so recasing it
 ## yields a value the same base cannot read back - and no output would show it.
-check Em1DQ5Y eq  "--lower keeps neg marker" "Nff"    -- --lower --to 16 --to-neg N -- -255
-check Em1DQ5Z eq  "--upper keeps dec marker" "FF.8"   -- --upper --to 16 --to-dec . -- 255.5
-check Em1DQ5a eq  "--lower keeps both"       "Nff.8"  -- --lower --to 16 --to-neg N -- -255.5
+check dats2 eq  "--lower keeps neg marker" "Nff"    -- --lower --to 16 --to-neg N -- -255
+check dats3 eq  "--upper keeps dec marker" "FF.8"   -- --upper --to 16 --to-dec . -- 255.5
+check dats4 eq  "--lower keeps both"       "Nff.8"  -- --lower --to 16 --to-neg N -- -255.5
 ## Precision is bounded, the same way the browser and reactor builds bound it:
 ## the scale factor is one power of the output base, so a mistyped value asks
 ## for gigabytes before it asks for anything else.
-check Em1DQ5b errmsg "precision upper bound" 'at most' -- --precision 100000000 0.1 16
-check Em1DQ5c ok  "precision at the bound"   -         -- --precision 100000 0.1 16
+check dats5 errmsg "precision upper bound" 'at most' -- --precision 100000000 0.1 16
+check dats6 ok  "precision at the bound"   -         -- --precision 100000 0.1 16
 ## --no-newline: exact bytes, no trailing newline.
 _run --no-newline 255 16
-{ ((_rc == 0)) && [[ "$(wc -c <"${CBT_OUT}")" == "2" ]]; } && _pass EjTpGMi "--no-newline has no trailing newline" || _fail EjTpGMi "--no-newline has no trailing newline" "bytes=$(wc -c <"${CBT_OUT}")"
+{ ((_rc == 0)) && [[ "$(wc -c <"${CBT_OUT}")" == "2" ]]; } && _pass d9mxs "--no-newline has no trailing newline" || _fail d9mxs "--no-newline has no trailing newline" "bytes=$(wc -c <"${CBT_OUT}")"
 ## --raw was this flag's old name, and it overlapped the raw-byte base.
-check ErkSf4q errmsg "--raw is not a flag"   'unknown flag' -- --raw 255 16
+check ddg7n errmsg "--raw is not a flag"   'unknown flag' -- --raw 255 16
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Custom symbol specs
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Custom symbol specs"
-check EizUJDv eq  "custom in, fractional"   148.25    -- --from-symbols ABCD --to 10 CBBA.B
-check EizUJDw eq  "custom out, neg+dec"     -9FCC.8M6 -- --from-symbols "aeiouy.-_0" --from-neg "~" --from-dec "/" --to 20ws "~y0-._/ooo"
+check d9dmx eq  "custom in, fractional"   148.25    -- --from-symbols ABCD --to 10 CBBA.B
+check d9dmy eq  "custom out, neg+dec"     -9FCC.8M6 -- --from-symbols "aeiouy.-_0" --from-neg "~" --from-dec "/" --to 20ws "~y0-._/ooo"
 ## Markers are separate from the symbols. The retired in-string tokens must be an
 ## error, never silently absorbed as a digit.
-check El4bQKu errmsg "retired neg= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 neg=~" --to 10 5
-check El4bQKv errmsg "retired dec= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 dec=," --to 10 5
-check El4bQKw errmsg "retired pad= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 pad==" --to 10 5
+check dacnz errmsg "retired neg= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 neg=~" --to 10 5
+check dacp0 errmsg "retired dec= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 dec=," --to 10 5
+check dacp1 errmsg "retired pad= token"   'no longer part of the symbol spec' -- --from-symbols "0123456789 pad==" --to 10 5
 ## Markers apply to named bases too, not just custom alphabets.
-check El4bQKx eq  "marker on named base"    -255      -- --from 16 --from-neg "~" --to 10 "~ff"
-check El4bQKy eq  "marker on output base"   "~FF"     -- --from 10 --to 16 --to-neg "~" -- -255
-check El4bQKz errmsg "marker collides"      'is also a digit' -- --from 16 --from-neg "a" --to 10 ff
-check El4bQL0 errmsg "markers vs bytes"     'is raw bytes' -- --from bytes --from-neg "~" --to 16 5
-check EizUJDx ok  "custom both sides"       -         -- --from-symbols ABCD --to-symbols 0123 CBBA
-check EizUJDy errmsg "one-symbol spec fails" 'at least 2 symbols' -- --from-symbols A 5 16
+check dacp2 eq  "marker on named base"    -255      -- --from 16 --from-neg "~" --to 10 "~ff"
+check dacp3 eq  "marker on output base"   "~FF"     -- --from 10 --to 16 --to-neg "~" -- -255
+check dacp4 errmsg "marker collides"      'is also a digit' -- --from 16 --from-neg "a" --to 10 ff
+check dacp5 errmsg "markers vs bytes"     'is raw bytes' -- --from bytes --from-neg "~" --to 16 5
+check d9dmz ok  "custom both sides"       -         -- --from-symbols ABCD --to-symbols 0123 CBBA
+check d9dn0 errmsg "one-symbol spec fails" 'at least 2 symbols' -- --from-symbols A 5 16
 ## Spec parser edge cases: multi-token comma split makes a base-4 alphabet
 ## (decimal 3 stays a single digit "3"; the old bug made it base-3); escaped
 ## space is a literal-space digit; a digit that contains a marker is rejected.
-check EjeFbjF eq  "spec comma-split -> base4"  3        -- --number --from 10 --to-symbols "0,1 2 3" 3
-check EjeFbjG eq  "spec escaped-space digit"   2        -- --from-symbols 'a\ b' --to 10 -- b
-check EjeFbjH err "spec marker-in-digit"       -        -- --from-symbols "a b a.b" --to 10 -- a.b
+check d9qed eq  "spec comma-split -> base4"  3        -- --number --from 10 --to-symbols "0,1 2 3" 3
+check d9qee eq  "spec escaped-space digit"   2        -- --from-symbols 'a\ b' --to 10 -- b
+check d9qef err "spec marker-in-digit"       -        -- --from-symbols "a b a.b" --to 10 -- a.b
 ## 85ps carries a literal comma and backslash as their own digits; its alphabet
 ## must stay exactly 85 symbols (regression pin for the escape/comma-split bug).
 sym85=$("${EXE}" --show-symbols-0 85ps 2>/dev/null | tr '\0' '\n' | grep -c . || true)
-[[ "$sym85" == 85 ]] && _pass EjeFbjI "85ps has exactly 85 symbols" || _fail EjeFbjI "85ps has exactly 85 symbols" "got=$sym85"
+[[ "$sym85" == 85 ]] && _pass d9qeg "85ps has exactly 85 symbols" || _fail d9qeg "85ps has exactly 85 symbols" "got=$sym85"
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Config file loading (a user-defined base via --config)
@@ -444,51 +444,51 @@ cfg="${CBT_TMP}/bases.shcl"
 	printf 'base: spacey\n\tsymbols: "a b", c, d, e\n'
 } >"$cfg"
 ## The custom 4-symbol base "myb" resolves only when the config is loaded.
-check EjeFbjJ eq  "config base loads"        yx        -- --config "$cfg" --from 10 --to myb 6
-check EjeFbjK errmsg "config base absent otherwise" 'unknown base' -- --from 10 --to myb 6
-check EjeFbjL errmsg "explicit missing config errors" 'no such file' -- --config "${CBT_TMP}/nope.shcl" 255 16
+check d9qeh eq  "config base loads"        yx        -- --config "$cfg" --from 10 --to myb 6
+check d9qej errmsg "config base absent otherwise" 'unknown base' -- --from 10 --to myb 6
+check d9qek errmsg "explicit missing config errors" 'no such file' -- --config "${CBT_TMP}/nope.shcl" 255 16
 ## Extra names from the aliases field; the "base:" line stays canonical.
-check ElHp3yS eq  "config alias resolves"    yx        -- --config "$cfg" --from 10 --to mb 6
-check ElHp3yT eq  "config canonical name"    myb       -- --config "$cfg" --get-base-name mybase
+check dafvq eq  "config alias resolves"    yx        -- --config "$cfg" --from 10 --to mb 6
+check dafvr eq  "config canonical name"    myb       -- --config "$cfg" --get-base-name mybase
 ## A marker set, and a marker switched off on purpose by leaving it empty.
-check ElHp3yU eq  "config negative marker"   N11       -- --config "$cfg" --from 10 --to u12 -- -13
-check ElHp3yV errmsg "config empty marker disables" 'no decimal marker' -- --config "$cfg" --from 10 --to nodec 12.5
+check dafvs eq  "config negative marker"   N11       -- --config "$cfg" --from 10 --to u12 -- -13
+check dafvt errmsg "config empty marker disables" 'no decimal marker' -- --config "$cfg" --from 10 --to nodec 12.5
 ## Both list spellings: stacked one per line, and inline with a symbol that
 ## carries a space of its own.
-check ElHp3yW eq  "config stacked list"      '🍊🍋'    -- --config "$cfg" --from 10 --to fruit4 6
+check dafvv eq  "config stacked list"      '🍊🍋'    -- --config "$cfg" --from 10 --to fruit4 6
 spacesym=$("${EXE}" --config "$cfg" --show-symbols-0 spacey 2>/dev/null | tr '\0' '|' || true)
-[[ "$spacesym" == 'a b|c|d|e' ]] && _pass ElHp3yX "config symbol with a space" || _fail ElHp3yX "config symbol with a space" "got='$spacesym'"
+[[ "$spacesym" == 'a b|c|d|e' ]] && _pass dafvw "config symbol with a space" || _fail dafvw "config symbol with a space" "got='$spacesym'"
 ## A typo has to fail loudly: silently dropping a field means the wrong alphabet.
 printf 'base: x\n\tsybmols: abc\n' >"${CBT_TMP}/typo.shcl"
-check ElHp3yY errmsg "config typo rejected"  'unknown field' -- --config "${CBT_TMP}/typo.shcl" 255 16
+check dafvx errmsg "config typo rejected"  'unknown field' -- --config "${CBT_TMP}/typo.shcl" 255 16
 ## A quoted name is a typo too, and it used to slip past the check unseen.
 printf 'base: x\n\tsymbols: abc\n\t"weird.field": 1\n' >"${CBT_TMP}/quoted.shcl"
-check Em1008u errmsg "config quoted typo rejected" 'unknown field' -- --config "${CBT_TMP}/quoted.shcl" 255 16
+check datqc errmsg "config quoted typo rejected" 'unknown field' -- --config "${CBT_TMP}/quoted.shcl" 255 16
 ## A field written twice reads back as nothing, so the base would quietly get a
 ## default instead of what the file says.
 printf 'base: x\n\tsymbols: abc\n\tnegative: A\n\tnegative: B\n' >"${CBT_TMP}/twice.shcl"
-check Em1008v errmsg "config repeated field rejected" 'more than once' -- --config "${CBT_TMP}/twice.shcl" 255 16
+check datqd errmsg "config repeated field rejected" 'more than once' -- --config "${CBT_TMP}/twice.shcl" 255 16
 ## A field indented under another one was never read, and the empty field above
 ## it switched its marker off.
 printf 'base: x\n\tsymbols: abc\n\tnegative:\n\t\tdecimal: X\n' >"${CBT_TMP}/nested.shcl"
-check Erg4X7I errmsg "config nested field rejected" 'line 4: base "x": "decimal" is nested under negative' -- --config "${CBT_TMP}/nested.shcl" 255 16
+check ddf58 errmsg "config nested field rejected" 'line 4: base "x": "decimal" is nested under negative' -- --config "${CBT_TMP}/nested.shcl" 255 16
 printf 'base: x\n\tsymbols: abc\n  bogus indent\n' >"${CBT_TMP}/bad.shcl"
-check ElHp3yZ errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
+check dafvy errmsg "config bad line rejected" 'line 3'          -- --config "${CBT_TMP}/bad.shcl" 255 16
 ## --help goes on past a config that won't load and says why in its config
 ## section. It used to stop at the error, and called an unreadable file loaded.
 _run --config "${CBT_TMP}/bad.shcl" --help
-{ ((_rc == 0)) && [[ "$_out" == *Usage:* ]] && grep -qF "bad.shcl" <<<"$_out" && grep -qF "[not loaded]" <<<"$_out" && grep -qF "line 3:" <<<"$_out" && [[ "$_out" == *"(optional user-specified flags)"* ]]; } && _pass ErmufTF "--help shows a config error and prints the rest" || _fail ErmufTF "--help shows a config error and prints the rest" "rc=$_rc err=[$_err] out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" == *Usage:* ]] && grep -qF "bad.shcl" <<<"$_out" && grep -qF "[not loaded]" <<<"$_out" && grep -qF "line 3:" <<<"$_out" && [[ "$_out" == *"(optional user-specified flags)"* ]]; } && _pass ddgsy "--help shows a config error and prints the rest" || _fail ddgsy "--help shows a config error and prints the rest" "rc=$_rc err=[$_err] out=[$_out]"
 ## Both the default user path, which a normal run skips when it won't open, and
 ## a typed one, which a normal run refuses.
 lockedcfg="${CBT_TMP}/xdg-locked/convert-base-v2/convert-base-v2.shcl"
 mkdir -p "${lockedcfg%/*}"
 printf 'base: lockd\n\tsymbols: abcd\n##    Format   3\n' >"$lockedcfg"; chmod 000 "$lockedcfg"
 if [[ -r "$lockedcfg" ]]; then
-	_warn ErmufUW "--help unreadable config not checked (running as root)"
+	_warn ddgsz "--help unreadable config not checked (running as root)"
 else
 	for lockedhow in default typed; do
 		if [[ "$lockedhow" == default ]]; then XDG_CONFIG_HOME="${CBT_TMP}/xdg-locked" _run --help; else _run --config "$lockedcfg" --help; fi
-		{ ((_rc == 0)) && grep -qF "[unreadable]" <<<"$_out" && ! grep -qF "[loaded]" <<<"$_out"; } && _pass ErmufUW "--help unreadable config ($lockedhow path)" || _fail ErmufUW "--help unreadable config ($lockedhow path)" "rc=$_rc err=[$_err] out=[$_out]"
+		{ ((_rc == 0)) && grep -qF "[unreadable]" <<<"$_out" && ! grep -qF "[loaded]" <<<"$_out"; } && _pass ddgsz "--help unreadable config ($lockedhow path)" || _fail ddgsz "--help unreadable config ($lockedhow path)" "rc=$_rc err=[$_err] out=[$_out]"
 	done
 fi
 chmod 600 "$lockedcfg"
@@ -498,23 +498,23 @@ chmod 600 "$lockedcfg"
 ## way (see the migration section).
 printf 'base: bs\n\tsymbols: a\\ b c\n##    Format   3\n' >"${CBT_TMP}/bslash.shcl"
 bssym=$("${EXE}" --config "${CBT_TMP}/bslash.shcl" --show-symbols-0 bs 2>/dev/null | tr '\0' '|' || true)
-[[ "$bssym" == 'a b|c' ]] && _pass Erg0gYy "config bare backslash escape" || _fail Erg0gYy "config bare backslash escape" "got='$bssym'"
+[[ "$bssym" == 'a b|c' ]] && _pass ddf4s "config bare backslash escape" || _fail ddf4s "config bare backslash escape" "got='$bssym'"
 printf 'base: bs\n\tsymbols: "a\\ b c"\n##    Format   3\n' >"${CBT_TMP}/bslashq.shcl"
-check Erg0gYz errmsg "config bad escape rejected" 'line 2'     -- --config "${CBT_TMP}/bslashq.shcl" 255 16
+check ddf4t errmsg "config bad escape rejected" 'line 2'     -- --config "${CBT_TMP}/bslashq.shcl" 255 16
 ## A raw block under symbols used to be reported as missing symbols, and under
 ## most other fields it was dropped. Rows of digits are ambiguous, so it's refused.
 printf 'base: rb\n\tsymbols:\n\t\t~~~\n\t\tABCD\n\t\tEFGH\n\t\t~~~\n' >"${CBT_TMP}/rawsym.shcl"
-check ErgbjuS errmsg "config raw block symbols rejected" 'line 2: base "rb": symbols takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawsym.shcl" 255 16
+check ddf9c errmsg "config raw block symbols rejected" 'line 2: base "rb": symbols takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawsym.shcl" 255 16
 printf 'base: rb\n\tsymbols: 01\n\taliases:\n\t\t~~~\n\t\trbx\n\t\t~~~\n' >"${CBT_TMP}/rawalias.shcl"
-check Erg6SWW errmsg "config raw block alias rejected" 'line 3: base "rb": aliases takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawalias.shcl" 255 16
+check ddf5g errmsg "config raw block alias rejected" 'line 3: base "rb": aliases takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawalias.shcl" 255 16
 ## First run writes the default config, and 10emoji comes from it rather than
 ## from the built-in set. XDG_CONFIG_HOME was sandboxed at the top of the run.
 usercfg="${XDG_CONFIG_HOME}/convert-base-v2/convert-base-v2.shcl"
-[[ -s "$usercfg" ]] && _pass ElHp3ya "first run creates the user config" || _fail ElHp3ya "first run creates the user config" "missing $usercfg"
+[[ -s "$usercfg" ]] && _pass dafvz "first run creates the user config" || _fail dafvz "first run creates the user config" "missing $usercfg"
 ## It names its SHCL format, so a later version can tell it from an older file.
-grep -Eq '^##    Format   [0-9]+$' "$usercfg" && _pass Erg0gZ0 "user config names its format" || _fail Erg0gZ0 "user config names its format" "no Format line in $usercfg"
-check ElczR2W eq  "10emoji comes from config"  '😑😔😘😜' -- --from 10 --to 10emoji 1234
-check ElczR2X eq  "10emoji keeps its old name" '😑😔😘😜' -- --from 10 --to emoji10 1234
+grep -Eq '^##    Format   [0-9]+$' "$usercfg" && _pass ddf4v "user config names its format" || _fail ddf4v "user config names its format" "no Format line in $usercfg"
+check damym eq  "10emoji comes from config"  '😑😔😘😜' -- --from 10 --to 10emoji 1234
+check damyn eq  "10emoji keeps its old name" '😑😔😘😜' -- --from 10 --to emoji10 1234
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -537,43 +537,43 @@ fBackups(){ local -a found=("$1"/convert-base-v2/convert-base-v2_backup_[0-9]*-[
 
 migdir="$(fMigDir mig1 "$oldcfg")"; migcfg="${migdir}/convert-base-v2/convert-base-v2.shcl"
 XDG_CONFIG_HOME="$migdir" _run --from 10 --to oldtab 6
-_assert ErgDzU8 eq "old config converts and reads the old way" '12'
-[[ "$_err" == *"note: converted ${migcfg}"*"_format-v1.shcl"* ]] && _pass ErgDzU9 "conversion note names the backup" || _fail ErgDzU9 "conversion note names the backup" "err=[$_err]"
+_assert ddf6d eq "old config converts and reads the old way" '12'
+[[ "$_err" == *"note: converted ${migcfg}"*"_format-v1.shcl"* ]] && _pass ddf6e "conversion note names the backup" || _fail ddf6e "conversion note names the backup" "err=[$_err]"
 nbak="$(fBackups "$migdir")"
 if [[ "$nbak" == "1" ]]; then
 	bak=("${migdir}"/convert-base-v2/convert-base-v2_backup_*_format-v1.shcl)
-	cmp -s "${bak[0]}" "$oldcfg" && _pass ErgDzUA "backup holds the original bytes" || _fail ErgDzUA "backup holds the original bytes" "${bak[0]} differs"
+	cmp -s "${bak[0]}" "$oldcfg" && _pass ddf6f "backup holds the original bytes" || _fail ddf6f "backup holds the original bytes" "${bak[0]} differs"
 else
-	_fail ErgDzUA "backup holds the original bytes" "found ${nbak} backups"
+	_fail ddf6f "backup holds the original bytes" "found ${nbak} backups"
 fi
-grep -q '^##    Format   3$' "$migcfg" && _pass ErgDzUB "converted config names format 3" || _fail ErgDzUB "converted config names format 3" "no Format line in $migcfg"
-grep -q '^# my bases$' "$migcfg" && _pass ErgDzUC "converted config keeps its comments" || _fail ErgDzUC "converted config keeps its comments" "comment gone from $migcfg"
+grep -q '^##    Format   3$' "$migcfg" && _pass ddf6g "converted config names format 3" || _fail ddf6g "converted config names format 3" "no Format line in $migcfg"
+grep -q '^# my bases$' "$migcfg" && _pass ddf6h "converted config keeps its comments" || _fail ddf6h "converted config keeps its comments" "comment gone from $migcfg"
 migsym=$(XDG_CONFIG_HOME="$migdir" "${EXE}" --show-symbols-0 oldtab 2>/dev/null | tr '\0' '|' || true)
-[[ "$migsym" == '0|1|2|3' ]] && _pass ErgDzUD "converted config resolves the same alphabet" || _fail ErgDzUD "converted config resolves the same alphabet" "got='$migsym'"
-XDG_CONFIG_HOME="$migdir" check ErgDzUE eq "converted config keeps the old marker" '\#ba' -- --from 10 --to oq -- -6
+[[ "$migsym" == '0|1|2|3' ]] && _pass ddf6j "converted config resolves the same alphabet" || _fail ddf6j "converted config resolves the same alphabet" "got='$migsym'"
+XDG_CONFIG_HOME="$migdir" check ddf6k eq "converted config keeps the old marker" '\#ba' -- --from 10 --to oq -- -6
 cp "$migcfg" "${CBT_TMP}/mig1-after.shcl"
 XDG_CONFIG_HOME="$migdir" _run --from 10 --to oldtab 6
 { ((_rc == 0)) && [[ -z "$_err" ]] && [[ "$(fBackups "$migdir")" == "1" ]] && cmp -s "$migcfg" "${CBT_TMP}/mig1-after.shcl"; } \
-	&& _pass ErgDzUF "second run changes nothing" || _fail ErgDzUF "second run changes nothing" "rc=$_rc err=[$_err] backups=$(fBackups "$migdir")"
+	&& _pass ddf6m "second run changes nothing" || _fail ddf6m "second run changes nothing" "rc=$_rc err=[$_err] backups=$(fBackups "$migdir")"
 
 ## The same file under the old rules, from v3.0.0, the last release on SHCL 1.x.
 ## It is built from the tag, so it needs the git history.
 repoTop="$(git -C "${meDir}" rev-parse --show-toplevel 2>/dev/null || true)"
 oldExe="${CBT_TMP}/convert-base-v2-v3.0.0"
 if [[ -z "$repoTop" ]] || ! command -v go >/dev/null 2>&1 || ! git -C "$repoTop" rev-parse -q --verify 'v3.0.0^{commit}' >/dev/null 2>&1; then
-	_warn "ErgDzUG ErgDzUH" "config migration vs v3.0.0 (needs go and the v3.0.0 tag)"
+	_warn "ddf6n ddf6p" "config migration vs v3.0.0 (needs go and the v3.0.0 tag)"
 elif ! { mkdir -p "${CBT_TMP}/v3src" && git -C "$repoTop" archive v3.0.0 lib | tar -x -C "${CBT_TMP}/v3src" \
 	&& (cd "${CBT_TMP}/v3src/lib" && go build -o "$oldExe" ./cmd/convert-base-v2); } >"${CBT_ERR}" 2>&1; then
-	_fail ErgDzUG "build v3.0.0 for the migration check" "$(head -c 400 "${CBT_ERR}")"
+	_fail ddf6n "build v3.0.0 for the migration check" "$(head -c 400 "${CBT_ERR}")"
 else
 	for mb in oldtab oldq; do
 		want=$(XDG_CONFIG_HOME="${CBT_TMP}/xdg" "$oldExe" --config "$oldcfg" --show-symbols-0 "$mb" 2>&1 | tr '\0' '|' || true)
 		got=$("${EXE}" --config "${CBT_TMP}/mig1-after.shcl" --show-symbols-0 "$mb" 2>&1 | tr '\0' '|' || true)
-		[[ -n "$want" && "$got" == "$want" ]] && _pass ErgDzUG "converted $mb matches v3.0.0 on the original" || _fail ErgDzUG "converted $mb matches v3.0.0 on the original" "v3.0.0='$want' now='$got'"
+		[[ -n "$want" && "$got" == "$want" ]] && _pass ddf6n "converted $mb matches v3.0.0 on the original" || _fail ddf6n "converted $mb matches v3.0.0 on the original" "v3.0.0='$want' now='$got'"
 	done
 	want=$(XDG_CONFIG_HOME="${CBT_TMP}/xdg" "$oldExe" --config "$oldcfg" --from 10 --to oq -- -6 2>&1 || true)
 	got=$("${EXE}" --config "${CBT_TMP}/mig1-after.shcl" --from 10 --to oq -- -6 2>&1 || true)
-	[[ "$got" == "$want" ]] && _pass ErgDzUH "converted marker matches v3.0.0" || _fail ErgDzUH "converted marker matches v3.0.0" "v3.0.0='$want' now='$got'"
+	[[ "$got" == "$want" ]] && _pass ddf6p "converted marker matches v3.0.0" || _fail ddf6p "converted marker matches v3.0.0" "v3.0.0='$want' now='$got'"
 fi
 
 ## The old rules read [ab] with an error, and the conversion would turn it into
@@ -581,72 +581,72 @@ fi
 printf 'base: x\n\tsymbols: [ab]\n' >"${CBT_TMP}/oldbad.shcl"
 migdir="$(fMigDir mig2 "${CBT_TMP}/oldbad.shcl")"
 XDG_CONFIG_HOME="$migdir" _run 255 16
-_assert ErgDzUI errmsg "unconvertible old config refused" "can't be converted"
+_assert ddf6q errmsg "unconvertible old config refused" "can't be converted"
 { cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "${CBT_TMP}/oldbad.shcl" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
-	&& _pass ErgDzUJ "unconvertible old config left alone" || _fail ErgDzUJ "unconvertible old config left alone" "changed, or backups=$(fBackups "$migdir")"
+	&& _pass ddf6r "unconvertible old config left alone" || _fail ddf6r "unconvertible old config left alone" "changed, or backups=$(fBackups "$migdir")"
 
 ## A directory that cannot be written loses nothing, and the run goes on.
 if [[ "$(id -u)" == "0" ]]; then
-	_warn "ErgDzUK ErgDzUL ErgDzUM" "config migration in a read-only dir (root writes through it)"
+	_warn "ddf6s ddf6t ddf6v" "config migration in a read-only dir (root writes through it)"
 else
 	migdir="$(fMigDir mig3 "$oldcfg")"
 	chmod 555 "${migdir}/convert-base-v2"
 	XDG_CONFIG_HOME="$migdir" _run --from 10 --to oldtab 6
-	_assert ErgDzUK eq "read-only config dir still reads the old way" '12'
-	[[ "$_err" == *"couldn't be converted"* ]] && _pass ErgDzUL "read-only config dir says so" || _fail ErgDzUL "read-only config dir says so" "err=[$_err]"
+	_assert ddf6s eq "read-only config dir still reads the old way" '12'
+	[[ "$_err" == *"couldn't be converted"* ]] && _pass ddf6t "read-only config dir says so" || _fail ddf6t "read-only config dir says so" "err=[$_err]"
 	{ cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "$oldcfg" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
-		&& _pass ErgDzUM "read-only config dir loses nothing" || _fail ErgDzUM "read-only config dir loses nothing" "changed, or backups=$(fBackups "$migdir")"
+		&& _pass ddf6v "read-only config dir loses nothing" || _fail ddf6v "read-only config dir loses nothing" "changed, or backups=$(fBackups "$migdir")"
 	chmod 755 "${migdir}/convert-base-v2"
 fi
 
 ## A file named with --config is never rewritten. It is read the old way.
 migdir="$(fMigDir mig4 "$oldcfg")"
 _run --config "${migdir}/convert-base-v2/convert-base-v2.shcl" --from 10 --to oldtab 6
-_assert ErgDzUN eq "explicit old config reads the old way" '12'
-[[ "$_err" == *"shcl migrate --write"* ]] && _pass ErgDzUO "explicit old config says how to convert it" || _fail ErgDzUO "explicit old config says how to convert it" "err=[$_err]"
+_assert ddf6w eq "explicit old config reads the old way" '12'
+[[ "$_err" == *"shcl migrate --write"* ]] && _pass ddf6x "explicit old config says how to convert it" || _fail ddf6x "explicit old config says how to convert it" "err=[$_err]"
 { cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "$oldcfg" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
-	&& _pass ErgDzUP "explicit old config left alone" || _fail ErgDzUP "explicit old config left alone" "changed, or backups=$(fBackups "$migdir")"
+	&& _pass ddf6y "explicit old config left alone" || _fail ddf6y "explicit old config left alone" "changed, or backups=$(fBackups "$migdir")"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Errors and robustness (security by construction: input is argv, never eval'd)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Errors and robustness"
-check EizUJDz errmsg "unknown base"         'unknown base'                       -- 10 nope
+check d9dn1 errmsg "unknown base"         'unknown base'                       -- 10 nope
 ## Friendlier stumble messages (BxZNl-16).
-check Eje7f0i errmsg "unknown base near-match" 'did you mean "hex"'              -- 255 hexx
-check Eje7f0j errmsg "unknown base to --list"  'see --list'                      -- 255 nope
-check Eje7f0k errmsg "flags after number"      'flags must come before'          -- 255 16 --lower
-check Eje7f0l errmsg "neg number without --"   'a "--" separator'                -- -123 16
-check Eje7f0m errmsg "unknown flag hint"       'unknown flag'                    -- --lowr 255 16
-check EizUJE0 errmsg "bad digit for base"   'not in base'                        -- --from 2 9
-check EizUJE1 errmsg "extra positional"     'unexpected extra positional'        -- 1 2 3
-check EizUJE2 errmsg "precision < 0"        'non-negative integer or'            -- --precision -1 1
-check Ejlud56 errmsg "precision bad word"   'non-negative integer or'            -- --precision foo 1 16
-check EizUJE3 errmsg "empty input"          'empty input'                        -- "" 16
-check EizUJE4 err   "multiple decimals"     -                                     -- --from 10 1.2.3 16
-check EizUJE5 err   "double negative"       -                                     -- -- --5 16
+check d9qd1 errmsg "unknown base near-match" 'did you mean "hex"'              -- 255 hexx
+check d9qd2 errmsg "unknown base to --list"  'see --list'                      -- 255 nope
+check d9qd3 errmsg "flags after number"      'flags must come before'          -- 255 16 --lower
+check d9qd4 errmsg "neg number without --"   'a "--" separator'                -- -123 16
+check d9qd5 errmsg "unknown flag hint"       'unknown flag'                    -- --lowr 255 16
+check d9dn2 errmsg "bad digit for base"   'not in base'                        -- --from 2 9
+check d9dn3 errmsg "extra positional"     'unexpected extra positional'        -- 1 2 3
+check d9dn4 errmsg "precision < 0"        'non-negative integer or'            -- --precision -1 1
+check d9s97 errmsg "precision bad word"   'non-negative integer or'            -- --precision foo 1 16
+check d9dn5 errmsg "empty input"          'empty input'                        -- "" 16
+check d9dn6 err   "multiple decimals"     -                                     -- --from 10 1.2.3 16
+check d9dn7 err   "double negative"       -                                     -- -- --5 16
 ## A decimal marker with no digits on either side is not zero.
-for nd in . -.; do check ErlzAd6 errmsg "no digits: '${nd}'" 'no digits in input' -- --from 10 --to 16 -- "$nd"; done
+for nd in . -.; do check ddgjs errmsg "no digits: '${nd}'" 'no digits in input' -- --from 10 --to 16 -- "$nd"; done
 ## A flag typed after the NUMBER is named as one, not read as OUTBASE or as an
 ## extra argument. "-" and a digit is a negative number, so it gets no flag hint,
 ## and a config base whose name starts with "-" still works as OUTBASE.
 for fa in "255 --lower" "255 --about" "ff --from hex" "255 16 --lower"; do
 	read -ra faArgs <<<"$fa"
-	check ErssdCS errmsg "flag after number: ${fa}" 'flags must come before' -- "${faArgs[@]}"
+	check ddj7t errmsg "flag after number: ${fa}" 'flags must come before' -- "${faArgs[@]}"
 done
-check ErssdD7 errmsg "negative-looking OUTBASE is a base" 'unknown base' -- 255 -5
+check ddj7v errmsg "negative-looking OUTBASE is a base" 'unknown base' -- 255 -5
 printf 'base: dashy\n\taliases: -x\n\tsymbols: A B C D\n##    Format   3\n' >"${CBT_TMP}/dashy.shcl"
-check ErsskLV eq "config base named -x is no flag" CB -- --config "${CBT_TMP}/dashy.shcl" 9 -x
+check ddj80 eq "config base named -x is no flag" CB -- --config "${CBT_TMP}/dashy.shcl" 9 -x
 
 ## A command line that can't be parsed exits 2. Input that won't convert exits 1.
 for ua in "--lowr 255 16" "255 --lower" "ff --from hex" "1 2 3" "-123 16" "--by-index x --show-symbols" "--show-symbols"; do
 	read -ra uaArgs <<<"$ua"; _run "${uaArgs[@]}"
-	{ ((_rc == 2)) && [[ "$_err" == error:* ]]; } && _pass ErssdDk "usage error exits 2: ${ua}" || _fail ErssdDk "usage error exits 2: ${ua}" "rc=$_rc err=[$_err]"
+	{ ((_rc == 2)) && [[ "$_err" == error:* ]]; } && _pass ddj7w "usage error exits 2: ${ua}" || _fail ddj7w "usage error exits 2: ${ua}" "rc=$_rc err=[$_err]"
 done
 for ca in "255 nope" "255 -5" "--from 2 9" "--from 16 --to 64 --binary FFF"; do
 	read -ra caArgs <<<"$ca"; _run "${caArgs[@]}"
-	((_rc == 1)) && _pass ErssdER "failed conversion exits 1: ${ca}" || _fail ErssdER "failed conversion exits 1: ${ca}" "rc=$_rc err=[$_err]"
+	((_rc == 1)) && _pass ddj7x "failed conversion exits 1: ${ca}" || _fail ddj7x "failed conversion exits 1: ${ca}" "rc=$_rc err=[$_err]"
 done
 
 ## Flags that can't go together, or that the mode refuses, are usage errors too.
@@ -654,13 +654,13 @@ done
 for ua in "--precision foo 255" "--binary --number --from 16 --to 64 dead" "--lower --upper 255" "--escape-controls --binary --from 16 --to 64 dead" \
 	"--show-symbols hex --lower" "--list foo" "--get-index-count 3" "--by-index 3 --show-symbols hex"; do
 	read -ra uaArgs <<<"$ua"; _run "${uaArgs[@]}"
-	{ ((_rc == 2)) && [[ "$_err" == error:* ]]; } && _pass ErsveGw "refused flags exit 2: ${ua}" || _fail ErsveGw "refused flags exit 2: ${ua}" "rc=$_rc out=[$_out] err=[$_err]"
+	{ ((_rc == 2)) && [[ "$_err" == error:* ]]; } && _pass ddj88 "refused flags exit 2: ${ua}" || _fail ddj88 "refused flags exit 2: ${ua}" "rc=$_rc out=[$_out] err=[$_err]"
 done
 ## A value the chosen base can't take stays exit 1, as an unknown base does.
 printf 'hi' >"${CBT_TMP}/idle_in"
 for ca in "--lower --to 62 255" "--to-pad = --to 10 255" "--from bytes --from-neg x --to 64 -"; do
 	read -ra caArgs <<<"$ca"; _run_in "${CBT_TMP}/idle_in" "${caArgs[@]}"
-	((_rc == 1)) && _pass ErswASw "base refuses the flag, exit 1: ${ca}" || _fail ErswASw "base refuses the flag, exit 1: ${ca}" "rc=$_rc err=[$_err]"
+	((_rc == 1)) && _pass ddj89 "base refuses the flag, exit 1: ${ca}" || _fail ddj89 "base refuses the flag, exit 1: ${ca}" "rc=$_rc err=[$_err]"
 done
 
 ## A flag that does nothing in the run gets one note on stderr, and the output
@@ -672,40 +672,40 @@ for ic in "--precision 5|--binary --from 16 --to 64 dead" "--to-neg ~|--binary -
 	_run_in "${CBT_TMP}/idle_in" "${icArgs[@]}"; icWant="$_out"; icErr="$_err"
 	_run_in "${CBT_TMP}/idle_in" "${icFlag[@]}" "${icArgs[@]}"
 	{ ((_rc == 0)) && [[ -z "$icErr" ]] && [[ "$_out" == "$icWant" ]] && [[ "$_err" == "note: ${icFlag[0]%%=*} does nothing "* ]] && [[ "$_err" != *$'\n'* ]]; } \
-		&& _pass ErswATd "unused flag gets one note: ${ic%%|*} with ${ic#*|}" \
-		|| _fail ErswATd "unused flag gets one note: ${ic%%|*} with ${ic#*|}" "rc=$_rc out=[$_out] want=[$icWant] err=[$_err] err-without=[$icErr]"
+		&& _pass ddj8a "unused flag gets one note: ${ic%%|*} with ${ic#*|}" \
+		|| _fail ddj8a "unused flag gets one note: ${ic%%|*} with ${ic#*|}" "rc=$_rc out=[$_out] want=[$icWant] err=[$_err] err-without=[$icErr]"
 done
 ## The notes print before the stream starts, once each, and leave it alone.
 head -c 3000000 /dev/urandom >"${CBT_TMP}/idle_big"
 "${TIMEOUT[@]}" "${EXE}" --from bytes --to 64 <"${CBT_TMP}/idle_big" >"${CBT_TMP}/idle_plain" 2>/dev/null || true
 _rc=0; "${TIMEOUT[@]}" "${EXE}" --precision 3 --to-neg '~' --to-neg '~' --from bytes --to 64 <"${CBT_TMP}/idle_big" >"${CBT_TMP}/idle_noted" 2>"${CBT_ERR}" || _rc=$?
 { ((_rc == 0)) && cmp -s "${CBT_TMP}/idle_plain" "${CBT_TMP}/idle_noted" && [[ "$(<"${CBT_ERR}")" == $'note: --to-neg does nothing in byte mode\nnote: --precision does nothing in byte mode' ]]; } \
-	&& _pass ErswAUX "unused flags vs stream output" \
-	|| _fail ErswAUX "unused flags vs stream output" "rc=$_rc err=[$(<"${CBT_ERR}")]"
+	&& _pass ddj8b "unused flags vs stream output" \
+	|| _fail ddj8b "unused flags vs stream output" "rc=$_rc err=[$(<"${CBT_ERR}")]"
 ## Every stderr note starts with "note:", the number-or-bytes one included.
 _run --from 16 --to 64 deadbeef
-[[ "$_err" == "note: "* ]] && _pass ErswAVN "number-or-bytes note starts with note:" || _fail ErswAVN "number-or-bytes note starts with note:" "err=[$_err]"
+[[ "$_err" == "note: "* ]] && _pass ddj8c "number-or-bytes note starts with note:" || _fail ddj8c "number-or-bytes note starts with note:" "err=[$_err]"
 
 ## Conflicting base selectors: still convert, but emit a stderr note (BxZNl-17).
 _run --to 16 255 8
-{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"overrides positional output base"* ]]; } && _pass Eje8sS8 "conflict note: --to over positional" || _fail Eje8sS8 "conflict note: --to over positional" "rc=$_rc out=[$_out] err=[$_err]"
+{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ "$_err" == *"overrides positional output base"* ]]; } && _pass d9qd6 "conflict note: --to over positional" || _fail d9qd6 "conflict note: --to over positional" "rc=$_rc out=[$_out] err=[$_err]"
 _run --from 16 --from-symbols 01 10 10
-{ ((_rc == 0)) && [[ "$_out" == 2 ]] && [[ "$_err" == *"--from-symbols overrides --from"* ]]; } && _pass Eje8sS9 "conflict note: --from-symbols over --from" || _fail Eje8sS9 "conflict note: --from-symbols over --from" "rc=$_rc out=[$_out] err=[$_err]"
+{ ((_rc == 0)) && [[ "$_out" == 2 ]] && [[ "$_err" == *"--from-symbols overrides --from"* ]]; } && _pass d9qd7 "conflict note: --from-symbols over --from" || _fail d9qd7 "conflict note: --from-symbols over --from" "rc=$_rc out=[$_out] err=[$_err]"
 _run --to 16 255 hex
-{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ -z "$_err" ]]; } && _pass Eje8sSA "no conflict note when --to and positional agree" || _fail Eje8sSA "no conflict note when --to and positional agree" "rc=$_rc out=[$_out] err=[$_err]"
+{ ((_rc == 0)) && [[ "$_out" == FF ]] && [[ -z "$_err" ]]; } && _pass d9qd8 "no conflict note when --to and positional agree" || _fail d9qd8 "no conflict note when --to and positional agree" "rc=$_rc out=[$_out] err=[$_err]"
 ## `echo 255 | prog 16` reads 16 as the NUMBER and leaves the pipe alone. With
 ## a base name as the only argument and a pipe on stdin, a note says to use -.
 pnout="$(printf '255' | "${TIMEOUT[@]}" "${EXE}" 16 2>"${CBT_ERR}")" || true
-{ [[ "$pnout" == 16 ]] && grep -qF 'stdin (piped) was ignored' "${CBT_ERR}"; } && _pass ErkSf4l "pipe + base-name NUMBER note" || _fail ErkSf4l "pipe + base-name NUMBER note" "out=[$pnout] err=[$(<"${CBT_ERR}")]"
+{ [[ "$pnout" == 16 ]] && grep -qF 'stdin (piped) was ignored' "${CBT_ERR}"; } && _pass ddg7g "pipe + base-name NUMBER note" || _fail ddg7g "pipe + base-name NUMBER note" "out=[$pnout] err=[$(<"${CBT_ERR}")]"
 pnout="$(printf '255' | "${TIMEOUT[@]}" "${EXE}" 255 16 2>"${CBT_ERR}")" || true
-{ [[ "$pnout" == FF ]] && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErkSf4t "no pipe note, NUMBER and base given" || _fail ErkSf4t "no pipe note, NUMBER and base given" "out=[$pnout] err=[$(<"${CBT_ERR}")]"
+{ [[ "$pnout" == FF ]] && [[ ! -s "${CBT_ERR}" ]]; } && _pass ddg7r "no pipe note, NUMBER and base given" || _fail ddg7r "no pipe note, NUMBER and base given" "out=[$pnout] err=[$(<"${CBT_ERR}")]"
 
 ## Shell-metachar / injection strings are just invalid digits: must error, never execute.
 sentinel="${CBT_TMP}/PWNED"
-check EizUJE6 err "injection: command sub"  -   -- '$(touch '"${sentinel}"')' 16
-check EizUJE7 err "injection: backticks"    -   -- '`touch '"${sentinel}"'`' 16
-check EizUJE8 err "injection: semicolon"    -   -- 'touch '"${sentinel}"'; echo' 16
-[[ ! -e "$sentinel" ]] && _pass EizUJE9 "injection created no file" || _fail EizUJE9 "injection created no file" "sentinel exists: $sentinel"
+check d9dn8 err "injection: command sub"  -   -- '$(touch '"${sentinel}"')' 16
+check d9dn9 err "injection: backticks"    -   -- '`touch '"${sentinel}"'`' 16
+check d9dna err "injection: semicolon"    -   -- 'touch '"${sentinel}"'; echo' 16
+[[ ! -e "$sentinel" ]] && _pass d9dnb "injection created no file" || _fail d9dnb "injection created no file" "sentinel exists: $sentinel"
 
 ## Oversized input stays bounded and correct (round-trips, does not hang or crash).
 biglen=2000; ((doLong)) && biglen=8000
@@ -713,15 +713,15 @@ big="$(_rand_int "$biglen")"
 _run --from 10 --to 62 -- "$big"; enc="$_out"
 if ((_rc == 0)); then
 	_run --from 62 --to 10 -- "$enc"
-	{ ((_rc == 0)) && [[ "$_out" == "$big" ]]; } && _pass EizUJEA "oversized input round-trips (${#big} digits)" || _fail EizUJEA "oversized input round-trips" "mismatch or rc=$_rc"
+	{ ((_rc == 0)) && [[ "$_out" == "$big" ]]; } && _pass d9dnc "oversized input round-trips (${#big} digits)" || _fail d9dnc "oversized input round-trips" "mismatch or rc=$_rc"
 else
-	_fail EizUJEA "oversized input round-trips" "encode rc=$_rc err=[$_err]"
+	_fail d9dnc "oversized input round-trips" "encode rc=$_rc err=[$_err]"
 fi
 
 ## Invalid UTF-8 on stdin must fail gracefully (no hang, no crash).
 printf '\xff\xfe\x00\x9c' >"${CBT_TMP}/badutf8"
 _run_in "${CBT_TMP}/badutf8" --from 2048qntm -
-((_rc != 0 && _rc != 124)) && _pass EizUJEB "invalid UTF-8 stdin errors gracefully" || _fail EizUJEB "invalid UTF-8 stdin errors gracefully" "rc=$_rc"
+((_rc != 0 && _rc != 124)) && _pass d9dnd "invalid UTF-8 stdin errors gracefully" || _fail d9dnd "invalid UTF-8 stdin errors gracefully" "rc=$_rc"
 
 ## Every way of printing a result fails the run when stdout can't take it.
 ## Each case is INPUT:ARGS, where INPUT is null, a number, or raw bytes.
@@ -732,10 +732,10 @@ if [[ -w /dev/full ]]; then
 		"num:- 16" "raw:--from bytes --to hex -" "raw:-n --from bytes --to hex -"; do
 		read -ra fargs <<<"${fcase#*:}"; frc=0
 		"${TIMEOUT[@]}" "${EXE}" "${fargs[@]}" <"${CBT_TMP}/full_${fcase%%:*}" >/dev/full 2>"${CBT_ERR}" || frc=$?
-		{ ((frc != 0 && frc != 124)) && grep -qF 'no space left' "${CBT_ERR}"; } && _pass Erm02E7 "full stdout fails: ${fargs[*]}" || _fail Erm02E7 "full stdout fails: ${fargs[*]}" "rc=$frc err=[$(<"${CBT_ERR}")]"
+		{ ((frc != 0 && frc != 124)) && grep -qF 'no space left' "${CBT_ERR}"; } && _pass ddgjw "full stdout fails: ${fargs[*]}" || _fail ddgjw "full stdout fails: ${fargs[*]}" "rc=$frc err=[$(<"${CBT_ERR}")]"
 	done
 else
-	_warn Erm02E7 "write-failure checks skipped: no /dev/full"
+	_warn ddgjw "write-failure checks skipped: no /dev/full"
 fi
 
 
@@ -758,8 +758,8 @@ while read -r idx bname bsize _ _ rawcol _; do
 done < <("${EXE}" --list --list-compat 2>/dev/null)
 ## Guard the scrapes themselves: if the --list format ever shifts and these parse
 ## nothing, every loop below passes vacuously. Assert a floor on each.
-(( ${#RAW_BASES[@]} >= 8 ))   && _pass EjeFbjM "raw-base scrape found bases (${#RAW_BASES[@]})"          || _fail EjeFbjM "raw-base scrape found bases" "only ${#RAW_BASES[@]} scraped (--list format changed?)"
-(( ${#POW2_BASES[@]} >= 20 )) && _pass ElWMN5V "power-of-2 scrape found bases (${#POW2_BASES[@]})" || _fail ElWMN5V "power-of-2 scrape found bases" "only ${#POW2_BASES[@]} scraped (--list format changed?)"
+(( ${#RAW_BASES[@]} >= 8 ))   && _pass d9qem "raw-base scrape found bases (${#RAW_BASES[@]})"          || _fail d9qem "raw-base scrape found bases" "only ${#RAW_BASES[@]} scraped (--list format changed?)"
+(( ${#POW2_BASES[@]} >= 20 )) && _pass dakbm "power-of-2 scrape found bases (${#POW2_BASES[@]})" || _fail dakbm "power-of-2 scrape found bases" "only ${#POW2_BASES[@]} scraped (--list format changed?)"
 
 ## Every power-of-2 base round-trips raw bytes at every input length: the small
 ## ones through the bit-packed path, the ones above 8 bits per digit through
@@ -775,7 +775,7 @@ for base in "${POW2_BASES[@]}"; do
 		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
 		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { p2fail=$((p2fail+1)); p2detail="n=${n} rc1=${rc1} rc2=${rc2} err=[$(<"${CBT_ERR}")]"; }
 	done
-	((p2fail == 0)) && _pass ElWMN5W "binary round-trip via ${base} (all lengths, bit-perfect)" || _fail ElWMN5W "binary round-trip via ${base}" "${p2fail} lengths mismatched, last: ${p2detail}"
+	((p2fail == 0)) && _pass dakbn "binary round-trip via ${base} (all lengths, bit-perfect)" || _fail dakbn "binary round-trip via ${base}" "${p2fail} lengths mismatched, last: ${p2detail}"
 done
 ## Raw binary round-trips through every base the tool advertises as a codec (the
 ## RAW column of --list): power-of-2 bases via bit-packing, plus base45, ascii85,
@@ -794,10 +794,10 @@ for base in "${RAW_BASES[@]}"; do
 		"${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" --no-newline <"$src" >"$mid" 2>"${CBT_ERR}" || rc1=$?
 		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes --no-newline <"$mid" >"$out" 2>"${CBT_ERR}" || rc2=$?
 		raw_all_n=$((raw_all_n + 1))
-		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail EjK8KIi "raw round-trip ${base} n=${len}" "rc1=$rc1 rc2=$rc2 err=[$(<"${CBT_ERR}")]"; }
+		{ ((rc1 == 0 && rc2 == 0)) && cmp -s "$src" "$out"; } || { raw_all_fail=$((raw_all_fail+1)); _fail d9jk6 "raw round-trip ${base} n=${len}" "rc1=$rc1 rc2=$rc2 err=[$(<"${CBT_ERR}")]"; }
 	done
 done
-((raw_all_fail == 0)) && _pass EjK8KIi "raw round-trip, all codec bases (${#RAW_BASES[@]} bases, ${raw_all_n} blobs)" || printf '  %s%d raw round-trip failures above%s\n' "${red}" "$raw_all_fail" "${rst}"
+((raw_all_fail == 0)) && _pass d9jk6 "raw round-trip, all codec bases (${#RAW_BASES[@]} bases, ${raw_all_n} blobs)" || printf '  %s%d raw round-trip failures above%s\n' "${red}" "$raw_all_fail" "${rst}"
 
 ## Wrapped output must decode back, on both the piped and the argv path, at wrap
 ## widths that land inside a multi-byte digit. Line breaks have to be dropped
@@ -817,7 +817,7 @@ for base in "${RAW_BASES[@]}"; do
 		"${TIMEOUT[@]}" "${EXE}" --from "$base" --to bytes -- "$(fold -w "$width" <"$enc")" >"$out" 2>"${CBT_ERR}" || wrapfail=$((wrapfail+1))
 		cmp -s "$src" "$out" || wrapfail=$((wrapfail+1))
 	done
-	((wrapfail == 0)) && _pass El5P4dk "wrapped input decodes via ${base}" || _fail El5P4dk "wrapped input decodes via ${base}" "${wrapfail} failures"
+	((wrapfail == 0)) && _pass dacw4 "wrapped input decodes via ${base}" || _fail dacw4 "wrapped input decodes via ${base}" "${wrapfail} failures"
 done
 
 ## A base the tool does NOT advertise as a codec (RAW column "-") must refuse raw
@@ -825,7 +825,7 @@ done
 ## whole-value base-N encoding (base85-RFC1924) that deliberately doesn't stream.
 for base in 10 62 keyboard 60tc 85ipv6 26 36; do
 	rc=0; printf 'hi' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to "$base" >/dev/null 2>"${CBT_ERR}" || rc=$?
-	((rc != 0)) && _pass EjK8KIj "non-codec base ${base} refuses raw binary" || _fail EjK8KIj "non-codec base ${base} refuses raw binary" "expected error, got rc=0"
+	((rc != 0)) && _pass d9jk7 "non-codec base ${base} refuses raw binary" || _fail d9jk7 "non-codec base ${base} refuses raw binary" "expected error, got rc=0"
 done
 
 ## Fixed vectors for the binary-to-text codecs, straight from each official spec
@@ -838,17 +838,17 @@ cvec(){ # ID LABEL BASE INPUT_HEX EXPECTED_TEXT
 	_run_in "$src" --from bytes --to "$base" --no-newline; got="$_out"
 	[[ "$got" == "$want" ]] && _pass "$id" "codec vector ${label}" || _fail "$id" "codec vector ${label}" "want=[$want] got=[$got]"
 }
-cvec EjK8KIk "base45 AB"       45   4142             "BB8"
-cvec EjK8KIl "base45 ietf!"    45   6965746621       "QED8WEX0"
-cvec EjK8KIm "ascii85 sure."   85ps 737572652e       "F*2M7/c"
-cvec EjK8KIn "ascii85 zeros"   85ps 00000000         "z"
-cvec EjK8KIo "z85 helloworld"  85z  864fd26fb559f75b "HelloWorld"
-cvec EjK8KIp "base91 test"     91hk 74657374         "fPNKd"
+cvec d9jk8 "base45 AB"       45   4142             "BB8"
+cvec d9jk9 "base45 ietf!"    45   6965746621       "QED8WEX0"
+cvec d9jka "ascii85 sure."   85ps 737572652e       "F*2M7/c"
+cvec d9jkb "ascii85 zeros"   85ps 00000000         "z"
+cvec d9jkc "z85 helloworld"  85z  864fd26fb559f75b "HelloWorld"
+cvec d9jkd "base91 test"     91hk 74657374         "fPNKd"
 ## basE91's reference decoder skips junk. Here it is refused, the same way from
 ## a pipe as from an argument.
 b91pipe="$(printf 'fPN-Kd' | "${TIMEOUT[@]}" "${EXE}" --from 91hk --to bytes 2>&1)" && b91pipe="rc=0 [$b91pipe]"
 _run --from 91hk --to bytes -- 'fPN-Kd'
-{ ((_rc != 0)) && [[ "$_err" == *"isn't a base-91 symbol"* ]] && [[ "$b91pipe" == *"isn't a base-91 symbol"* ]]; } && _pass ErkSf4e "base91 refuses junk, argv and pipe" || _fail ErkSf4e "base91 refuses junk, argv and pipe" "argv rc=$_rc err=[$_err] pipe=[$b91pipe]"
+{ ((_rc != 0)) && [[ "$_err" == *"isn't a base-91 symbol"* ]] && [[ "$b91pipe" == *"isn't a base-91 symbol"* ]]; } && _pass ddg79 "base91 refuses junk, argv and pipe" || _fail ddg79 "base91 refuses junk, argv and pipe" "argv rc=$_rc err=[$_err] pipe=[$b91pipe]"
 ## The four big bases match the published third-party layouts byte-for-byte.
 ## These fixed vectors (input bytes -> exact output code points) guard that
 ## interop; they come straight from the reference implementations. Each pins the
@@ -862,20 +862,20 @@ nvec(){ # ID LABEL BASE INPUT_HEX EXPECTED_CODEPOINTS(space-separated hex)
 	[[ "$got" == "$exp" ]] && _pass "$id" "native vector ${label}" \
 		|| _fail "$id" "native vector ${label}" "want=[$cps] got=[$(printf '%s' "$got" | od -An -tx1 | tr -d '\n')]"
 }
-nvec EjGTP6O "65536 lone byte"   65536qntm   00         1500
-nvec EjGTP6P "65536 byte order"  65536qntm   0102       3601
-nvec EjGTP6Q "65536 pair+tail"   65536qntm   010203     "3601 1503"
-nvec EjGTP6R "65536 high block"  65536qntm   ffff       285FF
-nvec EjGTP6S "65536 Hello"       65536qntm   48656c6c6f "9A48 A36C 156F"
-nvec EjGTP6T "32768 one byte"    32768qntm   00         06BF
-nvec EjGTP6U "32768 two bytes"   32768qntm   0000       "04A0 025F"
-nvec EjGTP6V "32768 short tail"  32768qntm   000000000000 "04A0 04A0 04A0 018F"
-nvec EjGTP6W "2048 one byte"     2048qntm 00         0046
-nvec EjGTP6X "2048 two bytes"    2048qntm 0000       "0038 0110"
-nvec EjGTP6Y "2048 three-bit tail" 2048qntm 010203   "0047 01B7 0037"
-nvec EjGTP6Z "rust one byte"     2048llfourn    00         00D8
-nvec EjGTP6a "rust tail zero"    2048llfourn    000000     "00D8 00D8 0F0D"
-nvec EjGTP6b "rust tail three"   2048llfourn    010203     "00C5 0140 0F10"
+nvec d9hq1 "65536 lone byte"   65536qntm   00         1500
+nvec d9hq2 "65536 byte order"  65536qntm   0102       3601
+nvec d9hq3 "65536 pair+tail"   65536qntm   010203     "3601 1503"
+nvec d9hq4 "65536 high block"  65536qntm   ffff       285FF
+nvec d9hq5 "65536 Hello"       65536qntm   48656c6c6f "9A48 A36C 156F"
+nvec d9hq6 "32768 one byte"    32768qntm   00         06BF
+nvec d9hq7 "32768 two bytes"   32768qntm   0000       "04A0 025F"
+nvec d9hq8 "32768 short tail"  32768qntm   000000000000 "04A0 04A0 04A0 018F"
+nvec d9hq9 "2048 one byte"     2048qntm 00         0046
+nvec d9hqa "2048 two bytes"    2048qntm 0000       "0038 0110"
+nvec d9hqb "2048 three-bit tail" 2048qntm 010203   "0047 01B7 0037"
+nvec d9hqc "rust one byte"     2048llfourn    00         00D8
+nvec d9hqd "rust tail zero"    2048llfourn    000000     "00D8 00D8 0F0D"
+nvec d9hqe "rust tail three"   2048llfourn    010203     "00C5 0140 0F10"
 
 ## RFC 4648 padding: every RFC variant (base64 s4, base32 s6, and the URL/hex
 ## variants 64u/64h/32h) emits '=' padding to the group boundary in codec mode
@@ -886,43 +886,43 @@ pipecheck(){ # ID LABEL FROM TO INPUT EXPECTED
 	_run_in <(printf '%s' "$in") --from "$f" --to "$t"; got="$_out"
 	[[ "$got" == "$want" ]] && _pass "$id" "$label" || _fail "$id" "$label" "in='$in' want='$want' got='$got'"
 }
-pipecheck EjGXlOS "rfc64 pad f"        bytes 64  "f"        "Zg=="
-pipecheck EjGXlOT "rfc64 pad fo"       bytes 64  "fo"       "Zm8="
-pipecheck EjGXlOU "rfc64 pad foobar"   bytes 64  "foobar"   "Zm9vYmFy"
-pipecheck EjGXlOV "rfc32 pad f"        bytes 32  "f"        "MY======"
-pipecheck EjGXlOW "rfc32 pad foob"     bytes 32  "foob"     "MZXW6YQ="
-pipecheck EjGXlOX "rfc32 pad foobar"   bytes 32  "foobar"   "MZXW6YTBOI======"
-pipecheck EjeCdXk "base64url pad foob" bytes 64u "foob"     "Zm9vYg=="
-pipecheck EjeCdXl "base64hex pad foob" bytes 64h "foob"     "PczlOW=="
-pipecheck EjeCdXm "base32hex pad f"    bytes 32h "f"        "CO======"
-pipecheck EjGXlOY "base64 strips pad"  64  bytes "Zm9vYmFy" "foobar"
-pipecheck EjGXlOZ "base64url takes pad" 64u bytes "Zm9vYg==" "foob"
+pipecheck d9hqj "rfc64 pad f"        bytes 64  "f"        "Zg=="
+pipecheck d9hqk "rfc64 pad fo"       bytes 64  "fo"       "Zm8="
+pipecheck d9hqm "rfc64 pad foobar"   bytes 64  "foobar"   "Zm9vYmFy"
+pipecheck d9hqn "rfc32 pad f"        bytes 32  "f"        "MY======"
+pipecheck d9hqp "rfc32 pad foob"     bytes 32  "foob"     "MZXW6YQ="
+pipecheck d9hqq "rfc32 pad foobar"   bytes 32  "foobar"   "MZXW6YTBOI======"
+pipecheck d9qdn "base64url pad foob" bytes 64u "foob"     "Zm9vYg=="
+pipecheck d9qdp "base64hex pad foob" bytes 64h "foob"     "PczlOW=="
+pipecheck d9qdq "base32hex pad f"    bytes 32h "f"        "CO======"
+pipecheck d9hqr "base64 strips pad"  64  bytes "Zm9vYmFy" "foobar"
+pipecheck d9hqs "base64url takes pad" 64u bytes "Zm9vYg==" "foob"
 ## Decode still accepts UNPADDED input on the now-padded variants.
-pipecheck EjeCdXn "base64url takes unpadded" 64u bytes "Zm9vYg" "foob"
+pipecheck d9qdr "base64url takes unpadded" 64u bytes "Zm9vYg" "foob"
 ## Number-mode output is never padded, even for the RFC variants.
-pipecheck EjeCdXo "base64url number unpadded" 10 64u "255" "D_"
+pipecheck d9qds "base64url number unpadded" 10 64u "255" "D_"
 
 ## Custom (user-defined) bases can opt into the same padding with --to-pad.
 ## This custom alphabet mirrors RFC 4648 base32, so its padded output must match.
 B32C="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567"
 _run_in <(printf 'A') --from bytes --to-symbols "$B32C" --to-pad "="; padgot="$_out"
-[[ "$padgot" == "IE======" ]] && _pass EjGkfrU "custom base32 emits pad" || _fail EjGkfrU "custom base32 emits pad" "got='$padgot'"
+[[ "$padgot" == "IE======" ]] && _pass d9hs5 "custom base32 emits pad" || _fail d9hs5 "custom base32 emits pad" "got='$padgot'"
 padrt=$(printf 'A' | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$B32C" --to-pad "=" 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from-symbols "$B32C" --from-pad "=" --to bytes 2>"${CBT_ERR}" || true)
-[[ "$padrt" == "A" ]] && _pass EjGkfrV "custom pad round-trips" || _fail EjGkfrV "custom pad round-trips" "got='$padrt'"
+[[ "$padrt" == "A" ]] && _pass d9hs6 "custom pad round-trips" || _fail d9hs6 "custom pad round-trips" "got='$padrt'"
 _run_in <(printf 'IE') --from-symbols "$B32C" --from-pad "=" --to bytes; padun="$_out"
-[[ "$padun" == "A" ]] && _pass EjGkfrW "custom pad decode takes unpadded" || _fail EjGkfrW "custom pad decode takes unpadded" "got='$padun'"
-check EjGkfrX errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF" --from-pad "A" --to 10 5
+[[ "$padun" == "A" ]] && _pass d9hs7 "custom pad decode takes unpadded" || _fail d9hs7 "custom pad decode takes unpadded" "got='$padun'"
+check d9hs8 errmsg "pad collides with digit" 'is also a digit' -- --from-symbols "0123456789ABCDEF" --from-pad "A" --to 10 5
 ## Padding is a trailing run and nothing else. Both routes must say so the same
 ## way: the argv one used to name the character instead of the mistake.
-check Em1DQ5d errmsg "interior pad, argv" 'data after padding' -- --binary --from 64rfc --to bytes "A=BC"
+check dats7 errmsg "interior pad, argv" 'data after padding' -- --binary --from 64rfc --to bytes "A=BC"
 printf 'A=BC' >"${CBT_TMP}/interior-pad"
 _run_in "${CBT_TMP}/interior-pad" --binary --from 64rfc --to bytes
-_assert Em1DQ5e errmsg "interior pad, pipe" 'data after padding'
+_assert dats8 errmsg "interior pad, pipe" 'data after padding'
 ## A pad is only ever applied on the bit-packed path, one character at a time.
 ## Definitions that could never take effect are rejected where they are written.
-check El51s2C errmsg "multi-char pad rejected" 'must be a single character' -- --from bytes --to 64 --to-pad "==" 5
-check El51s2D errmsg "pad above 8 bits rejected" 'at most 256 symbols' -- --from bytes --to 512tt --to-pad "=" 5
-check El51s2E errmsg "pad on non-2^N rejected" 'at most 256 symbols' -- --from bytes --to 45 --to-pad "=" 5
+check dacs8 errmsg "multi-char pad rejected" 'must be a single character' -- --from bytes --to 64 --to-pad "==" 5
+check dacs9 errmsg "pad above 8 bits rejected" 'at most 256 symbols' -- --from bytes --to 512tt --to-pad "=" 5
+check dacsa errmsg "pad on non-2^N rejected" 'at most 256 symbols' -- --from bytes --to 45 --to-pad "=" 5
 
 ## A user-defined base above 8 bits streams only once it declares a tail. Without
 ## one the packing writes a leading length, which can't be known while streaming.
@@ -930,51 +930,51 @@ SYM512=""; for ((cp=0x4E00; cp<0x5000; cp++)); do printf -v ch '\\U%08x' "$cp"; 
 tailrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑" -n 2>/dev/null \
 	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --from-tail "⸐ ⸑" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1 || true)
 tailwant=$(head -c 37 /bin/cat | md5sum | cut -d' ' -f1)
-[[ "$tailrt" == "$tailwant" ]] && _pass El5mcJk "custom tail round-trips" || _fail El5mcJk "custom tail round-trips" "got='$tailrt'"
+[[ "$tailrt" == "$tailwant" ]] && _pass dacz2 "custom tail round-trips" || _fail dacz2 "custom tail round-trips" "got='$tailrt'"
 ## The same base with no tail still round-trips, on the length-prefixed layout.
 ntrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --from bytes --to-symbols "$SYM512" -n 2>/dev/null \
 	| "${TIMEOUT[@]}" "${EXE}" --from-symbols "$SYM512" --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1 || true)
-[[ "$ntrt" == "$tailwant" ]] && _pass El5mcJl "custom no-tail round-trips" || _fail El5mcJl "custom no-tail round-trips" "got='$ntrt'"
+[[ "$ntrt" == "$tailwant" ]] && _pass dacz3 "custom no-tail round-trips" || _fail dacz3 "custom no-tail round-trips" "got='$ntrt'"
 ## A tail that could never be used is rejected where it is declared.
-check El5mcJm errmsg "tail below 8 bits rejected" 'above 256 symbols' -- --from bytes --to 64 --to-tail "⸐ ⸑" 5
-check El5mcJn errmsg "tail not power of 2 rejected" 'power of 2' -- --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑ ⸒" 5
-check El5mcJo errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 1024tz --to-tail "⸐ ⸑" 5
-check El5mcJp errmsg "tail on bytes rejected" "don't apply" -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
+check dacz4 errmsg "tail below 8 bits rejected" 'above 256 symbols' -- --from bytes --to 64 --to-tail "⸐ ⸑" 5
+check dacz5 errmsg "tail not power of 2 rejected" 'power of 2' -- --from bytes --to-symbols "$SYM512" --to-tail "⸐ ⸑ ⸒" 5
+check dacz6 errmsg "tail too narrow rejected" 'must be between' -- --from bytes --to 1024tz --to-tail "⸐ ⸑" 5
+check dacz7 errmsg "tail on bytes rejected" "don't apply" -- --from bytes --to 16 --from-tail "⸐ ⸑" 5
 ## Binary decode of a tail base reads one character per digit, so a tail on a
 ## base of longer digits used to encode bytes it could not decode.
 SYM2048W=""; for ((cp=0; cp<2048; cp++)); do printf -v ch '\\U%08x\\U%08x' $((0x4E00 + cp / 64)) $((0x5000 + cp % 64)); printf -v ch "$ch"; SYM2048W+="${ch} "; done
-check Erm5wxB errmsg "tail on two-character digits rejected" 'single character' -- --from bytes --to-symbols "$SYM2048W" --to-tail "⸐ ⸑ ⸒ ⸓ ⸔ ⸕ ⸖ ⸗" 5
+check ddgkm errmsg "tail on two-character digits rejected" 'single character' -- --from bytes --to-symbols "$SYM2048W" --to-tail "⸐ ⸑ ⸒ ⸓ ⸔ ⸕ ⸖ ⸗" 5
 printf -- 'base: wide2048\n\tsymbols: "%s"\n\ttail: "⸐ ⸑ ⸒ ⸓ ⸔ ⸕ ⸖ ⸗"\n' "$SYM2048W" >"${CBT_TMP}/tail-wide.shcl"
-check Erm5wxg errmsg "config tail on two-character digits rejected" '"wide2048": a tail needs every digit to be a single character' -- --config "${CBT_TMP}/tail-wide.shcl" --from bytes --to 16 5
+check ddgkn errmsg "config tail on two-character digits rejected" '"wide2048": a tail needs every digit to be a single character' -- --config "${CBT_TMP}/tail-wide.shcl" --from bytes --to 16 5
 ## A tail of only commas parses to no symbols, and the tail layout without a
 ## tail decoded some lengths to the wrong bytes.
 ## Off since 2026100417280514: the spec parser now refuses a comma-only tail
-## first, naming the flag rather than the base and layout. ErmufVw pins it.
-## check ErmULmv errmsg "comma-only tail rejected" '"2048qntm": binary scheme "qntm" needs tail symbols' -- --from bytes --to 2048qntm --to-tail ',' 5
-check ErmufVw errmsg "comma-only tail names the flag" '--to-tail: symbol spec has only commas' -- --from bytes --to 2048qntm --to-tail ',' 5
-check ErmufXE errmsg "comma-only symbols names the flag" '--to-symbols: symbol spec has only commas' -- --to-symbols ',' 5
+## first, naming the flag rather than the base and layout. ddgt0 pins it.
+## check ddgpp errmsg "comma-only tail rejected" '"2048qntm": binary scheme "qntm" needs tail symbols' -- --from bytes --to 2048qntm --to-tail ',' 5
+check ddgt0 errmsg "comma-only tail names the flag" '--to-tail: symbol spec has only commas' -- --from bytes --to 2048qntm --to-tail ',' 5
+check ddgt1 errmsg "comma-only symbols names the flag" '--to-symbols: symbol spec has only commas' -- --to-symbols ',' 5
 printf -- 'base: cfgcomma\n\tsymbols: 0123456789abcdef\n\ttail: ","\n##    Format   3\n' >"${CBT_TMP}/tail-comma.shcl"
-check ErmufYc errmsg "config comma-only tail names the field" 'line 3: base "cfgcomma": tail: symbol spec has only commas' -- --config "${CBT_TMP}/tail-comma.shcl" 5 16
+check ddgt2 errmsg "config comma-only tail names the field" 'line 3: base "cfgcomma": tail: symbol spec has only commas' -- --config "${CBT_TMP}/tail-comma.shcl" 5 16
 ## A digit that isn't valid UTF-8 used to stream out text the same base's
 ## streaming decode refused.
 printf 'hi' >"${CBT_TMP}/hi.bin"
 _run_in "${CBT_TMP}/hi.bin" --from bytes --to-symbols $'\x80 \x81 \xc3\xa9 \xc3\xa8'
-_assert Erq3i2u errmsg "invalid UTF-8 digit refused" 'base "custom(4)": digit "\x80" at index 0 '"isn't valid UTF-8"
+_assert ddhj5 errmsg "invalid UTF-8 digit refused" 'base "custom(4)": digit "\x80" at index 0 '"isn't valid UTF-8"
 printf -- 'base: cfgbadutf\n\tsymbols: "\xff a b c"\n##    Format   3\n' >"${CBT_TMP}/bad-utf8.shcl"
-check Erq3i3e errmsg "config invalid UTF-8 digit refused" 'base "cfgbadutf": digit "\xff" at index 0 '"isn't valid UTF-8" -- --config "${CBT_TMP}/bad-utf8.shcl" 5 16
+check ddhj6 errmsg "config invalid UTF-8 digit refused" 'base "cfgbadutf": digit "\xff" at index 0 '"isn't valid UTF-8" -- --config "${CBT_TMP}/bad-utf8.shcl" 5 16
 ## A stray byte later in the quotes made shcl skip the closing quote (E017).
 printf -- 'base: cfgbadutf\n\tsymbols: "a b \x80 c"\n##    Format   3\n' >"${CBT_TMP}/bad-utf8-mid.shcl"
-check ErsoOAv errmsg "config invalid UTF-8 digit mid-quote refused" 'base "cfgbadutf": digit "\x80" at index 2 '"isn't valid UTF-8" -- --config "${CBT_TMP}/bad-utf8-mid.shcl" 5 16
+check ddj7a errmsg "config invalid UTF-8 digit mid-quote refused" 'base "cfgbadutf": digit "\x80" at index 2 '"isn't valid UTF-8" -- --config "${CBT_TMP}/bad-utf8-mid.shcl" 5 16
 
 ## Same tail declared in a config file rather than on the command line.
 tailcfg="${CBT_TMP}/tail.shcl"
 printf -- 'base: cfgtail\n\tsymbols: "%s"\n\ttail: "⸐ ⸑"\n' "$SYM512" >"$tailcfg"
 cfgrt=$(head -c 37 /bin/cat | "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from bytes --to cfgtail -n 2>/dev/null \
 	| "${TIMEOUT[@]}" "${EXE}" --config "$tailcfg" --from cfgtail --to bytes -n 2>"${CBT_ERR}" | md5sum | cut -d' ' -f1 || true)
-[[ "$cfgrt" == "$tailwant" ]] && _pass El5mcJq "config tail round-trips" || _fail El5mcJq "config tail round-trips" "got='$cfgrt'"
+[[ "$cfgrt" == "$tailwant" ]] && _pass dacz8 "config tail round-trips" || _fail dacz8 "config tail round-trips" "got='$cfgrt'"
 
 ## Odd-length hex has no whole-byte representation: decoding to binary must error.
-check EizUJEC errmsg "odd hex -> binary guarded" "can't decode to binary" -- --from 16 --to bytes ABC
+check d9dne errmsg "odd hex -> binary guarded" "can't decode to binary" -- --from 16 --to bytes ABC
 
 ## --lower/--upper on piped input give the same bytes as recasing the plain
 ## encode afterward, on the byte path, the --binary route and the wide path.
@@ -1007,7 +1007,7 @@ for ccase in hex-lower 32c-upper binary-lower greek-lower; do
 		cok=0; { ((rc1 == 0)) && [[ -s "$cwant" ]] && cmp -s "$cwant" "$cout"; } && cok=1
 	fi
 	clabel="case flag on a stream matches recased output (${ccase})"; ((crefuse)) && clabel="case flag on a stream refused (${ccase})"
-	((cok)) && _pass Ersmg3G "$clabel" || _fail Ersmg3G "$clabel" "rc=${rc1} err=[$(<"${CBT_ERR}")]"
+	((cok)) && _pass ddj73 "$clabel" || _fail ddj73 "$clabel" "rc=${rc1} err=[$(<"${CBT_ERR}")]"
 done
 
 ## The case flags used to drop to the buffered path, about 5 times the input in
@@ -1023,11 +1023,11 @@ if [[ -x /usr/bin/time ]]; then
 			head -c "$((case_mib * 1024 * 1024))" /dev/zero | /usr/bin/time -o "$cprof" -f '%M' "${EXE}" $cflags >/dev/null 2>&1 || true
 		fi
 		[[ -s "$cprof" ]] && cpeak=$(tail -1 "$cprof")
-		{ [[ "$cpeak" =~ ^[0-9]+$ ]] && ((cpeak < case_ceiling)); } && _pass Ersmg45 "case flag streams in constant memory (${cflags}, peak ${cpeak} KiB)" || _fail Ersmg45 "case flag streams in constant memory (${cflags})" "${case_mib} MiB in, peak ${cpeak:-?} KiB, ceiling ${case_ceiling}"
+		{ [[ "$cpeak" =~ ^[0-9]+$ ]] && ((cpeak < case_ceiling)); } && _pass ddj74 "case flag streams in constant memory (${cflags}, peak ${cpeak} KiB)" || _fail ddj74 "case flag streams in constant memory (${cflags})" "${case_mib} MiB in, peak ${cpeak:-?} KiB, ceiling ${case_ceiling}"
 		: >"$cprof"
 	done
 else
-	_warn "Ersmg45" "case flag memory ceiling: no /usr/bin/time"
+	_warn "ddj74" "case flag memory ceiling: no /usr/bin/time"
 fi
 
 ## --lower/--upper recase digits only. A pad or tail symbol stays as the base
@@ -1068,7 +1068,7 @@ for kcase in latin-pad latin-pad-dec greek-pad cjk-tail; do
 		[[ -n "$kwant" && "$kpipe" == "$kwant" && "$kargv" == "$kwant" && "$kback" == "$kin" && "$kback2" == "$kin" ]] && kok=1
 	fi
 	klabel="case flag leaves pad and tail alone (${kcase})"; ((krefuse)) && klabel="case flag refused (${kcase})"
-	((kok)) && _pass ErsqAZ3 "$klabel" || _fail ErsqAZ3 "$klabel" "want='${kwant}' pipe='${kpipe}' argv='${kargv}' back='${kback}' back2='${kback2}' err=[$(<"${CBT_ERR}")]"
+	((kok)) && _pass ddj7g "$klabel" || _fail ddj7g "$klabel" "want='${kwant}' pipe='${kpipe}' argv='${kargv}' back='${kback}' back2='${kback2}' err=[$(<"${CBT_ERR}")]"
 done
 ## A digit that recases into the pad, a tail symbol or a marker would read back
 ## as that instead, so the flag is refused, the same as for mixed-case digits.
@@ -1078,7 +1078,7 @@ for kcase in pad tail marker; do
 		tail)   kwant='tail symbol';     kflags=(--from bytes --to-symbols "${SYM512/一 /ж }" --to-tail "Ж y" --upper abcdefgh) ;;
 		marker) kwant='negative marker'; kflags=(--to-symbols "$GREEK8_UP" --to-neg β --lower -- -9) ;;
 	esac
-	check ErsqAZh errmsg "case flag refused when a digit recases into the ${kcase}" "$kwant" -- "${kflags[@]}"
+	check ddj7h errmsg "case flag refused when a digit recases into the ${kcase}" "$kwant" -- "${kflags[@]}"
 done
 ## Input takes the other case only for one-letter ASCII digits, so recasing a
 ## longer digit or one from another script writes what the same base can't read
@@ -1093,16 +1093,16 @@ for rcase in multi-letter greek greek-pipe long-s; do
 		long-s)       rwant='--upper is invalid for output base "custom(2)": uppercasing digit "ſ" gives "S"';  rargs=(--to-symbols "s ſ" --upper 3) ;;
 	esac
 	_run_in "${CBT_TMP}/rb_in" "${rargs[@]}"
-	{ ((_rc == 1)) && [[ -z "$_out" && "$_err" == *"$rwant"* ]]; } && _pass ErvpHV2 "case flag refused (${rcase})" \
-		|| _fail ErvpHV2 "case flag refused (${rcase})" "rc=$_rc out=[$_out] err=[$_err] want-substr=[$rwant]"
+	{ ((_rc == 1)) && [[ -z "$_out" && "$_err" == *"$rwant"* ]]; } && _pass ddjyg "case flag refused (${rcase})" \
+		|| _fail ddjyg "case flag refused (${rcase})" "rc=$_rc out=[$_out] err=[$_err] want-substr=[$rwant]"
 done
 ## A digit the flag leaves as it is doesn't count: uncased multi-letter digits,
 ## CJK, and CJK beside one-letter ASCII digits all still recase and read back.
 for rsyms in "0! 1! 2! 3!" "一 二 三 四" "a b 一 二"; do
 	rout=$("${TIMEOUT[@]}" "${EXE}" --to-symbols "$rsyms" --upper 9 2>"${CBT_ERR}" || true)
 	rback=$("${TIMEOUT[@]}" "${EXE}" --from-symbols "$rsyms" --to 10 "${rout:-x}" 2>>"${CBT_ERR}" || true)
-	[[ -n "$rout" && "$rback" == 9 ]] && _pass ErvpHVf "case flag ok (${rsyms})" \
-		|| _fail ErvpHVf "case flag ok (${rsyms})" "out='${rout}' back='${rback}' err=[$(<"${CBT_ERR}")]"
+	[[ -n "$rout" && "$rback" == 9 ]] && _pass ddjyh "case flag ok (${rsyms})" \
+		|| _fail ddjyh "case flag ok (${rsyms})" "out='${rout}' back='${rback}' err=[$(<"${CBT_ERR}")]"
 done
 
 
@@ -1116,48 +1116,48 @@ section "--binary byte mode"
 
 ## Known vector: the four bytes 0xDE 0xAD 0xBE 0xEF as base64.
 _run --binary --from 16 --to 64 deadbeef; bm="$_out"
-[[ "$bm" == "3q2+7w==" ]] && _pass EjU6h0i "--binary hex->64 (argv)" || _fail EjU6h0i "--binary hex->64 (argv)" "got='$bm'"
+[[ "$bm" == "3q2+7w==" ]] && _pass d9mzy "--binary hex->64 (argv)" || _fail d9mzy "--binary hex->64 (argv)" "got='$bm'"
 
 ## Streaming (stdin) must match the argv result.
 _run_in <(printf 'deadbeef') --binary --from 16 --to 64; bms="$_out"
-[[ "$bms" == "3q2+7w==" ]] && _pass EjU6h0j "--binary hex->64 (stream)" || _fail EjU6h0j "--binary hex->64 (stream)" "got='$bms'"
+[[ "$bms" == "3q2+7w==" ]] && _pass d9mzz "--binary hex->64 (stream)" || _fail d9mzz "--binary hex->64 (stream)" "got='$bms'"
 
 ## --binary must equal the explicit two-stage route through the bytes base.
 bmp=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" --from 16 --to bytes 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" --from bytes --to 32 2>/dev/null || true)
 _run --binary --from 16 --to 32 deadbeef; bm32="$_out"
-[[ "$bm32" == "$bmp" ]] && _pass EjU6h0k "--binary == pipe-through-bytes (hex->32)" || _fail EjU6h0k "--binary == pipe-through-bytes" "flag='$bm32' pipe='$bmp'"
+[[ "$bm32" == "$bmp" ]] && _pass d9n00 "--binary == pipe-through-bytes (hex->32)" || _fail d9n00 "--binary == pipe-through-bytes" "flag='$bm32' pipe='$bmp'"
 
 ## Aliases -b and --bin behave the same.
 _run_in <(printf 'deadbeef') -b --from 16 --to 64; bmb="$_out"
 _run_in <(printf 'deadbeef') --bin --from 16 --to 64; bmbin="$_out"
-{ [[ "$bmb" == "3q2+7w==" ]] && [[ "$bmbin" == "3q2+7w==" ]]; } && _pass EjU6h0l "--binary aliases -b/--bin" || _fail EjU6h0l "--binary aliases -b/--bin" "b='$bmb' bin='$bmbin'"
+{ [[ "$bmb" == "3q2+7w==" ]] && [[ "$bmbin" == "3q2+7w==" ]]; } && _pass d9n01 "--binary aliases -b/--bin" || _fail d9n01 "--binary aliases -b/--bin" "b='$bmb' bin='$bmbin'"
 
 ## Round-trip through byte mode restores the bytes (case normalizes to base-16 canonical).
 bmrt=$(printf 'deadbeef' | "${TIMEOUT[@]}" "${EXE}" -b --from 16 --to 64 2>/dev/null | "${TIMEOUT[@]}" "${EXE}" -b --from 64 --to 16 2>/dev/null || true)
-[[ "$bmrt" == "DEADBEEF" ]] && _pass EjU6h0m "--binary round-trip 16<->64" || _fail EjU6h0m "--binary round-trip 16<->64" "got='$bmrt'"
+[[ "$bmrt" == "DEADBEEF" ]] && _pass d9n02 "--binary round-trip 16<->64" || _fail d9n02 "--binary round-trip 16<->64" "got='$bmrt'"
 
 ## A non-power-of-2 base has no byte encoding: --binary must error.
-check EjU6h0n errmsg "--binary rejects non-pow2" 'byte mode requires a power-of-2' -- --binary --from 10 --to 64 255
+check d9n03 errmsg "--binary rejects non-pow2" 'byte mode requires a power-of-2' -- --binary --from 10 --to 64 255
 
 ## --binary and --number are mutually exclusive.
-check EjU6h0o errmsg "--binary + --number conflict" 'not both' -- --binary --number --from 16 --to 64 dead
+check d9n04 errmsg "--binary + --number conflict" 'not both' -- --binary --number --from 16 --to 64 dead
 
 ## The ambiguity note: fires on pow2->pow2 with no mode flag, on stderr only, and
 ## stdout still carries the numeric result.
 _run --from 16 --to 64 deadbeef
-{ ((_rc == 0)) && [[ "$_out" == "Derb7v" ]] && [[ "$_err" == *"--binary"* ]]; } && _pass EjU6h0p "pow2->pow2 note on stderr" || _fail EjU6h0p "pow2->pow2 note on stderr" "out='$_out' err='$_err'"
+{ ((_rc == 0)) && [[ "$_out" == "Derb7v" ]] && [[ "$_err" == *"--binary"* ]]; } && _pass d9n05 "pow2->pow2 note on stderr" || _fail d9n05 "pow2->pow2 note on stderr" "out='$_out' err='$_err'"
 
 ## --number asserts numeric intent and silences the note.
 _run --number --from 16 --to 64 deadbeef
-{ ((_rc == 0)) && [[ "$_out" == "Derb7v" ]] && [[ -z "$_err" ]]; } && _pass EjU6h0q "--number silences note" || _fail EjU6h0q "--number silences note" "out='$_out' err='$_err'"
+{ ((_rc == 0)) && [[ "$_out" == "Derb7v" ]] && [[ -z "$_err" ]]; } && _pass d9n06 "--number silences note" || _fail d9n06 "--number silences note" "out='$_out' err='$_err'"
 
 ## -N alias silences too.
 _run -N --from 16 --to 64 deadbeef
-[[ -z "$_err" ]] && _pass EjU6h0r "-N alias silences note" || _fail EjU6h0r "-N alias silences note" "err='$_err'"
+[[ -z "$_err" ]] && _pass d9n07 "-N alias silences note" || _fail d9n07 "-N alias silences note" "err='$_err'"
 
 ## No note when a non-power-of-2 base is involved (no byte ambiguity).
 _run --from 10 --to 16 255
-[[ -z "$_err" ]] && _pass EjU6h0s "no note for non-pow2 conversion" || _fail EjU6h0s "no note for non-pow2 conversion" "err='$_err'"
+[[ -z "$_err" ]] && _pass d9n08 "no note for non-pow2 conversion" || _fail d9n08 "no note for non-pow2 conversion" "err='$_err'"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1177,7 +1177,7 @@ for tb in 16 10; do
 		&& "${TIMEOUT[@]}" "${EXE}" --from "$tb" --to keyboard --no-newline <"$kmid" >"$kout" 2>"${CBT_ERR}" \
 		&& cmp -s "$ksrc" "$kout"; then :; else kfail=$((kfail+1)); fi
 done
-((kfail == 0)) && _pass EjGqhx2 "keyboard sample round-trips (base 16 and 10)" || _fail EjGqhx2 "keyboard sample round-trips" "${kfail} of 2 failed"
+((kfail == 0)) && _pass d9hsx "keyboard sample round-trips (base 16 and 10)" || _fail d9hsx "keyboard sample round-trips" "${kfail} of 2 failed"
 ## Random text blobs of only valid keyboard bytes, forced to start on a non-tab
 ## byte so no leading digit is lost.
 krand_fail=0
@@ -1187,7 +1187,7 @@ for len in 1 2 5 33 200 1500; do
 		&& "${TIMEOUT[@]}" "${EXE}" --from 16 --to keyboard --no-newline <"$kmid" >"$kout" 2>"${CBT_ERR}" \
 		&& cmp -s "$ksrc" "$kout"; then :; else krand_fail=$((krand_fail+1)); fi
 done
-((krand_fail == 0)) && _pass EjGqhx3 "keyboard random text round-trips (6 blobs)" || _fail EjGqhx3 "keyboard random text round-trips" "${krand_fail} lengths mismatched"
+((krand_fail == 0)) && _pass d9hsy "keyboard random text round-trips (6 blobs)" || _fail d9hsy "keyboard random text round-trips" "${krand_fail} lengths mismatched"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1199,29 +1199,29 @@ done
 ## to either direction shows up here rather than cancelling itself out.
 section "Control-character escapes"
 kesc_lf=$'A\nB'
-check Elotfai eq "escape LF reads as the raw character"   "102225" -- --from keyboard --to 10 -n 'A⊳LFB'
-check Elotfaj eq "raw LF reads the same"                  "102225" -- --from keyboard --to 10 -n "$kesc_lf"
-check Elotfak eq "lowercase name"                         "102225" -- --from keyboard --to 10 -n 'A⊳lfB'
-check Elotfal eq "NEWLINE alias"                          "102225" -- --from keyboard --to 10 -n 'A⊳NEWLINEB'
-check Elotfam eq "hex form"                               "102225" -- --from keyboard --to 10 -n 'A⊳x0AB'
-check Elotfan eq "escaped output"                         'A⊳LFB'  -- --from 10 --to keyboard --escape-controls -n 102225
-check Elotfao eq "output stays raw without the flag"      "$kesc_lf" -- --from 10 --to keyboard -n 102225
+check daqt8 eq "escape LF reads as the raw character"   "102225" -- --from keyboard --to 10 -n 'A⊳LFB'
+check daqt9 eq "raw LF reads the same"                  "102225" -- --from keyboard --to 10 -n "$kesc_lf"
+check daqta eq "lowercase name"                         "102225" -- --from keyboard --to 10 -n 'A⊳lfB'
+check daqtb eq "NEWLINE alias"                          "102225" -- --from keyboard --to 10 -n 'A⊳NEWLINEB'
+check daqtc eq "hex form"                               "102225" -- --from keyboard --to 10 -n 'A⊳x0AB'
+check daqtd eq "escaped output"                         'A⊳LFB'  -- --from 10 --to keyboard --escape-controls -n 102225
+check daqte eq "output stays raw without the flag"      "$kesc_lf" -- --from 10 --to keyboard -n 102225
 ## Raw and escaped in one value, and the same value written the other way.
-check Elotfap eq "raw and escaped mixed"      "52830726402316" -- --from keyboard --to 10 -n 'x⊳HTy⊳CRz⊳LFw'
-check Elotfaq eq "all three escaped on output" 'x⊳HTy⊳CRz⊳LFw' -- --from 10 --to keyboard --escape-controls -n 52830726402316
+check daqtf eq "raw and escaped mixed"      "52830726402316" -- --from keyboard --to 10 -n 'x⊳HTy⊳CRz⊳LFw'
+check daqtg eq "all three escaped on output" 'x⊳HTy⊳CRz⊳LFw' -- --from 10 --to keyboard --escape-controls -n 52830726402316
 ## A base with no control digits never grows an escape.
-check Elotfar eq "no escapes where there are no controls" '!4' -- --from 10 --to keyboard --escape-controls -n 6472
+check daqth eq "no escapes where there are no controls" '!4' -- --from 10 --to keyboard --escape-controls -n 6472
 ## --show-symbols is where the alphabet is actually legible.
 _run --show-symbols --escape-controls keyboard
 { ((_rc == 0)) && [[ "$_out" == *'⊳HT⊳LF⊳CR'* ]]; } \
-	&& _pass Elotfas "--show-symbols escapes the control digits" \
-	|| _fail Elotfas "--show-symbols escapes the control digits" "rc=$_rc out=[$_out]"
+	&& _pass daqtj "--show-symbols escapes the control digits" \
+	|| _fail daqtj "--show-symbols escapes the control digits" "rc=$_rc out=[$_out]"
 ## Guards.
-check Elotfat errmsg "unrecognized escape is an error"    "unrecognized escape" -- --from keyboard --to 10 -n 'A⊳ZZZB'
-check Elotfau errmsg "escape the base cannot carry"       "not in base"         -- --from 16 --to 10 -n '⊳LF'
-check Elotfav errmsg "escaping is refused in byte mode"   "number conversions only" -- --from 10 --to 16 --binary --escape-controls -n 65
+check daqtk errmsg "unrecognized escape is an error"    "unrecognized escape" -- --from keyboard --to 10 -n 'A⊳ZZZB'
+check daqtm errmsg "escape the base cannot carry"       "not in base"         -- --from 16 --to 10 -n '⊳LF'
+check daqtn errmsg "escaping is refused in byte mode"   "number conversions only" -- --from 10 --to 16 --binary --escape-controls -n 65
 ## The marker is not a digit of any built-in base, so it is never mistaken for one.
-check Elotfaw err "a bare marker is not a digit"          "" -- --from keyboard --to 10 -n 'A⊳'
+check daqtp err "a bare marker is not a digit"          "" -- --from keyboard --to 10 -n 'A⊳'
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1232,7 +1232,7 @@ section "Fuzz round-trips (all bases)"
 ## bases get fuzzed too; the index filter drops the header rows.
 mapfile -t BASE_NAMES < <("${EXE}" --list --list-compat 2>/dev/null | awk '$1 ~ /^[0-9]+$/ {print $2}')
 ## Floor check so a --list format change can't silently empty the fuzz set.
-(( ${#BASE_NAMES[@]} >= 50 )) && _pass EjeFbjN "base-name scrape found bases (${#BASE_NAMES[@]})" || _fail EjeFbjN "base-name scrape found bases" "only ${#BASE_NAMES[@]} scraped (--list format changed?)"
+(( ${#BASE_NAMES[@]} >= 50 )) && _pass d9qen "base-name scrape found bases (${#BASE_NAMES[@]})" || _fail d9qen "base-name scrape found bases" "only ${#BASE_NAMES[@]} scraped (--list format changed?)"
 declare -a FUZZ_BASES=()
 ## bytes and keyboard both carry newline as a digit, so their output can't
 ## survive $(...) capture (it strips trailing newlines). Both get their own
@@ -1252,7 +1252,7 @@ for base in "${FUZZ_BASES[@]}"; do
 		{ ((_rc == 0)) && [[ "$_out" == "$val" ]]; } || matrix_fail=$((matrix_fail+1))
 	done
 done
-((matrix_fail == 0)) && _pass EizUJED "all-base matrix round-trip (${matrix_n} conversions)" || _fail EizUJED "all-base matrix round-trip" "${matrix_fail} of ${matrix_n} failed"
+((matrix_fail == 0)) && _pass d9dnf "all-base matrix round-trip (${matrix_n} conversions)" || _fail d9dnf "all-base matrix round-trip" "${matrix_fail} of ${matrix_n} failed"
 
 ## Randomized fuzz: random base, random large value.
 iters="${CICDTEST_FUZZ_ITERS:-60}"; ((doLong)) && iters="${CICDTEST_FUZZ_ITERS:-800}"
@@ -1263,14 +1263,14 @@ for ((i=0; i<iters && ${#FUZZ_BASES[@]} > 0; i++)); do
 	idx=$(( SRANDOM % ${#FUZZ_BASES[@]} ))
 	base="${FUZZ_BASES[idx]}"
 	val="$(_rand_int "$maxlen")"
-	_run --from 10 --to "$base" -- "$val"; enc="$_out"; ((_rc == 0)) || { fuzz_fail=$((fuzz_fail+1)); _fail EizUJEE "fuzz enc base=$base val-len=${#val}" "rc=$_rc err=[$_err]"; continue; }
+	_run --from 10 --to "$base" -- "$val"; enc="$_out"; ((_rc == 0)) || { fuzz_fail=$((fuzz_fail+1)); _fail d9dng "fuzz enc base=$base val-len=${#val}" "rc=$_rc err=[$_err]"; continue; }
 	## A lone "-" output (a base whose single digit is "-", e.g. hostname value 36)
 	## is the read-stdin sentinel as a positional, so it can't round-trip via argv.
 	[[ "$enc" == "-" ]] && continue
 	_run --from "$base" --to 10 -- "$enc"
-	{ ((_rc == 0)) && [[ "$_out" == "$val" ]]; } || { fuzz_fail=$((fuzz_fail+1)); _fail EizUJEE "fuzz round-trip base=$base" "val=[$val] enc=[$enc] got=[$_out] rc=$_rc"; }
+	{ ((_rc == 0)) && [[ "$_out" == "$val" ]]; } || { fuzz_fail=$((fuzz_fail+1)); _fail d9dng "fuzz round-trip base=$base" "val=[$val] enc=[$enc] got=[$_out] rc=$_rc"; }
 done
-((fuzz_fail == 0)) && _pass EizUJEE "randomized fuzz round-trip (${iters} iterations, maxlen ${maxlen})" || printf '  %s%d fuzz failures above%s\n' "${red}" "$fuzz_fail" "${rst}"
+((fuzz_fail == 0)) && _pass d9dng "randomized fuzz round-trip (${iters} iterations, maxlen ${maxlen})" || printf '  %s%d fuzz failures above%s\n' "${red}" "$fuzz_fail" "${rst}"
 
 ## Full-coverage symbol round-trip: for every base (not just a handful), build a
 ## random-length string from its own randomly chosen symbols, carry it through a
@@ -1331,12 +1331,12 @@ for ((i = 0; i < iters && ${#ELIGIBLE[@]} > 0; i++)); do
 	## pass the single-digit "-" through argv. Skip just that one string on either
 	## side; any longer value that merely contains "-" is unambiguous and fine.
 	[[ "$src_str" == "-" ]] && continue
-	_run --from "$src_name" --to "$tgt_name" -- "$src_str"; encoded="$_out"; ((_rc == 0)) || { symfuzz_fail=$((symfuzz_fail+1)); _fail Ej1HnoL "symbol fuzz enc $src_name->$tgt_name" "src=[$src_str] rc=$_rc err=[$_err]"; continue; }
+	_run --from "$src_name" --to "$tgt_name" -- "$src_str"; encoded="$_out"; ((_rc == 0)) || { symfuzz_fail=$((symfuzz_fail+1)); _fail d9e29 "symbol fuzz enc $src_name->$tgt_name" "src=[$src_str] rc=$_rc err=[$_err]"; continue; }
 	[[ "$encoded" == "-" ]] && continue
 	_run --from "$tgt_name" --to "$src_name" -- "$encoded"; symfuzz_n=$((symfuzz_n + 1))
-	{ ((_rc == 0)) && [[ "$_out" == "$src_str" ]]; } || { symfuzz_fail=$((symfuzz_fail+1)); _fail Ej1HnoL "symbol fuzz round-trip $src_name<->$tgt_name" "src=[$src_str] enc=[$encoded] got=[$_out] rc=$_rc"; }
+	{ ((_rc == 0)) && [[ "$_out" == "$src_str" ]]; } || { symfuzz_fail=$((symfuzz_fail+1)); _fail d9e29 "symbol fuzz round-trip $src_name<->$tgt_name" "src=[$src_str] enc=[$encoded] got=[$_out] rc=$_rc"; }
 done
-((symfuzz_fail == 0)) && _pass Ej1HnoL "full-coverage symbol round-trip (${symfuzz_n} iterations, ${#ELIGIBLE[@]} bases, maxlen ${maxlen})" || printf '  %s%d symbol-fuzz failures above%s\n' "${red}" "$symfuzz_fail" "${rst}"
+((symfuzz_fail == 0)) && _pass d9e29 "full-coverage symbol round-trip (${symfuzz_n} iterations, ${#ELIGIBLE[@]} bases, maxlen ${maxlen})" || printf '  %s%d symbol-fuzz failures above%s\n' "${red}" "$symfuzz_fail" "${rst}"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1454,18 +1454,18 @@ fCheckLegacy(){
 ## not run, which is easy to mistake for "passed". The summary repeats it.
 section "Back-compat vs v1 (byte-for-byte + round-trip)"
 if [[ -x "${EXE_V1}" ]]; then
-	fCheckCoverage ElWMN5X v1 V1_MAP V1_BASES V1_EXCUSED
-	fCheckLegacy ElG9gVS ElG9gVT "${EXE_V1}" v1 "${V1_MAP[@]}"
+	fCheckCoverage dakbp v1 V1_MAP V1_BASES V1_EXCUSED
+	fCheckLegacy daff2 daff3 "${EXE_V1}" v1 "${V1_MAP[@]}"
 else
-	_warn "ElWMN5X ElG9gVS ElG9gVT" "v1 back-compat skipped: script not found at ${EXE_V1}"
+	_warn "dakbp daff2 daff3" "v1 back-compat skipped: script not found at ${EXE_V1}"
 fi
 
 section "Back-compat vs v1b (byte-for-byte + round-trip)"
 if [[ -x "${EXE_V1B}" ]]; then
-	fCheckCoverage ElWMN5Y v1b V1B_MAP V1B_BASES V1B_EXCUSED
-	fCheckLegacy Ej0q2ga Ej0q2gb "${EXE_V1B}" v1b "${V1B_MAP[@]}"
+	fCheckCoverage dakbq v1b V1B_MAP V1B_BASES V1B_EXCUSED
+	fCheckLegacy d9dyp d9dyq "${EXE_V1B}" v1b "${V1B_MAP[@]}"
 else
-	_warn "ElWMN5Y Ej0q2ga Ej0q2gb" "v1b back-compat skipped: script not found at ${EXE_V1B}"
+	_warn "dakbq d9dyp d9dyq" "v1b back-compat skipped: script not found at ${EXE_V1B}"
 fi
 
 
@@ -1523,7 +1523,7 @@ fCheckInterop(){
 
 	fInteropSamples "$samples" "$nSamples"
 	if ! "$@" encode <"$samples" >"$theirs" 2>"${CBT_ERR}"; then
-		_fail EleGcFU "interop ${label}" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
+		_fail dan8e "interop ${label}" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
 		return
 	fi
 
@@ -1533,8 +1533,8 @@ fCheckInterop(){
 		echo
 	done <"$samples" >"$ours"
 	cmp -s "$ours" "$theirs" \
-		&& _pass EleGcFU "interop encode == ${label} (${nSamples} samples)" \
-		|| _fail EleGcFU "interop encode == ${label}" "$(fFirstDiff "$ours" "$theirs")"
+		&& _pass dan8e "interop encode == ${label} (${nSamples} samples)" \
+		|| _fail dan8e "interop encode == ${label}" "$(fFirstDiff "$ours" "$theirs")"
 
 	while IFS= read -r enc; do
 		printf '%s' "$enc" >"$bin"
@@ -1542,21 +1542,21 @@ fCheckInterop(){
 		echo
 	done <"$theirs" >"$ourdec"
 	cmp -s "$ourdec" "$samples" \
-		&& _pass EleGcFV "interop decode of ${label} output (${nSamples} samples)" \
-		|| _fail EleGcFV "interop decode of ${label} output" "$(fFirstDiff "$ourdec" "$samples")"
+		&& _pass dan8f "interop decode of ${label} output (${nSamples} samples)" \
+		|| _fail dan8f "interop decode of ${label} output" "$(fFirstDiff "$ourdec" "$samples")"
 
 	if ! "$@" decode <"$ours" >"$theirdec" 2>"${CBT_ERR}"; then
-		_fail EleGcFW "interop ${label} reads our output" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
+		_fail dan8g "interop ${label} reads our output" "reference adapter would not run: $(head -2 "${CBT_ERR}")"
 		return
 	fi
 	cmp -s "$theirdec" "$samples" \
-		&& _pass EleGcFW "interop ${label} reads our output (${nSamples} samples)" \
-		|| _fail EleGcFW "interop ${label} reads our output" "$(fFirstDiff "$theirdec" "$samples")"
+		&& _pass dan8g "interop ${label} reads our output (${nSamples} samples)" \
+		|| _fail dan8g "interop ${label} reads our output" "$(fFirstDiff "$theirdec" "$samples")"
 }
 
 section "Interop vs the published reference implementations"
 if [[ ! -d "${INTEROP_DIR}/thirdparty" ]]; then
-	_warn "EleGcFX EleGcFU EleGcFV EleGcFW" "interop skipped: no vendored references at ${INTEROP_DIR}/thirdparty (utility/interop/fetch.bash --refresh)"
+	_warn "dan8h dan8e dan8f dan8g" "interop skipped: no vendored references at ${INTEROP_DIR}/thirdparty (utility/interop/fetch.bash --refresh)"
 else
 	## Pinned versions, so a pass line says which release we agree with.
 	declare -A INTEROP_VER=()
@@ -1570,9 +1570,9 @@ else
 	## An edited reference is worse than no reference: every check would still
 	## pass, against something nobody published. So this one fails, never skips.
 	if "${INTEROP_DIR}/fetch.bash" --verify >/dev/null 2>&1; then
-		_pass EleGcFX "interop references verbatim (${#INTEROP_PINS[@]} pinned packages)"
+		_pass dan8h "interop references verbatim (${#INTEROP_PINS[@]} pinned packages)"
 	else
-		_fail EleGcFX "interop references verbatim" "$("${INTEROP_DIR}/fetch.bash" --verify 2>&1 | tail -2)"
+		_fail dan8h "interop references verbatim" "$("${INTEROP_DIR}/fetch.bash" --verify 2>&1 | tail -2)"
 	fi
 
 	if command -v node >/dev/null 2>&1; then
@@ -1580,7 +1580,7 @@ else
 		fCheckInterop 32768qntm "qntm base32768 ${INTEROP_VER[base32768-qntm]}" node "${INTEROP_QNTM}" 32768
 		fCheckInterop 65536qntm "qntm base65536 ${INTEROP_VER[base65536-qntm]}" node "${INTEROP_QNTM}" 65536
 	else
-		_warn "EleGcFU EleGcFV EleGcFW" "interop vs qntm base2048/base32768/base65536 skipped: node not installed"
+		_warn "dan8e dan8f dan8g" "interop vs qntm base2048/base32768/base65536 skipped: node not installed"
 	fi
 
 	## The crate is a library, so the adapter around it has to be compiled. It
@@ -1593,7 +1593,7 @@ else
 	if [[ -x "${INTEROP_RSBIN}" ]]; then
 		fCheckInterop 2048llfourn "llfourn base2048 ${INTEROP_VER[base2048-llfourn]}" "${INTEROP_RSBIN}"
 	else
-		_warn "EleGcFU EleGcFV EleGcFW" "interop vs llfourn base2048 skipped: no adapter binary and cargo could not build one"
+		_warn "dan8e dan8f dan8g" "interop vs llfourn base2048 skipped: no adapter binary and cargo could not build one"
 	fi
 fi
 
@@ -1614,21 +1614,21 @@ REACTOR_HOST_DIR="${meDir}/utility/reactor-host"
 REACTOR_WASM="${CBT_TMP}/convert-base-reactor.wasm"
 goMinor="$(go env GOVERSION 2>/dev/null | sed -E 's/^go1\.([0-9]+).*$/\1/' || true)"
 if [[ ! "${goMinor}" =~ ^[0-9]+$ ]] || ((goMinor < 24)); then
-	_warn "Elmd2Y4 Ern7YaC" "reactor module skipped: needs a Go 1.24+ toolchain (have $(go env GOVERSION 2>/dev/null || echo none))"
+	_warn "daq8s ddgvh" "reactor module skipped: needs a Go 1.24+ toolchain (have $(go env GOVERSION 2>/dev/null || echo none))"
 elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -buildmode=c-shared -o "${REACTOR_WASM}" ./reactor) >"${CBT_ERR}" 2>&1; then
-	_fail Elmd2Y4 "reactor module build" "$(tail -2 "${CBT_ERR}")"
+	_fail daq8s "reactor module build" "$(tail -2 "${CBT_ERR}")"
 elif ! (cd "${REACTOR_HOST_DIR}" && go build -o "${CBT_TMP}/reactor-host" .) >"${CBT_ERR}" 2>&1; then
-	_warn "Elmd2Y4 Ern7YaC" "reactor ABI skipped: host harness would not build (wazero not cached and offline?): $(tail -1 "${CBT_ERR}")"
+	_warn "daq8s ddgvh" "reactor ABI skipped: host harness would not build (wazero not cached and offline?): $(tail -1 "${CBT_ERR}")"
 elif "${CBT_TMP}/reactor-host" "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; then
-	_pass Elmd2Y4 "reactor ABI (exports, conversions, metadata, streams, errors, leak loops)"
+	_pass daq8s "reactor ABI (exports, conversions, metadata, streams, errors, leak loops)"
 	## A call's cost must not grow with the regions a host holds open.
 	if "${CBT_TMP}/reactor-host" --regions "${REACTOR_WASM}" >"${CBT_OUT}" 2>"${CBT_ERR}"; then
-		_pass Ern7YaC "reactor call cost with 10,000 regions open"
+		_pass ddgvh "reactor call cost with 10,000 regions open"
 	else
-		_fail Ern7YaC "reactor call cost with 10,000 regions open" "$(tail -1 "${CBT_ERR}")"
+		_fail ddgvh "reactor call cost with 10,000 regions open" "$(tail -1 "${CBT_ERR}")"
 	fi
 else
-	_fail Elmd2Y4 "reactor ABI" "$(tail -1 "${CBT_ERR}")"
+	_fail daq8s "reactor ABI" "$(tail -1 "${CBT_ERR}")"
 fi
 
 
@@ -1643,11 +1643,11 @@ section "WASI command"
 WASI_WASM="${CBT_TMP}/convert-base-v2.wasm"
 WASI_HOST="${CBT_TMP}/reactor-host"
 if ! go env GOVERSION >/dev/null 2>&1; then
-	_warn "EsifL4h EsifL63" "WASI command skipped: needs a Go toolchain"
+	_warn "ddypc ddypd" "WASI command skipped: needs a Go toolchain"
 elif ! (cd "${meDir}/../lib" && GOOS=wasip1 GOARCH=wasm go build -trimpath -o "${WASI_WASM}" ./cmd/convert-base-v2) >"${CBT_ERR}" 2>&1; then
-	_fail EsifL4h "WASI command build" "$(tail -2 "${CBT_ERR}")"
+	_fail ddypc "WASI command build" "$(tail -2 "${CBT_ERR}")"
 elif [[ ! -x "${WASI_HOST}" ]] && ! (cd "${REACTOR_HOST_DIR}" && go build -o "${WASI_HOST}" .) >"${CBT_ERR}" 2>&1; then
-	_warn "EsifL4h EsifL63" "WASI command skipped: host would not build (wazero not cached and offline?): $(tail -1 "${CBT_ERR}")"
+	_warn "ddypc ddypd" "WASI command skipped: host would not build (wazero not cached and offline?): $(tail -1 "${CBT_ERR}")"
 else
 	wasiBad=""; wasiN=0
 	## wasi_case STDIN ARGS...
@@ -1670,7 +1670,7 @@ else
 	wasi_case /dev/null --bogus
 	printf 'hi\nthere' >"${CBT_TMP}/wasi_text"
 	wasi_case "${CBT_TMP}/wasi_text" --from keyboard --to 10 -
-	(( ${#wasiBad} == 0 && wasiN == 7 )) && _pass EsifL4h "WASI command matches the native one (${wasiN} cases)" || _fail EsifL4h "WASI command matches the native one" "differs:${wasiBad}"
+	(( ${#wasiBad} == 0 && wasiN == 7 )) && _pass ddypc "WASI command matches the native one (${wasiN} cases)" || _fail ddypc "WASI command matches the native one" "differs:${wasiBad}"
 
 	wasiBad=""; wasiN=0
 	head -c 30000 /dev/urandom >"${CBT_TMP}/wasi_raw"
@@ -1680,7 +1680,7 @@ else
 		wasi_case "${CBT_TMP}/wasi_enc" --binary --from "$wb" --to bytes
 		cmp -s "${CBT_TMP}/wasi_w" "${CBT_TMP}/wasi_raw" || wasiBad+=" [${wb} round trip]"
 	done
-	(( ${#wasiBad} == 0 )) && _pass EsifL63 "WASI command streams binary both ways (${wasiN} cases)" || _fail EsifL63 "WASI command streams binary both ways" "differs:${wasiBad}"
+	(( ${#wasiBad} == 0 )) && _pass ddypd "WASI command streams binary both ways (${wasiN} cases)" || _fail ddypd "WASI command streams binary both ways" "differs:${wasiBad}"
 fi
 
 
@@ -1696,13 +1696,13 @@ goRoot="$(go env GOROOT 2>/dev/null || true)"
 wasmExec="${goRoot}/lib/wasm/go_js_wasm_exec"
 [[ -x "$wasmExec" ]] || wasmExec="${goRoot}/misc/wasm/go_js_wasm_exec"
 if ! command -v node >/dev/null 2>&1 || [[ ! -x "$wasmExec" ]]; then
-	_warn "ErkSf4j ErkSf4h ErkSf4i Ert2MSr" "browser module tests skipped: needs node and Go's go_js_wasm_exec"
+	_warn "ddg7e ddg7c ddg7d ddj92" "browser module tests skipped: needs node and Go's go_js_wasm_exec"
 else
 	bwrc=0; bwJobs=()
 	for bwVar in GOFLAGS GO19CONCURRENTCOMPILATION; do [[ -z "${!bwVar:-}" ]] || bwJobs+=("${bwVar}=${!bwVar}"); done
 	(cd "${meDir}/../lib" && env -i PATH="$PATH" HOME="$HOME" GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)" "${bwJobs[@]}" \
 		GOOS=js GOARCH=wasm go test -json -count=1 -exec "$wasmExec" ./wasm) 2>&1 | python3 "${meDir}/utility/test-ids.py" report || bwrc=$?
-	((bwrc == 0)) && _pass ErkSf4j "browser module tests" || _fail ErkSf4j "browser module tests" "exit ${bwrc}, see the lines above"
+	((bwrc == 0)) && _pass ddg7e "browser module tests" || _fail ddg7e "browser module tests" "exit ${bwrc}, see the lines above"
 fi
 
 
@@ -1724,9 +1724,9 @@ MODDRV_DIR="${meDir}/utility/module-driver"
 MODDRV="${CBT_TMP}/module-driver"
 RHOST="${CBT_TMP}/reactor-host"
 if ! go env GOVERSION >/dev/null 2>&1; then
-	_warn "EloQXv6 EloQXv7 EloQXv8 EloQXv9 Ert30AN Ert2MTh" "frontend parity skipped: needs a Go toolchain"
+	_warn "daqpm daqpn daqpp daqpq ddj94 ddj93" "frontend parity skipped: needs a Go toolchain"
 elif ! (cd "${MODDRV_DIR}" && go build -o "${MODDRV}" .) >"${CBT_ERR}" 2>&1; then
-	_fail EloQXv6 "module driver build" "$(tail -2 "${CBT_ERR}")"
+	_fail daqpm "module driver build" "$(tail -2 "${CBT_ERR}")"
 else
 	preq="${CBT_TMP}/parity_req"; pcli="${CBT_TMP}/parity_cli"; pout="${CBT_TMP}/parity_out"
 	: >"$preq"; : >"$pcli"
@@ -1760,7 +1760,7 @@ else
 		[[ "$pname" == "bytes" ]] && continue
 		PARITY_BASES+=("$pname")
 	done < <("${EXE}" --config /dev/null --list --list-compat 2>/dev/null)
-	(( ${#PARITY_BASES[@]} >= 30 )) && _pass EloQXv7 "parity scrape found bases (${#PARITY_BASES[@]})" || _fail EloQXv7 "parity scrape found bases" "only ${#PARITY_BASES[@]} scraped (--list format changed?)"
+	(( ${#PARITY_BASES[@]} >= 30 )) && _pass daqpn "parity scrape found bases (${#PARITY_BASES[@]})" || _fail daqpn "parity scrape found bases" "only ${#PARITY_BASES[@]} scraped (--list format changed?)"
 	for pname in "${PARITY_BASES[@]}"; do
 		parity_case 10 "$pname" -1 "12345678901234567890"
 		if [[ "$(tail -1 "$pcli")" == ok* ]]; then
@@ -1772,15 +1772,15 @@ else
 	parity_case 10 16 -1 "."
 	parity_case 10 16 -1 "-."
 	if "${MODDRV}" <"$preq" >"$pout" 2>"${CBT_ERR}"; then
-		cmp -s "$pcli" "$pout" && _pass EloQXv6 "module answers match the command (${pn} cases)" || _fail EloQXv6 "module answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
+		cmp -s "$pcli" "$pout" && _pass daqpm "module answers match the command (${pn} cases)" || _fail daqpm "module answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
 	else
-		_fail EloQXv6 "module driver run" "$(tail -1 "${CBT_ERR}")"
+		_fail daqpm "module driver run" "$(tail -1 "${CBT_ERR}")"
 	fi
 	if [[ -x "$RHOST" && -s "$REACTOR_WASM" ]]; then
 		if "$RHOST" --batch "$REACTOR_WASM" <"$preq" >"$pout" 2>"${CBT_ERR}"; then
-			cmp -s "$pcli" "$pout" && _pass EloQXv8 "reactor answers match the command (${pn} cases)" || _fail EloQXv8 "reactor answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
+			cmp -s "$pcli" "$pout" && _pass daqpp "reactor answers match the command (${pn} cases)" || _fail daqpp "reactor answers match the command" "first diff: $(diff "$pcli" "$pout" | head -3 | tr '\n' ' ')"
 		else
-			_fail EloQXv8 "reactor batch run" "$(tail -1 "${CBT_ERR}")"
+			_fail daqpp "reactor batch run" "$(tail -1 "${CBT_ERR}")"
 		fi
 		## Stream parity: one raw payload through the command's pipe and the
 		## reactor's push streams, both directions, over every raw-capable
@@ -1800,24 +1800,24 @@ else
 			else
 				sfail="encode rc=${rc1}/${rc2}"
 			fi
-			[[ -z "$sfail" ]] && _pass EloQXv9 "stream parity via ${pname}" || _fail EloQXv9 "stream parity via ${pname}" "$sfail"
+			[[ -z "$sfail" ]] && _pass daqpq "stream parity via ${pname}" || _fail daqpq "stream parity via ${pname}" "$sfail"
 		done
 	else
-		_warn "EloQXv8 EloQXv9" "reactor parity skipped: reactor module or host not built"
+		_warn "daqpp daqpq" "reactor parity skipped: reactor module or host not built"
 	fi
 	## Browser parity: the same requests through convertBase.convert(), the
 	## call a page makes, under node. Its answers must match the command's, and
 	## its answers and error codes the reactor's. A few failures the reactor can
 	## also be given are added, so each code they reach is compared. Codes 3
 	## and 4 need a symbol spec, which the reactor doesn't take; the browser
-	## module's own tests (Ert2MSr) cover those.
+	## module's own tests (ddj92) cover those.
 	BROWSER_WASM="${CBT_TMP}/convert-base.wasm"
 	wasmExecJs="${goRoot}/lib/wasm/wasm_exec.js"
 	[[ -f "$wasmExecJs" ]] || wasmExecJs="${goRoot}/misc/wasm/wasm_exec.js"
 	if ! command -v node >/dev/null 2>&1 || [[ ! -f "$wasmExecJs" ]]; then
-		_warn "Ert30AN Ert2MTh" "browser parity skipped: needs node and Go's wasm_exec.js"
+		_warn "ddj94 ddj93" "browser parity skipped: needs node and Go's wasm_exec.js"
 	elif ! (cd "${meDir}/../lib" && GOOS=js GOARCH=wasm go build -trimpath -o "${BROWSER_WASM}" ./wasm) >"${CBT_ERR}" 2>&1; then
-		_fail Ert30AN "browser module build" "$(tail -2 "${CBT_ERR}")"
+		_fail ddj94 "browser module build" "$(tail -2 "${CBT_ERR}")"
 	else
 		pcreq="${CBT_TMP}/parity_creq"; pbro="${CBT_TMP}/parity_bro"; prea="${CBT_TMP}/parity_rea"
 		cp "$preq" "$pcreq"
@@ -1826,24 +1826,24 @@ else
 			printf '%s\t%s\t%s\t%s\n' "$pfrom" "$pto" "$pprec" "$(printf '%s' "$pval" | xxd -p | tr -d '\n')" >>"$pcreq"
 		done
 		if ! node "${meDir}/utility/browser-driver.js" "$wasmExecJs" "${BROWSER_WASM}" <"$pcreq" >"$pbro" 2>"${CBT_ERR}"; then
-			_fail Ert30AN "browser driver run" "$(tail -1 "${CBT_ERR}")"
+			_fail ddj94 "browser driver run" "$(tail -1 "${CBT_ERR}")"
 		else
 			## The command gives no code, so the browser's are dropped for this one.
-			head -n "$pn" "$pbro" | sed -E 's/^err\t.*$/err/' | cmp -s "$pcli" - && _pass Ert30AN "browser answers match the command (${pn} cases)" || _fail Ert30AN "browser answers match the command" "first diff: $(head -n "$pn" "$pbro" | sed -E 's/^err\t.*$/err/' | diff "$pcli" - | head -3 | tr '\n' ' ')"
+			head -n "$pn" "$pbro" | sed -E 's/^err\t.*$/err/' | cmp -s "$pcli" - && _pass ddj94 "browser answers match the command (${pn} cases)" || _fail ddj94 "browser answers match the command" "first diff: $(head -n "$pn" "$pbro" | sed -E 's/^err\t.*$/err/' | diff "$pcli" - | head -3 | tr '\n' ' ')"
 			if [[ ! -x "$RHOST" || ! -s "$REACTOR_WASM" ]]; then
-				_warn "Ert2MTh" "browser error code parity skipped: reactor module or host not built"
+				_warn "ddj93" "browser error code parity skipped: reactor module or host not built"
 			elif ! "$RHOST" --batch-codes "$REACTOR_WASM" <"$pcreq" >"$prea" 2>"${CBT_ERR}"; then
-				_fail Ert2MTh "reactor batch-codes run" "$(tail -1 "${CBT_ERR}")"
+				_fail ddj93 "reactor batch-codes run" "$(tail -1 "${CBT_ERR}")"
 			else
 				## A missing code kind means the added cases stopped reaching it,
 				## and the comparison would pass without looking at it.
 				pkinds="$(awk -F'\t' '$1 == "err" { print $2 }' "$prea" | sort -un | tr '\n' ' ')"
 				if ! cmp -s "$prea" "$pbro"; then
-					_fail Ert2MTh "browser answers and error codes match the reactor" "first diff: $(diff "$prea" "$pbro" | head -3 | tr '\n' ' ')"
+					_fail ddj93 "browser answers and error codes match the reactor" "first diff: $(diff "$prea" "$pbro" | head -3 | tr '\n' ' ')"
 				elif [[ "$pkinds" != "1 2 5 6 " ]]; then
-					_fail Ert2MTh "browser answers and error codes match the reactor" "codes reached: ${pkinds:-none}, want 1 2 5 6"
+					_fail ddj93 "browser answers and error codes match the reactor" "codes reached: ${pkinds:-none}, want 1 2 5 6"
 				else
-					_pass Ert2MTh "browser answers and error codes match the reactor ($(wc -l <"$pcreq") cases, codes ${pkinds% })"
+					_pass ddj93 "browser answers and error codes match the reactor ($(wc -l <"$pcreq") cases, codes ${pkinds% })"
 				fi
 			fi
 		fi
@@ -1858,11 +1858,11 @@ fi
 section "macOS universal binary"
 ## Each Go test there prints its own line and ID. This check is the suite.
 if ! go env GOVERSION >/dev/null 2>&1; then
-	_warn "ErftBA8 ErftBA9 ErftBAA ErftBAB ErftBAC ErftBAD" "macOS universal binary tests skipped: needs a Go toolchain"
+	_warn "ddf3v ddf3w ddf3x ddf3y ddf3z ddf40" "macOS universal binary tests skipped: needs a Go toolchain"
 else
 	mfrc=0
 	(cd "${meDir}/utility/macho-fat" && go test -json -count=1 .) 2>&1 | python3 "${meDir}/utility/test-ids.py" report || mfrc=$?
-	((mfrc == 0)) && _pass ErftBA8 "macho-fat tests" || _fail ErftBA8 "macho-fat tests" "exit ${mfrc}, see the lines above"
+	((mfrc == 0)) && _pass ddf3v "macho-fat tests" || _fail ddf3v "macho-fat tests" "exit ${mfrc}, see the lines above"
 fi
 
 
@@ -1910,8 +1910,8 @@ convert-base-v2 v9.9.9-beta1 build abcde
 EOF
 )"
 rnrc=0; rnGot="$(bash "${meDir}/utility/release-notes.bash" --version v9.9.9-beta1 --dist "${rnDist}" --repo o/r --changelog "${rnDir}/changelog.md" 2>"${CBT_ERR}")" || rnrc=$?
-{ ((rnrc == 0)) && [[ "${rnGot}" == "${rnWant}" ]]; } && _pass ErlN8Nk "release notes: changelog, downloads table, build line" || _fail ErlN8Nk "release notes: changelog, downloads table, build line" "rc=${rnrc} diff: $(diff <(printf '%s\n' "${rnWant}") <(printf '%s\n' "${rnGot}") || true)"
-grep -qF "not a known asset, listed under the table: notes.txt" "${CBT_ERR}" && _pass ErlN8OJ "release notes: unknown asset warning" || _fail ErlN8OJ "release notes: unknown asset warning" "stderr=[$(<"${CBT_ERR}")]"
+{ ((rnrc == 0)) && [[ "${rnGot}" == "${rnWant}" ]]; } && _pass ddge1 "release notes: changelog, downloads table, build line" || _fail ddge1 "release notes: changelog, downloads table, build line" "rc=${rnrc} diff: $(diff <(printf '%s\n' "${rnWant}") <(printf '%s\n' "${rnGot}") || true)"
+grep -qF "not a known asset, listed under the table: notes.txt" "${CBT_ERR}" && _pass ddge2 "release notes: unknown asset warning" || _fail ddge2 "release notes: unknown asset warning" "stderr=[$(<"${CBT_ERR}")]"
 ## A --no-arm run, and a build that says another version: only the column that
 ## has something, and no build line rather than a wrong one.
 rnDist2="${rnDir}/dist2"; mkdir -p "${rnDist2}"
@@ -1919,7 +1919,7 @@ cp -p "${rnDist}"/convert-base-v2-linux-x86_64{,.tgz} "${rnDist}"/convert-base-v
 rnGot="$(bash "${meDir}/utility/release-notes.bash" --version v9.9.9 --dist "${rnDist2}" --repo o/r --changelog "${rnDir}/changelog.md" 2>"${CBT_ERR}" || true)"
 rnU="https://github.com/o/r/releases/download/v9.9.9"
 rnWant="$(printf '%s\n' 'See changelog.md.' '' '### Downloads' '' '| OS | x86_64' '| :--- | :---' "| Linux | [binary](${rnU}/convert-base-v2-linux-x86_64), [.tgz](${rnU}/convert-base-v2-linux-x86_64.tgz)" "| Windows | [.zip](${rnU}/convert-base-v2-windows-x86_64.zip)")"
-{ [[ "${rnGot}" == "${rnWant}" ]] && grep -qF "so the notes name no build number" "${CBT_ERR}"; } && _pass ErlN8Oq "release notes: sparse table, no build line" || _fail ErlN8Oq "release notes: sparse table, no build line" "got=[${rnGot}] stderr=[$(<"${CBT_ERR}")]"
+{ [[ "${rnGot}" == "${rnWant}" ]] && grep -qF "so the notes name no build number" "${CBT_ERR}"; } && _pass ddge3 "release notes: sparse table, no build line" || _fail ddge3 "release notes: sparse table, no build line" "got=[${rnGot}] stderr=[$(<"${CBT_ERR}")]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1937,23 +1937,23 @@ echo keep >"${pgDir}/theirs/notes.txt"
 fNames(){ find "$1" -mindepth 1 -maxdepth 1 -printf '%f ' 2>&1 || true; }
 fPgRun(){ PATH="${pgBin}:${PATH}" bash "${meDir}/utility/package.bash" --version v9.9.9 --build-epoch 1700000000 --out "$1" >/dev/null 2>"${CBT_ERR}"; }
 pgrc=0; fPgRun "${pgDir}/theirs" || pgrc=$?
-{ ((pgrc != 0)) && [[ -f "${pgDir}/theirs/notes.txt" ]] && grep -qF "no sign a build made them" "${CBT_ERR}"; } && _pass Erm3Sws "package.bash: foreign --out kept" \
-	|| _fail Erm3Sws "package.bash: foreign --out kept" "rc=${pgrc} left: [$(fNames "${pgDir}/theirs")] err=[$(<"${CBT_ERR}")]"
+{ ((pgrc != 0)) && [[ -f "${pgDir}/theirs/notes.txt" ]] && grep -qF "no sign a build made them" "${CBT_ERR}"; } && _pass ddgk9 "package.bash: foreign --out kept" \
+	|| _fail ddgk9 "package.bash: foreign --out kept" "rc=${pgrc} left: [$(fNames "${pgDir}/theirs")] err=[$(<"${CBT_ERR}")]"
 fPgRun "${pgDir}/ours" || true
 mkdir -p "${pgDir}/ours/sub"; echo old >"${pgDir}/ours/old.tgz"
 fPgRun "${pgDir}/ours" || true
 fPgRun "${pgDir}/empty" || true
-{ [[ -f "${pgDir}/ours/${pgMark}" && -f "${pgDir}/empty/${pgMark}" && ! -e "${pgDir}/ours/old.tgz" && ! -e "${pgDir}/ours/sub" ]]; } && _pass Erm3SxT "package.bash: own or empty --out" \
-	|| _fail Erm3SxT "package.bash: own or empty --out" "ours: [$(fNames "${pgDir}/ours")] empty: [$(fNames "${pgDir}/empty")]"
+{ [[ -f "${pgDir}/ours/${pgMark}" && -f "${pgDir}/empty/${pgMark}" && ! -e "${pgDir}/ours/old.tgz" && ! -e "${pgDir}/ours/sub" ]]; } && _pass ddgka "package.bash: own or empty --out" \
+	|| _fail ddgka "package.bash: own or empty --out" "ours: [$(fNames "${pgDir}/ours")] empty: [$(fNames "${pgDir}/empty")]"
 ## make clean takes the same rule. BINARY is pointed away from lib/'s own build.
 mkdir -p "${pgDir}/mc-theirs" "${pgDir}/mc-ours"; echo keep >"${pgDir}/mc-theirs/notes.txt"; : >"${pgDir}/mc-ours/${pgMark}"; : >"${pgDir}/mc-ours/old.tgz"
 mcrc=0; make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc-theirs" >/dev/null 2>&1 || mcrc=$?
 make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc-ours" >/dev/null 2>&1 || true
-{ ((mcrc != 0)) && [[ -f "${pgDir}/mc-theirs/notes.txt" && ! -e "${pgDir}/mc-ours" ]]; } && _pass Erm3Syv "make clean: own dist only" \
-	|| _fail Erm3Syv "make clean: own dist only" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
+{ ((mcrc != 0)) && [[ -f "${pgDir}/mc-theirs/notes.txt" && ! -e "${pgDir}/mc-ours" ]]; } && _pass ddgkc "make clean: own dist only" \
+	|| _fail ddgkc "make clean: own dist only" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
 ## The two full packaging runs take several seconds each, so --quick skips them.
 if ((doQuick)); then
-	_warn "ErlP6B8 Erm3SyD EtAjZOv EtAjy1j ErlP6Bg ErlP6CE Et9pfRW Et9pfS9" "packaging rebuild checks skipped: --quick" asked
+	_warn "ddge9 ddgkb de5ec de5ee ddgea ddgeb de57e de57f" "packaging rebuild checks skipped: --quick" asked
 else
 	pkDir="${CBT_TMP}/pk"; pkrc=0
 	pkArgs=(--version v9.9.9-beta1 --build-epoch 1700000000)
@@ -1962,22 +1962,22 @@ else
 	( umask 077; TZ=Pacific/Kiritimati GOAMD64=v3 bash "${meDir}/utility/package.bash" "${pkArgs[@]}" --out "${pkDir}/b" >/dev/null 2>>"${CBT_ERR}" ) || pkrc=$?
 	pkSums="${pkDir}/a/checksums.txt"
 	if ((pkrc != 0)) || [[ ! -s "${pkSums}" ]]; then
-		_fail ErlP6B8 "release assets rebuild to the same bytes" "package.bash exit ${pkrc}: $(tail -5 "${CBT_ERR}")"
+		_fail ddge9 "release assets rebuild to the same bytes" "package.bash exit ${pkrc}: $(tail -5 "${CBT_ERR}")"
 	else
 		pkDiff="$(diff "${pkSums}" "${pkDir}/b/checksums.txt" | sed -n 's/^> [0-9a-f]* *//p' | tr '\n' ' ' || true)"
-		[[ -z "${pkDiff}" ]] && _pass ErlP6B8 "release assets rebuild to the same bytes" || _fail ErlP6B8 "release assets rebuild to the same bytes" "differ: ${pkDiff}"
+		[[ -z "${pkDiff}" ]] && _pass ddge9 "release assets rebuild to the same bytes" || _fail ddge9 "release assets rebuild to the same bytes" "differ: ${pkDiff}"
 	fi
 	## Plain x86-64, so a Core 2 Duo or a Phenom II can run them.
 	pkLevels=""
 	for pkBin in "${pkDir}"/b/convert-base-v2-{linux,freebsd,darwin}-x86_64 "${pkDir}/b/convert-base-v2-windows-x86_64.exe"; do
 		pkLevels+="$(go version -m "${pkBin}" 2>/dev/null | sed -n 's/^[[:space:]]*build[[:space:]]*GOAMD64=//p' || true),"
 	done
-	[[ "${pkLevels}" == "v1,v1,v1,v1," ]] && _pass EtAjZOv "x86_64 release builds target plain x86-64" \
-		|| _fail EtAjZOv "x86_64 release builds target plain x86-64" "GOAMD64 by linux,freebsd,darwin,windows: [${pkLevels}]"
+	[[ "${pkLevels}" == "v1,v1,v1,v1," ]] && _pass de5ec "x86_64 release builds target plain x86-64" \
+		|| _fail de5ec "x86_64 release builds target plain x86-64" "GOAMD64 by linux,freebsd,darwin,windows: [${pkLevels}]"
 	## And it runs on an emulated Penryn, the last Core 2 Duo, and a Phenom II.
 	## A v2 build is the control, since Go refuses to start on either.
 	if ! command -v qemu-x86_64 >/dev/null 2>&1; then
-		_warn "EtAjy1j" "old CPU check skipped: needs qemu-x86_64, from qemu-user"
+		_warn "de5ee" "old CPU check skipped: needs qemu-x86_64, from qemu-user"
 	else
 		pkV2="${pkDir}/convert-base-v2-v2"
 		(cd "${meDir}/../lib" && CGO_ENABLED=0 GOOS=linux GOARCH=amd64 GOAMD64=v2 go build -trimpath -o "${pkV2}" ./cmd/convert-base-v2) >"${CBT_ERR}" 2>&1 || true
@@ -1990,12 +1990,12 @@ else
 			pkCtl=0; "${TIMEOUT[@]}" qemu-x86_64 -cpu "${pkModel}" "${pkV2}" 255 16 >/dev/null 2>&1 || pkCtl=$?
 			pkCpus+="${pkModel}:$([[ -n "${pkWant}" && "${pkGot}" == "${pkWant}" ]] && echo same || echo "[${pkGot:0:80}]"):$((pkCtl != 0 && pkCtl != 124));"
 		done
-		[[ "${pkCpus}" == "Penryn:same:1;phenom:same:1;" && -x "${pkV2}" ]] && _pass EtAjy1j "x86_64 release build runs on a Core 2 Duo and a Phenom II" \
-			|| _fail EtAjy1j "x86_64 release build runs on a Core 2 Duo and a Phenom II" "model:output:control-refused [${pkCpus}] v2 build: $([[ -x "${pkV2}" ]] && echo ok || head -c 300 "${CBT_ERR}")"
+		[[ "${pkCpus}" == "Penryn:same:1;phenom:same:1;" && -x "${pkV2}" ]] && _pass de5ee "x86_64 release build runs on a Core 2 Duo and a Phenom II" \
+			|| _fail de5ee "x86_64 release build runs on a Core 2 Duo and a Phenom II" "model:output:control-refused [${pkCpus}] v2 build: $([[ -x "${pkV2}" ]] && echo ok || head -c 300 "${CBT_ERR}")"
 	fi
 	## The mark stays out of checksums.txt, which lists what gets uploaded.
-	{ [[ -s "${pkSums}" && -f "${pkDir}/a/${pgMark}" ]] && ! grep -qF -- "${pgMark}" "${pkSums}"; } && _pass Erm3SyD "dist mark is not a release asset" \
-		|| _fail Erm3SyD "dist mark is not a release asset" "mark: $([[ -f "${pkDir}/a/${pgMark}" ]] && echo yes || echo no), sums: $(grep -cF -- "${pgMark}" "${pkSums}" 2>/dev/null || true)"
+	{ [[ -s "${pkSums}" && -f "${pkDir}/a/${pgMark}" ]] && ! grep -qF -- "${pgMark}" "${pkSums}"; } && _pass ddgkb "dist mark is not a release asset" \
+		|| _fail ddgkb "dist mark is not a release asset" "mark: $([[ -f "${pkDir}/a/${pgMark}" ]] && echo yes || echo no), sums: $(grep -cF -- "${pgMark}" "${pkSums}" 2>/dev/null || true)"
 	## Explorer's icon and Details tab. The fixed version is four numbers, and a
 	## beta is flagged prerelease (0x2) in the exe. The installer gets the same
 	## icon and version, less the flag. The resource is gone from the source dir
@@ -2010,39 +2010,39 @@ else
 		grep -qE '^string\.LegalCopyright=Copyright © [0-9-]+ Jim Collier\.' <<<"${got}" || { printf 'LegalCopyright: [%s]' "$(grep -F LegalCopyright <<<"${got}" || true)"; return 1; }
 	}
 	if ! command -v goversioninfo >/dev/null 2>&1; then
-		_warn "Et9pfRW Et9pfS9" "Windows resource checks skipped: goversioninfo not installed"
+		_warn "de57e de57f" "Windows resource checks skipped: goversioninfo not installed"
 	else
 		for pkExe in convert-base-v2-windows-x86_64.exe convert-base-v2-windows-arm64.exe; do
 			pkWhy="$(fPeHas "${pkDir}/a/${pkExe}" "${pkWant[@]}" fixed_flags=0x2 string.OriginalFilename=convert-base-v2.exe)" \
 				&& [[ -z "$(find "${meDir}/../lib/cmd/convert-base-v2" -name '*.syso')" ]] \
-				&& _pass Et9pfRW "Windows exe icon and version: ${pkExe}" || _fail Et9pfRW "Windows exe icon and version: ${pkExe}" "${pkWhy:-a .syso was left in lib/cmd/convert-base-v2}"
+				&& _pass de57e "Windows exe icon and version: ${pkExe}" || _fail de57e "Windows exe icon and version: ${pkExe}" "${pkWhy:-a .syso was left in lib/cmd/convert-base-v2}"
 		done
 		if ! command -v makensis >/dev/null 2>&1; then
-			_warn Et9pfS9 "installer resource check skipped: makensis not installed"
+			_warn de57f "installer resource check skipped: makensis not installed"
 		else
 			for pkExe in convert-base-v2-windows-x86_64-setup.exe convert-base-v2-windows-arm64-setup.exe; do
 				pkWhy="$(fPeHas "${pkDir}/a/${pkExe}" "${pkWant[@]}")" \
-					&& _pass Et9pfS9 "installer icon and version: ${pkExe}" || _fail Et9pfS9 "installer icon and version: ${pkExe}" "${pkWhy}"
+					&& _pass de57f "installer icon and version: ${pkExe}" || _fail de57f "installer icon and version: ${pkExe}" "${pkWhy}"
 			done
 		fi
 	fi
 	if ! command -v nfpm >/dev/null 2>&1; then
-		_warn "ErlP6Bg ErlP6CE" "prerelease package checks skipped: nfpm not installed"
+		_warn "ddgea ddgeb" "prerelease package checks skipped: nfpm not installed"
 	elif [[ -s "${pkSums}" ]]; then
 		## GitHub turns any character outside [A-Za-z0-9._-] into a dot on upload.
 		pkBad="$(awk '{ sub(/^\*/, "", $2); if ($2 !~ /^[A-Za-z0-9._-]+$/) printf "%s ", $2 }' "${pkSums}")"
 		pkCheck="$(cd "${pkDir}/a" && sha256sum -c --quiet checksums.txt 2>&1 || true)"
 		pkDebs="$(find "${pkDir}/a" -maxdepth 1 -type f \( -name '*.deb' -o -name '*.rpm' \) | wc -l)"
-		{ [[ -z "${pkBad}" && -z "${pkCheck}" ]] && ((pkDebs == 4)); } && _pass ErlP6Bg "prerelease asset names" \
-			|| _fail ErlP6Bg "prerelease asset names" "renamed on upload: [${pkBad}] check: [${pkCheck}] packages: ${pkDebs}"
+		{ [[ -z "${pkBad}" && -z "${pkCheck}" ]] && ((pkDebs == 4)); } && _pass ddgea "prerelease asset names" \
+			|| _fail ddgea "prerelease asset names" "renamed on upload: [${pkBad}] check: [${pkCheck}] packages: ${pkDebs}"
 		## The version inside keeps the ~, so a beta sorts below its final.
 		pkVers=""
 		command -v dpkg-deb >/dev/null 2>&1 && pkVers+="$(dpkg-deb -f "${pkDir}"/a/*_amd64.deb Version 2>&1 || true) "
 		command -v rpm >/dev/null 2>&1 && pkVers+="$(rpm -qp --qf '%{VERSION}' "${pkDir}"/a/*.x86_64.rpm 2>/dev/null || true) "
 		if [[ -z "${pkVers}" ]]; then
-			_warn ErlP6CE "package version check skipped: neither dpkg-deb nor rpm installed"
+			_warn ddgeb "package version check skipped: neither dpkg-deb nor rpm installed"
 		else
-			[[ "${pkVers}" =~ ^(9\.9\.9~beta1 )+$ ]] && _pass ErlP6CE "prerelease package version keeps its ~" || _fail ErlP6CE "prerelease package version keeps its ~" "got [${pkVers}]"
+			[[ "${pkVers}" =~ ^(9\.9\.9~beta1 )+$ ]] && _pass ddgeb "prerelease package version keeps its ~" || _fail ddgeb "prerelease package version keeps its ~" "got [${pkVers}]"
 		fi
 	fi
 fi
@@ -2052,8 +2052,8 @@ fi
 ## the cross builds, not a minute in.
 pnDir="${CBT_TMP}/pn"; mkdir -p "${pnDir}/bin"; ln -s "$(command -v dirname)" "${pnDir}/bin/dirname"
 pnrc=0; pnOut="$(CICD_NO_SKIP=1 PATH="${pnDir}/bin" "${BASH}" "${meDir}/utility/package.bash" --out "${pnDir}/out" 2>&1)" || pnrc=$?
-{ ((pnrc == 1)) && [[ "${pnOut}" == *"ERROR: nfpm missing"* && ! -e "${pnDir}/out" ]]; } && _pass EsJjVzI "package.bash missing nfpm, NO_SKIP" \
-	|| _fail EsJjVzI "package.bash missing nfpm, NO_SKIP" "rc=${pnrc} out=[${pnOut}]"
+{ ((pnrc == 1)) && [[ "${pnOut}" == *"ERROR: nfpm missing"* && ! -e "${pnDir}/out" ]]; } && _pass ddrpp "package.bash missing nfpm, NO_SKIP" \
+	|| _fail ddrpp "package.bash missing nfpm, NO_SKIP" "rc=${pnrc} out=[${pnOut}]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -2071,8 +2071,8 @@ git -C "${crDir}/repo" init -q >/dev/null 2>&1 || true
 for crCase in "nofile|no 'var version'" "norepo|could not list the tags" "repo|no Lifecycle badge found"; do
 	crRoot="${crCase%%|*}"; crWant="${crCase#*|}"; crrc=0
 	bash "${meDir}/utility/check-release.bash" --repo "${crDir}/${crRoot}" >/dev/null 2>"${CBT_ERR}" || crrc=$?
-	{ ((crrc == 1)) && grep -qF -- "${crWant}" "${CBT_ERR}"; } && _pass Erm3Szg "check-release says why: ${crWant}" \
-		|| _fail Erm3Szg "check-release says why: ${crWant}" "rc=${crrc} err=[$(<"${CBT_ERR}")]"
+	{ ((crrc == 1)) && grep -qF -- "${crWant}" "${CBT_ERR}"; } && _pass ddgkd "check-release says why: ${crWant}" \
+		|| _fail ddgkd "check-release says why: ${crWant}" "rc=${crrc} err=[$(<"${CBT_ERR}")]"
 done
 
 inDir="${CBT_TMP}/in"; mkdir -p "${inDir}/bin" "${inDir}/home"
@@ -2093,8 +2093,8 @@ fInRun(){ inrc=0; HOME="${inDir}/home" FAKE_RELEASE="${inDir}/release.json" PATH
 for inCase in '{"message": "Not Found"}|'"couldn't determine the stable release tag" 'v9.9.9|no checksum for convert-base-v2-'; do
 	if [[ "${inCase}" == v* ]]; then fInList "${inCase%%|*}" >"${inDir}/release.json"; else printf '%s\n' "${inCase%%|*}" >"${inDir}/release.json"; fi
 	inWant="${inCase#*|}"; fInRun -y
-	{ ((inrc == 1)) && grep -qF -- "${inWant}" "${CBT_ERR}"; } && _pass Erm3T0M "install.bash says why: ${inWant}" \
-		|| _fail Erm3T0M "install.bash says why: ${inWant}" "rc=${inrc} err=[$(<"${CBT_ERR}")]"
+	{ ((inrc == 1)) && grep -qF -- "${inWant}" "${CBT_ERR}"; } && _pass ddgke "install.bash says why: ${inWant}" \
+		|| _fail ddgke "install.bash says why: ${inWant}" "rc=${inrc} err=[$(<"${CBT_ERR}")]"
 done
 ## Newest by version, not by listing order: a pre-release sorts below its
 ## final, beta10 above beta9, and a draft never counts.
@@ -2102,28 +2102,28 @@ fInList v3.0.0 v3.1.0-beta2:pre v99.0.0:draft v3.1.0-beta10:pre v3.1.0-beta9:pre
 fInRun -y; inStable="${inOut}"
 fInRun -y --release=dev; inDev="${inOut}"
 fInRun -y --release dev; inDev2="${inOut}"
-{ [[ "${inStable}" == *"Release: v3.0.0 (stable)"* && "${inDev}" == *"Release: v3.1.0-beta10 (dev)"* && "${inDev2}" == *"Release: v3.1.0-beta10 (dev)"* ]]; } && _pass EshY04X "install.bash picks newest version" \
-	|| _fail EshY04X "install.bash picks newest version" "stable=[${inStable}] dev=[${inDev}]"
+{ [[ "${inStable}" == *"Release: v3.0.0 (stable)"* && "${inDev}" == *"Release: v3.1.0-beta10 (dev)"* && "${inDev2}" == *"Release: v3.1.0-beta10 (dev)"* ]]; } && _pass ddydt "install.bash picks newest version" \
+	|| _fail ddydt "install.bash picks newest version" "stable=[${inStable}] dev=[${inDev}]"
 ## No stable release yet: stable takes the newest pre-release, and says so.
 fInList v1.0.0-rc2:pre v1.0.0-rc10:pre >"${inDir}/release.json"
 fInRun -y
-{ [[ "${inOut}" == *"No stable release yet"* && "${inOut}" == *"Release: v1.0.0-rc10 (stable)"* ]]; } && _pass EshY05J "install.bash, pre-releases only" \
-	|| _fail EshY05J "install.bash, pre-releases only" "rc=${inrc} out=[${inOut}]"
+{ [[ "${inOut}" == *"No stable release yet"* && "${inOut}" == *"Release: v1.0.0-rc10 (stable)"* ]]; } && _pass ddydv "install.bash, pre-releases only" \
+	|| _fail ddydv "install.bash, pre-releases only" "rc=${inrc} out=[${inOut}]"
 ## --version, no --arch, and a closed stdin at the prompt is a no.
 inOk=""
 fInRun --version; [[ "${inrc}" == 0 && "${inOut}" =~ ^convert-base-v2\ installer\ v[0-9]+\.[0-9]+\.[0-9]+$ ]] && inOk+="version "
 fInRun --arch x86_64; [[ "${inrc}" == 1 ]] && grep -qF 'unknown option: --arch' "${CBT_ERR}" && inOk+="arch "
 fInRun; [[ "${inrc}" == 1 && "${inOut}" == *"aborted; nothing was touched"* && ! -e "${inDir}/home/.local/bin/convert-base-v2" ]] && inOk+="prompt"
-[[ "${inOk}" == "version arch prompt" ]] && _pass EshY061 "install.bash options" \
-	|| _fail EshY061 "install.bash options" "passed=[${inOk}] last rc=${inrc} out=[${inOut}]"
+[[ "${inOk}" == "version arch prompt" ]] && _pass ddydw "install.bash options" \
+	|| _fail ddydw "install.bash options" "passed=[${inOk}] last rc=${inrc} out=[${inOut}]"
 ## Already current, read from the installed build's --version, with the name in
 ## front as now, or without it as before 3.0.1.
 fInList v3.0.0 >"${inDir}/release.json"; mkdir -p "${inDir}/home/.local/bin"
 for inLine in "convert-base-v2 v3.0.0 build abcde" "v3.0.0 build abcde" "v3.0.0"; do
 	printf '#!/bin/sh\necho "%s"\n' "${inLine}" >"${inDir}/home/.local/bin/convert-base-v2"; chmod +x "${inDir}/home/.local/bin/convert-base-v2"
 	fInRun -y
-	{ ((inrc == 0)) && [[ "${inOut}" == *"is already v3.0.0; nothing to do"* ]]; } && _pass Esj2Pos "install.bash sees it's current: ${inLine}" \
-		|| _fail Esj2Pos "install.bash sees it's current: ${inLine}" "rc=${inrc} out=[${inOut}]"
+	{ ((inrc == 0)) && [[ "${inOut}" == *"is already v3.0.0; nothing to do"* ]]; } && _pass ddys7 "install.bash sees it's current: ${inLine}" \
+		|| _fail ddys7 "install.bash sees it's current: ${inLine}" "rc=${inrc} out=[${inOut}]"
 done
 rm -f "${inDir}/home/.local/bin/convert-base-v2"
 
@@ -2135,22 +2135,22 @@ while IFS= read -r psF; do
 	[[ -n "${psF}" && -f "${meDir}/../${psF}" ]] || continue
 	[[ -z "$(LC_ALL=C tr -d '\000-\177' <"${meDir}/../${psF}" | head -c1)" ]] || psBad+="${psF} "
 done <<<"${psFiles}"
-{ [[ -z "${psBad}" ]] && grep -qx 'install.ps1' <<<"${psFiles}"; } && _pass Et9uoIr "PowerShell files are ASCII" \
-	|| _fail Et9uoIr "PowerShell files are ASCII" "non-ASCII: [${psBad}] tracked: [$(tr '\n' ' ' <<<"${psFiles}")]"
+{ [[ -z "${psBad}" ]] && grep -qx 'install.ps1' <<<"${psFiles}"; } && _pass de582 "PowerShell files are ASCII" \
+	|| _fail de582 "PowerShell files are ASCII" "non-ASCII: [${psBad}] tracked: [$(tr '\n' ' ' <<<"${psFiles}")]"
 
 ## install.ps1 gets the same checks, plus a real install from a release with a
 ## real checksums.txt, a tampered one, a read-only folder, and the prompt. The
 ## two web cmdlets are stood in for by functions defined before it runs. Most
 ## runs use the README's one-liner form, where an exit would close the caller's
 ## shell. A file run is what gives an exit code.
-psIds="Et9uoJX Et9uoKF Et9uoKx Et9uoLd Et9uoMI Et9uoMw Et9uoNc Et9uoOI Et9uoOx Et9uoPc"
+psIds="de583 de584 de585 de586 de587 de588 de589 de58a de58b de58c"
 if ! command -v pwsh >/dev/null 2>&1; then
 	_warn "${psIds}" "install.ps1 checks skipped: pwsh not installed"
 else
 	psDir="${CBT_TMP}/ps"; psFix="${psDir}/fix"; psHome="${psDir}/home"; psBin="${psDir}/home/.local/bin/convert-base-v2"
 	mkdir -p "${psFix}/dist" "${psHome}" "${psDir}/tmp"
 	psRaw="$(CBV_PS1="${meDir}/../install.ps1" pwsh -NoProfile -NonInteractive -Command '$t = [Text.Encoding]::UTF8.GetString([IO.File]::ReadAllBytes($env:CBV_PS1)); $e = $null; $null = [System.Management.Automation.Language.Parser]::ParseInput($t, [ref]$null, [ref]$e); $e.Count' 2>&1 </dev/null)" || true
-	[[ "${psRaw}" == 0 ]] && _pass Et9uoJX "install.ps1 parses from its raw bytes" || _fail Et9uoJX "install.ps1 parses from its raw bytes" "errors=[${psRaw}]"
+	[[ "${psRaw}" == 0 ]] && _pass de583 "install.ps1 parses from its raw bytes" || _fail de583 "install.ps1 parses from its raw bytes" "errors=[${psRaw}]"
 	cat >"${psDir}/run.ps1" <<'EOF'
 function Invoke-RestMethod {
 	[CmdletBinding()]
@@ -2209,17 +2209,17 @@ EOF
 	fPsRun "" file -Version; [[ "${psRc}" == 0 && "${psOut}" =~ ^convert-base-v2\ installer\ v[0-9]+\.[0-9]+\.[0-9]+$ ]] && psOk+="version "
 	fPsRun "" block -Help; [[ "${psRc}" == 0 && "${psOut}" == *"-Release stable|dev"* && "${psOut}" == *"-Target user|system"* ]] && psOk+="help "
 	fPsRun "" file -Arch x86_64; grep -qF "'Arch'" "${CBT_ERR}" && [[ ! -s "${psFix}/urls.log" ]] && psOk+="arch"
-	[[ "${psOk}" == "version help arch" ]] && _pass Et9uoKF "install.ps1 options" || _fail Et9uoKF "install.ps1 options" "passed=[${psOk}] $(fPsTail)"
+	[[ "${psOk}" == "version help arch" ]] && _pass de584 "install.ps1 options" || _fail de584 "install.ps1 options" "passed=[${psOk}] $(fPsTail)"
 
 	fInList v3.0.0 v3.1.0-beta2:pre v99.0.0:draft v3.1.0-beta10:pre v3.1.0-beta9:pre v2.0.0 v3.0.1-rc1:pre >"${psFix}/release.json"
 	fPsRun n block; psStable="${psOut}"
 	fPsRun n block -Release dev
-	{ [[ "${psStable}" == *"Release: v3.0.0 (stable)"* && "${psOut}" == *"Release: v3.1.0-beta10 (dev)"* ]]; } && _pass Et9uoKx "install.ps1 picks newest version" \
-		|| _fail Et9uoKx "install.ps1 picks newest version" "stable=[${psStable}] dev=[${psOut}]"
+	{ [[ "${psStable}" == *"Release: v3.0.0 (stable)"* && "${psOut}" == *"Release: v3.1.0-beta10 (dev)"* ]]; } && _pass de585 "install.ps1 picks newest version" \
+		|| _fail de585 "install.ps1 picks newest version" "stable=[${psStable}] dev=[${psOut}]"
 	fInList v1.0.0-rc2:pre v1.0.0-rc10:pre >"${psFix}/release.json"
 	fPsRun n block
-	{ [[ "${psOut}" == *"No stable release yet"* && "${psOut}" == *"Release: v1.0.0-rc10 (stable)"* ]]; } && _pass Et9uoLd "install.ps1, pre-releases only" \
-		|| _fail Et9uoLd "install.ps1, pre-releases only" "$(fPsTail)"
+	{ [[ "${psOut}" == *"No stable release yet"* && "${psOut}" == *"Release: v1.0.0-rc10 (stable)"* ]]; } && _pass de586 "install.ps1, pre-releases only" \
+		|| _fail de586 "install.ps1, pre-releases only" "$(fPsTail)"
 
 	## A real install, in the one-liner form. The shell that ran it keeps its
 	## preferences, has no strict mode, and is still there afterward.
@@ -2228,37 +2228,37 @@ EOF
 	psUrls="$(tr '\n' ' ' <"${psFix}/urls.log")"; psU="https://github.com/jim-collier/convert-base-v2/releases/download/${psTag}"
 	{ ((psRc == 0)) && [[ -n "${psTag}" && -x "${psBin}" && "$("${psBin}" --version 2>&1)" == "${psVerLine}" && "${psOut}" == *"[ Installed: ${psVerLine} ]"* ]] \
 		&& [[ "${psUrls}" == *"/releases?per_page=100 ${psU}/${psAsset} ${psU}/checksums.txt " && "${psOut}" == *"caller still here, EAP=Continue, unset=True"* ]] \
-		&& [[ ! -e "${psHome}/.local/bin/.convert-base-v2.new" && -z "$(ls -A "${psDir}/tmp")" ]]; } && _pass Et9uoMI "install.ps1 installs, ${psFrom} release" \
-		|| _fail Et9uoMI "install.ps1 installs, ${psFrom} release" "tag=[${psTag}] urls=[${psUrls}] $(fPsTail)"
+		&& [[ ! -e "${psHome}/.local/bin/.convert-base-v2.new" && -z "$(ls -A "${psDir}/tmp")" ]]; } && _pass de587 "install.ps1 installs, ${psFrom} release" \
+		|| _fail de587 "install.ps1 installs, ${psFrom} release" "tag=[${psTag}] urls=[${psUrls}] $(fPsTail)"
 	mkdir -p "${psHome}/.local/bin"
 	for psLine in "convert-base-v2 ${psTag} build abcde" "${psTag} build abcde" "${psTag}"; do
 		printf '#!/bin/sh\necho "%s"\n' "${psLine}" >"${psBin}"; chmod +x "${psBin}"
 		fPsRun "" file -Yes
-		{ ((psRc == 0)) && [[ "${psOut}" == *"is already ${psTag}; nothing to do"* ]]; } && _pass Et9uoMw "install.ps1 sees it's current: ${psLine}" \
-			|| _fail Et9uoMw "install.ps1 sees it's current: ${psLine}" "$(fPsTail)"
+		{ ((psRc == 0)) && [[ "${psOut}" == *"is already ${psTag}; nothing to do"* ]]; } && _pass de588 "install.ps1 sees it's current: ${psLine}" \
+			|| _fail de588 "install.ps1 sees it's current: ${psLine}" "$(fPsTail)"
 	done
 	rm -f "${psBin}"
 
 	## One changed digit in the asset's checksum.
 	awk -v a="${psAsset}" '$2 == a { $1 = (substr($1, 1, 1) == "0" ? "1" : "0") substr($1, 2); print $1 "  " $2; next } { print }' "${psDir}/checksums.good" >"${psFix}/dist/checksums.txt"
 	fPsRun "" file -Yes
-	{ ((psRc == 1)) && [[ "${psErr}" == *"checksum mismatch"* && ! -e "${psBin}" && ! -e "${psHome}/.local/bin/.convert-base-v2.new" && -z "$(ls -A "${psDir}/tmp")" ]]; } && _pass Et9uoNc "install.ps1 refuses a tampered checksum" \
-		|| _fail Et9uoNc "install.ps1 refuses a tampered checksum" "$(fPsTail)"
+	{ ((psRc == 1)) && [[ "${psErr}" == *"checksum mismatch"* && ! -e "${psBin}" && ! -e "${psHome}/.local/bin/.convert-base-v2.new" && -z "$(ls -A "${psDir}/tmp")" ]]; } && _pass de589 "install.ps1 refuses a tampered checksum" \
+		|| _fail de589 "install.ps1 refuses a tampered checksum" "$(fPsTail)"
 	cp "${psDir}/checksums.good" "${psFix}/dist/checksums.txt"; rm -f "${psBin}"
 
 	## Refused before any download, with the folder named.
 	mkdir -p "${psHome}/.local/bin"; chmod 555 "${psHome}/.local/bin"
 	fPsRun "" file -Yes
 	chmod 755 "${psHome}/.local/bin"; rm -f "${psBin}"
-	{ ((psRc == 1)) && [[ "${psErr}" == *"can't write to ${psHome}/.local/bin - permission denied"* ]] && fPsUntouched; } && _pass Et9uoOI "install.ps1, read-only folder" \
-		|| _fail Et9uoOI "install.ps1, read-only folder" "urls=[$(tr '\n' ' ' <"${psFix}/urls.log")] $(fPsTail)"
+	{ ((psRc == 1)) && [[ "${psErr}" == *"can't write to ${psHome}/.local/bin - permission denied"* ]] && fPsUntouched; } && _pass de58a "install.ps1, read-only folder" \
+		|| _fail de58a "install.ps1, read-only folder" "urls=[$(tr '\n' ' ' <"${psFix}/urls.log")] $(fPsTail)"
 
 	## No, a closed stdin, then yes.
 	psOk=""
 	fPsRun $'n\n' file; { ((psRc == 1)) && [[ "${psOut}" == *"aborted; nothing was touched"* ]] && fPsUntouched; } && psOk+="no "
 	fPsRun "" file; { ((psRc == 1)) && [[ "${psOut}" == *"aborted; nothing was touched"* ]] && fPsUntouched; } && psOk+="closed "
 	fPsRun $'y\n' file; { ((psRc == 0)) && [[ -x "${psBin}" ]]; } && psOk+="yes"
-	[[ "${psOk}" == "no closed yes" ]] && _pass Et9uoOx "install.ps1 prompt" || _fail Et9uoOx "install.ps1 prompt" "passed=[${psOk}] $(fPsTail)"
+	[[ "${psOk}" == "no closed yes" ]] && _pass de58b "install.ps1 prompt" || _fail de58b "install.ps1 prompt" "passed=[${psOk}] $(fPsTail)"
 	rm -f "${psBin}"
 
 	for psCase in "offline|couldn't reach the GitHub API" "notfound|couldn't determine the stable release tag" "nosum|no checksum for ${psAsset} in checksums.txt"; do
@@ -2268,8 +2268,8 @@ EOF
 			nosum) fInList "${psTag}" >"${psFix}/release.json"; grep -v " ${psAsset}\$" "${psDir}/checksums.good" >"${psFix}/dist/checksums.txt" || true ;;
 		esac
 		fPsRun "" file -Yes
-		{ ((psRc == 1)) && [[ "${psErr}" == *"${psCase#*|}"* && ! -e "${psBin}" ]]; } && _pass Et9uoPc "install.ps1 says why: ${psCase#*|}" \
-			|| _fail Et9uoPc "install.ps1 says why: ${psCase#*|}" "$(fPsTail)"
+		{ ((psRc == 1)) && [[ "${psErr}" == *"${psCase#*|}"* && ! -e "${psBin}" ]]; } && _pass de58c "install.ps1 says why: ${psCase#*|}" \
+			|| _fail de58c "install.ps1 says why: ${psCase#*|}" "$(fPsTail)"
 	done
 	cp "${psDir}/checksums.good" "${psFix}/dist/checksums.txt"
 fi
@@ -2282,8 +2282,8 @@ printf '%s\n' '#!/bin/sh' 'exit 0' >"${gsDir}/bin/fc-match"
 printf '%s\n' '#!/bin/sh' 'echo 0' >"${gsDir}/bin/cbv"
 chmod +x "${gsDir}/bin/magick" "${gsDir}/bin/fc-match" "${gsDir}/bin/cbv"
 gsrc=0; PATH="${gsDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${gsDir}/repo" "${gsDir}/bin/cbv" >/dev/null 2>"${CBT_ERR}" || gsrc=$?
-{ ((gsrc == 42)) && ! grep -qF "lacks the pango delegate" "${CBT_ERR}"; } && _pass Erm3T0v "gen-screenshots pango probe" \
-	|| _fail Erm3T0v "gen-screenshots pango probe" "rc=${gsrc} err=[$(tail -3 "${CBT_ERR}")]"
+{ ((gsrc == 42)) && ! grep -qF "lacks the pango delegate" "${CBT_ERR}"; } && _pass ddgkf "gen-screenshots pango probe" \
+	|| _fail ddgkf "gen-screenshots pango probe" "rc=${gsrc} err=[$(tail -3 "${CBT_ERR}")]"
 
 ## go version -m names the pinned nfpm, then writes more than a pipe holds.
 ptDir="${CBT_TMP}/pt"; mkdir -p "${ptDir}/bin" "${ptDir}/home"
@@ -2297,8 +2297,8 @@ printf '%s\n' '#!/bin/sh' >"${ptDir}/bin/nfpm"
 chmod +x "${ptDir}/bin/go" "${ptDir}/bin/nfpm"
 ptWant="$(sed -n 's/^NFPM_VERSION=//p' "${meDir}/tool-versions.env")"
 ptrc=0; ptOut="$(HOME="${ptDir}/home" FAKE_MOD="${ptWant}" PATH="${ptDir}/bin:${PATH}" bash "${meDir}/utility/pin-tools.bash" 2>&1)" || ptrc=$?
-{ ((ptrc == 0)) && [[ -n "${ptWant}" && "${ptOut}" != *"installing nfpm"* ]]; } && _pass Erm3T1Z "pin-tools nfpm version" \
-	|| _fail Erm3T1Z "pin-tools nfpm version" "rc=${ptrc} want=${ptWant} out=[${ptOut}]"
+{ ((ptrc == 0)) && [[ -n "${ptWant}" && "${ptOut}" != *"installing nfpm"* ]]; } && _pass ddgkg "pin-tools nfpm version" \
+	|| _fail ddgkg "pin-tools nfpm version" "rc=${ptrc} want=${ptWant} out=[${ptOut}]"
 ## shellcheck and ruff are only compared. A version that merely starts with
 ## the pinned one is a different version.
 ptSc="$(sed -n 's/^SHELLCHECK_VERSION=//p' "${meDir}/tool-versions.env")"; ptRuff="$(sed -n 's/^RUFF_VERSION=//p' "${meDir}/tool-versions.env")"
@@ -2306,15 +2306,15 @@ printf '%s\n' '#!/bin/sh' "printf 'ShellCheck\\nversion: ${ptSc}\\nlicense: x\\n
 printf '%s\n' '#!/bin/sh' "echo 'ruff ${ptRuff}1'" >"${ptDir}/bin/ruff"
 chmod +x "${ptDir}/bin/shellcheck" "${ptDir}/bin/ruff"
 ptrc=0; ptOut="$(HOME="${ptDir}/home" FAKE_MOD="${ptWant}" PATH="${ptDir}/bin:${PATH}" bash "${meDir}/utility/pin-tools.bash" 2>&1)" || ptrc=$?
-{ ((ptrc == 0)) && [[ -n "${ptSc}" && -n "${ptRuff}" && "${ptOut}" == *"WARNING: ruff is not the pinned ${ptRuff}"* && "${ptOut}" != *"shellcheck is not"* ]]; } && _pass Ermt58H "pin-tools: unpinned shellcheck/ruff" \
-	|| _fail Ermt58H "pin-tools: unpinned shellcheck/ruff" "rc=${ptrc} out=[${ptOut}]"
+{ ((ptrc == 0)) && [[ -n "${ptSc}" && -n "${ptRuff}" && "${ptOut}" == *"WARNING: ruff is not the pinned ${ptRuff}"* && "${ptOut}" != *"shellcheck is not"* ]]; } && _pass ddgsq "pin-tools: unpinned shellcheck/ruff" \
+	|| _fail ddgsq "pin-tools: unpinned shellcheck/ruff" "rc=${ptrc} out=[${ptOut}]"
 
 ## awk -v would read the backslash as an escape and miss the heading.
 rbDir="${CBT_TMP}/rb"; mkdir -p "${rbDir}/dist"; rbVer='v9.9.9-b\q'
 printf '%s\n' "## ${rbVer} - 2026-10-04" '' '- Backslash.' >"${rbDir}/changelog.md"
 rbGot="$(bash "${meDir}/utility/release-notes.bash" --version "${rbVer}" --dist "${rbDir}/dist" --repo o/r --changelog "${rbDir}/changelog.md" 2>/dev/null || true)"
-[[ "${rbGot%%$'\n'*}" == "- Backslash." ]] && _pass Erm3T2D "release notes backslash version" \
-	|| _fail Erm3T2D "release notes backslash version" "got=[${rbGot%%$'\n'*}]"
+[[ "${rbGot%%$'\n'*}" == "- Backslash." ]] && _pass ddgkh "release notes backslash version" \
+	|| _fail ddgkh "release notes backslash version" "got=[${rbGot%%$'\n'*}]"
 
 ## A pin with an empty name. Unchecked, that is a remove of all of thirdparty/.
 feDir="${CBT_TMP}/fe"; mkdir -p "${feDir}/bin" "${feDir}/src/pkg" "${feDir}/thirdparty/keep"
@@ -2325,18 +2325,18 @@ printf 'INTEROP_PINS=("|1.0|https://example.invalid/pkg.tgz|%s|example.invalid/p
 printf '%s\n' '#!/bin/sh' 'while [ $# -gt 0 ]; do [ "$1" = -o ] && { cp "$FAKE_TGZ" "$2"; exit 0; }; shift; done' 'exit 7' >"${feDir}/bin/curl"
 chmod +x "${feDir}/bin/curl"
 ferc=0; FAKE_TGZ="${feDir}/pkg.tgz" PATH="${feDir}/bin:${PATH}" bash "${feDir}/fetch.bash" --refresh >/dev/null 2>"${CBT_ERR}" || ferc=$?
-{ ((ferc != 0)) && [[ -f "${feDir}/thirdparty/keep/file" ]] && grep -qF "not a plain directory name" "${CBT_ERR}"; } && _pass Erm3T2q "interop refresh bad pin name" \
-	|| _fail Erm3T2q "interop refresh bad pin name" "rc=${ferc} left: [$(fNames "${feDir}/thirdparty")] err=[$(<"${CBT_ERR}")]"
+{ ((ferc != 0)) && [[ -f "${feDir}/thirdparty/keep/file" ]] && grep -qF "not a plain directory name" "${CBT_ERR}"; } && _pass ddgkj "interop refresh bad pin name" \
+	|| _fail ddgkj "interop refresh bad pin name" "rc=${ferc} left: [$(fNames "${feDir}/thirdparty")] err=[$(<"${CBT_ERR}")]"
 
 ## The benchmark times only runs that worked. A 1 MiB blob and one run keep
 ## each of these to about a second.
 bnFail="${CBT_TMP}/bn-fail"; printf '%s\n' '#!/bin/sh' 'echo "unknown base" >&2' 'exit 1' >"${bnFail}"; chmod +x "${bnFail}"
 bnrc=0; BENCH_SIZE_MIB=1 BENCH_RUNS=1 bash "${meDir}/../utility/bench-encoders.bash" "${bnFail}" >/dev/null 2>"${CBT_ERR}" || bnrc=$?
-{ ((bnrc != 0)) && grep -qF "bench-encoders: failed:" "${CBT_ERR}"; } && _pass ErmCp2M "bench-encoders failed conversion" \
-	|| _fail ErmCp2M "bench-encoders failed conversion" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
+{ ((bnrc != 0)) && grep -qF "bench-encoders: failed:" "${CBT_ERR}"; } && _pass ddgmp "bench-encoders failed conversion" \
+	|| _fail ddgmp "bench-encoders failed conversion" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
 bnrc=0; BENCH_SIZE_MIB=1 BENCH_RUNS=1 bash "${meDir}/../utility/bench-encoders.bash" "${EXE}" >"${CBT_OUT}" 2>"${CBT_ERR}" || bnrc=$?
-{ ((bnrc == 0)) && ! grep -qF "failed:" "${CBT_ERR}" && (($(grep -cE '^\| convert-base-v2 +\|' "${CBT_OUT}" || true) == 3)); } && _pass ErmCp2N "bench-encoders rows" \
-	|| _fail ErmCp2N "bench-encoders rows" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
+{ ((bnrc == 0)) && ! grep -qF "failed:" "${CBT_ERR}" && (($(grep -cE '^\| convert-base-v2 +\|' "${CBT_OUT}" || true) == 3)); } && _pass ddgmq "bench-encoders rows" \
+	|| _fail ddgmq "bench-encoders rows" "rc=${bnrc} err=[$(tail -3 "${CBT_ERR}")]"
 
 ## The screenshot script against the real binary, with a magick that draws
 ## nothing and notes each picture it was asked for.
@@ -2345,12 +2345,12 @@ printf '%s\n' '#!/bin/sh' '[ "$1" = -list ] && { echo "PANGO* PANGO r-- Pango Ma
 printf '%s\n' '#!/bin/sh' 'exit 0' >"${ssDir}/bin/fc-match"
 chmod +x "${ssDir}/bin/magick" "${ssDir}/bin/fc-match"
 ssrc=0; SS_DRAWN="${ssDir}/drawn" PATH="${ssDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${ssDir}/repo" "${EXE}" >/dev/null 2>"${CBT_ERR}" || ssrc=$?
-{ ((ssrc == 0)) && [[ ! -s "${CBT_ERR}" ]]; } && _pass ErmCp2O "gen-screenshots scenes" \
-	|| _fail ErmCp2O "gen-screenshots scenes" "rc=${ssrc} err=[$(head -3 "${CBT_ERR}")]"
+{ ((ssrc == 0)) && [[ ! -s "${CBT_ERR}" ]]; } && _pass ddgmr "gen-screenshots scenes" \
+	|| _fail ddgmr "gen-screenshots scenes" "rc=${ssrc} err=[$(head -3 "${CBT_ERR}")]"
 : >"${ssDir}/drawn"
 ssrc=0; SS_DRAWN="${ssDir}/drawn" PATH="${ssDir}/bin:${PATH}" bash "${meDir}/../utility/gen-screenshots.bash" "${ssDir}/repo" "${bnFail}" >/dev/null 2>"${CBT_ERR}" || ssrc=$?
-{ ((ssrc != 0)) && [[ ! -s "${ssDir}/drawn" ]]; } && _pass ErmCp2P "gen-screenshots stops on failure" \
-	|| _fail ErmCp2P "gen-screenshots stops on failure" "rc=${ssrc} drawn: $(wc -l <"${ssDir}/drawn")"
+{ ((ssrc != 0)) && [[ ! -s "${ssDir}/drawn" ]]; } && _pass ddgms "gen-screenshots stops on failure" \
+	|| _fail ddgms "gen-screenshots stops on failure" "rc=${ssrc} drawn: $(wc -l <"${ssDir}/drawn")"
 
 ## The demo gif encodes frames in batches as they come. A real render takes over
 ## a minute, so its Movie is fed made-up frames: small ones across many batch
@@ -2433,14 +2433,14 @@ except Exception as e:
 	print(f"leadword FAIL {e!r}")
 EOF
 if ((dgrc == 3)); then
-	_warn "ErmYENq ErmYEP0 ErnEi9h" "demo gif checks: no Pillow"
+	_warn "ddgq4 ddgq5 ddgwc" "demo gif checks: no Pillow"
 else
-	grep -q "^identity ok" "${CBT_OUT}" && _pass ErmYENq "demo gif batches match one Pillow save" \
-		|| _fail ErmYENq "demo gif batches match one Pillow save" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
-	grep -q "^memory ok" "${CBT_OUT}" && _pass ErmYEP0 "demo gif frame memory" \
-		|| _fail ErmYEP0 "demo gif frame memory" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
-	grep -q "^leadword ok" "${CBT_OUT}" && _pass ErnEi9h "demo gif one-word typing" \
-		|| _fail ErnEi9h "demo gif one-word typing" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+	grep -q "^identity ok" "${CBT_OUT}" && _pass ddgq4 "demo gif batches match one Pillow save" \
+		|| _fail ddgq4 "demo gif batches match one Pillow save" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+	grep -q "^memory ok" "${CBT_OUT}" && _pass ddgq5 "demo gif frame memory" \
+		|| _fail ddgq5 "demo gif frame memory" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
+	grep -q "^leadword ok" "${CBT_OUT}" && _pass ddgwc "demo gif one-word typing" \
+		|| _fail ddgwc "demo gif one-word typing" "rc=${dgrc} out=[$(<"${CBT_OUT}")] err=[$(tail -3 "${CBT_ERR}")]"
 fi
 
 ## Demo commands run in a home of their own, after the scenario's setup=, so the
@@ -2457,18 +2457,18 @@ show = "true"
 run = '[ -e "$XDG_CONFIG_HOME/made" ] && touch "$DH_REAL/step-saw-setup"'
 EOF
 if ((dgrc == 3)); then
-	_warn "EsJpWap EsKCVWy" "demo gif private home and missing glyphs: no Pillow"
+	_warn "ddrq8 ddrt4" "demo gif private home and missing glyphs: no Pillow"
 else
 	dhrc=0; HOME="${dhDir}/home" DH_REAL="${dhDir}/home" TMPDIR="${dhDir}/tmp" python3 -B "${meDir}/utility/gen-demo-gif.py" --quiet \
 		--scenario "${dhDir}/sc.toml" --out "${dhDir}/out.gif" --bin true >"${CBT_OUT}" 2>&1 || dhrc=$?
-	{ ((dhrc == 0)) && [[ -e "${dhDir}/home/step-saw-setup" && ! -e "${dhDir}/home/.config" && -z "$(ls -A "${dhDir}/tmp")" ]]; } && _pass EsJpWap "demo gif private home, after setup=" \
-		|| _fail EsJpWap "demo gif private home, after setup=" "rc=${dhrc} home=[$(ls -A "${dhDir}/home")] tmp=[$(ls -A "${dhDir}/tmp")] out=[$(tail -2 "${CBT_OUT}")]"
+	{ ((dhrc == 0)) && [[ -e "${dhDir}/home/step-saw-setup" && ! -e "${dhDir}/home/.config" && -z "$(ls -A "${dhDir}/tmp")" ]]; } && _pass ddrq8 "demo gif private home, after setup=" \
+		|| _fail ddrq8 "demo gif private home, after setup=" "rc=${dhrc} home=[$(ls -A "${dhDir}/home")] tmp=[$(ls -A "${dhDir}/tmp")] out=[$(tail -2 "${CBT_OUT}")]"
 	## A char no font has would show as a box, so it fails before anything renders.
 	printf '%s\n' 'end_hold = 0.1' 'end_black = 0.1' '[[step]]' 'show = "true"' 'run = "printf \"a\\U0010FFFDb\""' >"${dhDir}/nofont.toml"
 	dhrc=0; TMPDIR="${dhDir}/tmp" python3 -B "${meDir}/utility/gen-demo-gif.py" --quiet \
 		--scenario "${dhDir}/nofont.toml" --out "${dhDir}/nofont.gif" --bin true >"${CBT_OUT}" 2>&1 || dhrc=$?
-	{ ((dhrc == 1)) && grep -qF 'no font draws U+10FFFD' "${CBT_OUT}" && [[ ! -e "${dhDir}/nofont.gif" ]]; } && _pass EsKCVWy "demo gif missing glyph" \
-		|| _fail EsKCVWy "demo gif missing glyph" "rc=${dhrc} out=[$(tail -2 "${CBT_OUT}")]"
+	{ ((dhrc == 1)) && grep -qF 'no font draws U+10FFFD' "${CBT_OUT}" && [[ ! -e "${dhDir}/nofont.gif" ]]; } && _pass ddrt4 "demo gif missing glyph" \
+		|| _fail ddrt4 "demo gif missing glyph" "rc=${dhrc} out=[$(tail -2 "${CBT_OUT}")]"
 fi
 
 ## flame-report.py is the startup gate's reader. A flamegraph it can't read is
@@ -2481,8 +2481,8 @@ frCases=("${frDir}/flame_20260101-000000_latest.svg")
 [[ -r "${frDir}/locked.svg" ]] || frCases+=("${frDir}/locked.svg")
 for frFile in "${frCases[@]}"; do
 	frrc=0; python3 "${meDir}/utility/flame-report.py" --file "${frFile}" >/dev/null 2>"${CBT_ERR}" || frrc=$?
-	{ ((frrc == 2)) && ! grep -qF "Traceback" "${CBT_ERR}"; } && _pass Ermz79l "flame-report unreadable svg: ${frFile##*/}" \
-		|| _fail Ermz79l "flame-report unreadable svg: ${frFile##*/}" "rc=${frrc} err=[$(tail -2 "${CBT_ERR}")]"
+	{ ((frrc == 2)) && ! grep -qF "Traceback" "${CBT_ERR}"; } && _pass ddgte "flame-report unreadable svg: ${frFile##*/}" \
+		|| _fail ddgte "flame-report unreadable svg: ${frFile##*/}" "rc=${frrc} err=[$(tail -2 "${CBT_ERR}")]"
 done
 chmod 600 "${frDir}/locked.svg"
 ## The divide and conquer parse and format, and what they call, are big-int
@@ -2499,8 +2499,8 @@ frPkg="github.com/jim-collier/convert-base-v2/lib/convertbase"
 	printf '</svg>\n'
 } >"${frDir}/flame_20260101-000001_latest.svg"
 frrc=0; python3 "${meDir}/utility/flame-report.py" --file "${frDir}/flame_20260101-000001_latest.svg" >"${CBT_OUT}" 2>"${CBT_ERR}" || frrc=$?
-{ ((frrc == 0)) && grep -qE '^  big-int, math/big convert\.*: 100\.0%$' "${CBT_OUT}"; } && _pass Ermz7AQ "flame-report big-int bucket" \
-	|| _fail Ermz7AQ "flame-report big-int bucket" "rc=${frrc} out=[$(head -8 "${CBT_OUT}" | tr '\n' ' ')] err=[$(tail -2 "${CBT_ERR}")]"
+{ ((frrc == 0)) && grep -qE '^  big-int, math/big convert\.*: 100\.0%$' "${CBT_OUT}"; } && _pass ddgtf "flame-report big-int bucket" \
+	|| _fail ddgtf "flame-report big-int bucket" "rc=${frrc} out=[$(head -8 "${CBT_OUT}" | tr '\n' ' ')] err=[$(tail -2 "${CBT_ERR}")]"
 
 ## test-ids.py reads test.bash by pattern. An array of command words is not a
 ## test call, while a call inside a subshell still is. It runs from a copy, so
@@ -2508,32 +2508,61 @@ frrc=0; python3 "${meDir}/utility/flame-report.py" --file "${frDir}/flame_202601
 tiDir="${CBT_TMP}/ti"; mkdir -p "${tiDir}/cicd/utility"
 cp "${meDir}/utility/test-ids.py" "${tiDir}/cicd/utility/"
 {
-	printf '%s\n' 'RUFF_CMD=(ruff check .)' 'scCmd=(check -x)' 'lintArgs+=(_fail --quiet)' '_pass Ermz7B4 "kept"'
-	printf '%s _pass Ermz7B5 "kept in a subshell" )\n' '('
+	printf '%s\n' 'RUFF_CMD=(ruff check .)' 'scCmd=(check -x)' 'lintArgs+=(_fail --quiet)' '_pass ddgtg "kept"'
+	printf '%s _pass ddgth "kept in a subshell" )\n' '('
 } >"${tiDir}/cicd/test.bash"
 tirc=0; tiOut="$(python3 "${tiDir}/cicd/utility/test-ids.py" check 2>&1)" || tirc=$?
-{ ((tirc == 0)) && [[ "${tiOut}" == "OK: 2 test IDs, all distinct" ]]; } && _pass Ermz7B5 "test-ids bash array" \
-	|| _fail Ermz7B5 "test-ids bash array" "rc=${tirc} out=[${tiOut}]"
+{ ((tirc == 0)) && [[ "${tiOut}" == "OK: 2 test IDs, all distinct" ]]; } && _pass ddgth "test-ids bash array" \
+	|| _fail ddgth "test-ids bash array" "rc=${tirc} out=[${tiOut}]"
+
+## The base 62 IDs before 2026-10-25 were converted once. One that comes back,
+## in the harness or a Go test, is refused.
+toDir="${CBT_TMP}/to"; mkdir -p "${toDir}/cicd/utility" "${toDir}/a"
+cp "${meDir}/utility/test-ids.py" "${toDir}/cicd/utility/"
+printf '%s\n' '_pass EAAAAAA "old form"' >"${toDir}/cicd/test.bash"
+printf 'module example.com/m\n' >"${toDir}/go.mod"
+printf '%s\n' 'package a' '' '// Test ID: EAAAAAB' 'func TestOld(t *testing.T) {}' >"${toDir}/a/x_test.go"
+torc=0; toOut="$(python3 "${toDir}/cicd/utility/test-ids.py" check 2>&1)" || torc=$?
+{ ((torc == 1)) && [[ "${toOut}" == *"_pass has no test ID (got 'EAAAAAA')"* && "${toOut}" == *"TestOld needs a"* ]]; } && _pass dedq9 "test-ids refuses a base 62 ID" \
+	|| _fail dedq9 "test-ids refuses a base 62 ID" "rc=${torc} out=[${toOut}]"
+
+## A new ID skips a minute that's taken. Tests that shared a minute were pushed
+## into later ones, so the next free one can be a while off.
+tnDir="${CBT_TMP}/tn"; mkdir -p "${tnDir}/cicd/utility"
+cp "${meDir}/utility/test-ids.py" "${tnDir}/cicd/utility/"
+: >"${tnDir}/cicd/test.bash"
+tnA="$(python3 "${tnDir}/cicd/utility/test-ids.py" new 2>&1 || true)"
+printf '_pass %s "taken"\n' "${tnA}" >"${tnDir}/cicd/test.bash"
+tnB="$(python3 "${tnDir}/cicd/utility/test-ids.py" new 2 2>&1 | tr '\n' ' ' || true)"
+{ [[ "${tnA}" =~ ^[0-9a-hjkmnp-tv-z]{5}$ && "${tnB}" =~ ^[0-9a-hjkmnp-tv-z]{5}\ [0-9a-hjkmnp-tv-z]{5}\ $ && "${tnB}" != *"${tnA}"* ]]; } \
+	&& _pass dedqa "test-ids new skips a taken minute" \
+	|| _fail dedqa "test-ids new skips a taken minute" "first=[${tnA}] next=[${tnB}]"
+
+## One line per test: PASS, FAIL or SKIP, then the ID and the label.
+tlId="dedq8"
+tlOut="$( { _pass "${tlId}" "a label"; _fail "${tlId}" "a label" "why"; _warn "${tlId}" "a reason" asked; } | sed 's/\x1b\[[0-9;]*m//g')"
+[[ "${tlOut}" == "PASS ${tlId} a label"$'\n'"FAIL ${tlId} a label"$'\n'"     why"$'\n'"SKIP ${tlId} a reason" ]] && _pass dedq8 "per-test line format" \
+	|| _fail dedq8 "per-test line format" "out=[${tlOut}]"
 
 ## Go tests are keyed by import path, since two packages can share a directory
 ## name. A compile error prints under the package it broke.
 tgDir="${CBT_TMP}/tg"; mkdir -p "${tgDir}/cicd/utility" "${tgDir}/a/util" "${tgDir}/b/util"
 cp "${meDir}/utility/test-ids.py" "${tgDir}/cicd/utility/"
-printf '%s\n' '_pass Ermz7B4 "kept"' >"${tgDir}/cicd/test.bash"
+printf '%s\n' '_pass ddgtg "kept"' >"${tgDir}/cicd/test.bash"
 printf 'module example.com/m\n' >"${tgDir}/go.mod"
-printf '%s\n' 'package util' '' '// Test ID: Ermz7Ba' 'func TestSame(t *testing.T) {}' >"${tgDir}/a/util/x_test.go"
-printf '%s\n' 'package util' '' '// Test ID: Ermz7Bb' 'func TestSame(t *testing.T) {}' >"${tgDir}/b/util/x_test.go"
+printf '%s\n' 'package util' '' '// Test ID: ddgtj' 'func TestSame(t *testing.T) {}' >"${tgDir}/a/util/x_test.go"
+printf '%s\n' 'package util' '' '// Test ID: ddgtk' 'func TestSame(t *testing.T) {}' >"${tgDir}/b/util/x_test.go"
 tgrc=0; tgOut="$(python3 "${tgDir}/cicd/utility/test-ids.py" check 2>&1)" || tgrc=$?
 tgRep="$(printf '%s\n' '{"Action":"pass","Package":"example.com/m/a/util","Test":"TestSame"}' '{"Action":"pass","Package":"example.com/m/b/util","Test":"TestSame"}' \
 	| python3 "${tgDir}/cicd/utility/test-ids.py" report 2>&1 || true)"
-{ ((tgrc == 0)) && [[ "${tgOut}" == "OK: 3 test IDs, all distinct" ]] && grep -qF "Ermz7Ba  TestSame (util)" <<<"${tgRep}" && grep -qF "Ermz7Bb  TestSame (util)" <<<"${tgRep}"; } \
-	&& _pass ErnEiAv "test-ids same-name packages" \
-	|| _fail ErnEiAv "test-ids same-name packages" "rc=${tgrc} check=[${tgOut}] report=[$(tr '\n' ' ' <<<"${tgRep}")]"
+{ ((tgrc == 0)) && [[ "${tgOut}" == "OK: 3 test IDs, all distinct" ]] && grep -qxF "PASS ddgtj TestSame (util)" <<<"${tgRep}" && grep -qxF "PASS ddgtk TestSame (util)" <<<"${tgRep}"; } \
+	&& _pass ddgwd "test-ids same-name packages" \
+	|| _fail ddgwd "test-ids same-name packages" "rc=${tgrc} check=[${tgOut}] report=[$(tr '\n' ' ' <<<"${tgRep}")]"
 tgRep="$(printf '%s\n' '{"ImportPath":"example.com/m/a/util [example.com/m/a/util.test]","Action":"build-output","Output":"a/util/x_test.go:4:1: undefined: oops\n"}' \
 	'{"ImportPath":"example.com/m/a/util [example.com/m/a/util.test]","Action":"build-fail"}' '{"Action":"fail","Package":"example.com/m/a/util"}' \
 	| python3 "${tgDir}/cicd/utility/test-ids.py" report 2>&1 || true)"
-grep -qF "undefined: oops" <<<"${tgRep}" && _pass ErnEiCC "test-ids compile error" \
-	|| _fail ErnEiCC "test-ids compile error" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
+grep -qF "undefined: oops" <<<"${tgRep}" && _pass ddgwe "test-ids compile error" \
+	|| _fail ddgwe "test-ids compile error" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
 ## A race report is longer than the usual tail, and its top says where the race
 ## is, so it shows from there. The same goes for goleak's list after the tests.
 tgRep="$( {
@@ -2546,8 +2575,8 @@ tgRep="$( {
 	printf '%s\n' '{"Action":"fail","Package":"example.com/m/b/util"}'
 } | python3 "${tgDir}/cicd/utility/test-ids.py" report 2>&1 || true)"
 { grep -qF "Write at 0x00c by goroutine 7" <<<"${tgRep}" && grep -qF "frame 30" <<<"${tgRep}" && grep -qF "goleak: Errors on successful test run" <<<"${tgRep}"; } \
-	&& _pass Et9WfaT "test-ids race and leak reports from the top" \
-	|| _fail Et9WfaT "test-ids race and leak reports from the top" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
+	&& _pass de553 "test-ids race and leak reports from the top" \
+	|| _fail de553 "test-ids race and leak reports from the top" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -2713,11 +2742,17 @@ fCeSteps(){
 ## Go reports its own -fuzztime deadline as a failure (G18): that passes with a
 ## note, and a real find fails the stage with its own message.
 FAKE_FUZZ=deadline fCeRun -y
-{ ((ceRc == 0)) && [[ "${ceOut}" == *"NOTE: fuzz FuzzA reported the -fuzztime deadline"* && -z "${ceTmp}" ]]; } && _pass ErmCp2E "fuzz deadline note" \
-	|| _fail ErmCp2E "fuzz deadline note" "$(fCeTail)"
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"NOTE: fuzz FuzzA reported the -fuzztime deadline"* && -z "${ceTmp}" ]]; } && _pass ddgme "fuzz deadline note" \
+	|| _fail ddgme "fuzz deadline note" "$(fCeTail)"
+ceFuzzPass="$(grep -E '^(PASS|FAIL) .*\(fuzz, ' <<<"${ceOut}" || true)"
 FAKE_FUZZ="find" fCeRun -y
-{ ((ceRc == 1)) && [[ "${ceOut}" == *"FAILED: fuzz FuzzA found a failure"* && "${ceOut}" != *"CICD ABORTED"* && -z "${ceTmp}" ]]; } && _pass ErmCp2F "fuzz find fails stage" \
-	|| _fail ErmCp2F "fuzz find fails stage" "$(fCeTail)"
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"FAILED: fuzz FuzzA found a failure"* && "${ceOut}" != *"CICD ABORTED"* && -z "${ceTmp}" ]]; } && _pass ddgmf "fuzz find fails stage" \
+	|| _fail ddgmf "fuzz find fails stage" "$(fCeTail)"
+## Each fuzz target gets a PASS or FAIL line like any other test, with no ID
+## here since the stub config turns the ID tool off.
+ceFuzzFail="$(grep -E '^(PASS|FAIL) .*\(fuzz, ' <<<"${ceOut}" || true)"
+[[ "${ceFuzzPass}" == "PASS ----- FuzzA (fuzz, "* && "${ceFuzzFail}" == "FAIL ----- FuzzA (fuzz, "* ]] && _pass dedqb "fuzz PASS and FAIL lines" \
+	|| _fail dedqb "fuzz PASS and FAIL lines" "pass=[${ceFuzzPass}] fail=[${ceFuzzFail}]"
 
 ## The harness runs its perf section, and skips the packaging rebuilds, as
 ## --quick says. A plain -y run also keeps its plan and progress lines; -q drops them.
@@ -2725,27 +2760,27 @@ fCeRun -y; ceKnobsFull="${ceKnobs}"; ceOutFull="${ceOut}"
 fCeRun -y --quick; ceKnobsQuick="${ceKnobs}"
 for ceName in Full Quick; do
 	ceVar="ceKnobs${ceName}"; ceWant=1; [[ "${ceName}" == Quick ]] && ceWant=0
-	grep -qxF "CICDTEST_DO_PERF=${ceWant}" <<<"${!ceVar}" && _pass ErmCp2G "harness perf section asked for: ${ceName} run, ${ceWant}" \
-		|| _fail ErmCp2G "harness perf section asked for: ${ceName} run, ${ceWant}" "knobs=[${!ceVar}]"
+	grep -qxF "CICDTEST_DO_PERF=${ceWant}" <<<"${!ceVar}" && _pass ddgmg "harness perf section asked for: ${ceName} run, ${ceWant}" \
+		|| _fail ddgmg "harness perf section asked for: ${ceName} run, ${ceWant}" "knobs=[${!ceVar}]"
 done
-{ grep -qxF "CICDTEST_QUICK=1" <<<"${ceKnobsQuick}" && grep -qxF "CICDTEST_QUICK=0" <<<"${ceKnobsFull}"; } && _pass ErmCp2H "--quick reaches the harness" \
-	|| _fail ErmCp2H "--quick reaches the harness" "full=[${ceKnobsFull}] quick=[${ceKnobsQuick}]"
+{ grep -qxF "CICDTEST_QUICK=1" <<<"${ceKnobsQuick}" && grep -qxF "CICDTEST_QUICK=0" <<<"${ceKnobsFull}"; } && _pass ddgmh "--quick reaches the harness" \
+	|| _fail ddgmh "--quick reaches the harness" "full=[${ceKnobsFull}] quick=[${ceKnobsQuick}]"
 ## A plain run has the long tests, and --quick leaves them out unless --long
 ## is named too, before or after it.
 ceLong=""
 for ceArgs in "-y" "-y --quick" "-y --quick --long" "-y --long --quick"; do
 	fCeRun ${ceArgs}; ceLong+="$(grep -oxE 'CICDTEST_DO_LONGTEST=[01]' <<<"${ceKnobs}" || echo none);"
 done
-[[ "${ceLong}" == "CICDTEST_DO_LONGTEST=1;CICDTEST_DO_LONGTEST=0;CICDTEST_DO_LONGTEST=1;CICDTEST_DO_LONGTEST=1;" ]] && _pass Et9RcGQ "long tests: plain on, --quick off, --long back on" \
-	|| _fail Et9RcGQ "long tests: plain on, --quick off, --long back on" "got=[${ceLong}]"
+[[ "${ceLong}" == "CICDTEST_DO_LONGTEST=1;CICDTEST_DO_LONGTEST=0;CICDTEST_DO_LONGTEST=1;CICDTEST_DO_LONGTEST=1;" ]] && _pass de54e "long tests: plain on, --quick off, --long back on" \
+	|| _fail de54e "long tests: plain on, --quick off, --long back on" "got=[${ceLong}]"
 
 ## --quick still cross-compiles, and --no-cross wins in either order.
 rm -rf "${ceRepo}/dist"; CE_CROSS=1 fCeRun -y --quick; ceQuickCross=0
 { ((ceRc == 0)) && [[ -f "${ceRepo}/dist/cbv-test-windows-x86_64.exe" && "${ceOut}" == *"OK: release artifacts"* ]]; } && ceQuickCross=1
 rm -rf "${ceRepo}/dist"; CE_CROSS=1 fCeRun -y --no-cross --quick; ceNoCross="${ceRc}"
 CE_CROSS=1 fCeRun -y --quick --no-cross
-{ ((ceQuickCross && ceNoCross == 0 && ceRc == 0)) && [[ ! -e "${ceRepo}/dist" && "${ceOut}" == *"Cross + package (--no-cross)"* && "${ceOut}" != *"Starting Cross"* ]]; } && _pass Et9RcH7 "--quick cross-compiles, --no-cross wins" \
-	|| _fail Et9RcH7 "--quick cross-compiles, --no-cross wins" "quick made it: ${ceQuickCross}; $(fCeTail)"
+{ ((ceQuickCross && ceNoCross == 0 && ceRc == 0)) && [[ ! -e "${ceRepo}/dist" && "${ceOut}" == *"Cross + package (--no-cross)"* && "${ceOut}" != *"Starting Cross"* ]]; } && _pass de54f "--quick cross-compiles, --no-cross wins" \
+	|| _fail de54f "--quick cross-compiles, --no-cross wins" "quick made it: ${ceQuickCross}; $(fCeTail)"
 rm -rf "${ceRepo}/dist"
 
 ## A plain run has the leak checks, -q included, and --quick leaves them out unless
@@ -2754,51 +2789,51 @@ ceLeak=""
 for ceArgs in "-y" "-q" "-y --quick" "-y --quick --leakcheck" "-y --leakcheck --quick" "--gate"; do
 	fCeRun ${ceArgs}; ceLeak+="$(grep -cxE "race-ran|soak-ran ${ceRepo}/soak|codeql-ran ${ceRepo}/codeql/codeql_[0-9]{8}-[0-9]{6}\.sarif" <<<"${ceOut}" || true);"
 done
-{ [[ "${ceLeak}" == "3;3;0;3;3;0;" && -d "${ceRepo}/soak" && -d "${ceRepo}/codeql" ]]; } && _pass Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" \
-	|| _fail Et9VxXX "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" "got=[${ceLeak}] $(fCeTail)"
+{ [[ "${ceLeak}" == "3;3;0;3;3;0;" && -d "${ceRepo}/soak" && -d "${ceRepo}/codeql" ]]; } && _pass de550 "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" \
+	|| _fail de550 "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" "got=[${ceLeak}] $(fCeTail)"
 ## --no-leakcheck drops them from a full run, and the last of the pair wins.
 ceNoLeak=""
 for ceArgs in "-y --no-leakcheck" "-y --leakcheck --no-leakcheck" "-y --no-leakcheck --leakcheck"; do
 	fCeRun ${ceArgs}; ceNoLeak+="${ceRc}:$(grep -cxE "race-ran|soak-ran ${ceRepo}/soak|codeql-ran ${ceRepo}/codeql/codeql_[0-9]{8}-[0-9]{6}\.sarif" <<<"${ceOut}" || true);"
 done
-[[ "${ceNoLeak}" == "0:0;0:0;0:3;" ]] && _pass EtAaLOQ "--no-leakcheck skips the leak checks, last flag wins" \
-	|| _fail EtAaLOQ "--no-leakcheck skips the leak checks, last flag wins" "got=[${ceNoLeak}] $(fCeTail)"
+[[ "${ceNoLeak}" == "0:0;0:0;0:3;" ]] && _pass de5d7 "--no-leakcheck skips the leak checks, last flag wins" \
+	|| _fail de5d7 "--no-leakcheck skips the leak checks, last flag wins" "got=[${ceNoLeak}] $(fCeTail)"
 ## -race needs cgo. Without it the race run warns and the soak test still runs,
 ## except where every tool must be there.
 CE_RACE_PROBE=false fCeRun -y --quick --leakcheck; ceNoCgo=0
 { ((ceRc == 0)) && [[ "${ceOut}" == *"WARNING: race detector skipped"* ]] && grep -q '^soak-ran ' <<<"${ceOut}" && ! grep -qx 'race-ran' <<<"${ceOut}"; } && ceNoCgo=1
 CE_RACE_PROBE=false CE_NO_SKIP=1 fCeRun -y --quick --leakcheck
-{ ((ceNoCgo && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: race detector skipped"* ]]; } && _pass Et9VxYy "race detector without cgo" \
-	|| _fail Et9VxYy "race detector without cgo" "warned=${ceNoCgo} $(fCeTail)"
+{ ((ceNoCgo && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: race detector skipped"* ]]; } && _pass de552 "race detector without cgo" \
+	|| _fail de552 "race detector without cgo" "warned=${ceNoCgo} $(fCeTail)"
 ## CodeQL is a leak check too: --quick drops it and --leakcheck brings it back,
 ## with the SARIF going to its own artifact dir.
 fCeRun -y --quick; ceCqQuick="${ceOut}"
 fCeRun -y --quick --leakcheck
 { ((ceRc == 0)) && ! grep -q '^codeql-ran' <<<"${ceCqQuick}" && grep -qE "^codeql-ran ${ceRepo}/codeql/codeql_[0-9-]+\.sarif$" <<<"${ceOut}" \
-	&& [[ "${ceOut}" == *"OK: CodeQL clean, SARIF in codeql/"* ]]; } && _pass Et9ZqiY "CodeQL runs under --leakcheck, not under --quick" \
-	|| _fail Et9ZqiY "CodeQL runs under --leakcheck, not under --quick" "$(fCeTail)"
+	&& [[ "${ceOut}" == *"OK: CodeQL clean, SARIF in codeql/"* ]]; } && _pass de55f "CodeQL runs under --leakcheck, not under --quick" \
+	|| _fail de55f "CodeQL runs under --leakcheck, not under --quick" "$(fCeTail)"
 ## Any CodeQL result fails the stage, with its own message.
 CE_CODEQL_RC=1 fCeRun -y --quick --leakcheck
-{ ((ceRc == 1)) && [[ "${ceOut}" == *"FAILED: CodeQL found something"* && "${ceOut}" != *"CICD ABORTED"* ]]; } && _pass Et9ZqjD "CodeQL result fails the stage" \
-	|| _fail Et9ZqjD "CodeQL result fails the stage" "$(fCeTail)"
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"FAILED: CodeQL found something"* && "${ceOut}" != *"CICD ABORTED"* ]]; } && _pass de55g "CodeQL result fails the stage" \
+	|| _fail de55g "CodeQL result fails the stage" "$(fCeTail)"
 ## It's only in the image, so a host run warns and goes on, and the container fails.
 CE_CODEQL_PROBE=false fCeRun -y --quick --leakcheck; ceNoCq=0
 { ((ceRc == 0)) && [[ "${ceOut}" == *"WARNING: CodeQL skipped"* ]] && ! grep -q '^codeql-ran' <<<"${ceOut}"; } && ceNoCq=1
 CE_CODEQL_PROBE=false CE_NO_SKIP=1 fCeRun -y --quick --leakcheck
-{ ((ceNoCq && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: CodeQL skipped"* ]]; } && _pass Et9Zqjy "CodeQL missing: warns here, fails in the container" \
-	|| _fail Et9Zqjy "CodeQL missing: warns here, fails in the container" "warned=${ceNoCq} $(fCeTail)"
+{ ((ceNoCq && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: CodeQL skipped"* ]]; } && _pass de55h "CodeQL missing: warns here, fails in the container" \
+	|| _fail de55h "CodeQL missing: warns here, fails in the container" "warned=${ceNoCq} $(fCeTail)"
 
 ## The vendor and interop pin checks and govulncheck reach another host, so
 ## --quick leaves them out.
 CE_NET=1 fCeRun -y; ceNetFull="$(grep -oE '^(vendor|interop|vuln)-net$' <<<"${ceOut}" | tr '\n' ' ' || true)"
 CE_NET=1 fCeRun -y --quick; ceNetQuick="$(grep -oE '^(vendor|interop|vuln)-net$' <<<"${ceOut}" | tr '\n' ' ' || true)"
-{ ((ceRc == 0)) && [[ "${ceNetFull}" == "vendor-net interop-net vuln-net " && -z "${ceNetQuick}" ]]; } && _pass Et9RcHq "--quick skips checks that reach another host" \
-	|| _fail Et9RcHq "--quick skips checks that reach another host" "full=[${ceNetFull}] quick=[${ceNetQuick}] $(fCeTail)"
+{ ((ceRc == 0)) && [[ "${ceNetFull}" == "vendor-net interop-net vuln-net " && -z "${ceNetQuick}" ]]; } && _pass de54g "--quick skips checks that reach another host" \
+	|| _fail de54g "--quick skips checks that reach another host" "full=[${ceNetFull}] quick=[${ceNetQuick}] $(fCeTail)"
 
 fCeRun -q
 { ((ceRc == 0)) && [[ "${ceOutFull}" == *"Repo root ..."* && "${ceOut}" != *"Repo root ..."* && "${ceOut}" == *"Turned off ..........: "* \
-	&& "${ceOut}" == *"; Starting Tests ]"* && "${ceOut}" == *"; PASS Tests ]"* && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass ErmCp2I "-q output" \
-	|| _fail ErmCp2I "-q output" "$(fCeTail)"
+	&& "${ceOut}" == *"; Starting Tests ]"* && "${ceOut}" == *"; PASS Tests ]"* && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass ddgmj "-q output" \
+	|| _fail ddgmj "-q output" "$(fCeTail)"
 
 ## Step output: a rule, a Starting line, the output and a PASS or FAIL line,
 ## each with the time and "Step N of M", and blank lines between. A step that's
@@ -2806,8 +2841,8 @@ fCeRun -q
 CE_NET=1 CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun -y; ceSteps="$(fCeSteps)"
 { ((ceRc == 0)) && [[ "${ceSteps}" == "1/5 Pins PASS;2/5 Native build PASS;3/5 Tests PASS;4/5 Cross + package PASS;5/5 Dogfood PASS;" ]] \
 	&& [[ "${ceOut}" == *"[ "*": cbv-test local CI/CD: 5 steps ]"* && "${ceOut}" == *"[ "*": cbv-test CI/CD: done. ]" ]]; } \
-	&& _pass Etj4gBl "step lines: rule, time, Step N of M, PASS, blank lines" \
-	|| _fail Etj4gBl "step lines: rule, time, Step N of M, PASS, blank lines" "steps=[${ceSteps}] $(fCeTail)"
+	&& _pass dedpn "step lines: rule, time, Step N of M, PASS, blank lines" \
+	|| _fail dedpn "step lines: rule, time, Step N of M, PASS, blank lines" "steps=[${ceSteps}] $(fCeTail)"
 rm -rf "${ceRepo}/dist"
 CE_NET=1 CE_CROSS=1 fCeRun -y --quick --no-cross; ceSteps="$(fCeSteps)"
 ceOffAt="$(grep -n '^Turned off \.\.\.' "${CBT_OUT}" | cut -d: -f1 || true)"; ceStartAt="$(grep -n '; Starting ' "${CBT_OUT}" | head -1 | cut -d: -f1 || true)"
@@ -2815,21 +2850,21 @@ ceOffAt="$(grep -n '^Turned off \.\.\.' "${CBT_OUT}" | cut -d: -f1 || true)"; ce
 	&& [[ "${ceOut}" == *"Turned off ..........: Pins (--quick)"$'\n'"                       Format (no FMT_CMD in config.bash)"$'\n'* ]] \
 	&& [[ "${ceOut}" == *$'\n'"                       Profiler (--quick)"$'\n'"                       Cross + package (--no-cross)"$'\n'* ]] \
 	&& [[ "${ceOut}" == *$'\n'"                       Demo gif (--quick)"$'\n'* && "${ceOut}" == *"cbv-test local CI/CD: 2 steps ]"* ]]; } \
-	&& _pass Etj4gCV "steps turned off aren't counted, and the first section says why" \
-	|| _fail Etj4gCV "steps turned off aren't counted, and the first section says why" "steps=[${ceSteps}] $(fCeTail)"
+	&& _pass dedpp "steps turned off aren't counted, and the first section says why" \
+	|| _fail dedpp "steps turned off aren't counted, and the first section says why" "steps=[${ceSteps}] $(fCeTail)"
 ## A step that fails, by its own check or by an error that stops the run, ends
 ## on FAIL, and the run ends on a blank line.
 FAKE_FUZZ="find" fCeRun -y; ceStepsFind="$(fCeSteps)"; ceRcFind="${ceRc}"
 CE_BUILD_FAIL=1 fCeRun -y; ceSteps="$(fCeSteps)"
 { ((ceRcFind == 1 && ceRc == 1)) && [[ "${ceStepsFind}" == "1/2 Native build PASS;2/2 Tests FAIL;" && "${ceSteps}" == "1/2 Native build FAIL;" && "${ceOut}" == *"CICD ABORTED"* ]]; } \
-	&& _pass Etj4gDF "a failed step ends on FAIL" \
-	|| _fail Etj4gDF "a failed step ends on FAIL" "find=[${ceStepsFind}] abort=[${ceSteps}] $(fCeTail)"
+	&& _pass dedpq "a failed step ends on FAIL" \
+	|| _fail dedpq "a failed step ends on FAIL" "find=[${ceStepsFind}] abort=[${ceSteps}] $(fCeTail)"
 ## The gate's steps are its own, in the same form.
 fCeRun --gate; ceSteps="$(fCeSteps)"
 { ((ceRc == 0)) && [[ "${ceSteps}" == "1/1 Unit tests PASS;" && "${ceOut}" == *": Merge gate: 1 step ]"* ]] \
 	&& [[ "${ceOut}" == *"Turned off ..........: Format check (no FMT_CHECK_CMD in config.bash)"$'\n'"                       Lint (no VET_CMD in config.bash)"* ]]; } \
-	&& _pass Etj4gGf "gate steps" \
-	|| _fail Etj4gGf "gate steps" "steps=[${ceSteps}] $(fCeTail)"
+	&& _pass dedpv "gate steps" \
+	|| _fail dedpv "gate steps" "steps=[${ceSteps}] $(fCeTail)"
 
 ## Machine use. Half the CPUs, a quarter when the 1-minute load is over half the
 ## CPU count, a quarter for the heavy steps either way, and never under 1.
@@ -2838,8 +2873,8 @@ for mjCase in "32 10.00 16 8 0" "32 16.00 16 8 0" "32 16.01 8 8 1" "32 16 16 8 0
 	"4 3 1 1 1" "2 0 1 1 0" "1 0.51 1 1 1" "1 0.50 1 1 0" "0 0 1 1 0" "x y 1 1 0" "08 09.08 2 2 1" "32 1.5.3 16 8 0"; do
 	read -r mjCpus mjLoad mjWant <<<"${mjCase}"
 	mjGot="$( source "${meDir}/utility/include/machine-use.bash"; fMachineJobs "${mjCpus}" "${mjLoad}"; echo "${machineJobs} ${machineJobsHeavy} ${machineBusy}" )"
-	[[ "${mjGot}" == "${mjWant}" ]] && _pass EtixvQc "job counts: ${mjCpus} CPUs, load ${mjLoad}" \
-		|| _fail EtixvQc "job counts: ${mjCpus} CPUs, load ${mjLoad}" "want=[${mjWant}] got=[${mjGot}]"
+	[[ "${mjGot}" == "${mjWant}" ]] && _pass dednt "job counts: ${mjCpus} CPUs, load ${mjLoad}" \
+		|| _fail dednt "job counts: ${mjCpus} CPUs, load ${mjLoad}" "want=[${mjWant}] got=[${mjGot}]"
 done
 ## A run on 16 CPUs at load 2 that stays that way: every step at nice 19 and
 ## idle I/O, the harness and lint at 8, and the heavy steps at 4 anyway.
@@ -2847,25 +2882,25 @@ ceLoad="${ceDir}/loadavg"; mjLog="${ceDir}/jobs.log"
 echo "2.00 1.00 1.00 1/100 1" >"${ceLoad}"; : >"${mjLog}"
 CE_JOBS="${mjLog}" CE_NPROC=16 CE_LOADAVG="${ceLoad}" CE_GOFLAGS="-mod=mod -p=99 -parallel=99" fCeRun -y
 mjJobs="$(<"${mjLog}")"; mjIo="none"; if command -v ionice >/dev/null 2>&1; then mjIo="idle"; fi
-grep -qxF "nice=19 io=${mjIo}" <<<"${mjJobs}" && _pass EtixvQd "the run is at nice 19 and idle I/O" \
-	|| _fail EtixvQd "the run is at nice 19 and idle I/O" "jobs=[${mjJobs}] $(fCeTail)"
+grep -qxF "nice=19 io=${mjIo}" <<<"${mjJobs}" && _pass dednv "the run is at nice 19 and idle I/O" \
+	|| _fail dednv "the run is at nice 19 and idle I/O" "jobs=[${mjJobs}] $(fCeTail)"
 { ((ceRc == 0)) && grep -qxF "harness GOMAXPROCS=8 GOFLAGS=-mod=mod -p=8 -parallel=8 CARGO_BUILD_JOBS=8 RAYON_NUM_THREADS=8 CPU_CAP=8 GO19CONCURRENTCOMPILATION=0" <<<"${mjJobs}" \
 	&& grep -qxF "lint --concurrency=8" <<<"${mjJobs}" && grep -qxF "cross GOMAXPROCS=8" <<<"${mjJobs}" \
 	&& [[ "${ceOut}" == *"Jobs ................: 8 jobs, 4 for the heavy steps (load 2.00 on 16 CPUs)"* && "${ceOut}" != *"jobs now"* ]]; } \
-	&& _pass EtixvQe "half the CPUs for a step on a quiet box" \
-	|| _fail EtixvQe "half the CPUs for a step on a quiet box" "jobs=[${mjJobs}] $(fCeTail)"
+	&& _pass dednw "half the CPUs for a step on a quiet box" \
+	|| _fail dednw "half the CPUs for a step on a quiet box" "jobs=[${mjJobs}] $(fCeTail)"
 { grep -qE '^fuzz GOMAXPROCS=4 .* -parallel 4 \.$' <<<"${mjJobs}" && grep -qxF "race GOMAXPROCS=4 GOFLAGS=-mod=mod -p=4 -parallel=4" <<<"${mjJobs}" \
 	&& grep -qxF "soak GOMAXPROCS=4" <<<"${mjJobs}" && grep -qxF "codeql GOMAXPROCS=4" <<<"${mjJobs}"; } \
-	&& _pass EtixvQf "a quarter for fuzz, race, soak and CodeQL on a quiet box" \
-	|| _fail EtixvQf "a quarter for fuzz, race, soak and CodeQL on a quiet box" "jobs=[${mjJobs}]"
+	&& _pass dednx "a quarter for fuzz, race, soak and CodeQL on a quiet box" \
+	|| _fail dednx "a quarter for fuzz, race, soak and CodeQL on a quiet box" "jobs=[${mjJobs}]"
 ## The box gets busy during the tests, so the next step drops to a quarter.
 echo "2.00 1.00 1.00 1/100 1" >"${ceLoad}"; : >"${mjLog}"
 CE_JOBS="${mjLog}" CE_NPROC=16 CE_LOADAVG="${ceLoad}" CE_LOAD_LATER="12.00" fCeRun -y
 mjJobs="$(<"${mjLog}")"
 { ((ceRc == 0)) && grep -qE '^harness GOMAXPROCS=8 ' <<<"${mjJobs}" && grep -qxF "cross GOMAXPROCS=4" <<<"${mjJobs}" \
 	&& [[ "${ceOut}" == *"jobs now 4 jobs, 4 for the heavy steps (load 12.00 on 16 CPUs, busy)"* ]]; } \
-	&& _pass EtixvQg "load checked again before each step" \
-	|| _fail EtixvQg "load checked again before each step" "jobs=[${mjJobs}] $(fCeTail)"
+	&& _pass dedny "load checked again before each step" \
+	|| _fail dedny "load checked again before each step" "jobs=[${mjJobs}] $(fCeTail)"
 ## In a container nproc counts the host's CPUs, so the --cpus it got is the most.
 for mjCase in "2 2 2" "6 6 4" "99 8 4"; do
 	read -r mjMax mjWant mjWantHeavy <<<"${mjCase}"
@@ -2874,8 +2909,8 @@ for mjCase in "2 2 2" "6 6 4" "99 8 4"; do
 	mjJobs="$(<"${mjLog}")"
 	{ ((ceRc == 0)) && grep -qE "^harness GOMAXPROCS=${mjWant} " <<<"${mjJobs}" && grep -qE "^race GOMAXPROCS=${mjWantHeavy} " <<<"${mjJobs}" \
 		&& [[ "${ceOut}" == *"at most ${mjMax} in this container)"* ]]; } \
-		&& _pass EtiyAAx "in a container, at most its --cpus: ${mjMax}" \
-		|| _fail EtiyAAx "in a container, at most its --cpus: ${mjMax}" "jobs=[${mjJobs}] $(fCeTail)"
+		&& _pass dedp0 "in a container, at most its --cpus: ${mjMax}" \
+		|| _fail dedp0 "in a container, at most its --cpus: ${mjMax}" "jobs=[${mjJobs}] $(fCeTail)"
 done
 rm -rf "${ceRepo}/dist"
 
@@ -2884,14 +2919,14 @@ rm -rf "${ceRepo}/dist"
 CE_DEST="${ceDir}/home/bin" fCeRun -y
 ceOk=0; { ((ceRc == 0)) && [[ -f "${ceDir}/home/bin/cbv-test" && "${ceOut}" == *"OK: installed -> "* ]]; } && ceOk=1
 CE_DEST="${ceDir}/home/bin" CE_CPFAIL="${ceDir}/home/bin" fCeRun -y
-{ ((ceOk && ceRc == 1)) && [[ "${ceOut}" == *"could not install"* && "${ceOut}" != *"OK: installed"* && -z "${ceSudo}" ]]; } && _pass ErmCp2J "dogfood: failed copy under HOME" \
-	|| _fail ErmCp2J "dogfood: failed copy under HOME" "good copy ok=${ceOk}; sudo=[${ceSudo}] $(fCeTail)"
+{ ((ceOk && ceRc == 1)) && [[ "${ceOut}" == *"could not install"* && "${ceOut}" != *"OK: installed"* && -z "${ceSudo}" ]]; } && _pass ddgmk "dogfood: failed copy under HOME" \
+	|| _fail ddgmk "dogfood: failed copy under HOME" "good copy ok=${ceOk}; sudo=[${ceSudo}] $(fCeTail)"
 CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun -y
-{ ((ceRc == 1)) && [[ -z "${ceSudo}" && "${ceOut}" != *"OK: installed"* ]]; } && _pass ErmCp2K "dogfood: unattended, no sudo" \
-	|| _fail ErmCp2K "dogfood: unattended, no sudo" "sudo=[${ceSudo}] $(fCeTail)"
+{ ((ceRc == 1)) && [[ -z "${ceSudo}" && "${ceOut}" != *"OK: installed"* ]]; } && _pass ddgmm "dogfood: unattended, no sudo" \
+	|| _fail ddgmm "dogfood: unattended, no sudo" "sudo=[${ceSudo}] $(fCeTail)"
 CE_DEST="${ceDir}/sys" CE_CPFAIL="${ceDir}/sys" fCeRun
-{ ((ceRc == 1)) && [[ "${ceSudo}" == "-n cp -f "* && "${ceOut}" == *"even with sudo -n"* ]]; } && _pass ErmCp2L "dogfood: attended, sudo -n only" \
-	|| _fail ErmCp2L "dogfood: attended, sudo -n only" "sudo=[${ceSudo}] $(fCeTail)"
+{ ((ceRc == 1)) && [[ "${ceSudo}" == "-n cp -f "* && "${ceOut}" == *"even with sudo -n"* ]]; } && _pass ddgmn "dogfood: attended, sudo -n only" \
+	|| _fail ddgmn "dogfood: attended, sudo -n only" "sudo=[${ceSudo}] $(fCeTail)"
 
 ## The cross builds, with dirs from a file outside the repo: each goes to the
 ## first dir that exists, under its own name, and only when stage 6 made it this
@@ -2907,26 +2942,26 @@ fCeCrossClean(){ rm -rf "${ceDir}/home/win" "${ceDir}/home/mac" "${ceRepo}/dist"
 fCeCrossNone(){ [[ -z "$(ls -A "${ceDir}/home/win")$(ls -A "${ceDir}/home/mac")" ]]; }
 fCeCrossClean; CE_CROSS=1 CE_LOCAL="../priv/dogfood.bash" fCeRun -y
 { ((ceRc == 0)) && cmp -s "${ceRepo}/dist/cbv-test-windows-x86_64.exe" "${ceDir}/home/win/cbv-test.exe" && cmp -s "${ceRepo}/dist/cbv-test-darwin-universal" "${ceDir}/home/mac/cbv-test" \
-	&& [[ "${ceOut}" == *"OK: installed -> ${ceDir}/home/win/cbv-test.exe"* && ! -e "${ceDir}/home/nope" ]]; } && _pass Esj2PpU "dogfood: cross builds to the local file's dirs" \
-	|| _fail Esj2PpU "dogfood: cross builds to the local file's dirs" "$(fCeTail)"
+	&& [[ "${ceOut}" == *"OK: installed -> ${ceDir}/home/win/cbv-test.exe"* && ! -e "${ceDir}/home/nope" ]]; } && _pass ddys8 "dogfood: cross builds to the local file's dirs" \
+	|| _fail ddys8 "dogfood: cross builds to the local file's dirs" "$(fCeTail)"
 fCeCrossClean; mkdir -p "${ceRepo}/dist"; echo stale >"${ceRepo}/dist/cbv-test-windows-x86_64.exe"
 CE_LOCAL="../priv/dogfood.bash" fCeRun -y
-{ ((ceRc == 0)) && fCeCrossNone && [[ "${ceOut}" == *"the cross + package step didn't run"* ]]; } && _pass Esj2Pq1 "dogfood: no cross copy without stage 6" \
-	|| _fail Esj2Pq1 "dogfood: no cross copy without stage 6" "$(fCeTail)"
+{ ((ceRc == 0)) && fCeCrossNone && [[ "${ceOut}" == *"the cross + package step didn't run"* ]]; } && _pass ddys9 "dogfood: no cross copy without stage 6" \
+	|| _fail ddys9 "dogfood: no cross copy without stage 6" "$(fCeTail)"
 fCeCrossClean; CE_CROSS=1 CE_LOCAL="../priv/dogfood.bash" fCeRun -y --no-dogfood
-{ ((ceRc == 0)) && [[ -f "${ceRepo}/dist/cbv-test-windows-x86_64.exe" ]] && fCeCrossNone; } && _pass Esj2PqY "dogfood: --no-dogfood skips the cross builds" \
-	|| _fail Esj2PqY "dogfood: --no-dogfood skips the cross builds" "$(fCeTail)"
+{ ((ceRc == 0)) && [[ -f "${ceRepo}/dist/cbv-test-windows-x86_64.exe" ]] && fCeCrossNone; } && _pass ddysa "dogfood: --no-dogfood skips the cross builds" \
+	|| _fail ddysa "dogfood: --no-dogfood skips the cross builds" "$(fCeTail)"
 rm -rf "${ceRepo}/dist"
 ## The public config names no personal dir.
-if grep -nE '/synced/|/Dropbox/|/mnt/zfs/' "${meDir}/config.bash" >"${CBT_OUT}"; then _fail Esj2Pr6 "config.bash names no personal dir" "$(tr '\n' ' ' <"${CBT_OUT}")"
-else _pass Esj2Pr6 "config.bash names no personal dir"; fi
+if grep -nE '/synced/|/Dropbox/|/mnt/zfs/' "${meDir}/config.bash" >"${CBT_OUT}"; then _fail ddysb "config.bash names no personal dir" "$(tr '\n' ' ' <"${CBT_OUT}")"
+else _pass ddysb "config.bash names no personal dir"; fi
 
 ## A missing tool warns, except under CICD_NO_SKIP, where it fails the run.
 CE_VULN=1 fCeRun -y; ceWarned=0
 { ((ceRc == 0)) && [[ "${ceOut}" == *"WARNING: govulncheck skipped"* ]]; } && ceWarned=1
 CE_VULN=1 CE_NO_SKIP=1 fCeRun -y
-{ ((ceWarned && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: govulncheck skipped"* && "${ceOut}" != *"OK: tests passed"* ]]; } && _pass EsJjVtL "missing tool under NO_SKIP" \
-	|| _fail EsJjVtL "missing tool under NO_SKIP" "warned=${ceWarned} $(fCeTail)"
+{ ((ceWarned && ceRc == 1)) && [[ "${ceOut}" == *"FAILED: govulncheck skipped"* && "${ceOut}" != *"OK: tests passed"* ]]; } && _pass ddrpg "missing tool under NO_SKIP" \
+	|| _fail ddrpg "missing tool under NO_SKIP" "warned=${ceWarned} $(fCeTail)"
 
 ## --container, against a docker that logs what it's asked. The image is
 ## tagged by a hash, built when missing with the pins as build args and the
@@ -2940,37 +2975,37 @@ CE_NPROC=16 CE_LOADAVG="${ceLoad}" CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun
 ceTag="$(fCeTag)"
 ## Retired 2026-10-25 by the container reset items: the build and run lines
 ## now have labels and a name, and old tags go only after a pass, at the end.
-## Etil6xK and Etil6xL check the same things.
+## dedm7 and dedm8 check the same things.
 #{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ ]] \
 #	&& grep -qxF "build -t ${ceTag} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
-#	&& grep -qxF "rmi cbv-test-cicd:0ld0ld0ld0ld" <<<"${ceDocker}"; } && _pass EsJjVuH "--container image rebuild" \
-#	|| _fail EsJjVuH "--container image rebuild" "docker=[${ceDocker}] $(fCeTail)"
+#	&& grep -qxF "rmi cbv-test-cicd:0ld0ld0ld0ld" <<<"${ceDocker}"; } && _pass ddrph "--container image rebuild" \
+#	|| _fail ddrph "--container image rebuild" "docker=[${ceDocker}] $(fCeTail)"
 ceTz=""; [[ -e /etc/localtime ]] && ceTz=" -v /etc/localtime:/etc/localtime:ro"
 #ceRunWant="run --rm --init --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
-#grep -qxF "${ceRunWant}" <<<"${ceDocker}" && _pass EsJjVvF "--container user and repo path" \
-#	|| _fail EsJjVvF "--container user and repo path" "want=[${ceRunWant}] docker=[${ceDocker}]"
+#grep -qxF "${ceRunWant}" <<<"${ceDocker}" && _pass ddrpj "--container user and repo path" \
+#	|| _fail ddrpj "--container user and repo path" "want=[${ceRunWant}] docker=[${ceDocker}]"
 ## Everything the run makes in docker has the project and run labels, and the
 ## container a name from both.
 ceRunName="$(sed -n 's/^build .*--label dev\.run=\([^ ]*\) .*/\1/p' <<<"${ceDocker}")"
 ceLabels="--label dev.project=cbv-test --label dev.run=${ceRunName}"
 ## Retired 2026-10-25 by the CPU and priority reset item: the run line now
-## has a CPU limit. EtixvQh checks the same things, and the limit.
+## has a CPU limit. dednz checks the same things, and the limit.
 #ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunName}-stages ${ceLabels} --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
 #{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceRunName}" == cicd-run.* ]] \
 #	&& grep -qxF "build -t ${ceTag} ${ceLabels} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
 #	&& grep -qxF "volume create ${ceLabels} cbv-test-cache" <<<"${ceDocker}" && grep -qxF "${ceRunWant}" <<<"${ceDocker}"; } \
-#	&& _pass Etil6xK "--container build, volume and run are labeled" \
-#	|| _fail Etil6xK "--container build, volume and run are labeled" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
+#	&& _pass dedm7 "--container build, volume and run are labeled" \
+#	|| _fail dedm7 "--container build, volume and run are labeled" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
 ## The container also gets the run's job count, 8 of 16 CPUs here, as its CPU
 ## limit and a low share, since nice on the docker client stops there.
 ## Retired 2026-10-25 by the step output reset item: the run line now has
-## the step list. Etj4gEu checks the same things, and the list.
+## the step list. dedps checks the same things, and the list.
 #ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunName}-stages ${ceLabels} --cpus 8 --cpu-shares 256 -e CICD_JOBS_MAX=8 --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
 #{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceRunName}" == cicd-run.* ]] \
 #	&& grep -qxF "build -t ${ceTag} ${ceLabels} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
 #	&& grep -qxF "volume create ${ceLabels} cbv-test-cache" <<<"${ceDocker}" && grep -qxF "${ceRunWant}" <<<"${ceDocker}"; } \
-#	&& _pass EtixvQh "--container build, volume and run are labeled, and the run has a CPU limit" \
-#	|| _fail EtixvQh "--container build, volume and run are labeled, and the run has a CPU limit" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
+#	&& _pass dednz "--container build, volume and run are labeled, and the run has a CPU limit" \
+#	|| _fail dednz "--container build, volume and run are labeled, and the run has a CPU limit" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
 ## The steps are numbered across both runs, so the one inside gets the host's
 ## list: the container's steps, then the profiler, dogfood, screenshots and
 ## publish, as far as each is on.
@@ -2978,8 +3013,8 @@ ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunN
 { ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceRunName}" == cicd-run.* ]] \
 	&& grep -qxF "build -t ${ceTag} ${ceLabels} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
 	&& grep -qxF "volume create ${ceLabels} cbv-test-cache" <<<"${ceDocker}" && grep -qxF "${ceRunWant}" <<<"${ceDocker}"; } \
-	&& _pass Etj4gEu "--container build, volume and run are labeled, and the run has a CPU limit and the step list" \
-	|| _fail Etj4gEu "--container build, volume and run are labeled, and the run has a CPU limit and the step list" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
+	&& _pass dedps "--container build, volume and run are labeled, and the run has a CPU limit and the step list" \
+	|| _fail dedps "--container build, volume and run are labeled, and the run has a CPU limit and the step list" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
 ## After a pass: the run's containers, then the dangling images and every older
 ## tag but the newest, then the week-old build cache. Each lookup is by label,
 ## and nothing is forced or pruned system-wide.
@@ -2990,27 +3025,27 @@ ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | 
 	&& grep -qxF "image ls cbv-test-cicd --filter label=dev.project=cbv-test --format {{.Repository}}:{{.Tag}}" <<<"${ceDocker}" \
 	&& [[ "${ceOut}" == *"[ docker cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB); about 0.0 GB freed ]"* ]] \
 	&& [[ "$(grep -n 'docker cleanup' <<<"${ceOut}" | cut -d: -f1)" -lt "$(grep -n 'CI/CD: done' <<<"${ceOut}" | cut -d: -f1)" ]]; } \
-	&& _pass Etil6xL "docker cleanup after a pass" \
-	|| _fail Etil6xL "docker cleanup after a pass" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
+	&& _pass dedm8 "docker cleanup after a pass" \
+	|| _fail dedm8 "docker cleanup after a pass" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
 ceStepsCont="$(fCeSteps)"
 { ((ceRc == 0)) && [[ "${ceOut}" == *"inner run"* && "${ceOut}" == *"Step 4 of 4; Starting Dogfood"* && "${ceOut}" == *"OK: installed -> "* \
-	&& "${ceOut}" != *"Starting Native build"* && "${ceOut}" != *"OK: integration harness"* && "${ceOut}" != *"Starting Cross"* ]]; } && _pass EsJjVwL "--container host stages" \
-	|| _fail EsJjVwL "--container host stages" "$(fCeTail)"
+	&& "${ceOut}" != *"Starting Native build"* && "${ceOut}" != *"OK: integration harness"* && "${ceOut}" != *"Starting Cross"* ]]; } && _pass ddrpk "--container host stages" \
+	|| _fail ddrpk "--container host stages" "$(fCeTail)"
 ## The host run's steps take up the numbers after the container's, and the run
 ## inside numbers its own from the list it's handed, with no first section.
 CE_INSIDE=1 CE_STEPS="Native build|Tests|Dogfood" fCeRun -y; ceSteps="$(fCeSteps)"
 { ((ceRc == 0)) && [[ "${ceStepsCont}" == "4/4 Dogfood PASS;" && "${ceSteps}" == "1/3 Native build PASS;2/3 Tests PASS;" ]] \
 	&& [[ "${ceOut}" != *"local CI/CD"* && "${ceOut}" != *"Turned off"* && "${ceOut}" != *"container part done"* ]]; } \
-	&& _pass Etj4gE6 "step numbers across the container and host runs" \
-	|| _fail Etj4gE6 "step numbers across the container and host runs" "host=[${ceStepsCont}] inside=[${ceSteps}] $(fCeTail)"
+	&& _pass dedpr "step numbers across the container and host runs" \
+	|| _fail dedpr "step numbers across the container and host runs" "host=[${ceStepsCont}] inside=[${ceSteps}] $(fCeTail)"
 CE_HAVE_IMAGE=1 CE_RUN_RC=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container
-{ ((ceRc == 1)) && [[ "${ceOut}" == *"the run in the container failed"* && "${ceOut}" != *"OK: installed"* && "${ceDocker}" != *"build "* ]]; } && _pass EsJjVxK "--container inner failure" \
-	|| _fail EsJjVxK "--container inner failure" "docker=[${ceDocker}] $(fCeTail)"
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"the run in the container failed"* && "${ceOut}" != *"OK: installed"* && "${ceDocker}" != *"build "* ]]; } && _pass ddrpm "--container inner failure" \
+	|| _fail ddrpm "--container inner failure" "docker=[${ceDocker}] $(fCeTail)"
 ## A failed run cleans up too, but keeps the older tags, since nothing newer passed.
 ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
 { ((ceRc == 1)) && [[ "${ceGone}" == "rm -f c0ffeec0ffee;rmi d4ngl3d4ngl3;builder prune -f --filter until=168h;" && "${ceOut}" == *"docker cleanup: removed"* ]]; } \
-	&& _pass Etil6xM "docker cleanup after a failure" \
-	|| _fail Etil6xM "docker cleanup after a failure" "gone=[${ceGone}] $(fCeTail)"
+	&& _pass dedm9 "docker cleanup after a failure" \
+	|| _fail dedm9 "docker cleanup after a failure" "gone=[${ceGone}] $(fCeTail)"
 ## So does Ctrl+C in the middle of the container run or the image build, and
 ## it stops the run rather than go on to the host stages.
 for ceSig in self proxy build; do
@@ -3021,15 +3056,15 @@ for ceSig in self proxy build; do
 	ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
 	{ ((ceRc == 130)) && [[ "${ceGone}" == "rm -f c0ffeec0ffee;rmi d4ngl3d4ngl3;builder prune -f --filter until=168h;" && -z "${ceTmp}" ]] \
 		&& [[ "${ceOut}" == *"STOPPED: Ctrl+C"* && "${ceOut}" != *"inner run"* && "${ceOut}" != *"OK: installed"* && "${ceOut}" != *"; Starting "* ]]; } \
-		&& _pass Etil6xN "docker cleanup after Ctrl+C: ${ceSig}" \
-		|| _fail Etil6xN "docker cleanup after Ctrl+C: ${ceSig}" "gone=[${ceGone}] $(fCeTail)"
+		&& _pass dedma "docker cleanup after Ctrl+C: ${ceSig}" \
+		|| _fail dedma "docker cleanup after Ctrl+C: ${ceSig}" "gone=[${ceGone}] $(fCeTail)"
 done
 ## --keep-temp keeps the run's containers, and says which.
 CE_HAVE_IMAGE=1 fCeRun -y --container --keep-temp
 ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
 { ((ceRc == 0)) && grep -qE '^run --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-cicd-run\.[^ ]+-stages ' <<<"${ceDocker}" && [[ "${ceGone}" != *"rm -f"* && "${ceGone}" == *"builder prune"* ]] \
-	&& [[ "${ceOut}" == *"[ kept container cbv-test-kept (--keep-temp) ]"* ]]; } && _pass Etil6xO "--keep-temp keeps the containers" \
-	|| _fail Etil6xO "--keep-temp keeps the containers" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
+	&& [[ "${ceOut}" == *"[ kept container cbv-test-kept (--keep-temp) ]"* ]]; } && _pass dedmb "--keep-temp keeps the containers" \
+	|| _fail dedmb "--keep-temp keeps the containers" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
 ## The cache volume goes once it's over the cap, and only when it's labeled ours.
 ceVol=""
 for ceCase in "cbv-test 2.5GB" "cbv-test 1.5GB" "other 9GB" " 9GB"; do
@@ -3037,48 +3072,48 @@ for ceCase in "cbv-test 2.5GB" "cbv-test 1.5GB" "other 9GB" " 9GB"; do
 	CE_HAVE_IMAGE=1 CE_HAVE_VOL=1 CE_VOL_PROJ="${ceProj}" CE_VOL_SIZE="${ceSize}" fCeRun -y --container
 	ceVol+="${ceRc}:$(grep -c '^volume rm cbv-test-cache$' <<<"${ceDocker}" || true):$(grep -c '^volume create' <<<"${ceDocker}" || true):$(grep -c 'has no dev.project=cbv-test label' <<<"${ceOut}" || true);"
 done
-[[ "${ceVol}" == "0:1:0:0;0:0:0:0;0:0:0:1;0:0:0:1;" ]] && _pass Etil6xP "cache volume emptied over the cap, ours only" \
-	|| _fail Etil6xP "cache volume emptied over the cap, ours only" "got=[${ceVol}] $(fCeTail)"
+[[ "${ceVol}" == "0:1:0:0;0:0:0:0;0:0:0:1;0:0:0:1;" ]] && _pass dedmc "cache volume emptied over the cap, ours only" \
+	|| _fail dedmc "cache volume emptied over the cap, ours only" "got=[${ceVol}] $(fCeTail)"
 ## The gif's fallback fonts are pinned only in the container, so a host run
 ## leaves it alone rather than flip it back and forth.
 rm -f "${ceRepo}/gif/demo.gif"; CE_GIF=1 fCeRun -y; ceGifHost=0; [[ -e "${ceRepo}/gif/demo.gif" ]] && ceGifHost=1
 CE_GIF=1 CE_INSIDE=1 fCeRun -y
-{ ((ceRc == 0 && ! ceGifHost)) && [[ -s "${ceRepo}/gif/demo.gif" ]]; } && _pass EsJpWaD "demo gif container-only" \
-	|| _fail EsJpWaD "demo gif container-only" "host made it: ${ceGifHost}; $(fCeTail)"
+{ ((ceRc == 0 && ! ceGifHost)) && [[ -s "${ceRepo}/gif/demo.gif" ]]; } && _pass ddrq7 "demo gif container-only" \
+	|| _fail ddrq7 "demo gif container-only" "host made it: ${ceGifHost}; $(fCeTail)"
 ## --leakcheck goes to the run inside, as --long does.
 CE_HAVE_IMAGE=1 fCeRun -y --container --quick --leakcheck
-{ ((ceRc == 0)) && grep -qE '^run .* --no-publish --quick --leakcheck$' <<<"${ceDocker}"; } && _pass Et9VxYE "--leakcheck reaches the container run" \
-	|| _fail Et9VxYE "--leakcheck reaches the container run" "docker=[${ceDocker}] $(fCeTail)"
+{ ((ceRc == 0)) && grep -qE '^run .* --no-publish --quick --leakcheck$' <<<"${ceDocker}"; } && _pass de551 "--leakcheck reaches the container run" \
+	|| _fail de551 "--leakcheck reaches the container run" "docker=[${ceDocker}] $(fCeTail)"
 CE_HAVE_IMAGE=1 fCeRun -y --container --no-leakcheck
-{ ((ceRc == 0)) && grep -qE '^run .* --no-publish --no-leakcheck$' <<<"${ceDocker}"; } && _pass EtAaQDY "--no-leakcheck reaches the container run" \
-	|| _fail EtAaQDY "--no-leakcheck reaches the container run" "docker=[${ceDocker}] $(fCeTail)"
+{ ((ceRc == 0)) && grep -qE '^run .* --no-publish --no-leakcheck$' <<<"${ceDocker}"; } && _pass de5d8 "--no-leakcheck reaches the container run" \
+	|| _fail de5d8 "--no-leakcheck reaches the container run" "docker=[${ceDocker}] $(fCeTail)"
 CE_INSIDE=1 fCeRun -y --container
-{ ((ceRc == 2)) && [[ "${ceOut}" == *"--container is for the host"* && -z "${ceDocker}" ]]; } && _pass EsJjVyJ "--container is refused inside the container" \
-	|| _fail EsJjVyJ "--container is refused inside the container" "docker=[${ceDocker}] $(fCeTail)"
+{ ((ceRc == 2)) && [[ "${ceOut}" == *"--container is for the host"* && -z "${ceDocker}" ]]; } && _pass ddrpn "--container is refused inside the container" \
+	|| _fail ddrpn "--container is refused inside the container" "docker=[${ceDocker}] $(fCeTail)"
 
 ## A missing context builds from an empty dir, which is removed after, gets its
 ## own tag, and the run inside gets CONTAINER_CONTEXT_MISSING.
 CE_CTX=nope fCeRun -y --container
 ceCtx="$(sed -n 's/.*--build-context ctx=\([^ ]*\) .*/\1/p' <<<"${ceDocker}")"
 { ((ceRc == 0)) && [[ -n "${ceCtx}" && "${ceCtx}" != *ctxdir* && ! -e "${ceCtx}" && "$(fCeTag)" != "${ceTag}" ]] \
-	&& grep -qE '^run .* --no-publish --no-demogif$' <<<"${ceDocker}"; } && _pass EsKCVVh "missing build context" \
-	|| _fail EsKCVVh "missing build context" "ctx=[${ceCtx}] docker=[${ceDocker}] $(fCeTail)"
+	&& grep -qE '^run .* --no-publish --no-demogif$' <<<"${ceDocker}"; } && _pass ddrt2 "missing build context" \
+	|| _fail ddrt2 "missing build context" "ctx=[${ceCtx}] docker=[${ceDocker}] $(fCeTail)"
 ## A failed build used to leave that empty dir in TMPDIR.
 CE_CTX=nope CE_BUILD_RC=1 fCeRun -y --container
 ## Retired 2026-10-25: a failed build now runs the stages on the host, so the
-## run passes. Etil6xR checks TMPDIR the same way.
-#{ ((ceRc == 1)) && [[ "${ceOut}" == *"could not build cbv-test-cicd:"* && -z "${ceTmp}" ]]; } && _pass EtAgsPA "failed image build leaves nothing in TMPDIR" \
-#	|| _fail EtAgsPA "failed image build leaves nothing in TMPDIR" "docker=[${ceDocker}] $(fCeTail)"
+## run passes. dedme checks TMPDIR the same way.
+#{ ((ceRc == 1)) && [[ "${ceOut}" == *"could not build cbv-test-cicd:"* && -z "${ceTmp}" ]]; } && _pass de5e3 "failed image build leaves nothing in TMPDIR" \
+#	|| _fail de5e3 "failed image build leaves nothing in TMPDIR" "docker=[${ceDocker}] $(fCeTail)"
 { ((ceRc == 0)) && [[ "${ceOut}" == *"NOTE: could not build cbv-test-cicd:"*", so the container steps run on the host"* && "${ceOut}" == *"OK: integration harness"* ]] \
 	&& [[ -z "${ceTmp}" && "${ceOut}" != *"inner run"* ]] && ! grep -q '^run ' <<<"${ceDocker}" && grep -q '^builder prune' <<<"${ceDocker}"; } \
-	&& _pass Etil6xR "failed image build runs on the host" \
-	|| _fail Etil6xR "failed image build runs on the host" "docker=[${ceDocker}] $(fCeTail)"
+	&& _pass dedme "failed image build runs on the host" \
+	|| _fail dedme "failed image build runs on the host" "docker=[${ceDocker}] $(fCeTail)"
 ## Planned with the demo gif in the container, which a host run doesn't make,
 ## so the steps are counted again.
 CE_GIF=1 CE_BUILD_RC=1 fCeRun -y --container; ceSteps="$(fCeSteps)"
 { ((ceRc == 0)) && [[ "${ceOut}" == *"cbv-test local CI/CD: 3 steps ]"* && "${ceSteps}" == "1/2 Native build PASS;2/2 Tests PASS;" ]]; } \
-	&& _pass Etj4gFi "failed image build counts the steps again" \
-	|| _fail Etj4gFi "failed image build counts the steps again" "steps=[${ceSteps}] $(fCeTail)"
+	&& _pass dedpt "failed image build counts the steps again" \
+	|| _fail dedpt "failed image build counts the steps again" "steps=[${ceSteps}] $(fCeTail)"
 ## No docker, or one with no daemon to answer, runs every stage here with a
 ## note, whether asked for or the default.
 ceNoDocker=""
@@ -3090,8 +3125,8 @@ for ceCase in missing daemon default; do
 	esac
 	ceNoDocker+="${ceCase}:${ceRc}:$(grep -c '^\[ NOTE: no working docker here, so every step runs on the host \]$' <<<"${ceOut}" || true):$(grep -c 'OK: integration harness' <<<"${ceOut}" || true):$(grep -cvE '^(version |$)' <<<"${ceDocker}" || true);"
 done
-[[ "${ceNoDocker}" == "missing:0:1:1:0;daemon:0:1:1:0;default:0:1:1:0;" ]] && _pass Etil6xQ "no working docker runs on the host" \
-	|| _fail Etil6xQ "no working docker runs on the host" "got=[${ceNoDocker}] $(fCeTail)"
+[[ "${ceNoDocker}" == "missing:0:1:1:0;daemon:0:1:1:0;default:0:1:1:0;" ]] && _pass dedmd "no working docker runs on the host" \
+	|| _fail dedmd "no working docker runs on the host" "got=[${ceNoDocker}] $(fCeTail)"
 
 ## Hosted CI builds the image under the tag --image-tag prints, before the
 ## run, so that has to be the tag the run looks for, with the context there or
@@ -3101,24 +3136,24 @@ for ceCtxCase in ctxdir nope; do
 	CE_CTX="${ceCtxCase}" fCeRun --image-tag; ceTagOut="${ceOut}"; ceTagRc="${ceRc}"; ceTagDocker="${ceDocker}"
 	CE_CTX="${ceCtxCase}" CE_HAVE_IMAGE=1 CE_PREBUILT=1 fCeRun -y --container
 	{ ((ceTagRc == 0 && ceRc == 0)) && [[ -z "${ceTagDocker}" && "${ceTagOut}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceTagOut}" == "$(fCeTag)" && "${ceTagGot}" != "${ceTagOut}" ]] \
-		&& grep -q '^run ' <<<"${ceDocker}"; } && _pass Et9eteN "--image-tag is the tag a run uses: context ${ceCtxCase}" \
-		|| _fail Et9eteN "--image-tag is the tag a run uses: context ${ceCtxCase}" "printed=[${ceTagOut}] rc=${ceTagRc} docker=[${ceDocker}] $(fCeTail)"
+		&& grep -q '^run ' <<<"${ceDocker}"; } && _pass de563 "--image-tag is the tag a run uses: context ${ceCtxCase}" \
+		|| _fail de563 "--image-tag is the tag a run uses: context ${ceCtxCase}" "printed=[${ceTagOut}] rc=${ceTagRc} docker=[${ceDocker}] $(fCeTail)"
 	ceTagGot="${ceTagOut}"
 done
 CE_PREBUILT=1 fCeRun -y --container
-{ ((ceRc == 1)) && [[ "${ceOut}" == *"CICD_IMAGE_PREBUILT=1 says it was built before this run"* && "${ceDocker}" != *"build "* && "${ceDocker}" != *"run "* ]]; } && _pass Et9etf7 "CICD_IMAGE_PREBUILT: no image fails, no build" \
-	|| _fail Et9etf7 "CICD_IMAGE_PREBUILT: no image fails, no build" "docker=[${ceDocker}] $(fCeTail)"
+{ ((ceRc == 1)) && [[ "${ceOut}" == *"CICD_IMAGE_PREBUILT=1 says it was built before this run"* && "${ceDocker}" != *"build "* && "${ceDocker}" != *"run "* ]]; } && _pass de564 "CICD_IMAGE_PREBUILT: no image fails, no build" \
+	|| _fail de564 "CICD_IMAGE_PREBUILT: no image fails, no build" "docker=[${ceDocker}] $(fCeTail)"
 
 ## With CONTAINER_DEFAULT=1 a plain run goes to the container, --host stays
 ## here, and so does a run already inside.
 CE_CONTAINER_DEFAULT=1 fCeRun -y; ceDefRun=0; grep -q '^run ' <<<"${ceDocker}" && ceDefRun=1
 CE_CONTAINER_DEFAULT=1 fCeRun -y --host; ceHostOk=0; { ((ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* ]]; } && ceHostOk=1
 CE_CONTAINER_DEFAULT=1 CE_INSIDE=1 fCeRun -y
-{ ((ceDefRun && ceHostOk && ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass EsKCVWM "CONTAINER_DEFAULT routing" \
-	|| _fail EsKCVWM "CONTAINER_DEFAULT routing" "default ran=${ceDefRun} host ok=${ceHostOk} $(fCeTail)"
+{ ((ceDefRun && ceHostOk && ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass ddrt3 "CONTAINER_DEFAULT routing" \
+	|| _fail ddrt3 "CONTAINER_DEFAULT routing" "default ran=${ceDefRun} host ok=${ceHostOk} $(fCeTail)"
 CE_CONTAINER_DEFAULT=1 fCeRun -y --no-container
-{ ((ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* && "${ceOut}" != *"NOTE: no working"* ]]; } && _pass EtilQ9a "--no-container runs here" \
-	|| _fail EtilQ9a "--no-container runs here" "docker=[${ceDocker}] $(fCeTail)"
+{ ((ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* && "${ceOut}" != *"NOTE: no working"* ]]; } && _pass dedmf "--no-container runs here" \
+	|| _fail dedmf "--no-container runs here" "docker=[${ceDocker}] $(fCeTail)"
 
 ## Lint: shellcheck and ruff check what the engine finds in a git repo of
 ## fixtures. A finding fails the run, and so does finding nothing to check,
@@ -3153,33 +3188,33 @@ EOF
 	fClTail(){ printf 'rc=%s out=[%s]' "${clRc}" "$(grep -E 'OK: (shellcheck|ruff)|FAILED|ABORTED|SC[0-9]{4}|\.py:' "${CBT_OUT}" | head -4 | tr '\n' ' ')"; }
 
 	fClRun
-	{ ((clRc == 0)) && [[ "${clOut}" == *"OK: shellcheck clean (2 files)"* && "${clOut}" == *"OK: ruff clean (1 files)"* ]]; } && _pass ErmroeI "lint file selection" \
-		|| _fail ErmroeI "lint file selection" "$(fClTail)"
+	{ ((clRc == 0)) && [[ "${clOut}" == *"OK: shellcheck clean (2 files)"* && "${clOut}" == *"OK: ruff clean (1 files)"* ]]; } && _pass ddgsh "lint file selection" \
+		|| _fail ddgsh "lint file selection" "$(fClTail)"
 	printf '%s\n' '#!/bin/sh' 'echo $1' >"${clRepo}/tool"
 	fClRun
-	{ ((clRc != 0)) && [[ "${clOut}" == *"tool:2:"*"[SC2086]"* && "${clOut}" != *"OK: shellcheck clean"* ]]; } && _pass Ermroeo "lint: shellcheck finding, no .bash name" \
-		|| _fail Ermroeo "lint: shellcheck finding, no .bash name" "$(fClTail)"
+	{ ((clRc != 0)) && [[ "${clOut}" == *"tool:2:"*"[SC2086]"* && "${clOut}" != *"OK: shellcheck clean"* ]]; } && _pass ddgsj "lint: shellcheck finding, no .bash name" \
+		|| _fail ddgsj "lint: shellcheck finding, no .bash name" "$(fClTail)"
 	clFound="${clOut}"
 	printf '%s\n' '#!/bin/sh' 'echo "$1"' >"${clRepo}/tool"
 	printf '%s\n' 'import os' >"${clRepo}/bad.py"
 	fClRun
-	{ ((clRc != 0)) && [[ "${clOut}" == *"bad.py:1:"*"F401"* && "${clOut}" != *"OK: ruff clean"* ]]; } && _pass ErmrofR "lint: ruff finding" \
-		|| _fail ErmrofR "lint: ruff finding" "$(fClTail)"
+	{ ((clRc != 0)) && [[ "${clOut}" == *"bad.py:1:"*"F401"* && "${clOut}" != *"OK: ruff clean"* ]]; } && _pass ddgsk "lint: ruff finding" \
+		|| _fail ddgsk "lint: ruff finding" "$(fClTail)"
 	## The startup look at the newest run log has to show both kinds.
 	mkdir -p "${ceDir}/lintlog"; printf '%s\n%s\n' "${clFound}" "${clOut}" >"${ceDir}/lintlog/run_20260101-000000.log"
 	clReport="$(bash "${meDir}/utility/lint-report.bash" --file "${ceDir}/lintlog/run_20260101-000000.log" 2>&1 || true)"
-	{ [[ "${clReport}" == "FLAG "*"tool:2:"*"[SC2086]"* && "${clReport}" == *"bad.py:1:"*"F401"* ]]; } && _pass Ermroh4 "lint-report findings" \
-		|| _fail Ermroh4 "lint-report findings" "report=[${clReport}]"
+	{ [[ "${clReport}" == "FLAG "*"tool:2:"*"[SC2086]"* && "${clReport}" == *"bad.py:1:"*"F401"* ]]; } && _pass ddgsp "lint-report findings" \
+		|| _fail ddgsp "lint-report findings" "report=[${clReport}]"
 	rm -f "${clRepo}/bad.py"
 	CL_SH_EXCLUDE="ok.bash tool" fClRun
-	{ ((clRc != 0)) && [[ "${clOut}" == *"FAILED: shellcheck: no Bash files found to check"* ]]; } && _pass Ermrofy "lint: shellcheck, no files" \
-		|| _fail Ermrofy "lint: shellcheck, no files" "$(fClTail)"
+	{ ((clRc != 0)) && [[ "${clOut}" == *"FAILED: shellcheck: no Bash files found to check"* ]]; } && _pass ddgsm "lint: shellcheck, no files" \
+		|| _fail ddgsm "lint: shellcheck, no files" "$(fClTail)"
 	printf '%s\n' '[tool.ruff]' 'extend-exclude = ["*.py"]' >"${clRepo}/pyproject.toml"
 	fClRun
-	{ ((clRc != 0)) && [[ "${clOut}" == *"FAILED: ruff: no Python files found to check"* && "${clOut}" == *"OK: shellcheck clean"* ]]; } && _pass ErmrogW "lint: ruff, no files" \
-		|| _fail ErmrogW "lint: ruff, no files" "$(fClTail)"
+	{ ((clRc != 0)) && [[ "${clOut}" == *"FAILED: ruff: no Python files found to check"* && "${clOut}" == *"OK: shellcheck clean"* ]]; } && _pass ddgsn "lint: ruff, no files" \
+		|| _fail ddgsn "lint: ruff, no files" "$(fClTail)"
 else
-	_warn "ErmroeI Ermroeo ErmrofR Ermroh4 Ermrofy ErmrogW" "lint stage checks skipped: needs shellcheck and ruff"
+	_warn "ddgsh ddgsj ddgsk ddgsp ddgsm ddgsn" "lint stage checks skipped: needs shellcheck and ruff"
 fi
 
 ## PSScriptAnalyzer takes every tracked PowerShell file, with the real settings
@@ -3205,19 +3240,19 @@ if pwsh -NoProfile -NonInteractive -Command 'Import-Module PSScriptAnalyzer -Err
 	}
 	fPlTail(){ printf 'rc=%s out=[%s]' "${plRc}" "$(grep -E 'PSScriptAnalyzer|FAILED|ABORTED|\.ps1:' "${CBT_OUT}" | head -4 | tr '\n' ' ')"; }
 	fPlRun
-	{ ((plRc == 0)) && [[ "${plOut}" == *"OK: PSScriptAnalyzer clean (3 files)"* ]]; } && _pass Et9uoQG "lint: PSScriptAnalyzer file selection" \
-		|| _fail Et9uoQG "lint: PSScriptAnalyzer file selection" "$(fPlTail)"
+	{ ((plRc == 0)) && [[ "${plOut}" == *"OK: PSScriptAnalyzer clean (3 files)"* ]]; } && _pass de58d "lint: PSScriptAnalyzer file selection" \
+		|| _fail de58d "lint: PSScriptAnalyzer file selection" "$(fPlTail)"
 	printf '%s\n' 'gci .' >"${plRepo}/bad.ps1"
 	fPlRun
-	{ ((plRc != 0)) && [[ "${plOut}" == *"bad.ps1:1:1: warning:"*"[PSAvoidUsingCmdletAliases]"* && "${plOut}" != *"OK: PSScriptAnalyzer clean"* ]]; } && _pass Et9uoQv "lint: PSScriptAnalyzer finding" \
-		|| _fail Et9uoQv "lint: PSScriptAnalyzer finding" "$(fPlTail)"
+	{ ((plRc != 0)) && [[ "${plOut}" == *"bad.ps1:1:1: warning:"*"[PSAvoidUsingCmdletAliases]"* && "${plOut}" != *"OK: PSScriptAnalyzer clean"* ]]; } && _pass de58e "lint: PSScriptAnalyzer finding" \
+		|| _fail de58e "lint: PSScriptAnalyzer finding" "$(fPlTail)"
 	git -C "${plRepo}" rm -q --cached bad.ps1 ok.ps1 PSScriptAnalyzerSettings.psd1 cicd/utility/pssa-lint.ps1
 	printf '%s\n' '*.ps1' '*.psd1' >"${plRepo}/.gitignore"
 	fPlRun
-	{ ((plRc != 0)) && [[ "${plOut}" == *"FAILED: PSScriptAnalyzer: no PowerShell files found to check"* ]]; } && _pass Et9uoRc "lint: PSScriptAnalyzer, no files" \
-		|| _fail Et9uoRc "lint: PSScriptAnalyzer, no files" "$(fPlTail)"
+	{ ((plRc != 0)) && [[ "${plOut}" == *"FAILED: PSScriptAnalyzer: no PowerShell files found to check"* ]]; } && _pass de58f "lint: PSScriptAnalyzer, no files" \
+		|| _fail de58f "lint: PSScriptAnalyzer, no files" "$(fPlTail)"
 else
-	_warn "Et9uoQG Et9uoQv Et9uoRc" "PowerShell lint checks skipped: needs pwsh and PSScriptAnalyzer"
+	_warn "de58d de58e de58f" "PowerShell lint checks skipped: needs pwsh and PSScriptAnalyzer"
 fi
 
 ## Hosted CI. The workflows read their pins from tool-versions.env and name
@@ -3230,8 +3265,8 @@ while IFS='=' read -r wfKey wfVal; do
 	wfPins+="$(grep -rnF -- "${wfVal#v}" "${wfDir}" | sed "s|^${wfDir}/||" || true)"
 done <"${meDir}/tool-versions.env"
 wfUses="$(grep -rhoE 'uses:[[:space:]]*[^[:space:]]+' "${wfDir}" | grep -vE '^uses:[[:space:]]*[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+@v[0-9]+$' || true)"
-{ [[ -z "${wfPins}" && -z "${wfUses}" ]] && grep -qE 'uses:' "${wfDir}/ci.yml"; } && _pass Et9etfx "workflows: no pin of their own, actions by major version" \
-	|| _fail Et9etfx "workflows: no pin of their own, actions by major version" "pins=[${wfPins}] uses=[${wfUses}]"
+{ [[ -z "${wfPins}" && -z "${wfUses}" ]] && grep -qE 'uses:' "${wfDir}/ci.yml"; } && _pass de565 "workflows: no pin of their own, actions by major version" \
+	|| _fail de565 "workflows: no pin of their own, actions by major version" "pins=[${wfPins}] uses=[${wfUses}]"
 ## The pipeline job builds the image as cicd.bash would: the tag it prints,
 ## the pins as build args, and every named context the Dockerfile copies from.
 ## Then the run must find that image rather than build its own.
@@ -3244,18 +3279,18 @@ done
 while read -r wfFrom; do
 	[[ "${wfCi}" == *[[:space:]]"${wfFrom}="* ]] || wfMiss+="[context ${wfFrom}] "
 done < <(sed -n 's/^COPY --from=\([A-Za-z0-9_-]*\) .*/\1/p' "${meDir}/../${wfCtxDir:-none}/Dockerfile" 2>/dev/null)
-{ [[ -n "${wfCtxDir}" && -z "${wfMiss}" ]] && grep -q '^COPY --from=' "${meDir}/../${wfCtxDir}/Dockerfile"; } && _pass Et9etgg "ci.yml builds the image cicd.bash runs" \
-	|| _fail Et9etgg "ci.yml builds the image cicd.bash runs" "missing: ${wfMiss}"
+{ [[ -n "${wfCtxDir}" && -z "${wfMiss}" ]] && grep -q '^COPY --from=' "${meDir}/../${wfCtxDir}/Dockerfile"; } && _pass de566 "ci.yml builds the image cicd.bash runs" \
+	|| _fail de566 "ci.yml builds the image cicd.bash runs" "missing: ${wfMiss}"
 ## Hosted CI gets a new volume each run, a copy of the image's /cache, so a
 ## root-owned dir there broke the Go cache only on the runner. The Dockerfile's
 ## last RUN refuses one at build time; layers after it would get past it.
 wfLastRun="$(grep -E '^RUN ' "${meDir}/../${wfCtxDir:-none}/Dockerfile" 2>/dev/null | tail -n 1)"
-[[ "${wfLastRun}" == *"find /cache/home "* ]] && _pass EtAgsNr "the image's last step checks /cache/home is empty" \
-	|| _fail EtAgsNr "the image's last step checks /cache/home is empty" "last RUN=[${wfLastRun}]"
+[[ "${wfLastRun}" == *"find /cache/home "* ]] && _pass de5e1 "the image's last step checks /cache/home is empty" \
+	|| _fail de5e1 "the image's last step checks /cache/home is empty" "last RUN=[${wfLastRun}]"
 if [[ "${CICD_IN_CONTAINER:-0}" == "1" && "$(id -u)" != "0" ]]; then
 	wfRootOwned="$(find "${HOME}" -mindepth 1 -maxdepth 2 -user 0 2>/dev/null | head -n 5 || true)"
-	[[ -z "${wfRootOwned}" ]] && _pass EtAgsOV "nothing root-owned in the container's HOME" \
-		|| _fail EtAgsOV "nothing root-owned in the container's HOME" "found=[${wfRootOwned//$'\n'/ }]"
+	[[ -z "${wfRootOwned}" ]] && _pass de5e2 "nothing root-owned in the container's HOME" \
+		|| _fail de5e2 "nothing root-owned in the container's HOME" "found=[${wfRootOwned//$'\n'/ }]"
 fi
 
 
@@ -3294,42 +3329,42 @@ fSyHead(){ fSyGit -C "$1" rev-parse HEAD; }
 fSyPushB notes.txt two; printf 'mine\n' >"${syA}/lib/out.note"; printf 'edit\n' >>"${syA}/.gitignore"
 fSyRun
 { ((syRc == 0)) && [[ "${syOut}" == *"OK: fast-forwarded 1 commit(s) from origin/dev"* && "$(fSyHead "${syA}")" == "$(fSyHead "${syB}")" ]] \
-	&& grep -qx edit "${syA}/.gitignore" && [[ -f "${syA}/lib/out.note" && -z "$(fSyGit -C "${syA}" stash list)" ]]; } && _pass EshVwHv "sync: behind, fast-forward" \
-	|| _fail EshVwHv "sync: behind, fast-forward" "$(fSyTail)"
-{ [[ -x "${syA}/.git/hooks/pre-push" ]] && grep -qF 'cicd/utility/pre-push' "${syA}/.git/hooks/pre-push"; } && _pass EshVwIZ "gate hook added" \
-	|| _fail EshVwIZ "gate hook added" "hook=[$(cat "${syA}/.git/hooks/pre-push" 2>&1)]"
+	&& grep -qx edit "${syA}/.gitignore" && [[ -f "${syA}/lib/out.note" && -z "$(fSyGit -C "${syA}" stash list)" ]]; } && _pass ddydg "sync: behind, fast-forward" \
+	|| _fail ddydg "sync: behind, fast-forward" "$(fSyTail)"
+{ [[ -x "${syA}/.git/hooks/pre-push" ]] && grep -qF 'cicd/utility/pre-push' "${syA}/.git/hooks/pre-push"; } && _pass ddydh "gate hook added" \
+	|| _fail ddydh "gate hook added" "hook=[$(cat "${syA}/.git/hooks/pre-push" 2>&1)]"
 fSyGit -C "${syA}" checkout -q -- .gitignore
 
 ## --no-sync leaves it behind.
 fSyPushB notes.txt three; syWas="$(fSyHead "${syA}")"
 fSyRun --no-sync
-{ ((syRc == 0)) && [[ "$(fSyHead "${syA}")" == "${syWas}" && "${syOut}" != *"fast-forwarded"* ]]; } && _pass EshVwJC "sync: --no-sync" \
-	|| _fail EshVwJC "sync: --no-sync" "$(fSyTail)"
+{ ((syRc == 0)) && [[ "$(fSyHead "${syA}")" == "${syWas}" && "${syOut}" != *"fast-forwarded"* ]]; } && _pass ddydj "sync: --no-sync" \
+	|| _fail ddydj "sync: --no-sync" "$(fSyTail)"
 
 ## A change to the pipeline itself starts the run over on the new copy.
 fSyPushB cicd/config.bash '## from b'
 fSyRun
 { ((syRc == 0)) && [[ "${syOut}" == *"OK: fast-forwarded 2 commit(s)"* && "${syOut}" == *"starting over"* && "${syOut}" == *"OK: integration harness"* ]] \
-	&& [[ "$(grep -c 'fast-forwarded' <<<"${syOut}")" == 1 ]]; } && _pass EshVwJp "sync: pipeline changed, restart" \
-	|| _fail EshVwJp "sync: pipeline changed, restart" "$(fSyTail)"
+	&& [[ "$(grep -c 'fast-forwarded' <<<"${syOut}")" == 1 ]]; } && _pass ddydk "sync: pipeline changed, restart" \
+	|| _fail ddydk "sync: pipeline changed, restart" "$(fSyTail)"
 
 ## Diverged stops before anything is built.
 fSyPushB notes.txt four; printf 'a\n' >>"${syA}/notes.txt"; fSyGit -C "${syA}" commit -qam "a"
 fSyRun
-{ ((syRc == 1)) && [[ "${syOut}" == *"have diverged (1 ahead, 1 behind)"* && "${syOut}" != *"; Starting "* ]]; } && _pass EshVwKS "sync: diverged stops" \
-	|| _fail EshVwKS "sync: diverged stops" "$(fSyTail)"
+{ ((syRc == 1)) && [[ "${syOut}" == *"have diverged (1 ahead, 1 behind)"* && "${syOut}" != *"; Starting "* ]]; } && _pass ddydm "sync: diverged stops" \
+	|| _fail ddydm "sync: diverged stops" "$(fSyTail)"
 fSyGit -C "${syA}" reset -q --hard origin/dev
 
 ## No upstream, or no remote to reach, warns and goes on.
 fSyGit -C "${syA}" checkout -q -b solo
 fSyRun
-{ ((syRc == 0)) && [[ "${syOut}" == *"WARNING: no upstream branch"* && "${syOut}" == *"OK: integration harness"* ]]; } && _pass EshVwL6 "sync: no upstream warns" \
-	|| _fail EshVwL6 "sync: no upstream warns" "$(fSyTail)"
+{ ((syRc == 0)) && [[ "${syOut}" == *"WARNING: no upstream branch"* && "${syOut}" == *"OK: integration harness"* ]]; } && _pass ddydn "sync: no upstream warns" \
+	|| _fail ddydn "sync: no upstream warns" "$(fSyTail)"
 fSyGit -C "${syA}" checkout -q dev
 fSyGit -C "${syA}" remote set-url origin "${syDir}/gone.git"
 fSyRun
-{ ((syRc == 0)) && [[ "${syOut}" == *"WARNING: couldn't fetch"* && "${syOut}" == *"OK: integration harness"* ]]; } && _pass EshVwLj "sync: offline warns" \
-	|| _fail EshVwLj "sync: offline warns" "$(fSyTail)"
+{ ((syRc == 0)) && [[ "${syOut}" == *"WARNING: couldn't fetch"* && "${syOut}" == *"OK: integration harness"* ]]; } && _pass ddydp "sync: offline warns" \
+	|| _fail ddydp "sync: offline warns" "$(fSyTail)"
 fSyGit -C "${syA}" remote set-url origin "${syDir}/o.git"
 
 ## The hook gates dev and main only, and not a delete or a publish.
@@ -3348,18 +3383,18 @@ syLine="(delete) ${syZeros} refs/heads/main ${syHeadA}"; fSyHook env
 syDel=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syDel=1
 syLine="refs/heads/dev ${syHeadA} refs/heads/dev ${syZeros}"; fSyHook env CICD_GATE_PASSED=1
 syPub=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syPub=1
-((syDev && syFeat && syDel && syPub)) && _pass EshVwMN "pre-push: dev/main only" \
-	|| _fail EshVwMN "pre-push: dev/main only" "dev=${syDev} feature=${syFeat} delete=${syDel} publish=${syPub} $(fSyTail)"
+((syDev && syFeat && syDel && syPub)) && _pass ddydq "pre-push: dev/main only" \
+	|| _fail ddydq "pre-push: dev/main only" "dev=${syDev} feature=${syFeat} delete=${syDel} publish=${syPub} $(fSyTail)"
 
 ## A failed gate refuses the push, and a hook already there is left alone.
 syLine="refs/heads/main ${syHeadA} refs/heads/main ${syZeros}"; fSyHook env CE_GATE_FAIL=1
-{ ((syRc != 0)) && [[ "${syOut}" == *"running the merge gate"* && "${syOut}" != *"OK: gate passed"* ]]; } && _pass EshVwNd "pre-push: failed gate refuses" \
-	|| _fail EshVwNd "pre-push: failed gate refuses" "$(fSyTail)"
+{ ((syRc != 0)) && [[ "${syOut}" == *"running the merge gate"* && "${syOut}" != *"OK: gate passed"* ]]; } && _pass ddyds "pre-push: failed gate refuses" \
+	|| _fail ddyds "pre-push: failed gate refuses" "$(fSyTail)"
 printf '%s\n' '#!/bin/sh' 'exit 0' >"${syDir}/mine"; chmod +x "${syDir}/mine"
 fSyGit -C "${syA}" config core.hooksPath "${syDir}/hooks2"; mkdir -p "${syDir}/hooks2"; cp "${syDir}/mine" "${syDir}/hooks2/pre-push"
 fSyRun --gate
-{ ((syRc == 0)) && cmp -s "${syDir}/mine" "${syDir}/hooks2/pre-push" && [[ "${syOut}" == *"OK: gate passed"* && "${syOut}" != *"added the pre-push hook"* ]]; } && _pass EshVwMz "gate keeps an existing hook" \
-	|| _fail EshVwMz "gate keeps an existing hook" "$(fSyTail)"
+{ ((syRc == 0)) && cmp -s "${syDir}/mine" "${syDir}/hooks2/pre-push" && [[ "${syOut}" == *"OK: gate passed"* && "${syOut}" != *"added the pre-push hook"* ]]; } && _pass ddydr "gate keeps an existing hook" \
+	|| _fail ddydr "gate keeps an existing hook" "$(fSyTail)"
 fSyGit -C "${syA}" config --unset core.hooksPath
 
 
@@ -3380,26 +3415,26 @@ if [[ "${CICDTEST_SELFCHECK:-0}" != "1" ]]; then
 		TMPDIR="${hsDir}/tmp" PATH="${hsDir}/bin:${PATH}" bash "${meDir}/test.bash" </dev/null >"${hsDir}/out" 2>&1 || hsrc=$?
 	hsSummary="$(grep -E 'FAIL +[0-9]+ of [0-9]+ checks failed' "${hsDir}/out" || true)"
 	hsAbort="$(grep -F 'HARNESS ABORTED' "${hsDir}/out" | head -3 || true)"
-	{ ((hsrc == 1)) && [[ -n "${hsSummary}" && -z "${hsAbort}" ]]; } && _pass ErmGPkH "all-fail run reaches summary" \
-		|| _fail ErmGPkH "all-fail run reaches summary" "rc=${hsrc} aborts=[${hsAbort}] tail=[$(tail -3 "${hsDir}/out" | tr '\n' ' ')]"
+	{ ((hsrc == 1)) && [[ -n "${hsSummary}" && -z "${hsAbort}" ]]; } && _pass ddgmx "all-fail run reaches summary" \
+		|| _fail ddgmx "all-fail run reaches summary" "rc=${hsrc} aborts=[${hsAbort}] tail=[$(tail -3 "${hsDir}/out" | tr '\n' ' ')]"
 	## Under CICD_NO_SKIP the skips Go's absence caused fail the run, and the
 	## one --quick asked for doesn't.
 	hsNoSkip="$(grep -F 'skipped under CICD_NO_SKIP=1: ' "${hsDir}/out" || true)"
-	{ [[ "${hsNoSkip}" == *Elmd2Y4* && "${hsNoSkip}" != *ErlP6B8* ]]; } && _pass EsJjVsP "NO_SKIP asked vs unasked" \
-		|| _fail EsJjVsP "NO_SKIP asked vs unasked" "line=[${hsNoSkip}]"
-	grep -qF 'reactor module skipped: needs a Go 1.24+ toolchain' "${hsDir}/out" && _pass ErmGPkf "reactor skip, no Go" \
-		|| _fail ErmGPkf "reactor skip, no Go" "no skip line for the reactor section"
+	{ [[ "${hsNoSkip}" == *daq8s* && "${hsNoSkip}" != *ddge9* ]]; } && _pass ddrpf "NO_SKIP asked vs unasked" \
+		|| _fail ddrpf "NO_SKIP asked vs unasked" "line=[${hsNoSkip}]"
+	grep -qF 'reactor module skipped: needs a Go 1.24+ toolchain' "${hsDir}/out" && _pass ddgmy "reactor skip, no Go" \
+		|| _fail ddgmy "reactor skip, no Go" "no skip line for the reactor section"
 	hsGoFail="$(grep -oE ' FAIL (EloQXv[6-9]|ErftBA[89A-D]) ' "${hsDir}/out" | sort -u | tr -d '\n' || true)"
 	{ grep -qF 'frontend parity skipped: needs a Go toolchain' "${hsDir}/out" && grep -qF 'macOS universal binary tests skipped: needs a Go toolchain' "${hsDir}/out" \
-		&& [[ -z "${hsGoFail}" ]]; } && _pass ErmzVUR "parity/macOS skip, no Go" \
-		|| _fail ErmzVUR "parity/macOS skip, no Go" "skip lines missing or failures: [${hsGoFail}]"
+		&& [[ -z "${hsGoFail}" ]]; } && _pass ddgtm "parity/macOS skip, no Go" \
+		|| _fail ddgtm "parity/macOS skip, no Go" "skip lines missing or failures: [${hsGoFail}]"
 	## A failed interop check names the first sample that differs.
 	if command -v node >/dev/null 2>&1 && [[ -d "${meDir}/utility/interop/thirdparty" ]]; then
 		hsDiff="$(grep -m1 -A1 -F 'interop encode == qntm base2048' "${hsDir}/out" | tail -1 || true)"
-		[[ "${hsDiff}" =~ ^\ +sample\ [0-9]+\ of\ [0-9]+/[0-9]+:\  ]] && _pass ErmGPl4 "interop failure detail" \
-			|| _fail ErmGPl4 "interop failure detail" "detail=[${hsDiff}]"
+		[[ "${hsDiff}" =~ ^\ +sample\ [0-9]+\ of\ [0-9]+/[0-9]+:\  ]] && _pass ddgmz "interop failure detail" \
+			|| _fail ddgmz "interop failure detail" "detail=[${hsDiff}]"
 	else
-		_warn ErmGPl4 "interop detail not checked: needs node and the vendored references"
+		_warn ddgmz "interop detail not checked: needs node and the vendored references"
 	fi
 fi
 
@@ -3422,9 +3457,9 @@ if ((doPerf)); then
 		t1=$(date +%s.%N)
 		if cmp -s "$perfsrc" "$perfout"; then
 			mbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$perf_mib/d; else print \"inf\"}")
-			_pass EjGnHfk "perf ${base}: ${perf_mib} MiB round-trip (~${mbps} MiB/s)"
+			_pass d9hsg "perf ${base}: ${perf_mib} MiB round-trip (~${mbps} MiB/s)"
 		else
-			_fail EjGnHfk "perf ${base} round-trip" "output mismatch"
+			_fail d9hsg "perf ${base} round-trip" "output mismatch"
 		fi
 	done
 	if command -v base64 >/dev/null 2>&1; then
@@ -3463,9 +3498,9 @@ if ((doPerf)); then
 			decpeak=$(tail -1 "$memprof")
 			if [[ "$encpeak" =~ ^[0-9]+$ && "$decpeak" =~ ^[0-9]+$ ]] \
 				&& ((encpeak < mem_ceiling && decpeak < mem_ceiling)); then
-				_pass El5P4dl "constant memory via ${base} (${mem_mib} MiB in, peak ${encpeak}/${decpeak} KiB)"
+				_pass dacw5 "constant memory via ${base} (${mem_mib} MiB in, peak ${encpeak}/${decpeak} KiB)"
 			else
-				_fail El5P4dl "constant memory via ${base}" "peak enc=${encpeak} dec=${decpeak} KiB, ceiling ${mem_ceiling}"
+				_fail dacw5 "constant memory via ${base}" "peak enc=${encpeak} dec=${decpeak} KiB, ceiling ${mem_ceiling}"
 			fi
 		done
 	fi
@@ -3482,9 +3517,9 @@ if ((doPerf)); then
 	t1=$(date +%s.%N)
 	if cmp -s "$cxsrc" "$cxout"; then
 		cxbps=$(awk "BEGIN{d=$t1-$t0; if(d>0) printf \"%.1f\", 2*$cx_mib/d; else print \"inf\"}")
-		_pass EjK8KIq "codec profile: ${cx_mib} MiB base-91 round-trip (~${cxbps} MiB/s)"
+		_pass d9jke "codec profile: ${cx_mib} MiB base-91 round-trip (~${cxbps} MiB/s)"
 	else
-		_fail EjK8KIq "codec profile round-trip" "output mismatch"
+		_fail d9jke "codec profile round-trip" "output mismatch"
 	fi
 fi
 

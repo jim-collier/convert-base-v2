@@ -33,7 +33,7 @@ func call(t *testing.T, opts map[string]any) map[string]any {
 
 // NaN and the infinities format as words, which used to come back as an
 // unrecognized digit. They are refused as what they are.
-// Test ID: ErkSf4h
+// Test ID: ddg7c
 func TestConvertRefusesNonFinite(t *testing.T) {
 	for _, v := range []float64{math.NaN(), math.Inf(1), math.Inf(-1)} {
 		res := call(t, map[string]any{"value": v, "from": "10", "to": "16"})
@@ -48,7 +48,7 @@ func TestConvertRefusesNonFinite(t *testing.T) {
 }
 
 // The cap matches the command's, so a page and a prompt refuse the same values.
-// Test ID: Ern7YZg
+// Test ID: ddgvg
 func TestPrecisionBound(t *testing.T) {
 	res := call(t, map[string]any{"value": "1", "from": "10", "to": "16", "precision": 100000})
 	if res["ok"] != true {
@@ -61,7 +61,7 @@ func TestPrecisionBound(t *testing.T) {
 }
 
 // A number is the natural way to pass a value from a page, so it is read.
-// Test ID: ErkSf4i
+// Test ID: ddg7d
 func TestConvertReadsNumbers(t *testing.T) {
 	res := call(t, map[string]any{"value": 255.5, "from": "10", "to": "16"})
 	if res["ok"] != true || res["value"] != "FF.8" {
@@ -72,7 +72,7 @@ func TestConvertReadsNumbers(t *testing.T) {
 // Every way convert() can fail answers with the reactor's code beside the
 // text. The harness's Frontend parity section checks the cases the reactor can
 // also be given against the reactor itself.
-// Test ID: Ert2MSr
+// Test ID: ddj92
 func TestFailuresHaveCodes(t *testing.T) {
 	reg, err := convertbase.NewRegistry()
 	if err != nil {

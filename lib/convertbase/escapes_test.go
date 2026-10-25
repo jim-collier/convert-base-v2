@@ -11,7 +11,7 @@ import (
 	"testing"
 )
 
-// Test ID: Elotfax
+// Test ID: daqtq
 func TestExpandEscapes(t *testing.T) {
 	cases := []struct {
 		in, want string
@@ -45,7 +45,7 @@ func TestExpandEscapes(t *testing.T) {
 	}
 }
 
-// Test ID: Elotfay
+// Test ID: daqtr
 func TestExpandEscapesErrors(t *testing.T) {
 	for _, in := range []string{"⊳", "⊳ZZZ", "⊳x0", "⊳xZZ", "A⊳QQQ⊳LF", "⊳ "} {
 		if _, err := ExpandEscapes(in, nil); err == nil {
@@ -56,7 +56,7 @@ func TestExpandEscapesErrors(t *testing.T) {
 
 // A base owning the marker as a digit keeps it. Expanding there would turn its
 // own digits into something else.
-// Test ID: Elotfaz
+// Test ID: daqts
 func TestExpandEscapesMarkerIsDigit(t *testing.T) {
 	b := &Base{Aliases: []string{"marky"}, Symbols: []string{"⊳", "L", "F", "a"}}
 	if err := b.Finalize(); err != nil {
@@ -78,7 +78,7 @@ func TestExpandEscapesMarkerIsDigit(t *testing.T) {
 // The round trip is the whole contract, and the place it can break is a control
 // character whose name runs into whatever follows it (SO before an H reads as
 // SOH). Every control against every ASCII character covers that exhaustively.
-// Test ID: Elotfb0
+// Test ID: daqtt
 func TestEscapeControlsRoundTrip(t *testing.T) {
 	var controls []byte
 	for c := 0; c < 0x20; c++ {
@@ -114,7 +114,7 @@ func TestEscapeControlsRoundTrip(t *testing.T) {
 	}
 }
 
-// Test ID: Elotfb1
+// Test ID: daqtv
 func TestEscapeControlsLeavesTextAlone(t *testing.T) {
 	const in = "Hello, World! 0123 ⊳ 日本"
 	if got := EscapeControls(in, nil); got != in {
@@ -123,7 +123,7 @@ func TestEscapeControlsLeavesTextAlone(t *testing.T) {
 }
 
 // End to end through the keyboard base, which is the reason any of this exists.
-// Test ID: Elotfb2
+// Test ID: daqtw
 func TestKeyboardBaseEscapes(t *testing.T) {
 	reg, err := NewRegistry()
 	if err != nil {
@@ -169,7 +169,7 @@ func TestKeyboardBaseEscapes(t *testing.T) {
 // Each name is checked against the text after it. That check once copied the
 // whole rest of the value, so escaping a long value was quadratic. Count the
 // bytes allocated: linear stays near the input size, quadratic runs to gigabytes.
-// Test ID: ErkSf4f
+// Test ID: ddg7a
 func TestEscapeControlsIsLinear(t *testing.T) {
 	in := strings.Repeat("\n", 64*1024)
 	var before, after runtime.MemStats

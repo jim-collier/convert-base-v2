@@ -18,7 +18,7 @@ import (
 
 // A bare-number alias is a size, so it has to match the symbol count. Only the
 // first alias used to be checked, and only before the "b" prefix came off.
-// Test ID: ErkSf4Y
+// Test ID: ddg73
 func TestRegisterChecksEveryNumericAlias(t *testing.T) {
 	for _, aliases := range [][]string{
 		{"99"},
@@ -41,7 +41,7 @@ func TestRegisterChecksEveryNumericAlias(t *testing.T) {
 // A config base that takes every name of a built-in replaces it. The built-in
 // leaves the index, and the listing shows only names that still resolve to
 // the row they sit on.
-// Test ID: ErkSf4Z
+// Test ID: ddg74
 func TestConfigShadowsBuiltin(t *testing.T) {
 	reg := newReg(t)
 	old := base(t, reg, "8")
@@ -100,7 +100,7 @@ func containsBase(list []*Base, b *Base) bool {
 
 // Built-ins are parsed and checked on first use, so a bad alphabet in bases.go
 // no longer stops NewRegistry. This builds every one of them instead.
-// Test ID: ErmQ6z6
+// Test ID: ddgp3
 func TestEveryBuiltinBuilds(t *testing.T) {
 	reg := newReg(t)
 	if len(reg.ordered) != len(predefinedBases()) {
@@ -141,7 +141,7 @@ func containsName(names []string, want string) bool {
 
 // A lookup builds the base it finds and nothing else. A miss builds nothing,
 // though it walks every alias for suggestions.
-// Test ID: ErmQ6zb
+// Test ID: ddgp4
 func TestLookupBuildsOnlyItsBase(t *testing.T) {
 	reg := newReg(t)
 	if got := built(reg); len(got) != 0 {
@@ -167,7 +167,7 @@ func TestLookupBuildsOnlyItsBase(t *testing.T) {
 // Library callers may share one registry across goroutines. Each built-in is
 // built once, however many lookups race for it. Run under -race to see a
 // missing guard.
-// Test ID: ErmQ706
+// Test ID: ddgp5
 func TestConcurrentLookup(t *testing.T) {
 	reg := newReg(t)
 	names := []string{"65536qntm", "32768qntm", "hex", "85ps", "bytes", "keyboard"}
@@ -215,7 +215,7 @@ func TestConcurrentLookup(t *testing.T) {
 
 // Every run of the command builds a registry. Building all the built-ins took
 // about 50 ms and 29 MB; deferring each to first use takes well under 1 ms.
-// Test ID: ErmQ70b
+// Test ID: ddgp6
 func TestNewRegistryCost(t *testing.T) {
 	var before, after runtime.MemStats
 	runtime.ReadMemStats(&before)
@@ -251,7 +251,7 @@ func BenchmarkNewRegistry(b *testing.B) {
 // Every invalid byte decodes to the same U+FFFD, so a base with such digits got
 // one rune table entry for all of them, picked by map order, and streamed out
 // text its own streaming decode refused. The raw-byte base is the one exception.
-// Test ID: Erq3i1c
+// Test ID: ddhj3
 func TestFinalizeRefusesInvalidUTF8(t *testing.T) {
 	bad := "\x80"
 	cases := map[string]struct {
@@ -313,7 +313,7 @@ func sym512() string {
 // base's rune table has to be one of its digits written back out. The raw-byte
 // base gave its 128 high bytes one U+FFFD key, and which byte won changed run to
 // run.
-// Test ID: Erq3i2I
+// Test ID: ddhj4
 func TestRuneTableKeysAreDigits(t *testing.T) {
 	reg := newReg(t)
 	for _, b := range reg.ordered {

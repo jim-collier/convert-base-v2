@@ -13,7 +13,7 @@ import (
 
 // A Go program or a web page calling the library has no flags, so its error
 // text must not point at any. The command adds its own pointers on the way out.
-// Test ID: ErkSf4a
+// Test ID: ddg75
 func TestLibraryErrorsNameNoFlags(t *testing.T) {
 	reg := newReg(t)
 	dec10 := base(t, reg, "10")

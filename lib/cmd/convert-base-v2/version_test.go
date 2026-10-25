@@ -13,7 +13,7 @@ import (
 	"time"
 )
 
-// Test ID: ErlL5bp
+// Test ID: ddgds
 func TestCrockfordBase32(t *testing.T) {
 	cases := []struct {
 		n    int64
@@ -40,7 +40,7 @@ func TestCrockfordBase32(t *testing.T) {
 	}
 }
 
-// Test ID: ErlL5cK
+// Test ID: ddgdt
 func TestBuildNumber(t *testing.T) {
 	cases := []struct {
 		stamp string
@@ -67,7 +67,7 @@ func TestBuildNumber(t *testing.T) {
 }
 
 // One line either way, so a script reading --version still gets one line.
-// Test ID: ErlL5cs
+// Test ID: ddgdv
 func TestVersionText(t *testing.T) {
 	savedEpoch, savedVersion := buildEpoch, version
 	defer func() { buildEpoch, version = savedEpoch, savedVersion }()
@@ -88,7 +88,7 @@ func TestVersionText(t *testing.T) {
 	}
 }
 
-// Test ID: EtZtfNg
+// Test ID: debg1
 func TestIsRelease(t *testing.T) {
 	cases := map[string]bool{
 		"v3.0.0":                  true,
@@ -115,7 +115,7 @@ func TestIsRelease(t *testing.T) {
 }
 
 // The date is the viewer's, so the same build reads a day apart across zones.
-// Test ID: EtZtfOY
+// Test ID: debg2
 func TestVersionTextDate(t *testing.T) {
 	savedEpoch, savedVersion, savedLocal := buildEpoch, version, time.Local
 	defer func() { buildEpoch, version, time.Local = savedEpoch, savedVersion, savedLocal }()
@@ -146,7 +146,7 @@ func TestVersionTextDate(t *testing.T) {
 
 // Like the version, the build stamp only works while it is a var the linker
 // can patch.
-// Test ID: ErlL5dO
+// Test ID: ddgdw
 func TestBuildEpochIsPatchable(t *testing.T) {
 	gobin, err := exec.LookPath("go")
 	if err != nil {
