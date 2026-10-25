@@ -39,11 +39,11 @@ cicd/cicd.bash --quick --no-dogfood --no-publish -y
 
 `cicd/cicd.bash --gate` is the short version: the format check, the linters and the Go tests, on your machine, in under a minute. The first pipeline run sets it up as a git pre-push hook, so a push to `dev` or `main` runs it first and stops if it fails. A full run also fetches before it builds, and fast-forwards when the remote is ahead. `--no-sync` skips that.
 
-Stages 1 to 4 and 6 run in a docker image with every tool at its pinned version, so docker is the only thing to install. There, a missing tool fails the run instead of being skipped. The image is built from `cicd/container/Dockerfile` the first time, which takes a few minutes and about 3 GB. The demo gif needs fonts that can't be shared, so it's left out of the image, and the run skips it, unless they're in `../private/fonts/demo-gif/`.
+The format, build, lint, test and package steps run in a docker image with every tool at its pinned version, so docker is the only thing to install. There, a missing tool fails the run instead of being skipped. The image is built from `cicd/container/Dockerfile` the first time, which takes a few minutes and about 3 GB. The demo gif needs fonts that can't be shared, so it's left out of the image, and the run skips it, unless they're in `../private/fonts/demo-gif/`.
 
 Hosted CI runs the same image on every push to `dev` or `main` and every pull request, as a `--quick` run that publishes nothing. So the harness, the comparison tests against the reference implementations, and all the linters run there too. The image is built on the runner from the GitHub Actions layer cache, and never pushed to a registry. A second job vets, tests, and builds with Go alone.
 
-Without docker, or with `--no-container`, every stage runs on your machine. Stage 3 is the lint stage. `go vet` always runs. golangci-lint, staticcheck, shellcheck, ruff and PSScriptAnalyzer run when they are installed, and are skipped with a warning when they are not. Any finding from one that runs stops the pipeline. Install them all, since hosted CI runs every one of them.
+Without docker, or with `--no-container`, every step runs on your machine. In the lint step, `go vet` always runs. golangci-lint, staticcheck, shellcheck, ruff and PSScriptAnalyzer run when they are installed, and are skipped with a warning when they are not. Any finding from one that runs stops the pipeline. Install them all, since hosted CI runs every one of them.
 
 - golangci-lint and staticcheck: `cicd/utility/pin-tools.bash` installs both at the versions in `cicd/tool-versions.env`.
 
