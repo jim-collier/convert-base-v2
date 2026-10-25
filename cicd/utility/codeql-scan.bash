@@ -22,7 +22,13 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "${here}/../.." && pwd)"
 sarif="${1:?usage: codeql-scan.bash SARIF_OUT}"
 suite="${here}/codeql/leak-checks.qls"
-threads="${GOMAXPROCS:-0}"
+## cicd hands it the heavy step count as GOMAXPROCS. Run by hand, it works one
+## out the same way, since 0 here would mean every core.
+threads="${GOMAXPROCS:-}"
+if [[ ! "${threads}" =~ ^[1-9][0-9]*$ ]]; then
+	source "${here}/include/machine-use.bash"
+	fMachineJobs "$(fMachineCpus)" "$(fMachineLoad1)"; threads="${machineJobsHeavy}"
+fi
 
 ## Each of these must be in the database's source archive. The browser and
 ## reactor modules only build for wasm, so each gets its own pass below.

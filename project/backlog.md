@@ -219,7 +219,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: CPU and priority.
 	- ID: 2026102416280103
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on a full CICD run
+	- Needs local test suite run?: a full `cicd/cicd.bash` run, which builds the new image and runs every step in it with the CPU limit. The plan's Jobs line shows the counts it started with.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -231,6 +232,20 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Every step runs under `nice -n 19` and `ionice -c 3`. The container gets `--cpus` and `--cpu-shares 256`, with `nice` inside it too.
 		- The counts are worked out in one place and passed to every tool that runs in parallel.
 		- Other hosts follow the same rules with their own CPU count and load.
+	- Progress log:
+		- 20261025: measured before the change, on this 32-CPU box at a load of 40 to 60. Every step got half the CPUs, the heavy ones too. Fuzz ran 16 workers and peaked at 42 runnable threads. A cold `go test` peaked at 31, since each compile adds up to 4 threads of its own on top of the job count. Nothing ran at low priority, and the container had no CPU limit. The backup in the publish step used every core, since the cap it reads was never exported.
+		- 20261025: every step runs at nice 19 and idle I/O priority. The counts are worked out in one place, when the run starts and again before each step: half the CPUs, or a quarter when the box is busy. The race detector, soak, fuzz and CodeQL get a quarter either way. Never under 1.
+		- 20261025: the counts go to Go, golangci-lint, the fuzz workers, CodeQL, cargo, ruff and the backup. The compiler's extra threads are off, which took a cold `go test` at 8 jobs from a peak of 33 runnable threads to 11, in the same time.
+		- 20261025: the container gets the count as `--cpus`, with `--cpu-shares 256`, and nice inside it. The run inside sees every CPU of the host, so it takes its `--cpus` as the most it may use.
+		- 20261025: other hosts: the count is worked out from whatever CPU count and load it's handed, so the other hosts item can call it with each box's numbers. No step runs on another host yet, so nothing else is done here.
+		- 20261025: not covered: the image build runs in docker's own builder, which neither nice nor these counts reach. It runs once per change to the recipe.
+	- Verified: 20261025, the fast gate passed on this box with the change, and so did the browser module tests with the counts set. A container started with the same flags got the CPU limit, and nice 19 and idle I/O worked inside it.
+	- Verified: with the compiler's extra threads off, a release build has the same checksum, and the build cache is still used.
+	- Verified: each new check fails with its code broken.
+	- Note: read, not watched: ruff and the backup's rar take the counts through their own settings. A round doesn't run the publish step.
+	- Swept: every tool the pipeline runs in parallel, which is go build, test, vet and fuzz, the race and soak runs, golangci-lint, staticcheck, govulncheck, CodeQL, cargo in the harness, ruff, and the backup. shellcheck, PSScriptAnalyzer, node, nfpm, makensis and the Python helpers use one core. The browser module tests clear the environment, so they get the counts by name, except GOMAXPROCS, since the wasm program dies when it's over 1. `lib/Makefile` keeps its own default for a hand `make`, and the pipeline's count overrides it. Hosted CI's plain Go job runs on its own runner and is left as it was.
+	- Branch: cpu
+	- Test case: EtixvQc (the counts), EtixvQd (nice and idle I/O), EtixvQe (half on a quiet box), EtixvQf (a quarter for the heavy steps), EtixvQg (load checked again before each step), EtiyAAx (at most the container's `--cpus`), EtixvQh (labels and the CPU limit on the container run). Etil6xK wanted a run line with no CPU limit, so it's commented out with the reason.
 
 - CICD reset: standard flags.
 	- ID: 2026102416280104
