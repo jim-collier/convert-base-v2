@@ -320,6 +320,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Verified: each new check failed against the code before the change. An old ID planted in the harness and in a Go test was refused, then taken out.
 	- Swept: the ID tool, the harness helpers and the ID tool's tests, the fuzz lines in `cicd.bash`, contributing.md, and every file with an old ID by `git grep`. The pre-push hook, hosted CI and `lint-report.bash` read no per-test line.
 	- Branch: testids
+	- Commit: 7618572
 	- Test case: dedq9 (old IDs refused), dedqa (`new` skips a taken minute), dedq8 (harness PASS, FAIL and SKIP lines), dedqb (fuzz lines). ddgwd now checks the Go test line too.
 
 - At the next beta, check the release downloads and rebuild.
