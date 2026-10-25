@@ -235,7 +235,7 @@ DEMOGIF_OUT="assets/demo.gif"                 # in-repo copy the README embeds
 DEMOGIF_ARCHIVE_DIR="../private/demos/gif"    # out-of-tree originals, GFS-rotated
 DEMOGIF_CONTAINER_ONLY=1                      # fonts are pinned only there, so a host run leaves it be
 
-## Container runs: the default here, and --host runs on this machine instead.
+## Container runs: the default here, and --no-container runs on this machine instead.
 ## The image recipe, its name, and the docker volume for its Go and cargo
 ## caches. Extra dirs, relative to the repo, are mounted at the same path when
 ## they exist; the demo gif reads its inputs and archives under this one.
@@ -243,6 +243,7 @@ CONTAINER_DEFAULT=1
 CONTAINER_DIR="cicd/container"
 CONTAINER_IMAGE="convert-base-v2-cicd"
 CONTAINER_VOLUME="convert-base-v2-cicd-cache"
+CONTAINER_VOLUME_CAP=2000000000               # bytes; past this the run's cleanup empties the volume
 CONTAINER_MOUNTS=("../private/demos")
 ## Build contexts, NAME=DIR relative to the repo. These are the gif's fonts that
 ## can't go in the repo. Without one the container runs with the args below.
@@ -277,3 +278,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-10-19 JC: Leak checks: the race detector run adn the soak test.
 ##		- 2026-10-19 JC: CodeQL in the leak checks.
 ##		- 2026-10-19 JC: PSScriptAnalyzer in the lint stage.
+##		- 2026-10-25 JC: CONTAINER_VOLUME_CAP.

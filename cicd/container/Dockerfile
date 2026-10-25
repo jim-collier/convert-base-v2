@@ -145,3 +145,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends qemu-user && rm
 # did that once. Keep this last.
 RUN test -z "$(find /cache/home -mindepth 1 -maxdepth 2 -print -quit)" \
 	|| { find /cache/home -mindepth 1 -ls; false; }
+
+# cicd.bash finds its own images by this when it cleans up.
+LABEL dev.project=convert-base-v2

@@ -2590,17 +2590,47 @@ printf '%s\n' '#!/bin/sh' 'for a; do last="$a"; done' \
 	'if [ -n "${CE_CPFAIL:-}" ]; then case "$last" in "$CE_CPFAIL"/*) echo "cp: fake failure" >&2; exit 1 ;; esac; fi' \
 	"exec $(command -v cp) \"\$@\"" >"${ceBin}/cp"
 printf '%s\n' '#!/bin/sh' 'echo "$*" >>"$CE_SUDO_LOG"' 'exit 1' >"${ceBin}/sudo"
+## Three older tags of the image, a dangling image and a container of the run,
+## all as if labeled, for the cleanup to find.
 cat >"${ceBin}/docker" <<'EOF'
 #!/bin/sh
 echo "$*" >>"$CE_DOCKER_LOG"
 case "$1 $2" in
-	"image inspect") [ -n "${CE_HAVE_IMAGE:-}" ]; exit $? ;;
-	"image ls") echo cbv-test-cicd:0ld0ld0ld0ld ;;
-	build*) exit "${CE_BUILD_RC:-0}" ;;
-	run*) echo "inner run"; exit "${CE_RUN_RC:-0}" ;;
+	version*) exit "${CE_DAEMON_RC:-0}" ;;
+	"image inspect")
+		case "$*" in
+			*LastTagTime*) case "$*" in *0ld0ld*) echo 100 ;; *pr3v10us*) echo 200 ;; *zzz*) echo 50 ;; *) echo 300 ;; esac ;;
+			*) [ -n "${CE_HAVE_IMAGE:-}" ]; exit $? ;;
+		esac ;;
+	"image ls")
+		case "$*" in
+			*dangling=true*) echo d4ngl3d4ngl3 ;;
+			*--format*) printf '%s\n' cbv-test-cicd:0ld0ld0ld0ld cbv-test-cicd:zzz000000000 cbv-test-cicd:pr3v10us0000 ;;
+		esac ;;
+	"ps -aq") echo c0ffeec0ffee ;;
+	"ps -a") echo cbv-test-kept ;;
+	"volume inspect")
+		[ -n "${CE_HAVE_VOL:-}" ] || exit 1
+		case "$*" in *--format*) echo "${CE_VOL_PROJ:-}" ;; esac ;;
+	"system df") case "$*" in *" -v "*) echo "cbv-test-cache ${CE_VOL_SIZE:-1.5GB}" ;; *) printf '%s\n' 1GB 2.5GB ;; esac ;;
+	"builder prune") printf 'Total:\t12.5MB\n' ;;
+	build*)
+		if [ -n "${CE_BUILD_SIGINT:-}" ]; then kill -INT "$PPID"; exit 1; fi
+		exit "${CE_BUILD_RC:-0}" ;;
+	run*)
+		## Ctrl+C reaches the pipeline and this, its foreground child. The real
+		## one passes it to the container and exits 130 when that does.
+		case "${CE_RUN_SIGINT:-}" in
+			self) kill -INT "$PPID"; kill -INT $$ ;;
+			proxy) kill -INT "$PPID"; exit 130 ;;
+		esac
+		echo "inner run"; exit "${CE_RUN_RC:-0}" ;;
 esac
 exit 0
 EOF
+## A pipeline killed by Ctrl+C would take this harness down with it, the way
+## bash treats a child that died of SIGINT, so that run goes through this.
+printf '%s\n' 'import subprocess, sys' 'rc = subprocess.run(sys.argv[1:]).returncode' 'sys.exit(128 - rc if rc < 0 else rc)' >"${ceBin}/nosig.py"
 chmod +x "${ceBin}/go" "${ceBin}/cp" "${ceBin}/sudo" "${ceBin}/docker"
 mkdir -p "${ceRepo}/cicd/container" "${ceDir}/demos-real"
 printf '%s\n' 'FROM scratch' >"${ceRepo}/cicd/container/Dockerfile"
@@ -2613,10 +2643,11 @@ mkdir -p "${ceRepo}/gif"
 ## Knobs from whatever runs this harness must not leak into the copy.
 fCeRun(){
 	: >"${ceDir}/knobs"; : >"${ceDir}/sudo.log"; : >"${ceDir}/docker.log"; ceRc=0
+	local -a ceWrap=(); if [[ -n "${CE_WRAP:-}" ]]; then ceWrap=(python3 "${ceBin}/nosig.py"); fi
 	( cd "${ceDir}" && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
 		HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${ceDir}/knobs" CE_SUDO_LOG="${ceDir}/sudo.log" \
-		CICD_NO_SKIP="${CE_NO_SKIP:-0}" CICD_IN_CONTAINER="${CE_INSIDE:-0}" CICD_DOCKER="${ceBin}/docker" CE_DOCKER_LOG="${ceDir}/docker.log" \
-		CICD_IMAGE_PREBUILT="${CE_PREBUILT:-0}" bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
+		CICD_NO_SKIP="${CE_NO_SKIP:-0}" CICD_IN_CONTAINER="${CE_INSIDE:-0}" CICD_DOCKER="${CE_DOCKER:-${ceBin}/docker}" CE_DOCKER_LOG="${ceDir}/docker.log" \
+		CICD_IMAGE_PREBUILT="${CE_PREBUILT:-0}" "${ceWrap[@]}" bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
 	ceOut="$(<"${CBT_OUT}")"; ceKnobs="$(<"${ceDir}/knobs")"; ceSudo="$(<"${ceDir}/sudo.log")"; ceTmp="$(ls -A "${ceDir}/tmp")"
 	ceDocker="$(<"${ceDir}/docker.log")"
 }
@@ -2770,20 +2801,78 @@ fCeTag(){ sed -n 's/^image inspect //p' <<<"${ceDocker}" | head -1; }
 ## Cross builds are on, and would fail here, so the host must leave stage 6 alone too.
 CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container --long
 ceTag="$(fCeTag)"
-{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ ]] \
-	&& grep -qxF "build -t ${ceTag} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
-	&& grep -qxF "rmi cbv-test-cicd:0ld0ld0ld0ld" <<<"${ceDocker}"; } && _pass EsJjVuH "--container image rebuild" \
-	|| _fail EsJjVuH "--container image rebuild" "docker=[${ceDocker}] $(fCeTail)"
+## Retired 2026-10-25 by the container reset items: the build and run lines
+## now have labels and a name, and old tags go only after a pass, at the end.
+## Etil6xK and Etil6xL check the same things.
+#{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ ]] \
+#	&& grep -qxF "build -t ${ceTag} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
+#	&& grep -qxF "rmi cbv-test-cicd:0ld0ld0ld0ld" <<<"${ceDocker}"; } && _pass EsJjVuH "--container image rebuild" \
+#	|| _fail EsJjVuH "--container image rebuild" "docker=[${ceDocker}] $(fCeTail)"
 ceTz=""; [[ -e /etc/localtime ]] && ceTz=" -v /etc/localtime:/etc/localtime:ro"
-ceRunWant="run --rm --init --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
-grep -qxF "${ceRunWant}" <<<"${ceDocker}" && _pass EsJjVvF "--container user and repo path" \
-	|| _fail EsJjVvF "--container user and repo path" "want=[${ceRunWant}] docker=[${ceDocker}]"
+#ceRunWant="run --rm --init --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
+#grep -qxF "${ceRunWant}" <<<"${ceDocker}" && _pass EsJjVvF "--container user and repo path" \
+#	|| _fail EsJjVvF "--container user and repo path" "want=[${ceRunWant}] docker=[${ceDocker}]"
+## Everything the run makes in docker has the project and run labels, and the
+## container a name from both.
+ceRunName="$(sed -n 's/^build .*--label dev\.run=\([^ ]*\) .*/\1/p' <<<"${ceDocker}")"
+ceLabels="--label dev.project=cbv-test --label dev.run=${ceRunName}"
+ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunName}-stages ${ceLabels} --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
+{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceRunName}" == cicd-run.* ]] \
+	&& grep -qxF "build -t ${ceTag} ${ceLabels} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
+	&& grep -qxF "volume create ${ceLabels} cbv-test-cache" <<<"${ceDocker}" && grep -qxF "${ceRunWant}" <<<"${ceDocker}"; } \
+	&& _pass Etil6xK "--container build, volume and run are labeled" \
+	|| _fail Etil6xK "--container build, volume and run are labeled" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
+## After a pass: the run's containers, then the dangling images and every older
+## tag but the newest, then the week-old build cache. Each lookup is by label,
+## and nothing is forced or pruned system-wide.
+ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
+{ ((ceRc == 0)) && [[ "${ceGone}" == "rm -f c0ffeec0ffee;rmi d4ngl3d4ngl3;rmi cbv-test-cicd:0ld0ld0ld0ld;rmi cbv-test-cicd:zzz000000000;builder prune -f --filter until=168h;" ]] \
+	&& grep -qxF "ps -aq --filter label=dev.project=cbv-test --filter label=dev.run=${ceRunName}" <<<"${ceDocker}" \
+	&& grep -qxF "image ls -q --filter dangling=true --filter label=dev.project=cbv-test" <<<"${ceDocker}" \
+	&& grep -qxF "image ls cbv-test-cicd --filter label=dev.project=cbv-test --format {{.Repository}}:{{.Tag}}" <<<"${ceDocker}" \
+	&& [[ "${ceOut}" == *"[ docker cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB); about 0.0 GB freed ]"* ]] \
+	&& [[ "$(grep -n 'docker cleanup' <<<"${ceOut}" | cut -d: -f1)" -lt "$(grep -n 'CI/CD: done' <<<"${ceOut}" | cut -d: -f1)" ]]; } \
+	&& _pass Etil6xL "docker cleanup after a pass" \
+	|| _fail Etil6xL "docker cleanup after a pass" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
 { ((ceRc == 0)) && [[ "${ceOut}" == *"inner run"* && "${ceOut}" == *"OK: stages 1 to 4 and 6 passed in the container"* && "${ceOut}" == *"OK: installed -> "* \
 	&& "${ceOut}" != *"1/8  Format"* && "${ceOut}" != *"OK: integration harness"* && "${ceOut}" != *"6/8  Cross"* ]]; } && _pass EsJjVwL "--container host stages" \
 	|| _fail EsJjVwL "--container host stages" "$(fCeTail)"
 CE_HAVE_IMAGE=1 CE_RUN_RC=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container
 { ((ceRc == 1)) && [[ "${ceOut}" == *"the run in the container failed"* && "${ceOut}" != *"OK: installed"* && "${ceDocker}" != *"build "* ]]; } && _pass EsJjVxK "--container inner failure" \
 	|| _fail EsJjVxK "--container inner failure" "docker=[${ceDocker}] $(fCeTail)"
+## A failed run cleans up too, but keeps the older tags, since nothing newer passed.
+ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
+{ ((ceRc == 1)) && [[ "${ceGone}" == "rm -f c0ffeec0ffee;rmi d4ngl3d4ngl3;builder prune -f --filter until=168h;" && "${ceOut}" == *"docker cleanup: removed"* ]]; } \
+	&& _pass Etil6xM "docker cleanup after a failure" \
+	|| _fail Etil6xM "docker cleanup after a failure" "gone=[${ceGone}] $(fCeTail)"
+## So does Ctrl+C in the middle of the container run or the image build, and
+## it stops the run rather than go on to the host stages.
+for ceSig in self proxy build; do
+	case "${ceSig}" in
+		build) CE_BUILD_SIGINT=1 CE_WRAP=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container ;;
+		*) CE_HAVE_IMAGE=1 CE_RUN_SIGINT="${ceSig}" CE_WRAP=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container ;;
+	esac
+	ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
+	{ ((ceRc == 130)) && [[ "${ceGone}" == "rm -f c0ffeec0ffee;rmi d4ngl3d4ngl3;builder prune -f --filter until=168h;" && -z "${ceTmp}" ]] \
+		&& [[ "${ceOut}" == *"STOPPED: Ctrl+C"* && "${ceOut}" != *"inner run"* && "${ceOut}" != *"OK: installed"* && "${ceOut}" != *"1/8  Format"* && "${ceOut}" != *"7/8  Dogfood"* ]]; } \
+		&& _pass Etil6xN "docker cleanup after Ctrl+C: ${ceSig}" \
+		|| _fail Etil6xN "docker cleanup after Ctrl+C: ${ceSig}" "gone=[${ceGone}] $(fCeTail)"
+done
+## --keep-temp keeps the run's containers, and says which.
+CE_HAVE_IMAGE=1 fCeRun -y --container --keep-temp
+ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
+{ ((ceRc == 0)) && grep -qE '^run --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-cicd-run\.[^ ]+-stages ' <<<"${ceDocker}" && [[ "${ceGone}" != *"rm -f"* && "${ceGone}" == *"builder prune"* ]] \
+	&& [[ "${ceOut}" == *"[ kept container cbv-test-kept (--keep-temp) ]"* ]]; } && _pass Etil6xO "--keep-temp keeps the containers" \
+	|| _fail Etil6xO "--keep-temp keeps the containers" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
+## The cache volume goes once it's over the cap, and only when it's labeled ours.
+ceVol=""
+for ceCase in "cbv-test 2.5GB" "cbv-test 1.5GB" "other 9GB" " 9GB"; do
+	read -r ceProj ceSize <<<"${ceCase}"; [[ "${ceCase}" == " "* ]] && { ceSize="${ceProj}"; ceProj=""; }
+	CE_HAVE_IMAGE=1 CE_HAVE_VOL=1 CE_VOL_PROJ="${ceProj}" CE_VOL_SIZE="${ceSize}" fCeRun -y --container
+	ceVol+="${ceRc}:$(grep -c '^volume rm cbv-test-cache$' <<<"${ceDocker}" || true):$(grep -c '^volume create' <<<"${ceDocker}" || true):$(grep -c 'has no dev.project=cbv-test label' <<<"${ceOut}" || true);"
+done
+[[ "${ceVol}" == "0:1:0:0;0:0:0:0;0:0:0:1;0:0:0:1;" ]] && _pass Etil6xP "cache volume emptied over the cap, ours only" \
+	|| _fail Etil6xP "cache volume emptied over the cap, ours only" "got=[${ceVol}] $(fCeTail)"
 ## The gif's fallback fonts are pinned only in the container, so a host run
 ## leaves it alone rather than flip it back and forth.
 rm -f "${ceRepo}/gif/demo.gif"; CE_GIF=1 fCeRun -y; ceGifHost=0; [[ -e "${ceRepo}/gif/demo.gif" ]] && ceGifHost=1
@@ -2810,8 +2899,27 @@ ceCtx="$(sed -n 's/.*--build-context ctx=\([^ ]*\) .*/\1/p' <<<"${ceDocker}")"
 	|| _fail EsKCVVh "missing build context" "ctx=[${ceCtx}] docker=[${ceDocker}] $(fCeTail)"
 ## A failed build used to leave that empty dir in TMPDIR.
 CE_CTX=nope CE_BUILD_RC=1 fCeRun -y --container
-{ ((ceRc == 1)) && [[ "${ceOut}" == *"could not build cbv-test-cicd:"* && -z "${ceTmp}" ]]; } && _pass EtAgsPA "failed image build leaves nothing in TMPDIR" \
-	|| _fail EtAgsPA "failed image build leaves nothing in TMPDIR" "docker=[${ceDocker}] $(fCeTail)"
+## Retired 2026-10-25: a failed build now runs the stages on the host, so the
+## run passes. Etil6xR checks TMPDIR the same way.
+#{ ((ceRc == 1)) && [[ "${ceOut}" == *"could not build cbv-test-cicd:"* && -z "${ceTmp}" ]]; } && _pass EtAgsPA "failed image build leaves nothing in TMPDIR" \
+#	|| _fail EtAgsPA "failed image build leaves nothing in TMPDIR" "docker=[${ceDocker}] $(fCeTail)"
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"NOTE: could not build cbv-test-cicd:"*", so stages 1 to 4 and 6 run on the host"* && "${ceOut}" == *"OK: integration harness"* ]] \
+	&& [[ -z "${ceTmp}" && "${ceOut}" != *"passed in the container"* ]] && ! grep -q '^run ' <<<"${ceDocker}" && grep -q '^builder prune' <<<"${ceDocker}"; } \
+	&& _pass Etil6xR "failed image build runs on the host" \
+	|| _fail Etil6xR "failed image build runs on the host" "docker=[${ceDocker}] $(fCeTail)"
+## No docker, or one with no daemon to answer, runs every stage here with a
+## note, whether asked for or the default.
+ceNoDocker=""
+for ceCase in missing daemon default; do
+	case "${ceCase}" in
+		missing) CE_DOCKER="${ceDir}/nowhere/docker" fCeRun -y --container ;;
+		daemon)  CE_DAEMON_RC=1 fCeRun -y --container ;;
+		default) CE_DAEMON_RC=1 CE_CONTAINER_DEFAULT=1 fCeRun -y ;;
+	esac
+	ceNoDocker+="${ceCase}:${ceRc}:$(grep -c '^\[ NOTE: no working docker here, so every stage runs on the host \]$' <<<"${ceOut}" || true):$(grep -c 'OK: integration harness' <<<"${ceOut}" || true):$(grep -cvE '^(version |$)' <<<"${ceDocker}" || true);"
+done
+[[ "${ceNoDocker}" == "missing:0:1:1:0;daemon:0:1:1:0;default:0:1:1:0;" ]] && _pass Etil6xQ "no working docker runs on the host" \
+	|| _fail Etil6xQ "no working docker runs on the host" "got=[${ceNoDocker}] $(fCeTail)"
 
 ## Hosted CI builds the image under the tag --image-tag prints, before the
 ## run, so that has to be the tag the run looks for, with the context there or
@@ -2836,6 +2944,9 @@ CE_CONTAINER_DEFAULT=1 fCeRun -y --host; ceHostOk=0; { ((ceRc == 0)) && [[ -z "$
 CE_CONTAINER_DEFAULT=1 CE_INSIDE=1 fCeRun -y
 { ((ceDefRun && ceHostOk && ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass EsKCVWM "CONTAINER_DEFAULT routing" \
 	|| _fail EsKCVWM "CONTAINER_DEFAULT routing" "default ran=${ceDefRun} host ok=${ceHostOk} $(fCeTail)"
+CE_CONTAINER_DEFAULT=1 fCeRun -y --no-container
+{ ((ceRc == 0)) && [[ -z "${ceDocker}" && "${ceOut}" == *"OK: integration harness"* && "${ceOut}" != *"NOTE: no working"* ]]; } && _pass EtilQ9a "--no-container runs here" \
+	|| _fail EtilQ9a "--no-container runs here" "docker=[${ceDocker}] $(fCeTail)"
 
 ## Lint: shellcheck and ruff check what the engine finds in a git repo of
 ## fixtures. A finding fails the run, and so does finding nothing to check,

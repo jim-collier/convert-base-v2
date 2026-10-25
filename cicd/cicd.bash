@@ -63,7 +63,9 @@
 ##	   --container         run stages 1 to 4, 6 and the demo gif in the pinned image from cicd/container/,
 ##	                       where a missing tool is an error. The profiler, dogfood and publish then run here.
 ##	                       The default when config.bash sets CONTAINER_DEFAULT=1.
-##	   --host              run every stage here, with whatever tools this machine has
+##	   --no-container      run every stage here, with whatever tools this machine has
+##	   --host              another name for --no-container
+##	   --keep-temp         keep the run's containers, and print their names at the end
 ##	   --image-tag         print the image tag a container run would use, and exit. Hosted CI
 ##	                       builds the image under that tag, with its layer cache, before the run.
 ##	   -h, --help          show this help
@@ -74,10 +76,17 @@
 ##	- If neither -q/-y nor -m is given, the run prompts once for a commit message
 ##	  (blank = git editor; Ctrl+C aborts the whole run), then finishes unattended.
 ##	- --container needs docker, or CICD_DOCKER naming a program that takes its arguments.
+##	  Without a working one, or when the image won't build, the run says so and goes
+##	  on here, as with --no-container.
 ##	  The image is built the first time it's needed, and again when anything in its
 ##	  dir or cicd/tool-versions.env changes. Its caches live in a docker volume.
 ##	  CICD_IMAGE_PREBUILT=1 makes a missing image an error instead, for a run whose
 ##	  image was built before it.
+##	- What the run makes in docker is labeled dev.project and dev.run. At the end,
+##	  pass or fail, it removes the run's containers, the project's dangling images,
+##	  and after a pass every older image tag but one. Then the build cache older than
+##	  a week, for every project, and the cache volume once it's over 2 GB. Nothing
+##	  without the project's label is touched.
 ##	- Reuse: copy the cicd/ directory into another project and edit config.bash.
 
 ##	History: At bottom of script.
@@ -119,7 +128,7 @@ export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the En
 
 ## Parse options. The originals are kept for a restart after the sync.
 orig_args=("$@")
-assume_yes=0; quiet=0; quick=0; do_long=""; do_leakcheck=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0; image_tag=0
+assume_yes=0; quiet=0; quick=0; do_long=""; do_leakcheck=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0; image_tag=0; keep_temp=0
 while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
@@ -132,7 +141,8 @@ while (($#)); do case "$1" in
 	--no-demogif)             DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
 	--no-publish)             GIT_PUBLISH=(); shift ;;
 	--container)              use_container=1; shift ;;
-	--host)                   use_container=0; shift ;;
+	--no-container|--host)    use_container=0; shift ;;
+	--keep-temp)              keep_temp=1; shift ;;
 	--image-tag)              image_tag=1; shift ;;
 	--no-sync)                do_sync=0; shift ;;
 	--gate)                   gate=1; shift ;;
@@ -162,6 +172,7 @@ fi
 [[ -v CONTAINER_MOUNTS ]] || CONTAINER_MOUNTS=()
 [[ -v CONTAINER_CONTEXTS ]] || CONTAINER_CONTEXTS=()
 [[ -v CONTAINER_CONTEXT_MISSING ]] || CONTAINER_CONTEXT_MISSING=()
+[[ -v CONTAINER_VOLUME_CAP ]] || CONTAINER_VOLUME_CAP=2000000000
 
 ## Brief beat after each stage header so the cheap fast stages stay readable.
 ## Off for unattended runs (-q/-y) where nobody is watching.
@@ -231,10 +242,11 @@ fContainerImage(){
 }
 ## Stages 1 to 4, 6 and the demo gif, in the pinned image, as this user. The repo
 ## is mounted at the same path, so paths in logs and caches still point at
-## something, and so is a linked worktree's git dir.
+## something, and so is a linked worktree's git dir. Sets container_done once
+## they pass. When docker can't make the image or volume, they run on the host.
 fRunContainer(){
-	local engine="${CICD_DOCKER:-docker}" image old k v m c
-	command -v "${engine}" >/dev/null 2>&1 || fDie "no ${engine} to run the stages in a container; install it, or run with --host"
+	local engine="${docker_engine}" image k v m c
+	docker_used=1
 	local -a inner=(-y)
 	if ((quiet)); then inner=(-q); fi
 	inner+=(--no-profile --no-dogfood --no-publish "${inner_args[@]}")
@@ -257,12 +269,17 @@ fRunContainer(){
 			if [[ -z "${dir}" ]]; then empty="${run_tmp}/empty-context"; mkdir -p "${empty}"; dir="${empty}"; fi
 			buildArgs+=(--build-context "${c%%=*}=${dir}")
 		done
-		"${engine}" build -t "${image}" "${buildArgs[@]}" "${root}/${CONTAINER_DIR}" || fDie "could not build ${image}"
-		## What it replaces is a few GB nobody runs again.
-		while IFS= read -r old; do
-			if [[ -z "${old}" || "${old}" == "${image}" ]]; then continue; fi
-			if "${engine}" rmi "${old}" >/dev/null 2>&1; then fEcho_Chat "removed ${old}"; else fEcho_Chat "kept ${old} (in use)"; fi
-		done < <("${engine}" image ls "${CONTAINER_IMAGE}" --format '{{.Repository}}:{{.Tag}}' 2>/dev/null || true)
+		if ! "${engine}" build -t "${image}" "${docker_labels[@]}" "${buildArgs[@]}" "${root}/${CONTAINER_DIR}"; then
+			fEcho "NOTE: could not build ${image}, so stages 1 to 4 and 6 run on the host"
+			return 0
+		fi
+	fi
+	run_image="${image}"
+	## One made before the labels is still used, but cleanup leaves it alone.
+	if ! "${engine}" volume inspect "${CONTAINER_VOLUME}" >/dev/null 2>&1 \
+		&& ! "${engine}" volume create "${docker_labels[@]}" "${CONTAINER_VOLUME}" >/dev/null; then
+		fEcho "NOTE: could not make the volume ${CONTAINER_VOLUME}, so stages 1 to 4 and 6 run on the host"
+		return 0
 	fi
 	local -a mounts=(-v "${root}:${root}" -v "${CONTAINER_VOLUME}:/cache")
 	## This machine's time zone, so stamped names match the ones made out here.
@@ -279,9 +296,73 @@ fRunContainer(){
 			break
 		fi
 	done
+	local -a gone=(--rm); if ((keep_temp)); then gone=(); fi
 	fEcho_Chat "inside: cicd/cicd.bash ${inner[*]}"
-	"${engine}" run --rm --init --user "$(id -u):$(id -g)" "${mounts[@]}" -w "${root}" "${image}" \
+	## Ctrl+C reaches only the init process, and without the whole group the
+	## step in progress would carry on.
+	"${engine}" run "${gone[@]}" --init -e TINI_KILL_PROCESS_GROUP=1 --name "${APP_NAME}-${run_name}-stages" "${docker_labels[@]}" --user "$(id -u):$(id -g)" "${mounts[@]}" -w "${root}" "${image}" \
 		bash "${root}/cicd/cicd.bash" "${inner[@]}" || fDie "the run in the container failed; its output is above"
+	container_done=1
+}
+## docker system df sizes are decimal, such as 1.404GB, and this sums them.
+fDockerBytes(){
+	awk '{ n = $1 + 0; u = $1; sub(/^[0-9.]+/, "", u); m = 1
+		if (u == "kB") m = 1e3; else if (u == "MB") m = 1e6; else if (u == "GB") m = 1e9; else if (u == "TB") m = 1e12
+		t += n * m } END { printf "%.0f\n", t }'
+}
+fDockerTotal(){ { "${docker_engine}" system df --format '{{.Size}}' 2>/dev/null || true; } | fDockerBytes; }
+## What this run made in docker, pass or fail. Only what has this project's
+## label, and never rmi -f or system prune, since other projects share docker.
+fDockerCleanup(){
+	if ((! docker_used || docker_cleaned)); then return 0; fi
+	docker_cleaned=1
+	local engine="${docker_engine}" proj="dev.project=${APP_NAME}" before after id ref volProj volSize pruned line="" w i=0
+	local -i nCont=0 nImg=0
+	local -a tags=() what=()
+	before="$(fDockerTotal)"
+	if ((keep_temp)); then
+		while IFS= read -r id; do
+			if [[ -n "${id}" ]]; then fEcho "kept container ${id} (--keep-temp)"; fi
+		done < <("${engine}" ps -a --filter "label=${proj}" --filter "label=dev.run=${run_name}" --format '{{.Names}}' 2>/dev/null || true)
+	else
+		while IFS= read -r id; do
+			if [[ -n "${id}" ]] && "${engine}" rm -f "${id}" >/dev/null 2>&1; then nCont+=1; fi
+		done < <("${engine}" ps -aq --filter "label=${proj}" --filter "label=dev.run=${run_name}" 2>/dev/null || true)
+	fi
+	while IFS= read -r id; do
+		if [[ -n "${id}" ]] && "${engine}" rmi "${id}" >/dev/null 2>&1; then nImg+=1; fi
+	done < <("${engine}" image ls -q --filter dangling=true --filter "label=${proj}" 2>/dev/null || true)
+	## Older tags go once a newer one passed. The one before it stays. Ordered
+	## by when each was tagged here, since a reproducible build's created date
+	## can be the base image's.
+	if ((container_done)) && [[ -n "${run_image}" ]]; then
+		mapfile -t tags < <("${engine}" image ls "${CONTAINER_IMAGE}" --filter "label=${proj}" --format '{{.Repository}}:{{.Tag}}' 2>/dev/null || true)
+		mapfile -t tags < <(for ref in "${tags[@]}"; do
+			if [[ -n "${ref}" ]]; then printf '%s %s\n' "$("${engine}" image inspect --format '{{.Metadata.LastTagTime.Unix}}' "${ref}" 2>/dev/null || echo 0)" "${ref}"; fi
+		done | sort -rn | cut -d' ' -f2)
+		for ref in "${tags[@]}"; do
+			if [[ -z "${ref}" || "${ref}" == "${run_image}" ]]; then continue; fi
+			i=$((i + 1)); if ((i == 1)); then continue; fi
+			if "${engine}" rmi "${ref}" >/dev/null 2>&1; then nImg+=1; else fEcho_Chat "kept ${ref} (in use)"; fi
+		done
+	fi
+	if ((nCont)); then what+=("${nCont} container(s)"); fi
+	if ((nImg)); then what+=("${nImg} image(s)"); fi
+	## Emptied whole, by removing it. The next run makes it again.
+	volProj="$("${engine}" volume inspect --format '{{index .Labels "dev.project"}}' "${CONTAINER_VOLUME}" 2>/dev/null || true)"
+	if [[ "${volProj}" == "${APP_NAME}" ]]; then
+		volSize="$("${engine}" system df -v --format '{{range .Volumes}}{{.Name}} {{.Size}}{{println}}{{end}}' 2>/dev/null \
+			| awk -v v="${CONTAINER_VOLUME}" '$1 == v { print $2 }' | fDockerBytes || true)"
+		if (( ${volSize:-0} > CONTAINER_VOLUME_CAP )) && "${engine}" volume rm "${CONTAINER_VOLUME}" >/dev/null 2>&1; then what+=("volume ${CONTAINER_VOLUME}"); fi
+	elif "${engine}" volume inspect "${CONTAINER_VOLUME}" >/dev/null 2>&1; then
+		fEcho_Chat "NOTE: volume ${CONTAINER_VOLUME} has no ${proj} label, so its size isn't checked"
+	fi
+	## A week of every project's build cache stays, so the next build is warm.
+	pruned="$("${engine}" builder prune -f --filter until=168h 2>&1 | grep -oE '[0-9.]+[kMGT]?B' | tail -1 || true)"
+	what+=("build cache older than a week (${pruned:-0B})")
+	after="$(fDockerTotal)"
+	for w in "${what[@]}"; do line+="${line:+, }${w}"; done
+	fEcho "docker cleanup: removed ${line}; about $(awk -v b="${before:-0}" -v a="${after:-0}" 'BEGIN { d = b - a; if (d < 0) d = 0; printf "%.1f GB", d / 1e9 }') freed"
 }
 ## Stage 3, and the gate. go vet is gating; golangci-lint, staticcheck, shellcheck,
 ## ruff and PSScriptAnalyzer run when installed (a failed probe skips that one with
@@ -470,6 +551,13 @@ if [[ "${CICD_IN_CONTAINER:-0}" != "1" ]]; then
 	fInstallGateHook
 fi
 
+## No docker, or none that answers, is no reason to fail a run.
+docker_engine="${CICD_DOCKER:-docker}"; docker_used=0; docker_cleaned=0; run_image=""; container_done=0
+if ((use_container)) && ! "${docker_engine}" version --format '{{.Server.Version}}' >/dev/null 2>&1; then
+	fEcho "NOTE: no working ${docker_engine##*/} here, so every stage runs on the host"
+	use_container=0
+fi
+
 ## Preflight: show the plan with resolved paths, then confirm.
 profile_dir="$(cd "${root}" && mkdir -p "${PROFILE_OUT_DIR}" 2>/dev/null; cd "${PROFILE_OUT_DIR}" 2>/dev/null && pwd || echo "${root}/${PROFILE_OUT_DIR}")"
 fixed_dest=""; for d in "${DOGFOOD_FIXED_DESTS[@]:-}"; do [[ -d "$d" && -w "$d" ]] && { fixed_dest="$d"; break; }; done
@@ -566,7 +654,15 @@ fi
 ## Scratch for this run, gone however it ends. An abort used to leave the fuzz log.
 run_tmp="$(mktemp -d "${TMPDIR:-/tmp}/cicd-run.XXXXXX")"
 fRunTmpGone(){ if [[ -d "${run_tmp}" && "${run_tmp}" == "${TMPDIR:-/tmp}/cicd-run."* ]]; then rm -rf "${run_tmp}"; fi; }
-trap fRunTmpGone EXIT
+fRunCleanup(){ fDockerCleanup; fRunTmpGone; }
+trap fRunCleanup EXIT
+## docker catches Ctrl+C and exits on its own, which bash takes as handled, so
+## without this a failed build would carry on here and a container run go on to
+## the host stages.
+trap '{ fEcho_Force "STOPPED: Ctrl+C"; } >&2; exit 130' INT
+## Every container, image and volume the run makes says whose it is.
+run_name="${run_tmp##*/}"
+docker_labels=(--label "dev.project=${APP_NAME}" --label "dev.run=${run_name}")
 
 ## Tee the rest of the run (all stages) to a gitignored log so warnings from any
 ## stage can be reviewed after the fact. Rotate the prior (closed) logs first.
@@ -576,16 +672,15 @@ if [[ -n "${LINT_LOG_DIR:-}" ]] && mkdir -p "${root}/${LINT_LOG_DIR}" 2>/dev/nul
 	## Wait for tee to drain on exit, else the shell prompt returns mid-flush and
 	## the last output lands after it (looks like the prompt "came back").
 	tee_pid=$!
-	trap 'fRunTmpGone; exec 1>&- 2>&-; wait "${tee_pid}" 2>/dev/null' EXIT
+	trap 'fRunCleanup; exec 1>&- 2>&-; wait "${tee_pid}" 2>/dev/null' EXIT
 fi
 
-container_done=0
 if ((use_container)); then
 	fSection "Container"
 	fRunContainer
-	container_done=1
-	fEcho "OK: stages 1 to 4 and 6 passed in the container"
-else
+	if ((container_done)); then fEcho "OK: stages 1 to 4 and 6 passed in the container"; fi
+fi
+if ((! container_done)); then
 	## Pinned tools: bring any go-installed tool that drifted from tool-versions.env
 	## back in line (warn-only; probe-gated stages still skip anything missing).
 	if [[ -n "${PIN_TOOLS_CMD[*]:-}" ]]; then
@@ -872,6 +967,7 @@ else
 	fEcho "OK: published"
 fi
 
+fDockerCleanup
 if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then fSection "${APP_NAME} CI/CD: container part done."; else fSection "${APP_NAME} CI/CD: done."; fi
 fEcho_Clean
 
@@ -892,3 +988,5 @@ fEcho_Clean
 ##		- 2026-10-19 JC: --no-leakcheck.
 ##		- 2026-10-19 JC: Per-run temp dir, removed on exit.
 ##		- 2026-10-19 JC: PSScriptAnalyzer in the lint stage.
+##		- 2026-10-25 JC: No docker, or an image that won't build, runs on the host. --no-container, --keep-temp.
+##		- 2026-10-25 JC: Labels on what the run makes in docker, and cleanup of it at the end.
