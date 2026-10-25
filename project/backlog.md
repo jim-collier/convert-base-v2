@@ -224,7 +224,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Type: Enhancement
 	- Status: Waiting on a full CICD run
 	- Needs local test suite run?: a full `cicd/cicd.bash` run, then one `--backlog-run-full`, which builds the current image and runs the real pins check, the demo gif made in the temp folder, and the profiler. `git status` should be the same after it.
-	- Needs external testing: Yes. Hosted CI: a manual run of the workflow on this branch, which is the first merge gate on the runner, and a push to dev, where only the Go and macOS jobs should run.
+	- Needs external testing: Yes. Hosted CI: a manual run of the workflow, which is the first merge gate on the runner.
 	- Needs hand testing: a look at the `--list` and `--help` output and the area names, since they're what a person reads and types.
 	- Priority: High
 	- Opened: 20261024-162801
@@ -254,6 +254,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: 5 older tests changed. dedpv, the old gate's steps, and ddydq, gating dev pushes, are commented out with the reason. de550 and ddydr now use `--backlog-run-quick` and a plain run, and de566 checks the new workflow line.
 	- Verified: 20261025, `--backlog-run-quick --no-container` passed 417 harness checks and 109 Go tests in 117 seconds, and `git status` and HEAD were the same after.
 	- Verified: the hook, with the real config, skipped the gate for a push to main that changed only the backlog, and let a push to dev through.
+	- Verified: 20261025, on dev, run 40214210405 for the merge push ran only the Go and macOS jobs, and both passed. The pipeline job was skipped.
 	- Verified: the CI engine and remote sync area passes 104 of 104. Its 11 new checks failed against the old pipeline, hook and workflow, and dedrd failed with the dogfood line taken out. dedrj failed with one area leaking into another's run. The self-check area passes.
 	- Swept: `--gate`, `--ci`, `--host`, `--quick` and the pre-push hook across the repo: contributing.md, development.md, design.md, the `config.bash` comments, the help text, the harness header, the workflow, and a new changelog line. Older changelog lines say what was true then, and stay.
 	- Test case: dedr7 (`--list`), dedr8 (quick run, no areas), dedr9 (named areas), dedra (`--gate`, `--ci`, `--slow`), dedrb (other hosts and `--no-remote`), dedrc (full run and merge gate run every check), dedrd (the three change nothing they mustn't, against a plain run that does all of it), dedre (each of those stages left on is caught), dedrf (hook: main only, and the skip list), dedrg (the skip list matches files, and skips nothing a test reads), dedrh (workflow), dedrj (harness areas).
