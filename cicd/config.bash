@@ -49,8 +49,8 @@ SRC_DIR="lib"
 ## (FMT_CMD=()) to skip. gofmt is a no-op on already-clean source. Never a Bash
 ## formatter here - bash is hand-formatted on purpose.
 FMT_CMD=(make -C "${SRC_DIR}" fmt)
-## The --gate form: lists what needs formatting rather than fixing it, run in
-## SRC_DIR. Any output fails the gate.
+## The backlog runs and the merge gate use this form instead, which lists what
+## needs formatting rather than fixing it, run in SRC_DIR. Any output fails it.
 FMT_CHECK_CMD=(gofmt -l .)
 
 ## Stage 2: two native builds, both staged under lib/bin (outside what the
@@ -132,6 +132,15 @@ UNIT_TEST_CMD=(go test -json ./...)
 TEST_ID_CMD=(python3 cicd/utility/test-ids.py)
 TEST_CMD=(cicd/test.bash)
 
+## Areas for --backlog-run-quick, on top of format, lint and go. Each Go
+## package is one, by its dir's name, from this run in SRC_DIR, which prints
+## each package's path relative to it. The harness lists its own, run from root.
+## With no area named the run takes QUICK_AREAS, which keeps it to a few
+## minutes on a busy box. The slower harness areas wait for the full run.
+UNIT_AREAS_CMD=(go list -f '.{{slice .ImportPath (len .Module.Path)}}' ./...)
+TEST_AREAS_CMD=(cicd/test.bash --areas)
+QUICK_AREAS=(format lint go cli config stream)
+
 ## The package holding the Fuzz* targets and the profiler benchmark. Both flags
 ## reject more than one package, so this names exactly one - the conversion
 ## library, which is where those tests live.
@@ -207,6 +216,10 @@ BUILD_CROSS=1
 RELEASE_CMD=(make -C "${SRC_DIR}" release)
 RELEASE_ARTIFACT_DIR="${SRC_DIR}/dist"
 
+## Builds and tests on the test boxes and VMs, after the cross builds. Not set
+## up yet, so the step is off. --no-remote turns it off.
+REMOTE_CMD=()
+
 ## Stage 7: dogfood. Overwrite EXE_NAME in the first existing, writable dir of
 ## DOGFOOD_FIXED_DESTS with the native release build. DOGFOOD_CROSS does the same
 ## for builds stage 6 made, one "ARTIFACT|NAME|DIR|DIR..." entry each: copy
@@ -262,6 +275,17 @@ PREPUBLISH_HOOK="../private/hooks/pre-publish.bash"
 ## --quiet (it already gave the message prompt) and, when it has one, -m MESSAGE.
 GIT_PUBLISH=(cicd/utility/n8git_backup-and-publish)
 
+## The pre-push hook runs --merge-gate for a push to main, unless every file the
+## push changes matches one of these. Bash patterns, where * also matches a /.
+## Only what no build or test reads: README.md, use_in_your_code.md,
+## changelog.md, license.md, project/design.md and lib/reactor/README.md are
+## all read by one, so they stay out of this list.
+MERGE_GATE_SKIP=(
+	configuration.md contributing.md development.md how_to_design_a_numeric_base.md install.md speed.md
+	project/backlog.md project/style-guide_code.md 'project/design_docs/*'
+	legacy/todo.md 'reference/*'
+)
+
 ## Set a non-empty commit message to publish hands-off (suppresses the prompt and
 ## supplies the message so `git commit` won't open an editor). Left empty, publish
 ## prompts once at preflight unless -m/--message or -q is given (see cicd.bash).
@@ -281,3 +305,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-10-19 JC: CodeQL in the leak checks.
 ##		- 2026-10-19 JC: PSScriptAnalyzer in the lint stage.
 ##		- 2026-10-25 JC: CONTAINER_VOLUME_CAP.
+##		- 2026-10-25 JC: Areas for --backlog-run-quick, REMOTE_CMD, and the paths a push to main can change without the merge gate.

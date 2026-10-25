@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 
-##	- Purpose: git pre-push hook. Runs the fast merge gate (cicd.bash --gate) when
-##	  a push updates dev or main, so nothing reaches either one unchecked. Pushes
-##	  to other branches, and deletes, go straight through.
+##	- Purpose: git pre-push hook. Runs the merge gate (cicd.bash --merge-gate)
+##	  when a push updates main, so nothing reaches it unchecked. A push to dev
+##	  or any other branch, and a delete, goes straight through.
+##	- A push to main that changes only the paths MERGE_GATE_SKIP in
+##	  cicd/config.bash names, such as docs no build or test reads, skips it too.
 ##	- cicd.bash puts a stub in .git/hooks/pre-push that calls this, once per clone.
 ##	- The gate checks the working tree, so commit or stash stray edits first.
 ##	- CICD_GATE_PASSED=1 skips it; the pipeline sets that when it publishes, since
@@ -17,15 +19,42 @@ set -Eeuo pipefail
 
 [[ "${CICD_GATE_PASSED:-0}" != "1" ]] || exit 0
 
-zeros="0000000000000000000000000000000000000000"
-gated=0
-## One line per ref: <local ref> <local sha> <remote ref> <remote sha>
-while read -r _ localSha remoteRef _; do
-	[[ "${localSha}" != "${zeros}" ]] || continue
-	case "${remoteRef}" in refs/heads/dev|refs/heads/main) gated=1 ;; esac
-done
-((gated)) || exit 0
-
 root="$(git rev-parse --show-toplevel)"
-echo "[ pre-push: running the merge gate for dev/main ]"
-exec bash "${root}/cicd/cicd.bash" --gate -q </dev/null
+# shellcheck source=../config.bash
+source "${root}/cicd/config.bash"
+[[ -v MERGE_GATE_SKIP ]] || MERGE_GATE_SKIP=()
+
+## Whether every file changed from $1 to $2 matches a MERGE_GATE_SKIP pattern.
+fOnlySkippable(){
+	local file pat files
+	files="$(git diff --name-only "$1" "$2")" || return 1
+	while IFS= read -r file; do
+		[[ -n "${file}" ]] || continue
+		for pat in "${MERGE_GATE_SKIP[@]}"; do
+			# shellcheck disable=2053  ## the pattern is meant to glob
+			if [[ "${file}" == ${pat} ]]; then continue 2; fi
+		done
+		return 1
+	done <<<"${files}"
+	return 0
+}
+
+zeros="0000000000000000000000000000000000000000"
+gated=0; skipped=0
+## One line per ref: <local ref> <local sha> <remote ref> <remote sha>
+while read -r _ localSha remoteRef remoteSha; do
+	[[ "${localSha}" != "${zeros}" && "${remoteRef}" == refs/heads/main ]] || continue
+	## A new main, or one this clone hasn't fetched, can't be compared, so it's gated.
+	if [[ "${remoteSha}" != "${zeros}" ]] && git cat-file -e "${remoteSha}^{commit}" 2>/dev/null && fOnlySkippable "${remoteSha}" "${localSha}"; then
+		skipped=1
+	else
+		gated=1
+	fi
+done
+if ((! gated)); then
+	if ((skipped)); then echo "[ pre-push: only paths in MERGE_GATE_SKIP changed, so no merge gate for main ]"; fi
+	exit 0
+fi
+
+echo "[ pre-push: running the merge gate for main ]"
+exec bash "${root}/cicd/cicd.bash" --merge-gate -q </dev/null

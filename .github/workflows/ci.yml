@@ -1,7 +1,10 @@
 # Three jobs. "build" is the bare safety net: the module vets, tests and builds
-# with nothing but Go. "macos-arm64" tests and runs it on Apple silicon.
-# "pipeline" runs the container part of cicd/cicd.bash in the image from
-# cicd/container, so the harness, interop, shellcheck and ruff run here too. Profiling, dogfood, publish and the demo gif stay local.
+# with nothing but Go. "macos-arm64" tests and runs it on Apple silicon. Both
+# run on every push to main or dev and every pull request.
+# "pipeline" runs cicd/cicd.bash --merge-gate, with its build and test steps in
+# the image from cicd/container, so the long tests, the leak checks, the
+# harness, interop and every linter run here too. It runs only for main: a
+# push or pull request to it, or by hand. Dogfood and publish never run in it.
 name: ci
 
 on:
@@ -74,8 +77,13 @@ jobs:
   # rebuild without the cache. The gif fonts live outside the repo, so the
   # build gets an empty dir for them and the run skips the gif.
   pipeline:
+    if: >-
+      github.event_name == 'workflow_dispatch'
+      || (github.event_name == 'push' && github.ref == 'refs/heads/main')
+      || (github.event_name == 'pull_request' && github.base_ref == 'main')
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # the long tests, the race detector, the soak test and CodeQL run here
+    timeout-minutes: 90
     steps:
       - uses: actions/checkout@v7
         with:
@@ -97,9 +105,9 @@ jobs:
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=min
-      # --quick leaves out the long tests, the leak checks and the checks that
-      # reach another host.
-      - name: pipeline
+      # Everything a plain run checks, as far as this runner can. The merge gate
+      # never syncs, dogfoods, publishes or prompts on its own.
+      - name: merge gate
         env:
           CICD_IMAGE_PREBUILT: "1"
-        run: bash cicd/cicd.bash --container --quick -y --no-sync --no-publish --no-dogfood
+        run: bash cicd/cicd.bash --container --merge-gate

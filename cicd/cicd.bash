@@ -29,6 +29,7 @@
 ##	   - tests (unit + integration harness + fuzz + govulncheck security + leak checks)
 ##	   - profiler (flamegraph SVG; non-gating artifact - see failure policy)
 ##	   - cross-compile + package every shipping platform (archives, deb/rpm, Windows installers, checksums)
+##	   - other hosts (builds and tests on the test boxes and VMs, from REMOTE_CMD; none yet)
 ##	   - dogfood (install the optimized native build locally, fixed name, and any cross builds listed)
 ##	   - screenshots
 ##	   - demo gif
@@ -56,10 +57,25 @@
 ##	   --no-publish        skip the git backup + publish step
 ##	   --no-sync           don't check the remote first (by default the run fetches, fast-forwards
 ##	                       when only behind, and stops when the branch and its upstream have diverged)
-##	   --gate              the fast merge gate only: format check, lint, unit tests. No log, no
-##	                       container, no publish. The git pre-push hook runs this for dev and main.
+##	   --backlog-run-quick [AREA...]
+##	                       the fast checks a backlog worker runs before it commits, in a few
+##	                       minutes: the format check, lint, the Go unit tests and the quicker
+##	                       harness areas, or only the areas named. --list shows the areas.
+##	   --backlog-run-full  what a backlog round runs once at its end: every check of a plain run,
+##	                       the other hosts included
+##	   --merge-gate        the same checks as --backlog-run-full, before a merge to main. The git
+##	                       pre-push hook runs it for a push to main, unless the push changes only
+##	                       the paths MERGE_GATE_SKIP in config.bash names.
+##	                       These 3 never sync, dogfood, publish, commit, push, install or prompt,
+##	                       and never rewrite a tracked file: Format becomes the format check, the
+##	                       pins are only checked, and the demo gif is made but not kept.
+##	   --gate              another name for --backlog-run-quick
+##	   --ci                another name for --merge-gate
+##	   --list              print the steps the other flags would run, and the areas, and run nothing
+##	   --no-remote         skip the builds and tests on the other hosts and VMs (none are set up yet)
 ##	   --long              the exhaustive tests (CICDTEST_DO_LONGTEST=1). A run without --quick has them
 ##	                       already, so this is for adding them back to a --quick run.
+##	   --slow              another name for --long
 ##	   --leakcheck         the leak checks: the Go tests again under the race detector, the soak
 ##	                       test, and CodeQL, which keep their heap profiles and SARIF under
 ##	                       cicd/artifacts. A run without --quick has them already, so this is for
@@ -78,7 +94,7 @@
 ##	   --keep-temp         keep the run's containers, and print their names at the end
 ##	   --image-tag         print the image tag a container run would use, and exit. Hosted CI
 ##	                       builds the image under that tag, with its layer cache, before the run.
-##	   -h, --help          show this help
+##	   -h, --help          show this help, and the areas
 ##	- A run with no flags runs everything, the long tests and leak checks included. --quick
 ##	  leaves them out, and --long and --leakcheck put them back, whichever comes first.
 ##	  Of --leakcheck and --no-leakcheck, the last one named wins.
@@ -169,6 +185,10 @@ source "${here}/config.bash"
 [[ -v CODEQL_CMD ]] || CODEQL_CMD=()
 [[ -v PSSA_CMD ]] || PSSA_CMD=()
 [[ -v LINT_JOBS_FLAG ]] || LINT_JOBS_FLAG=""
+[[ -v REMOTE_CMD ]] || REMOTE_CMD=()
+[[ -v UNIT_AREAS_CMD ]] || UNIT_AREAS_CMD=()
+[[ -v TEST_AREAS_CMD ]] || TEST_AREAS_CMD=()
+[[ -v QUICK_AREAS ]] || QUICK_AREAS=()
 ## Personal dogfood dirs, kept out of the repo. Before the options, so --no-dogfood still wins.
 # shellcheck source=/dev/null
 if [[ -n "${DOGFOOD_LOCAL:-}" && -f "${root}/${DOGFOOD_LOCAL}" ]]; then source "${root}/${DOGFOOD_LOCAL}"; fi
@@ -183,7 +203,15 @@ export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the En
 declare -A step_why=()
 fStepWhy(){ [[ -n "${step_why[$1]:-}" ]] || step_why[$1]="$2"; }
 orig_args=("$@")
-assume_yes=0; quiet=0; quick=0; do_long=""; do_leakcheck=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0; image_tag=0; keep_temp=0
+assume_yes=0; quiet=0; quick=0; do_long=""; do_leakcheck=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; image_tag=0; keep_temp=0
+run_mode=""; mode_note=""; quick_areas=(); list_only=0; want_help=0
+fQuick(){ local s; quick=1; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; for s in Profiler Screenshots "Demo gif" Pins; do fStepWhy "${s}" "$1"; done; }
+## One of the backlog runs or the merge gate, by its own name or the other one.
+fRunMode(){
+	if [[ -n "${run_mode}" && "${run_mode}" != "$1" ]]; then echo "pick one of --backlog-run-quick, --backlog-run-full and --merge-gate" >&2; exit 2; fi
+	run_mode="$1"
+	if [[ "$2" != "$1" ]]; then mode_note="$2 is another name for $1"; fi
+}
 while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
@@ -200,16 +228,46 @@ while (($#)); do case "$1" in
 	--keep-temp)              keep_temp=1; shift ;;
 	--image-tag)              image_tag=1; shift ;;
 	--no-sync)                do_sync=0; shift ;;
-	--gate)                   gate=1; shift ;;
-	--long)                   do_long=1; inner_args+=("$1"); shift ;;
+	--no-remote)              REMOTE_CMD=(); fStepWhy "Other hosts" "$1"; shift ;;
+	## The areas are the words after it, up to the next flag.
+	--backlog-run-quick|--gate)
+		fRunMode --backlog-run-quick "$1"; shift
+		while (($#)) && [[ "$1" != -* ]]; do quick_areas+=("$1"); shift; done ;;
+	--backlog-run-full)       fRunMode "$1" "$1"; shift ;;
+	--merge-gate|--ci)        fRunMode --merge-gate "$1"; shift ;;
+	--list)                   list_only=1; shift ;;
+	--long|--slow)            do_long=1; inner_args+=(--long); shift ;;
 	--leakcheck)              do_leakcheck=1; inner_args+=("$1"); shift ;;
 	--no-leakcheck)           do_leakcheck=0; inner_args+=("$1"); shift ;;
-	--quick)                  quick=1; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; inner_args+=("$1"); for quickOff in Profiler Screenshots "Demo gif" Pins; do fStepWhy "${quickOff}" "$1"; done; shift ;;
+	--quick)                  fQuick "$1"; inner_args+=("$1"); shift ;;
 	--message=*|--msg=*|-m=*) cli_message="${1#*=}"; shift ;;
 	-m|--message|--msg)       cli_message="${2-}"; shift; (($#)) && shift ;;
-	-h|--help)                sed -n '/^##	- Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##	\{0,1\}//'; exit 0 ;;
+	-h|--help)                want_help=1; shift ;;
 	*) echo "unknown option: $1 (try --help)" >&2; exit 2 ;;
 esac; done
+## The backlog runs and the merge gate never sync, dogfood, publish, commit,
+## push, install or prompt, and never rewrite a tracked file. So Format is
+## off and the format check runs instead, the pins are only checked, and the
+## demo gif is made in the run's temp dir and left there. One line each, so
+## the harness can take one out and see its check go red.
+if [[ -n "${run_mode}" ]]; then
+	assume_yes=1
+	do_sync=0
+	FMT_CMD=()
+	DOGFOOD_FIXED_DESTS=(); DOGFOOD_CROSS=()
+	DO_SCREENSHOTS=0
+	GIT_PUBLISH=()
+	if ((${#PIN_TOOLS_CMD[@]})); then PIN_TOOLS_CMD+=(--check); fi
+	for modeOff in Format Dogfood Screenshots "Backup + publish"; do fStepWhy "${modeOff}" "${run_mode}"; done
+fi
+## On top of that, the quick one is --quick less the pins, cross builds, fuzz
+## and the other hosts.
+if [[ "${run_mode}" == --backlog-run-quick ]]; then
+	fQuick "${run_mode}"; PIN_TOOLS_CMD=(); BUILD_CROSS=0; FUZZ_ENABLE=0; REMOTE_CMD=()
+	for modeOff in "Cross + package" "Other hosts"; do fStepWhy "${modeOff}" "${run_mode}"; done
+elif [[ -n "${run_mode}" ]]; then
+	inner_args+=("${run_mode}")
+fi
 ## The slow extras a plain run does and --quick doesn't. Each starts empty, and
 ## its flag sets it to 1, so naming one keeps it in a quick run.
 full_extras=(do_long do_leakcheck)
@@ -272,7 +330,9 @@ fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fStepStamp; fEcho "${step_
 ## fStep says no for one that's off, or that runs on the other side of the
 ## container. A step still open at exit is a FAIL, or a PASS on exit 0.
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
-container_steps=(Pins Format "Native build" Lint Tests "Cross + package" "Demo gif")
+## The backlog runs and the merge gate check the format where Format would fix it.
+fmt_steps=(Format); if [[ -n "${run_mode}" ]]; then fmt_steps=(Format "Format check"); fi
+container_steps=(Pins "${fmt_steps[@]}" "Native build" Lint Tests "Cross + package" "Demo gif")
 steps_on=(); steps_off=(); steps_numbered=(); step_open=""; step_num=0; step_stamp=""
 fInList(){ local want="$1" item; shift; for item in "$@"; do if [[ "${item}" == "${want}" ]]; then return 0; fi; done; return 1; }
 ## Why a step is off, into step_off_why, or empty when it's on. What a flag
@@ -283,9 +343,12 @@ fStepOffWhy(){
 		Pins)               ((${#PIN_TOOLS_CMD[@]} + ${#VENDOR_CHECK_CMD[@]} + ${#INTEROP_CHECK_CMD[@]})) || why="none in config.bash" ;;
 		Format)             ((${#FMT_CMD[@]})) || why="no FMT_CMD in config.bash" ;;
 		"Format check")     ((${#FMT_CHECK_CMD[@]})) || why="no FMT_CHECK_CMD in config.bash" ;;
+		"Native build")     ((run_harness)) || why="no harness area" ;;
 		Lint)               ((${#VET_CMD[@]})) || why="no VET_CMD in config.bash" ;;
+		Tests)              ((run_unit || run_harness)) || why="no test area" ;;
 		Profiler)           ((PROFILE_ENABLE)) || why="PROFILE_ENABLE=0 in config.bash" ;;
 		"Cross + package")  ((BUILD_CROSS)) || why="BUILD_CROSS=0 in config.bash" ;;
+		"Other hosts")      ((${#REMOTE_CMD[@]})) || why="no REMOTE_CMD in config.bash" ;;
 		Dogfood)            ((${#DOGFOOD_FIXED_DESTS[@]} + ${#DOGFOOD_CROSS[@]})) || why="no dogfood dirs in config.bash" ;;
 		Screenshots)        ((DO_SCREENSHOTS)) || why="DO_SCREENSHOTS=0 in config.bash" ;;
 		"Backup + publish") ((${#GIT_PUBLISH[@]})) || why="no GIT_PUBLISH in config.bash" ;;
@@ -307,10 +370,9 @@ fStepOffWhy(){
 fStepPlan(){
 	local s
 	local -a order
-	if ((gate)); then order=("Format check" Lint "Unit tests")
-	elif [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then order=("${container_steps[@]}")
-	elif ((use_container)); then order=("${container_steps[@]}" Profiler Dogfood Screenshots "Backup + publish")
-	else order=(Pins Format "Native build" Lint Tests Profiler "Cross + package" Dogfood Screenshots "Demo gif" "Backup + publish"); fi
+	if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then order=("${container_steps[@]}")
+	elif ((use_container)); then order=("${container_steps[@]}" "Other hosts" Profiler Dogfood Screenshots "Backup + publish")
+	else order=(Pins "${fmt_steps[@]}" "Native build" Lint Tests Profiler "Cross + package" "Other hosts" Dogfood Screenshots "Demo gif" "Backup + publish"); fi
 	steps_on=(); steps_off=()
 	for s in "${order[@]}"; do
 		fStepOffWhy "${s}"
@@ -342,7 +404,7 @@ fStepExit(){
 	if [[ "${1:-0}" == 0 ]]; then fStepLine PASS; else fStepLine FAIL; fi
 	step_open=""; fEcho_Clean
 }
-## The full run's own trap replaces this one, and calls it first.
+## The run's own trap replaces this one, and calls it first.
 trap 'fStepExit "$?"' EXIT
 
 fDie(){ { fEcho_Force "FAILED: $*"; } >&2; exit 1; }
@@ -513,7 +575,7 @@ fDockerCleanup(){
 	for w in "${what[@]}"; do line+="${line:+, }${w}"; done
 	fEcho "docker cleanup: removed ${line}; about $(awk -v b="${before:-0}" -v a="${after:-0}" 'BEGIN { d = b - a; if (d < 0) d = 0; printf "%.1f GB", d / 1e9 }') freed"
 }
-## Stage 3, and the gate. go vet is gating; golangci-lint, staticcheck, shellcheck,
+## Stage 3. go vet is gating; golangci-lint, staticcheck, shellcheck,
 ## ruff and PSScriptAnalyzer run when installed (a failed probe skips that one with
 ## a warning). Any finding from one that runs aborts.
 fLint(){
@@ -660,7 +722,7 @@ fSyncRemote(){
 		exec bash "${here}/cicd.bash" "${orig_args[@]}" --no-sync
 	fi
 }
-## The pre-push hook runs --gate for pushes to dev and main. Hooks are per clone,
+## The pre-push hook runs --merge-gate for a push to main. Hooks are per clone,
 ## so this adds a stub that calls the tracked script, never over one already there.
 fInstallGateHook(){
 	local hook
@@ -672,32 +734,95 @@ fInstallGateHook(){
 	chmod +x "${hook}"
 	fEcho "added the pre-push hook: ${hook}"
 }
+## The backlog runs and the merge gate check the format, and fix nothing.
+fFormatCheck(){
+	local unformatted
+	unformatted="$(in_src "${FMT_CHECK_CMD[@]}")" || fDie "format check didn't run: ${FMT_CHECK_CMD[*]}"
+	[[ -z "${unformatted}" ]] || fDie "needs formatting (${FMT_CMD[*]:-gofmt}): ${unformatted//$'\n'/ }"
+	fEcho "OK: format"
+}
+
+## Areas, for --backlog-run-quick: format, lint, go for every Go package or
+## one package by its dir's name, and the harness's own from TEST_AREAS_CMD.
+## Kept as names, what each covers, and for a package its path.
+area_names=(); area_what=(); declare -A area_pkg=()
+## Only a quick run needs them all. --help and --list say what's missing.
+fAreaMiss(){ [[ "${run_mode}" != --backlog-run-quick ]] || fDie "couldn't list $1"; fEcho "NOTE: couldn't list $1"; }
+fAreas(){
+	local pkg name what i j pkgs="" harness=""
+	area_names=(format lint go); area_what=("the format check" "the lint step" "the Go unit tests, every package")
+	if ((${#UNIT_AREAS_CMD[@]})); then pkgs="$(in_src "${UNIT_AREAS_CMD[@]}")" || fAreaMiss "the Go packages: ${UNIT_AREAS_CMD[*]}"; fi
+	while IFS= read -r pkg; do
+		[[ -n "${pkg}" && "${pkg}" != "." ]] || continue
+		area_names+=("${pkg##*/}"); area_what+=("the Go unit tests in ${pkg}"); area_pkg[${pkg##*/}]="${pkg}"
+	done <<<"${pkgs}"
+	if ((${#TEST_AREAS_CMD[@]})); then harness="$("${TEST_AREAS_CMD[@]}")" || fAreaMiss "the harness areas: ${TEST_AREAS_CMD[*]}"; fi
+	while IFS=$'\t' read -r name what; do
+		if [[ -n "${name}" ]]; then area_names+=("${name}"); area_what+=("harness: ${what}"); fi
+	done <<<"${harness}"
+	## A second area of one name could never be picked.
+	for i in "${!area_names[@]}"; do for ((j = i + 1; j < ${#area_names[@]}; j++)); do
+		[[ "${area_names[i]}" != "${area_names[j]}" ]] || fDie "two areas are named ${area_names[i]}"
+	done; done
+}
+## What runs, from the areas named, or QUICK_AREAS when none are. A step none
+## of them asks for is off. go_all is the go area, which beats any one package.
+run_unit=1; run_harness=1; harness_areas=""; unit_pkgs=()
+fPickAreas(){
+	local a go_all=0 fmt=0 lint=0 w hit=0
+	local -a narrowed=()
+	((${#quick_areas[@]})) || quick_areas=("${QUICK_AREAS[@]}")
+	run_unit=0; run_harness=0
+	for a in "${quick_areas[@]}"; do
+		fInList "${a}" "${area_names[@]}" || { echo "unknown area: ${a} (--list shows them)" >&2; exit 2; }
+		case "${a}" in
+			format) fmt=1 ;;
+			lint)   lint=1 ;;
+			go)     run_unit=1; go_all=1 ;;
+			*)      if [[ -n "${area_pkg[${a}]:-}" ]]; then run_unit=1; unit_pkgs+=("${area_pkg[${a}]}")
+			        else run_harness=1; harness_areas+="${harness_areas:+ }${a}"; fi ;;
+		esac
+	done
+	local why="not in the areas named"
+	((fmt))  || { FMT_CHECK_CMD=(); fStepWhy "Format check" "${why}"; }
+	((lint)) || { VET_CMD=(); fStepWhy Lint "${why}"; }
+	((run_harness)) || fStepWhy "Native build" "no harness area named"
+	((run_unit || run_harness)) || fStepWhy Tests "no test area named"
+	if ((go_all || ! ${#unit_pkgs[@]})); then unit_pkgs=(); return 0; fi
+	for w in "${UNIT_TEST_CMD[@]}"; do
+		if [[ "${w}" == "./..." ]]; then narrowed+=("${unit_pkgs[@]}"); hit=1; else narrowed+=("${w}"); fi
+	done
+	((hit)) || fDie "UNIT_TEST_CMD has no ./... to narrow to ${unit_pkgs[*]}"
+	UNIT_TEST_CMD=("${narrowed[@]}")
+}
+## The area table for --help and --list. A * marks what a --backlog-run-quick
+## with these flags would run.
+fAreaTable(){
+	local i mark
+	fEcho_Clean "Areas, for --backlog-run-quick (* runs$( [[ "${run_mode}" == --backlog-run-quick ]] || echo " when none are named")):"
+	for i in "${!area_names[@]}"; do
+		mark=" "; if fInList "${area_names[i]}" "${quick_areas[@]}"; then mark="*"; fi
+		fEcho_Clean "$(printf '  %s %-18s %s' "${mark}" "${area_names[i]}" "${area_what[i]}")"
+	done
+}
 trap 'rc=$?; printf "\n[ CICD ABORTED (exit %s) at line %s: %s ]\n" "$rc" "$LINENO" "$BASH_COMMAND" >&2; exit $rc' ERR
 
 if ((image_tag)); then fContainerImage; echo; exit 0; fi
 
-## The fast gate: no log, no container, no plan, no publish.
-if ((gate)); then
-	fStepPlan
-	fSection "Merge gate: $(fStepsCount)"
-	fStepsOffList
-	fInstallGateHook
-	if fStep "Format check"; then
-		unformatted="$(in_src "${FMT_CHECK_CMD[@]}")" || fDie "format check didn't run: ${FMT_CHECK_CMD[*]}"
-		[[ -z "${unformatted}" ]] || fDie "needs formatting (${FMT_CMD[*]:-gofmt}): ${unformatted//$'\n'/ }"
-		fEcho "OK: format"
-		fStepDone
-	fi
-	if fStep Lint; then fLint; fStepDone; fi
-	if fStep "Unit tests"; then fUnitTests; fStepDone; fi
-	fSection "OK: gate passed"
-	fEcho_Clean
+if ((want_help || list_only)) || [[ "${run_mode}" == --backlog-run-quick ]]; then
+	fAreas
+	if [[ "${run_mode}" == --backlog-run-quick ]]; then fPickAreas; inner_args+=(--backlog-run-quick "${quick_areas[@]}")
+	else quick_areas=("${QUICK_AREAS[@]}"); fi
+fi
+if ((want_help)); then
+	sed -n '/^##	- Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##	\{0,1\}//'
+	fAreaTable; fEcho_Clean
 	exit 0
 fi
 
-if [[ "${CICD_IN_CONTAINER:-0}" != "1" ]]; then
+if [[ "${CICD_IN_CONTAINER:-0}" != "1" ]] && ((! list_only)); then
 	if ((do_sync)); then fSyncRemote; fi
-	fInstallGateHook
+	if [[ -z "${run_mode}" ]]; then fInstallGateHook; fi
 fi
 
 ## No docker, or none that answers, is no reason to fail a run.
@@ -705,6 +830,17 @@ docker_engine="${CICD_DOCKER:-docker}"; docker_used=0; docker_cleaned=0; run_ima
 if ((use_container)) && ! "${docker_engine}" version --format '{{.Server.Version}}' >/dev/null 2>&1; then
 	fEcho "NOTE: no working ${docker_engine##*/} here, so every step runs on the host"
 	use_container=0
+fi
+
+## --list: the steps in order, what's off and why, and the areas. Nothing runs.
+if ((list_only)); then
+	fStepPlan
+	fSection "${APP_NAME} ${run_mode:-local CI/CD}: $(fStepsCount)$( ((use_container)) && echo ", the container ones in $(fContainerImage)")"
+	if [[ -n "${mode_note}" ]]; then fEcho "NOTE: ${mode_note}"; fi
+	for i in "${!steps_on[@]}"; do fEcho_Clean "$(printf '%3d  %s' "$((i + 1))" "${steps_on[i]}")"; done
+	fStepsOffList
+	fEcho_Clean; fAreaTable; fEcho_Clean
+	exit 0
 fi
 
 ## Preflight: show the plan with resolved paths, then confirm.
@@ -721,8 +857,11 @@ fCrossDest(){
 ## the container that the host started leaves that to the host.
 fStepPlan
 if [[ "${CICD_IN_CONTAINER:-0}" != "1" || -z "${CICD_STEPS:-}" ]]; then
-	fSection "${APP_NAME} local CI/CD: $(fStepsCount)"
+	fSection "${APP_NAME} local CI/CD${run_mode:+ (${run_mode})}: $(fStepsCount)"
+	if [[ -n "${mode_note}" ]]; then fEcho "NOTE: ${mode_note}"; fi
 	fEcho_Chat "Repo root ...........: ${root}"
+	[[ -z "${run_mode}" ]] || \
+	fEcho_Chat "Hands off ...........: no sync, dogfood, publish, install or prompt, and nothing tracked is rewritten"
 	fEcho_Chat "Jobs ................: ${machine_line}"
 	((use_container)) && \
 	fEcho_Chat "Container ...........: $(fContainerImage) (the steps through tests, cross + package and the demo gif)"
@@ -737,7 +876,10 @@ if [[ "${CICD_IN_CONTAINER:-0}" != "1" || -z "${CICD_STEPS:-}" ]]; then
 	else
 		fEcho_Chat "Lint ................: (skipped)"
 	fi
-	fEcho_Chat "Tests ...............: ${UNIT_TEST_CMD[*]} + ${TEST_CMD[*]}$( ((do_long)) && echo '  (long)')"
+	tests_plan=""
+	((run_unit)) && tests_plan="${UNIT_TEST_CMD[*]}"
+	((run_harness)) && tests_plan+="${tests_plan:+ + }${TEST_CMD[*]}${harness_areas:+ (areas: ${harness_areas})}"
+	fEcho_Chat "Tests ...............: ${tests_plan:-(skipped)}$( ((do_long)) && echo '  (long)')"
 	if ((FUZZ_ENABLE)); then
 		fEcho_Chat "Fuzz ................: ${FUZZ_TIME}/target, ${FUZZ_MINIMIZE_TIME}/find$( ((quick)) && echo " (quick: ${FUZZ_TIME_QUICK}, ${FUZZ_MINIMIZE_TIME_QUICK})")"
 	else
@@ -856,30 +998,33 @@ if ((! container_done)); then
 		fStepDone
 	fi
 
-	## Stage 1: format.
+	## Stage 1: format, or in the backlog runs and the merge gate the check.
 	if fStep Format; then
 		"${FMT_CMD[@]}"
 		fEcho "OK: formatted (${FMT_CMD[*]})"
 		fStepDone
 	fi
+	if fStep "Format check"; then fFormatCheck; fStepDone; fi
 
 	## Stage 2: native builds, staged aside from what the cross stage cleans. The
 	## debug build (symbols) is what the tests and profiler run against; the
 	## optimized build is smoke-checked here and dogfooded in stage 7.
-	fStep "Native build"
-	"${NATIVE_BUILD_CMD[@]}"
-	[[ -f "${NATIVE_BUILD_OUT}" ]] || fDie "debug build produced no binary: ${NATIVE_BUILD_OUT}"
-	mkdir -p "$(dirname "${STAGED_BIN}")"
-	cp -f "${NATIVE_BUILD_OUT}" "${STAGED_BIN}"
-	fEcho "OK: debug build: ${STAGED_BIN} ($(du -h "${STAGED_BIN}" | cut -f1))  ($("${STAGED_BIN}" --version))"
-	if ((${#RELEASE_BUILD_CMD[@]})); then
-		"${RELEASE_BUILD_CMD[@]}"
-		[[ -f "${RELEASE_BUILD_OUT}" ]] || fDie "release build produced no binary: ${RELEASE_BUILD_OUT}"
-		cp -f "${RELEASE_BUILD_OUT}" "${STAGED_RELEASE_BIN}"
-		"${STAGED_RELEASE_BIN}" --version >/dev/null 2>&1 || fDie "release build smoke check failed"
-		fEcho "OK: release build: ${STAGED_RELEASE_BIN} ($(du -h "${STAGED_RELEASE_BIN}" | cut -f1))  ($("${STAGED_RELEASE_BIN}" --version))"
+	## A backlog quick run with no harness area has no use for it.
+	if fStep "Native build"; then
+		"${NATIVE_BUILD_CMD[@]}"
+		[[ -f "${NATIVE_BUILD_OUT}" ]] || fDie "debug build produced no binary: ${NATIVE_BUILD_OUT}"
+		mkdir -p "$(dirname "${STAGED_BIN}")"
+		cp -f "${NATIVE_BUILD_OUT}" "${STAGED_BIN}"
+		fEcho "OK: debug build: ${STAGED_BIN} ($(du -h "${STAGED_BIN}" | cut -f1))  ($("${STAGED_BIN}" --version))"
+		if ((${#RELEASE_BUILD_CMD[@]})); then
+			"${RELEASE_BUILD_CMD[@]}"
+			[[ -f "${RELEASE_BUILD_OUT}" ]] || fDie "release build produced no binary: ${RELEASE_BUILD_OUT}"
+			cp -f "${RELEASE_BUILD_OUT}" "${STAGED_RELEASE_BIN}"
+			"${STAGED_RELEASE_BIN}" --version >/dev/null 2>&1 || fDie "release build smoke check failed"
+			fEcho "OK: release build: ${STAGED_RELEASE_BIN} ($(du -h "${STAGED_RELEASE_BIN}" | cut -f1))  ($("${STAGED_RELEASE_BIN}" --version))"
+		fi
+		fStepDone
 	fi
-	fStepDone
 
 	## Stage 3: lint. go vet is gating; golangci-lint, staticcheck, shellcheck, ruff and
 	## PSScriptAnalyzer run when installed (a failed probe skips that one with a
@@ -889,63 +1034,68 @@ if ((! container_done)); then
 	## Stage 4: tests. Unit (Go), integration harness (against the staged binary),
 	## fuzz (one target per invocation), govulncheck security (module + deps), and
 	## the leak checks.
-	fStep Tests
-	## Every test has its own ID, so a failure, a backlog item and a commit can all
-	## name the same one. Each prints with its ID.
-	fUnitTests
-	## The harness runs its perf section and packaging rebuild check unless --quick.
-	do_perf=1; ((quick)) && do_perf=0
-	CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" CICDTEST_DO_PERF="${do_perf}" CICDTEST_QUICK="${quick}" "${TEST_CMD[@]}"
-	fEcho "OK: integration harness"
+	if fStep Tests; then
+		## Every test has its own ID, so a failure, a backlog item and a commit can all
+		## name the same one. Each prints with its ID.
+		if ((run_unit)); then fUnitTests; fi
+		## The harness runs its perf section and packaging rebuild check unless
+		## --quick, and only the areas a backlog quick run names. None is all of them.
+		if ((run_harness)); then
+			do_perf=1; ((quick)) && do_perf=0
+			CICDTEST_EXE="${root}/${STAGED_BIN}" CICDTEST_DO_LONGTEST="${do_long}" CICDTEST_DO_PERF="${do_perf}" CICDTEST_QUICK="${quick}" CICDTEST_AREAS="${harness_areas}" \
+				"${TEST_CMD[@]}"
+			fEcho "OK: integration harness"
+		fi
 
-	## 4b: fuzz each discovered target for a bounded time (shorter under --quick).
-	if ((FUZZ_ENABLE)); then
-		ft="${FUZZ_TIME}"; ((quick)) && ft="${FUZZ_TIME_QUICK}"
-		fuzz_min="${FUZZ_MINIMIZE_TIME:-2s}"; ((quick)) && fuzz_min="${FUZZ_MINIMIZE_TIME_QUICK:-1s}"
-		mapfile -t fuzz_targets < <(in_src go test -list '^Fuzz' "${GO_TEST_PKG:-.}" 2>/dev/null | grep -E '^Fuzz' || true)
-		if ((${#fuzz_targets[@]})); then
-			fuzz_log="${run_tmp}/fuzz.log"
-			for t in "${fuzz_targets[@]}"; do
-				fEcho_Chat "fuzz ${t} (${ft}) ..."
-				## Only || keeps the ERR trap off a failed run; set +e does not.
-				fuzz_rc=0
-				in_src "${heavy_env[@]}" go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" -parallel "${CPU_CAP_HEAVY}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}" || fuzz_rc=$?
-				fuzz_id="-----"
-				((${#TEST_ID_CMD[@]})) && fuzz_id="$(cd "${root}" && "${TEST_ID_CMD[@]}" lookup "${SRC_DIR}/${GO_TEST_PKG:-.}" "${t}" || true)"
-				if ((fuzz_rc)); then
-					## A bare "context deadline exceeded" with no crasher is the
-					## -fuzztime boundary, not a find: the coordinator reads the
-					## worker context before cancellation has reached it, so the
-					## deadline gets reported as the run's error. Real finds name
-					## the failing input file.
-					if grep -q 'Failing input written to' "${fuzz_log}" \
-					|| ! grep -q 'context deadline exceeded' "${fuzz_log}"; then
-						printf 'FAIL %s %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
-						fDie "fuzz ${t} found a failure"
+		## 4b: fuzz each discovered target for a bounded time (shorter under --quick).
+		if ((FUZZ_ENABLE)); then
+			ft="${FUZZ_TIME}"; ((quick)) && ft="${FUZZ_TIME_QUICK}"
+			fuzz_min="${FUZZ_MINIMIZE_TIME:-2s}"; ((quick)) && fuzz_min="${FUZZ_MINIMIZE_TIME_QUICK:-1s}"
+			mapfile -t fuzz_targets < <(in_src go test -list '^Fuzz' "${GO_TEST_PKG:-.}" 2>/dev/null | grep -E '^Fuzz' || true)
+			if ((${#fuzz_targets[@]})); then
+				fuzz_log="${run_tmp}/fuzz.log"
+				for t in "${fuzz_targets[@]}"; do
+					fEcho_Chat "fuzz ${t} (${ft}) ..."
+					## Only || keeps the ERR trap off a failed run; set +e does not.
+					fuzz_rc=0
+					in_src "${heavy_env[@]}" go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" -parallel "${CPU_CAP_HEAVY}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}" || fuzz_rc=$?
+					fuzz_id="-----"
+					((${#TEST_ID_CMD[@]})) && fuzz_id="$(cd "${root}" && "${TEST_ID_CMD[@]}" lookup "${SRC_DIR}/${GO_TEST_PKG:-.}" "${t}" || true)"
+					if ((fuzz_rc)); then
+						## A bare "context deadline exceeded" with no crasher is the
+						## -fuzztime boundary, not a find: the coordinator reads the
+						## worker context before cancellation has reached it, so the
+						## deadline gets reported as the run's error. Real finds name
+						## the failing input file.
+						if grep -q 'Failing input written to' "${fuzz_log}" \
+						|| ! grep -q 'context deadline exceeded' "${fuzz_log}"; then
+							printf 'FAIL %s %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
+							fDie "fuzz ${t} found a failure"
+						fi
+						fEcho "NOTE: fuzz ${t} reported the -fuzztime deadline; no failing input recorded"
 					fi
-					fEcho "NOTE: fuzz ${t} reported the -fuzztime deadline; no failing input recorded"
-				fi
-				printf 'PASS %s %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
-			done
-			fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"
-		else
-			fEcho_Chat "no Fuzz* targets found; skipping fuzz"
+					printf 'PASS %s %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
+				done
+				fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"
+			else
+				fEcho_Chat "no Fuzz* targets found; skipping fuzz"
+			fi
 		fi
-	fi
 
-	## 4c: security. govulncheck scans the module and its dependencies (library code).
-	if ((${#VULN_CMD[@]})); then
-		if in_src "${VULN_PROBE[@]}" >/dev/null 2>&1; then
-			in_src "${VULN_CMD[@]}"; fEcho "OK: no known vulnerabilities"
-		else
-			fSkip "govulncheck skipped (not installed: go install golang.org/x/vuln/cmd/govulncheck@latest)"
+		## 4c: security. govulncheck scans the module and its dependencies (library code).
+		if ((${#VULN_CMD[@]})); then
+			if in_src "${VULN_PROBE[@]}" >/dev/null 2>&1; then
+				in_src "${VULN_CMD[@]}"; fEcho "OK: no known vulnerabilities"
+			else
+				fSkip "govulncheck skipped (not installed: go install golang.org/x/vuln/cmd/govulncheck@latest)"
+			fi
 		fi
-	fi
 
-	## 4d: race detector, soak test and CodeQL.
-	fLeakCheck
-	fEcho "OK: tests passed"
-	fStepDone
+		## 4d: race detector, soak test and CodeQL.
+		fLeakCheck
+		fEcho "OK: tests passed"
+		fStepDone
+	fi
 fi
 
 ## Stage 5: profiler (non-gating artifact; failures classified below).
@@ -1006,6 +1156,13 @@ if fStep "Cross + package"; then
 	fStepDone
 fi
 
+## Builds and tests on the test boxes and VMs. None are set up yet, so this is
+## off unless config.bash names a REMOTE_CMD, and --no-remote turns it off.
+if fStep "Other hosts"; then
+	"${REMOTE_CMD[@]}"
+	fStepDone
+fi
+
 ## Stage 7: dogfood (fixed name), screenshots and the demo gif. Dogfood the optimized
 ## release build (the real thing), falling back to the debug build if it wasn't made.
 ## sudo -n never prompts, so it can't hang a run, and an unattended run
@@ -1059,13 +1216,18 @@ fi
 
 ## Demo gif: types the scenario into a fake terminal, runs each command against the
 ## tested binary, renders the animated loop. A failure is a warning, never a stop.
+## The backlog runs and the merge gate make it in the run's temp dir, say
+## whether it changed, and leave the repo's copy and the archive alone.
 if fStep "Demo gif"; then
 	demogif_out="${root}/${DEMOGIF_OUT}"
 	demogif_tmp="${demogif_out}.new"
+	if [[ -n "${run_mode}" ]]; then demogif_tmp="${run_tmp}/demo.gif"; fi
 	if (cd "${root}" && python3 "${DEMOGIF_CMD[@]}" --out "${demogif_tmp}" --bin "${root}/${STAGED_BIN}"); then
 		if [[ -f "${demogif_out}" ]] && cmp -s "${demogif_tmp}" "${demogif_out}"; then
 			rm -f "${demogif_tmp}"
 			fEcho "OK: demo gif unchanged"
+		elif [[ -n "${run_mode}" ]]; then
+			fEcho "NOTE: the demo gif came out different, and ${DEMOGIF_OUT} is left as it was (${run_mode})"
 		else
 			## Keep the new original out of tree (GFS-pruned), then land it in the repo.
 			mkdir -p "${DEMOGIF_ARCHIVE_DIR}"
@@ -1135,3 +1297,4 @@ fEcho_Clean
 ##		- 2026-10-25 JC: nice and ionice for the run, half the CPUs or a quarter when busy or heavy, rechecked each step. --cpus and --cpu-shares on the container.
 ##		- 2026-10-25 JC: Step lines with the time and "Step N of M", PASS or FAIL, and the steps turned off listed first. The pin checks are a step.
 ##		- 2026-10-25 JC: Fuzz lines read PASS or FAIL, then the ID and target.
+##		- 2026-10-25 JC: --backlog-run-quick with areas, --backlog-run-full and --merge-gate, which never sync, dogfood, publish or rewrite a tracked file. --gate and --ci are other names for them. --list, --no-remote, --slow.

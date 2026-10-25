@@ -140,6 +140,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The pipeline has a fast `--gate` run of the format check, lint and unit tests, which a pre-push hook runs for `dev` and `main`. A full run fast-forwards from the remote first.  [20261014]
 
+- The pipeline takes the flags its sister projects share. `--backlog-run-quick` runs the quick checks, or only the areas named after it, and `--backlog-run-full` and `--merge-gate` run every check. None of the three installs, commits, pushes, or changes a tracked file. The pre-push hook runs the merge gate for `main` only, and not for a push that only changes docs. Hosted CI runs it for `main` in place of a quick run on every push.  [20261025]
+
 - A pipeline run with no flags includes the long tests. `--quick` still cross-compiles and packages, which takes seconds, and leaves out the checks that reach other hosts.  [20261019]
 
 - The lint stage checks the PowerShell files with PSScriptAnalyzer, and the pipeline image has PowerShell 7 for it.  [20261019]

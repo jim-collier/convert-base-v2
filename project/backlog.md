@@ -219,6 +219,47 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 7618572
 	- Test case: dedq9 (old IDs refused), dedqa (`new` skips a taken minute), dedq8 (harness PASS, FAIL and SKIP lines), dedqb (fuzz lines). ddgwd now checks the Go test line too.
 
+- CICD reset: standard flags.
+	- ID: 2026102416280104
+	- Type: Enhancement
+	- Status: Waiting on a full CICD run
+	- Needs local test suite run?: a full `cicd/cicd.bash` run, then one `--backlog-run-full`, which builds the current image and runs the real pins check, the demo gif made in the temp folder, and the profiler. `git status` should be the same after it.
+	- Needs external testing: Yes. Hosted CI: a manual run of the workflow on this branch, which is the first merge gate on the runner, and a push to dev, where only the Go and macOS jobs should run.
+	- Needs hand testing: a look at the `--list` and `--help` output and the area names, since they're what a person reads and types.
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101816351431, 2026101411014801
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides 2026101411014801, where the pre-push hook runs the gate on pushes to dev and main, and 2026101816351431, where `--ci` became `--gate`.
+		- `--quick`, `--long`, `--leakcheck`, `--no-leakcheck`, and `--no-sync` are in. What's left is below.
+		- New flags: `--backlog-run-quick` with optional areas, `--backlog-run-full`, `--merge-gate`, `--slow` as another name for `--long`, `--no-remote`, `--keep-temp`, and `--list`.
+		- `--gate` and `--ci` become other names for `--backlog-run-quick` and `--merge-gate`, and say so in one line when used.
+		- The backlog runs and the merge gate never dogfood, publish, commit, push, install, sync, or rewrite a tracked file, and never prompt.
+		- The pre-push hook runs `--merge-gate` on a push to main only. It skips the gate when the commits touch only docs and the other paths listed in one place.
+		- No gate on a push to dev. Hosted CI runs `--merge-gate` as far as the runner can, on push and PR to main, plus the manual trigger, in place of a `--quick` run on every dev push.
+	- Progress log:
+		- 20261025: `--backlog-run-quick` takes areas: format, lint, go, each Go package by its folder name, and the harness's own. With none named it takes the list in `config.bash`: format, lint, go, and the cli, config and stream harness areas. `--list` and `--help` show them all.
+		- 20261025: the harness is split into 11 areas, and every section is in one. Each area run alone got the same result for every test as a whole run.
+		- 20261025: `--backlog-run-full` and `--merge-gate` run the same checks as a plain run. All three turn off sync, dogfood, publish, screenshots and the pre-push hook install, and never prompt. Format becomes a format check, the pins step only checks, and the demo gif is made in the run's temp folder and compared, but not kept.
+		- 20261025: `--gate` and `--ci` are other names and say so in one line. `--slow` is `--long`.
+		- 20261025: `--no-remote` works and shows in the Turned off list. There are no remote steps yet, so the step it turns off, Other hosts, is also off while `config.bash` names none. The other hosts item fills it in.
+		- 20261025: `--keep-temp` was already a flag, for the containers. Keeping the temp folder is the temp files item.
+		- 20261025: the pre-push hook runs `--merge-gate` for a push to main only. It skips it when every changed file is in the skip list in `config.bash`, which names only docs nothing reads. README.md, design.md, the changelog and a few more are read by a test or a build, so they still run it. A new main, or one this clone hasn't fetched, is gated.
+		- 20261025: the hook in `.git/hooks` is a stub that runs the tracked script, so it needs no refresh.
+		- 20261025: hosted CI's pipeline job runs `--merge-gate` on a push or pull request to main, and by hand. The plain Go job and the macOS job still run on every push to main or dev and every pull request, since they're quick. The job's time limit went from 40 to 90 minutes, for the long tests and leak checks.
+		- 20261025: `--backlog-run-quick` with no areas took 117 seconds on this box at a load of 41 to 46, on the host. The current image isn't built here yet, so a run in the container would build it first. The round's full run does that once.
+	- Note: `--list` shows the steps and areas, but not each test's ID.
+	- Note: 5 older tests changed. dedpv, the old gate's steps, and ddydq, gating dev pushes, are commented out with the reason. de550 and ddydr now use `--backlog-run-quick` and a plain run, and de566 checks the new workflow line.
+	- Verified: 20261025, `--backlog-run-quick --no-container` passed 417 harness checks and 109 Go tests in 117 seconds, and `git status` and HEAD were the same after.
+	- Verified: the hook, with the real config, skipped the gate for a push to main that changed only the backlog, and let a push to dev through.
+	- Verified: the CI engine and remote sync area passes 104 of 104. Its 11 new checks failed against the old pipeline, hook and workflow, and dedrd failed with the dogfood line taken out. dedrj failed with one area leaking into another's run. The self-check area passes.
+	- Swept: `--gate`, `--ci`, `--host`, `--quick` and the pre-push hook across the repo: contributing.md, development.md, design.md, the `config.bash` comments, the help text, the harness header, the workflow, and a new changelog line. Older changelog lines say what was true then, and stay.
+	- Test case: dedr7 (`--list`), dedr8 (quick run, no areas), dedr9 (named areas), dedra (`--gate`, `--ci`, `--slow`), dedrb (other hosts and `--no-remote`), dedrc (full run and merge gate run every check), dedrd (the three change nothing they mustn't, against a plain run that does all of it), dedre (each of those stages left on is caught), dedrf (hook: main only, and the skip list), dedrg (the skip list matches files, and skips nothing a test reads), dedrh (workflow), dedrj (harness areas).
+	- Branch: flags2
+	- Commit: 14fe62d
+
 - The Windows `.exe` files have no icon or version information resource.
 	- ID: 2026101411014805
 	- Type: Enhancement
@@ -304,24 +345,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Each box is held through the shared host lock while it's in use. A VM is put back the way it was found, through the VM state helper.
 		- A box that isn't there shows as SKIP with a warning, and the run goes on.
 		- Each box gets a work folder for this project under its temp root.
-
-- CICD reset: standard flags.
-	- ID: 2026102416280104
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: High
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026101816351431, 2026101411014801
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides 2026101411014801, where the pre-push hook runs the gate on pushes to dev and main, and 2026101816351431, where `--ci` became `--gate`.
-		- `--quick`, `--long`, `--leakcheck`, `--no-leakcheck`, and `--no-sync` are in. What's left is below.
-		- New flags: `--backlog-run-quick` with optional areas, `--backlog-run-full`, `--merge-gate`, `--slow` as another name for `--long`, `--no-remote`, `--keep-temp`, and `--list`.
-		- `--gate` and `--ci` become other names for `--backlog-run-quick` and `--merge-gate`, and say so in one line when used.
-		- The backlog runs and the merge gate never dogfood, publish, commit, push, install, sync, or rewrite a tracked file, and never prompt.
-		- The pre-push hook runs `--merge-gate` on a push to main only. It skips the gate when the commits touch only docs and the other paths listed in one place.
-		- No gate on a push to dev. Hosted CI runs `--merge-gate` as far as the runner can, on push and PR to main, plus the manual trigger, in place of a `--quick` run on every dev push.
 
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
