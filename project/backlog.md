@@ -245,6 +245,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: read, not watched: ruff and the backup's rar take the counts through their own settings. A round doesn't run the publish step.
 	- Swept: every tool the pipeline runs in parallel, which is go build, test, vet and fuzz, the race and soak runs, golangci-lint, staticcheck, govulncheck, CodeQL, cargo in the harness, ruff, and the backup. shellcheck, PSScriptAnalyzer, node, nfpm, makensis and the Python helpers use one core. The browser module tests clear the environment, so they get the counts by name, except GOMAXPROCS, since the wasm program dies when it's over 1. `lib/Makefile` keeps its own default for a hand `make`, and the pipeline's count overrides it. Hosted CI's plain Go job runs on its own runner and is left as it was.
 	- Branch: cpu
+	- Commit: a898a75
 	- Test case: EtixvQc (the counts), EtixvQd (nice and idle I/O), EtixvQe (half on a quiet box), EtixvQf (a quarter for the heavy steps), EtixvQg (load checked again before each step), EtiyAAx (at most the container's `--cpus`), EtixvQh (labels and the CPU limit on the container run). Etil6xK wanted a run line with no CPU limit, so it's commented out with the reason.
 
 - CICD reset: standard flags.
