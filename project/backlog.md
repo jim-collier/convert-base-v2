@@ -250,6 +250,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261025: the hook in `.git/hooks` is a stub that runs the tracked script, so it needs no refresh.
 		- 20261025: hosted CI's pipeline job runs `--merge-gate` on a push or pull request to main, and by hand. The plain Go job and the macOS job still run on every push to main or dev and every pull request, since they're quick. The job's time limit went from 40 to 90 minutes, for the long tests and leak checks.
 		- 20261025: `--backlog-run-quick` with no areas took 117 seconds on this box at a load of 41 to 46, on the host. The current image isn't built here yet, so a run in the container would build it first. The round's full run does that once.
+		- 20261025: the full run in the container failed dedrf. Its hook runs took the container's step list and container flag, so the gate they started printed no header or done line. Those runs now pin both, as the other nested runs do. It passes in the container's settings and on the host, and fails without the fix.
 	- Note: `--list` shows the steps and areas, but not each test's ID.
 	- Note: 5 older tests changed. dedpv, the old gate's steps, and ddydq, gating dev pushes, are commented out with the reason. de550 and ddydr now use `--backlog-run-quick` and a plain run, and de566 checks the new workflow line.
 	- Verified: 20261025, `--backlog-run-quick --no-container` passed 417 harness checks and 109 Go tests in 117 seconds, and `git status` and HEAD were the same after.

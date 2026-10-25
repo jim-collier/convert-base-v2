@@ -3533,7 +3533,9 @@ fSyGit -C "${syA}" remote set-url origin "${syDir}/o.git"
 syZeros="0000000000000000000000000000000000000000"; syHeadA="$(fSyHead "${syA}")"
 fSyHook(){
 	syRc=0
-	( cd "${syA}" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u CICD_GATE_PASSED HOME="${syDir}/home" TMPDIR="${syDir}/tmp" PATH="${ceBin}:${PATH}" "$@" \
+	## In a container run the outer step list and container flag would reach the gate it starts.
+	( cd "${syA}" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u CICD_GATE_PASSED -u CICD_STEPS CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 \
+		HOME="${syDir}/home" TMPDIR="${syDir}/tmp" PATH="${ceBin}:${PATH}" "$@" \
 		bash "${syA}/.git/hooks/pre-push" origin "${syDir}/o.git" <<<"${syLine}" >"${CBT_OUT}" 2>&1 ) || syRc=$?
 	syOut="$(<"${CBT_OUT}")"
 }
