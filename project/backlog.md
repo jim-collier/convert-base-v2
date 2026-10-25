@@ -192,6 +192,33 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 4c69d4b
 	- Test case: dedpn (step lines), dedpp (off steps listed and not counted), dedpq (FAIL on a failed step), dedpv (gate steps), dedpr (numbers across the container and host runs), dedpt (counted again after a failed image build), dedps (the step list on the container run line). dednz wanted a run line with no step list, so it's commented out with the reason. ddgmj, de54f, ddys9, ddrpk, dedma, dedmd, dedme, ddydm and ddydq now match the new text.
 
+- CICD reset: test IDs.
+	- ID: 2026102416280106
+	- Type: Enhancement
+	- Status: Waiting on a full CICD run
+	- Needs local test suite run?: a full `cicd/cicd.bash` run, for the fuzz lines with their real IDs and the harness in the container with the packaging rebuilds.
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides the 7-character base 62 test IDs in milliseconds.
+		- Every test ID becomes its creation time in whole minutes since 2000-01-01 UTC, in lowercase Crockford base 32. The old IDs are converted once, from the same times. When 2 come out the same, the newer one takes the next free minute.
+		- The ID tool, the harness's ID check, and the `Test case:` rows in this backlog move to the new IDs together.
+		- The run prints one `PASS`, `FAIL`, or `SKIP` line per regression and fuzz test, with its ID and name. The harness prints `ok` now, and the Go tests print no per-test line.
+	- Progress log:
+		- 20261025: every test ID is now the minute the test was written, in lower case Crockford base 32, converted once from the old IDs' times. One map covers 573 IDs: the live tests, 6 commented-out ones, and 3 that the ID tool's own tests use as samples. 465 shared a minute with an older one and took the next free minute, at most 38 minutes later.
+		- 20261025: the IDs changed together in the harness, the Go tests, this backlog with closed items included, and the private notes. Nothing else in those files changed.
+		- 20261025: the ID check takes the new form and refuses the old one. `new` skips a minute that's already taken, and `new N` gives several.
+		- 20261025: each test prints one line, `PASS`, `FAIL` or `SKIP`, then its ID and name. That covers the harness, the Go tests and the fuzz targets.
+	- Verified: 20261025, the map is one to one, and mapping each changed file back gives the old file exactly. No old ID is left in the repo or the private notes.
+	- Verified: the fast gate passed, with 568 IDs checked. The harness passed 735 of 735, with the packaging rebuilds skipped as under `--quick`.
+	- Verified: each new check failed against the code before the change. An old ID planted in the harness and in a Go test was refused, then taken out.
+	- Swept: the ID tool, the harness helpers and the ID tool's tests, the fuzz lines in `cicd.bash`, contributing.md, and every file with an old ID by `git grep`. The pre-push hook, hosted CI and `lint-report.bash` read no per-test line.
+	- Branch: testids
+	- Commit: 7618572
+	- Test case: dedq9 (old IDs refused), dedqa (`new` skips a taken minute), dedq8 (harness PASS, FAIL and SKIP lines), dedqb (fuzz lines). ddgwd now checks the Go test line too.
+
 - The Windows `.exe` files have no icon or version information resource.
 	- ID: 2026101411014805
 	- Type: Enhancement
@@ -295,33 +322,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- The backlog runs and the merge gate never dogfood, publish, commit, push, install, sync, or rewrite a tracked file, and never prompt.
 		- The pre-push hook runs `--merge-gate` on a push to main only. It skips the gate when the commits touch only docs and the other paths listed in one place.
 		- No gate on a push to dev. Hosted CI runs `--merge-gate` as far as the runner can, on push and PR to main, plus the manual trigger, in place of a `--quick` run on every dev push.
-
-- CICD reset: test IDs.
-	- ID: 2026102416280106
-	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, for the fuzz lines with their real IDs and the harness in the container with the packaging rebuilds.
-	- Priority: High
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides the 7-character base 62 test IDs in milliseconds.
-		- Every test ID becomes its creation time in whole minutes since 2000-01-01 UTC, in lowercase Crockford base 32. The old IDs are converted once, from the same times. When 2 come out the same, the newer one takes the next free minute.
-		- The ID tool, the harness's ID check, and the `Test case:` rows in this backlog move to the new IDs together.
-		- The run prints one `PASS`, `FAIL`, or `SKIP` line per regression and fuzz test, with its ID and name. The harness prints `ok` now, and the Go tests print no per-test line.
-	- Progress log:
-		- 20261025: every test ID is now the minute the test was written, in lower case Crockford base 32, converted once from the old IDs' times. One map covers 573 IDs: the live tests, 6 commented-out ones, and 3 that the ID tool's own tests use as samples. 465 shared a minute with an older one and took the next free minute, at most 38 minutes later.
-		- 20261025: the IDs changed together in the harness, the Go tests, this backlog with closed items included, and the private notes. Nothing else in those files changed.
-		- 20261025: the ID check takes the new form and refuses the old one. `new` skips a minute that's already taken, and `new N` gives several.
-		- 20261025: each test prints one line, `PASS`, `FAIL` or `SKIP`, then its ID and name. That covers the harness, the Go tests and the fuzz targets.
-	- Verified: 20261025, the map is one to one, and mapping each changed file back gives the old file exactly. No old ID is left in the repo or the private notes.
-	- Verified: the fast gate passed, with 568 IDs checked. The harness passed 735 of 735, with the packaging rebuilds skipped as under `--quick`.
-	- Verified: each new check failed against the code before the change. An old ID planted in the harness and in a Go test was refused, then taken out.
-	- Swept: the ID tool, the harness helpers and the ID tool's tests, the fuzz lines in `cicd.bash`, contributing.md, and every file with an old ID by `git grep`. The pre-push hook, hosted CI and `lint-report.bash` read no per-test line.
-	- Branch: testids
-	- Commit: 7618572
-	- Test case: dedq9 (old IDs refused), dedqa (`new` skips a taken minute), dedq8 (harness PASS, FAIL and SKIP lines), dedqb (fuzz lines). ddgwd now checks the Go test line too.
 
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
