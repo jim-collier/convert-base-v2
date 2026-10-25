@@ -344,6 +344,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: `--gate`, `--ci`, `--host`, `--quick` and the pre-push hook across the repo: contributing.md, development.md, design.md, the `config.bash` comments, the help text, the harness header, the workflow, and a new changelog line. Older changelog lines say what was true then, and stay.
 	- Test case: dedr7 (`--list`), dedr8 (quick run, no areas), dedr9 (named areas), dedra (`--gate`, `--ci`, `--slow`), dedrb (other hosts and `--no-remote`), dedrc (full run and merge gate run every check), dedrd (the three change nothing they mustn't, against a plain run that does all of it), dedre (each of those stages left on is caught), dedrf (hook: main only, and the skip list), dedrg (the skip list matches files, and skips nothing a test reads), dedrh (workflow), dedrj (harness areas).
 	- Branch: flags2
+	- Commit: 14fe62d
 
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
