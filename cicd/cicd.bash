@@ -21,30 +21,39 @@
 ## shellcheck disable=2143  ## 'Use grep -q instead of echo | grep'
 
 ##	- Purpose: Local CI/CD pipeline. Generic engine, per-project settings live in config.bash.
-##	- Stages (fail-fast, any error aborts before the next stage):
-##	   1. format (gofmt)
-##	   2. native build (staged aside so the cross stage can't clobber it)
-##	   3. lint (go vet gating; golangci-lint, staticcheck, shellcheck, ruff and PSScriptAnalyzer if installed)
-##	   4. tests (unit + integration harness + fuzz + govulncheck security + leak checks)
-##	   5. profiler (flamegraph SVG; non-gating artifact - see failure policy)
-##	   6. cross-compile + package every shipping platform (archives, deb/rpm, Windows installers, checksums)
-##	   7. dogfood (install the optimized native build locally, fixed name, and any cross builds listed) + screenshots + demo gif
-##	   8. backup + publish to git (runs from repo root)
+##	- Steps (fail-fast, any error aborts before the next step):
+##	   - pins (pinned go tools, vendored source and interop references match their pins)
+##	   - format (gofmt)
+##	   - native build (staged aside so the cross step can't clobber it)
+##	   - lint (go vet gating; golangci-lint, staticcheck, shellcheck, ruff and PSScriptAnalyzer if installed)
+##	   - tests (unit + integration harness + fuzz + govulncheck security + leak checks)
+##	   - profiler (flamegraph SVG; non-gating artifact - see failure policy)
+##	   - cross-compile + package every shipping platform (archives, deb/rpm, Windows installers, checksums)
+##	   - dogfood (install the optimized native build locally, fixed name, and any cross builds listed)
+##	   - screenshots
+##	   - demo gif
+##	   - backup + publish to git (runs from repo root)
+##	- Each step prints a rule, a Starting line, its output, and a PASS or FAIL line,
+##	  each with the local time and "Step N of M". A step that's turned off isn't
+##	  counted, and the first section says what turned it off.
+##	- In a container run, the steps through tests, cross + package and the demo gif
+##	  run first, in the container, then the rest here. So the profiler comes after
+##	  cross + package there.
 ##	- Syntax:
 ##	  cicd/cicd.bash [options]
 ##	  Options:
-##	   -q, --quiet         unattended, and no plan or progress lines; stage headers, results and errors still print
+##	   -q, --quiet         unattended, and no plan or progress lines; step lines, results and errors still print
 ##	   -y, --yes           unattended (no prompt) but not quiet
 ##	   -m, --message MSG   publish hands-off with this commit message (no editor)
 ##	       --msg MSG       alias for --message
-##	   --no-fmt            skip the formatter stage
-##	   --no-lint           skip the lint stage
-##	   --no-cross          skip the cross-compile + package stage
-##	   --no-profile        skip the profiler stage
+##	   --no-fmt            skip the format step
+##	   --no-lint           skip the lint step
+##	   --no-cross          skip the cross-compile + package step
+##	   --no-profile        skip the profiler step
 ##	   --no-dogfood        skip installing the builds locally
 ##	   --no-screenshots    skip regenerating README screenshots
 ##	   --no-demogif        skip regenerating the demo gif
-##	   --no-publish        skip the git backup + publish stage
+##	   --no-publish        skip the git backup + publish step
 ##	   --no-sync           don't check the remote first (by default the run fetches, fast-forwards
 ##	                       when only behind, and stops when the branch and its upstream have diverged)
 ##	   --gate              the fast merge gate only: format check, lint, unit tests. No log, no
@@ -60,8 +69,9 @@
 ##	                       the leak checks, and the checks that reach another host (vendor and interop pins,
 ##	                       govulncheck). Fuzz is shorter, and the harness skips its perf section and packaging
 ##	                       rebuild check. It still cross-compiles and packages, which takes seconds.
-##	   --container         run stages 1 to 4, 6 and the demo gif in the pinned image from cicd/container/,
-##	                       where a missing tool is an error. The profiler, dogfood and publish then run here.
+##	   --container         run the steps through tests, cross + package and the demo gif in the pinned
+##	                       image from cicd/container/, where a missing tool is an error. The profiler,
+##	                       dogfood, screenshots and publish then run here.
 ##	                       The default when config.bash sets CONTAINER_DEFAULT=1.
 ##	   --no-container      run every stage here, with whatever tools this machine has
 ##	   --host              another name for --no-container
@@ -150,6 +160,9 @@ fMachineUse
 
 source "${here}/config.bash"
 [[ -v FMT_CHECK_CMD ]] || FMT_CHECK_CMD=()   ## older configs
+[[ -v PIN_TOOLS_CMD ]] || PIN_TOOLS_CMD=()
+[[ -v VENDOR_CHECK_CMD ]] || VENDOR_CHECK_CMD=()
+[[ -v INTEROP_CHECK_CMD ]] || INTEROP_CHECK_CMD=()
 [[ -v DOGFOOD_CROSS ]] || DOGFOOD_CROSS=()
 [[ -v RACE_TEST_CMD ]] || RACE_TEST_CMD=()
 [[ -v SOAK_CMD ]] || SOAK_CMD=()
@@ -165,19 +178,23 @@ stamp="$(date +%Y%m%d-%H%M%S)"
 export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the Entering/Leaving dir noise
 
 ## Parse options. The originals are kept for a restart after the sync.
+## A flag that turns a step off names the step with fStepWhy, so the first
+## section can say what turned it off.
+declare -A step_why=()
+fStepWhy(){ [[ -n "${step_why[$1]:-}" ]] || step_why[$1]="$2"; }
 orig_args=("$@")
 assume_yes=0; quiet=0; quick=0; do_long=""; do_leakcheck=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; gate=0; image_tag=0; keep_temp=0
 while (($#)); do case "$1" in
 	-q|--quiet)               quiet=1; assume_yes=1; shift ;;
 	-y|--yes)                 assume_yes=1; shift ;;
-	--no-fmt)                 FMT_CMD=(); FMT_CHECK_CMD=(); inner_args+=("$1"); shift ;;
-	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); SHELLCHECK_CMD=(); RUFF_CMD=(); PSSA_CMD=(); inner_args+=("$1"); shift ;;
-	--no-cross)               BUILD_CROSS=0; inner_args+=("$1"); shift ;;
-	--no-profile)             PROFILE_ENABLE=0; shift ;;
-	--no-dogfood)             DOGFOOD_FIXED_DESTS=(); DOGFOOD_CROSS=(); shift ;;
-	--no-screenshots)         DO_SCREENSHOTS=0; inner_args+=("$1"); shift ;;
-	--no-demogif)             DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
-	--no-publish)             GIT_PUBLISH=(); shift ;;
+	--no-fmt)                 FMT_CMD=(); FMT_CHECK_CMD=(); inner_args+=("$1"); fStepWhy Format "$1"; fStepWhy "Format check" "$1"; shift ;;
+	--no-lint)                VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=(); SHELLCHECK_CMD=(); RUFF_CMD=(); PSSA_CMD=(); inner_args+=("$1"); fStepWhy Lint "$1"; shift ;;
+	--no-cross)               BUILD_CROSS=0; inner_args+=("$1"); fStepWhy "Cross + package" "$1"; shift ;;
+	--no-profile)             PROFILE_ENABLE=0; fStepWhy Profiler "$1"; shift ;;
+	--no-dogfood)             DOGFOOD_FIXED_DESTS=(); DOGFOOD_CROSS=(); fStepWhy Dogfood "$1"; shift ;;
+	--no-screenshots)         DO_SCREENSHOTS=0; inner_args+=("$1"); fStepWhy Screenshots "$1"; shift ;;
+	--no-demogif)             DO_DEMOGIF=0; inner_args+=("$1"); fStepWhy "Demo gif" "$1"; shift ;;
+	--no-publish)             GIT_PUBLISH=(); fStepWhy "Backup + publish" "$1"; shift ;;
 	--container)              use_container=1; shift ;;
 	--no-container|--host)    use_container=0; shift ;;
 	--keep-temp)              keep_temp=1; shift ;;
@@ -187,7 +204,7 @@ while (($#)); do case "$1" in
 	--long)                   do_long=1; inner_args+=("$1"); shift ;;
 	--leakcheck)              do_leakcheck=1; inner_args+=("$1"); shift ;;
 	--no-leakcheck)           do_leakcheck=0; inner_args+=("$1"); shift ;;
-	--quick)                  quick=1; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; inner_args+=("$1"); shift ;;
+	--quick)                  quick=1; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; inner_args+=("$1"); for quickOff in Profiler Screenshots "Demo gif" Pins; do fStepWhy "${quickOff}" "$1"; done; shift ;;
 	--message=*|--msg=*|-m=*) cli_message="${1#*=}"; shift ;;
 	-m|--message|--msg)       cli_message="${2-}"; shift; (($#)) && shift ;;
 	-h|--help)                sed -n '/^##	- Purpose:/,/^##	History:/p' "${BASH_SOURCE[0]}" | sed '$d; s/^##	\{0,1\}//'; exit 0 ;;
@@ -225,20 +242,109 @@ elif [[ -n "${PUBLISH_AUTO_MESSAGE:-}" ]]; then publish_msg="$PUBLISH_AUTO_MESSA
 elif ((assume_yes));                       then publish_msg="${APP_NAME} CI/CD ${stamp}"
 fi
 
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Output helpers: fEcho / fEcho_Clean, blank-collapsing.
 ## fEcho "msg" -> "[ msg ]" status line; fEcho_Clean "msg" -> plain line, and a
 ## bare call collapses repeated blanks. fSection draws the leading-blank + rule
-## letterbox before a major stage header; fDie prints a fatal line and exits.
+## letterbox before a header that isn't a step; fDie prints a fatal line and exits.
 ## fEcho_Chat is fEcho_Clean for the plan and progress lines that -q drops.
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 declare -i _wasLastEchoBlank=0
 fEcho_ResetBlankCounter(){ _wasLastEchoBlank=0; }
 fEcho_Clean(){ if [[ -n "${1:-}" ]]; then echo -e "$*"; _wasLastEchoBlank=0; elif [[ $_wasLastEchoBlank -eq 0 ]] && echo; then _wasLastEchoBlank=1; fi; }
 fEcho(){       if [[ -n "$*"     ]]; then fEcho_Clean "[ $* ]"; else fEcho_Clean ""; fi; }
 fEcho_Force(){ fEcho_ResetBlankCounter; fEcho "$*"; }
 fEcho_Chat(){  if ((quiet)); then return 0; fi; fEcho_Clean "$@"; }
-_letterbox="••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"
+_letterbox="•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"
+## Local time to the hundredth, as YYYYmmDD-HHMMSS.NN, into step_stamp. Some
+## locales put a comma in EPOCHREALTIME, and bash before 5 has none.
+fStepStamp(){
+	local t="${EPOCHREALTIME:-}"; t="${t/,/.}"
+	if [[ "${t}" == *.* ]]; then printf -v step_stamp '%(%Y%m%d-%H%M%S)T.%s' "${t%.*}" "${t#*.}"; step_stamp="${step_stamp:0:18}"
+	else printf -v step_stamp '%(%Y%m%d-%H%M%S)T.00' -1; fi
+}
 ## Each step checks the load again before it starts.
-fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fEcho "$*"; fMachineUse; [[ "${stage_pause:-0}" == 0 ]] || sleep "${stage_pause}"; }
+fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fStepStamp; fEcho "${step_stamp}: $*"; fMachineUse; [[ "${stage_pause:-0}" == 0 ]] || sleep "${stage_pause}"; }
+
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## Steps. fStepPlan works out which are on, in the order they run, from the
+## flags and config. Each step is `if fStep NAME; then ...; fStepDone; fi`, and
+## fStep says no for one that's off, or that runs on the other side of the
+## container. A step still open at exit is a FAIL, or a PASS on exit 0.
+#••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+container_steps=(Pins Format "Native build" Lint Tests "Cross + package" "Demo gif")
+steps_on=(); steps_off=(); steps_numbered=(); step_open=""; step_num=0; step_stamp=""
+fInList(){ local want="$1" item; shift; for item in "$@"; do if [[ "${item}" == "${want}" ]]; then return 0; fi; done; return 1; }
+## Why a step is off, into step_off_why, or empty when it's on. What a flag
+## turned off says the flag; anything else says what in config.bash did it.
+fStepOffWhy(){
+	local why="" ctx="" c
+	case "$1" in
+		Pins)               ((${#PIN_TOOLS_CMD[@]} + ${#VENDOR_CHECK_CMD[@]} + ${#INTEROP_CHECK_CMD[@]})) || why="none in config.bash" ;;
+		Format)             ((${#FMT_CMD[@]})) || why="no FMT_CMD in config.bash" ;;
+		"Format check")     ((${#FMT_CHECK_CMD[@]})) || why="no FMT_CHECK_CMD in config.bash" ;;
+		Lint)               ((${#VET_CMD[@]})) || why="no VET_CMD in config.bash" ;;
+		Profiler)           ((PROFILE_ENABLE)) || why="PROFILE_ENABLE=0 in config.bash" ;;
+		"Cross + package")  ((BUILD_CROSS)) || why="BUILD_CROSS=0 in config.bash" ;;
+		Dogfood)            ((${#DOGFOOD_FIXED_DESTS[@]} + ${#DOGFOOD_CROSS[@]})) || why="no dogfood dirs in config.bash" ;;
+		Screenshots)        ((DO_SCREENSHOTS)) || why="DO_SCREENSHOTS=0 in config.bash" ;;
+		"Backup + publish") ((${#GIT_PUBLISH[@]})) || why="no GIT_PUBLISH in config.bash" ;;
+		"Demo gif")
+			for c in "${CONTAINER_CONTEXTS[@]}"; do if [[ -z "$(fContextDir "${c}")" ]]; then ctx="${c#*=}"; break; fi; done
+			if ((! DO_DEMOGIF)); then why="DO_DEMOGIF=0 in config.bash"
+			## Its fallback fonts are whatever this machine has, so it would flip
+			## back and forth against the container's.
+			elif ((! use_container)) && [[ "${DEMOGIF_CONTAINER_ONLY:-0}" == "1" && "${CICD_IN_CONTAINER:-0}" != "1" ]]; then why="only container runs make it"
+			elif ((use_container)) && [[ -n "${ctx}" ]] && fInList --no-demogif "${CONTAINER_CONTEXT_MISSING[@]}"; then why="no ${ctx}"
+			elif [[ ! -f "${root}/${DEMOGIF_CMD[0]}" ]]; then why="no ${DEMOGIF_CMD[0]}"
+			fi ;;
+	esac
+	if [[ -n "${why}" && -n "${step_why[$1]:-}" ]]; then why="${step_why[$1]}"; fi
+	step_off_why="${why}"
+}
+## Inside the container only its own steps run, numbered as the host run that
+## started it says in CICD_STEPS.
+fStepPlan(){
+	local s
+	local -a order
+	if ((gate)); then order=("Format check" Lint "Unit tests")
+	elif [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then order=("${container_steps[@]}")
+	elif ((use_container)); then order=("${container_steps[@]}" Profiler Dogfood Screenshots "Backup + publish")
+	else order=(Pins Format "Native build" Lint Tests Profiler "Cross + package" Dogfood Screenshots "Demo gif" "Backup + publish"); fi
+	steps_on=(); steps_off=()
+	for s in "${order[@]}"; do
+		fStepOffWhy "${s}"
+		if [[ -n "${step_off_why}" ]]; then steps_off+=("${s} (${step_off_why})"); else steps_on+=("${s}"); fi
+	done
+	steps_numbered=("${steps_on[@]}")
+	if [[ "${CICD_IN_CONTAINER:-0}" == "1" && -n "${CICD_STEPS:-}" ]]; then IFS='|' read -r -a steps_numbered <<<"${CICD_STEPS}"; fi
+}
+fStepsCount(){ if ((${#steps_numbered[@]} == 1)); then echo "1 step"; else echo "${#steps_numbered[@]} steps"; fi; }
+fStepsOffList(){
+	local s label="Turned off ..........: "
+	for s in "${steps_off[@]}"; do fEcho_Clean "${label}${s}"; label="                       "; done
+}
+fStepLine(){ fStepStamp; fEcho "${step_stamp}: Step ${step_num} of ${#steps_numbered[@]}; $1 ${step_open}"; }
+fStep(){
+	local i
+	fInList "$1" "${steps_on[@]}" || return 1
+	if ((${container_done:-0})) && fInList "$1" "${container_steps[@]}"; then return 1; fi
+	fStepDone
+	step_open="$1"; step_num="?"
+	for i in "${!steps_numbered[@]}"; do if [[ "${steps_numbered[i]}" == "$1" ]]; then step_num=$((i + 1)); break; fi; done
+	fEcho_Clean; fEcho_Clean "${_letterbox}"; fStepLine Starting
+	fMachineUse; [[ "${stage_pause:-0}" == 0 ]] || sleep "${stage_pause}"
+	return 0
+}
+fStepDone(){ if [[ -n "${step_open}" ]]; then fStepLine PASS; step_open=""; fEcho_Clean; fi; }
+fStepExit(){
+	[[ -n "${step_open}" ]] || return 0
+	if [[ "${1:-0}" == 0 ]]; then fStepLine PASS; else fStepLine FAIL; fi
+	step_open=""; fEcho_Clean
+}
+## The full run's own trap replaces this one, and calls it first.
+trap 'fStepExit "$?"' EXIT
+
 fDie(){ { fEcho_Force "FAILED: $*"; } >&2; exit 1; }
 ## A tool that isn't installed skips its check, except where every tool is meant
 ## to be (CICD_NO_SKIP=1, set in the container).
@@ -279,7 +385,7 @@ fContainerImage(){
 		for c in "${CONTAINER_CONTEXTS[@]}"; do if [[ -n "$(fContextDir "${c}")" ]]; then echo "${c%%=*}"; fi; done
 	} | git hash-object --stdin | cut -c1-12)"
 }
-## Stages 1 to 4, 6 and the demo gif, in the pinned image, as this user. The repo
+## The container steps, in the pinned image, as this user. The repo
 ## is mounted at the same path, so paths in logs and caches still point at
 ## something, and so is a linked worktree's git dir. Sets container_done once
 ## they pass. When docker can't make the image or volume, they run on the host.
@@ -309,7 +415,7 @@ fRunContainer(){
 			buildArgs+=(--build-context "${c%%=*}=${dir}")
 		done
 		if ! "${engine}" build -t "${image}" "${docker_labels[@]}" "${buildArgs[@]}" "${root}/${CONTAINER_DIR}"; then
-			fEcho "NOTE: could not build ${image}, so stages 1 to 4 and 6 run on the host"
+			fEcho "NOTE: could not build ${image}, so the container steps run on the host"
 			return 0
 		fi
 	fi
@@ -317,7 +423,7 @@ fRunContainer(){
 	## One made before the labels is still used, but cleanup leaves it alone.
 	if ! "${engine}" volume inspect "${CONTAINER_VOLUME}" >/dev/null 2>&1 \
 		&& ! "${engine}" volume create "${docker_labels[@]}" "${CONTAINER_VOLUME}" >/dev/null; then
-		fEcho "NOTE: could not make the volume ${CONTAINER_VOLUME}, so stages 1 to 4 and 6 run on the host"
+		fEcho "NOTE: could not make the volume ${CONTAINER_VOLUME}, so the container steps run on the host"
 		return 0
 	fi
 	local -a mounts=(-v "${root}:${root}" -v "${CONTAINER_VOLUME}:/cache")
@@ -336,12 +442,14 @@ fRunContainer(){
 		fi
 	done
 	local -a gone=(--rm); if ((keep_temp)); then gone=(); fi
+	## The steps are numbered across both runs, so the one inside gets the list.
+	local steps; printf -v steps '%s|' "${steps_numbered[@]}"
 	fEcho_Chat "inside: cicd/cicd.bash ${inner[*]}"
 	## Ctrl+C reaches only the init process, and without the whole group the
 	## step in progress would carry on. nice out here stops at the docker client,
 	## so the container gets this run's job count as its CPU limit, and a low share.
 	"${engine}" run "${gone[@]}" --init -e TINI_KILL_PROCESS_GROUP=1 --name "${APP_NAME}-${run_name}-stages" "${docker_labels[@]}" \
-		--cpus "${CPU_CAP}" --cpu-shares 256 -e "CICD_JOBS_MAX=${CPU_CAP}" --user "$(id -u):$(id -g)" "${mounts[@]}" -w "${root}" "${image}" \
+		--cpus "${CPU_CAP}" --cpu-shares 256 -e "CICD_JOBS_MAX=${CPU_CAP}" -e "CICD_STEPS=${steps%|}" --user "$(id -u):$(id -g)" "${mounts[@]}" -w "${root}" "${image}" \
 		bash "${root}/cicd/cicd.bash" "${inner[@]}" || fDie "the run in the container failed; its output is above"
 	container_done=1
 }
@@ -411,10 +519,6 @@ fDockerCleanup(){
 fLint(){
 	local -a shellFiles=() psFiles=()
 	local pyCount
-	if ((${#VET_CMD[@]} == 0)); then
-		fEcho_Chat "lint skipped"
-		return 0
-	fi
 	in_src "${VET_CMD[@]}"
 	fEcho "OK: go vet clean"
 	if ((${#LINT_CMD[@]})); then
@@ -574,17 +678,20 @@ if ((image_tag)); then fContainerImage; echo; exit 0; fi
 
 ## The fast gate: no log, no container, no plan, no publish.
 if ((gate)); then
-	fSection "Merge gate"
+	fStepPlan
+	fSection "Merge gate: $(fStepsCount)"
+	fStepsOffList
 	fInstallGateHook
-	if ((${#FMT_CHECK_CMD[@]})); then
+	if fStep "Format check"; then
 		unformatted="$(in_src "${FMT_CHECK_CMD[@]}")" || fDie "format check didn't run: ${FMT_CHECK_CMD[*]}"
 		[[ -z "${unformatted}" ]] || fDie "needs formatting (${FMT_CMD[*]:-gofmt}): ${unformatted//$'\n'/ }"
 		fEcho "OK: format"
+		fStepDone
 	fi
-	fLint
-	fUnitTests
-	fEcho "OK: gate passed"
-	echo
+	if fStep Lint; then fLint; fStepDone; fi
+	if fStep "Unit tests"; then fUnitTests; fStepDone; fi
+	fSection "OK: gate passed"
+	fEcho_Clean
 	exit 0
 fi
 
@@ -596,7 +703,7 @@ fi
 ## No docker, or none that answers, is no reason to fail a run.
 docker_engine="${CICD_DOCKER:-docker}"; docker_used=0; docker_cleaned=0; run_image=""; container_done=0
 if ((use_container)) && ! "${docker_engine}" version --format '{{.Server.Version}}' >/dev/null 2>&1; then
-	fEcho "NOTE: no working ${docker_engine##*/} here, so every stage runs on the host"
+	fEcho "NOTE: no working ${docker_engine##*/} here, so every step runs on the host"
 	use_container=0
 fi
 
@@ -610,78 +717,80 @@ fCrossDest(){
 	return 0
 }
 
-fEcho_Chat
-fEcho_Chat "${APP_NAME} local CI/CD"
-fEcho_Chat
-fEcho_Chat "Repo root ...........: ${root}"
-fEcho_Chat "Jobs ................: ${machine_line}"
-((use_container)) && \
-fEcho_Chat "Container ...........: $(fContainerImage) (stages 1-4, 6 and the demo gif)"
-fEcho_Chat "Vendor pins .........: ${VENDOR_CHECK_CMD[*]:-(skipped)}"
-fEcho_Chat "Interop pins ........: ${INTEROP_CHECK_CMD[*]:-(skipped)}"
-fEcho_Chat "Format ..............: ${FMT_CMD[*]:-(skipped)}"
-fEcho_Chat "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debug)"
-((${#RELEASE_BUILD_CMD[@]})) && \
-fEcho_Chat "                       ${RELEASE_BUILD_CMD[*]} -> ${STAGED_RELEASE_BIN} (release, dogfooded)"
-if ((${#VET_CMD[@]})); then
-	fEcho_Chat "Lint ................: ${VET_CMD[*]}  (+ golangci-lint, staticcheck, shellcheck, ruff, PSScriptAnalyzer if installed)"
-else
-	fEcho_Chat "Lint ................: (skipped)"
+## The first section: the plan, and which steps are off and why. A run inside
+## the container that the host started leaves that to the host.
+fStepPlan
+if [[ "${CICD_IN_CONTAINER:-0}" != "1" || -z "${CICD_STEPS:-}" ]]; then
+	fSection "${APP_NAME} local CI/CD: $(fStepsCount)"
+	fEcho_Chat "Repo root ...........: ${root}"
+	fEcho_Chat "Jobs ................: ${machine_line}"
+	((use_container)) && \
+	fEcho_Chat "Container ...........: $(fContainerImage) (the steps through tests, cross + package and the demo gif)"
+	fEcho_Chat "Vendor pins .........: ${VENDOR_CHECK_CMD[*]:-(skipped)}"
+	fEcho_Chat "Interop pins ........: ${INTEROP_CHECK_CMD[*]:-(skipped)}"
+	fEcho_Chat "Format ..............: ${FMT_CMD[*]:-(skipped)}"
+	fEcho_Chat "Native build ........: ${NATIVE_BUILD_CMD[*]} -> ${STAGED_BIN} (debug)"
+	((${#RELEASE_BUILD_CMD[@]})) && \
+	fEcho_Chat "                       ${RELEASE_BUILD_CMD[*]} -> ${STAGED_RELEASE_BIN} (release, dogfooded)"
+	if ((${#VET_CMD[@]})); then
+		fEcho_Chat "Lint ................: ${VET_CMD[*]}  (+ golangci-lint, staticcheck, shellcheck, ruff, PSScriptAnalyzer if installed)"
+	else
+		fEcho_Chat "Lint ................: (skipped)"
+	fi
+	fEcho_Chat "Tests ...............: ${UNIT_TEST_CMD[*]} + ${TEST_CMD[*]}$( ((do_long)) && echo '  (long)')"
+	if ((FUZZ_ENABLE)); then
+		fEcho_Chat "Fuzz ................: ${FUZZ_TIME}/target, ${FUZZ_MINIMIZE_TIME}/find$( ((quick)) && echo " (quick: ${FUZZ_TIME_QUICK}, ${FUZZ_MINIMIZE_TIME_QUICK})")"
+	else
+		fEcho_Chat "Fuzz ................: (disabled)"
+	fi
+	if ((${#VULN_CMD[@]})); then fEcho_Chat "Security ............: ${VULN_CMD[*]}  (if installed)"; else fEcho_Chat "Security ............: (skipped)"; fi
+	if ((do_leakcheck)); then
+		fEcho_Chat "Leak checks .........: ${RACE_TEST_CMD[*]:-(no race run)}"
+		((${#SOAK_CMD[@]})) && \
+		fEcho_Chat "                       ${SOAK_CMD[*]} -> ${SOAK_OUT_DIR}/"
+		((${#CODEQL_CMD[@]})) && \
+		fEcho_Chat "                       ${CODEQL_CMD[*]} -> ${CODEQL_OUT_DIR}/  (if installed)"
+	else
+		fEcho_Chat "Leak checks .........: (skipped)"
+	fi
+	if ((PROFILE_ENABLE)); then
+		fEcho_Chat "Profiler ............: bench ${PROFILE_BENCH} ${PROFILE_TIME} -> flamegraph SVG"
+		fEcho_Chat "  output dir ........: ${profile_dir}"
+	else
+		fEcho_Chat "Profiler ............: (skipped)"
+	fi
+	if ((BUILD_CROSS)); then
+		fEcho_Chat "Cross + package .....: ${RELEASE_CMD[*]} -> ${RELEASE_ARTIFACT_DIR}/ (tgz/zip, deb/rpm, installers)"
+	else
+		fEcho_Chat "Cross + package .....: (skipped)"
+	fi
+	if ((${#DOGFOOD_FIXED_DESTS[@]})); then
+		if [[ -n "$fixed_dest" ]]; then fEcho_Chat "Dogfood, fixed name .: overwrite ${fixed_dest}/${EXE_NAME}"
+		else fEcho_Chat "Dogfood, fixed name .: <none of: ${DOGFOOD_FIXED_DESTS[*]} exists - will skip>"; fi
+	else
+		fEcho_Chat "Dogfood, fixed name .: (disabled)"
+	fi
+	for entry in "${DOGFOOD_CROSS[@]:-}"; do
+		[[ -n "$entry" ]] || continue
+		if ((! BUILD_CROSS)); then fEcho_Chat "Dogfood, cross ......: ${entry%%|*} (skipped, no cross + package step)"
+		elif d="$(fCrossDest "$entry")"; [[ -n "$d" ]]; then fEcho_Chat "Dogfood, cross ......: ${entry%%|*} -> ${d}/$(cut -d'|' -f2 <<<"$entry")"
+		else fEcho_Chat "Dogfood, cross ......: ${entry%%|*} <no dir exists - will skip>"; fi
+	done
+	fEcho_Chat "Screenshots .........: $( ((DO_SCREENSHOTS)) && echo "${SCREENSHOT_CMD[*]}" || echo '(skipped)')"
+	gif_plan="${DEMOGIF_CMD[*]}"
+	((DO_DEMOGIF)) || gif_plan="(skipped)"
+	if ((DO_DEMOGIF && ! use_container)) && [[ "${DEMOGIF_CONTAINER_ONLY:-0}" == "1" && "${CICD_IN_CONTAINER:-0}" != "1" ]]; then gif_plan="(skipped: only container runs make it)"; fi
+	fEcho_Chat "Demo gif ............: ${gif_plan}"
+	if ((${#GIT_PUBLISH[@]} == 0)); then
+		fEcho_Chat "Publish (last) ......: (disabled)"
+	elif [[ -n "$publish_msg" ]]; then
+		fEcho_Chat "Publish (last) ......: ${GIT_PUBLISH[*]} (hands-off: \"${publish_msg}\")"
+	else
+		fEcho_Chat "Publish (last) ......: ${GIT_PUBLISH[*]} (will prompt for message; blank = editor)"
+	fi
+	fStepsOffList
+	fEcho_Chat "Fail-fast: any error aborts before the next step."
 fi
-fEcho_Chat "Tests ...............: ${UNIT_TEST_CMD[*]} + ${TEST_CMD[*]}$( ((do_long)) && echo '  (long)')"
-if ((FUZZ_ENABLE)); then
-	fEcho_Chat "Fuzz ................: ${FUZZ_TIME}/target, ${FUZZ_MINIMIZE_TIME}/find$( ((quick)) && echo " (quick: ${FUZZ_TIME_QUICK}, ${FUZZ_MINIMIZE_TIME_QUICK})")"
-else
-	fEcho_Chat "Fuzz ................: (disabled)"
-fi
-if ((${#VULN_CMD[@]})); then fEcho_Chat "Security ............: ${VULN_CMD[*]}  (if installed)"; else fEcho_Chat "Security ............: (skipped)"; fi
-if ((do_leakcheck)); then
-	fEcho_Chat "Leak checks .........: ${RACE_TEST_CMD[*]:-(no race run)}"
-	((${#SOAK_CMD[@]})) && \
-	fEcho_Chat "                       ${SOAK_CMD[*]} -> ${SOAK_OUT_DIR}/"
-	((${#CODEQL_CMD[@]})) && \
-	fEcho_Chat "                       ${CODEQL_CMD[*]} -> ${CODEQL_OUT_DIR}/  (if installed)"
-else
-	fEcho_Chat "Leak checks .........: (skipped)"
-fi
-if ((PROFILE_ENABLE)); then
-	fEcho_Chat "Profiler ............: bench ${PROFILE_BENCH} ${PROFILE_TIME} -> flamegraph SVG"
-	fEcho_Chat "  output dir ........: ${profile_dir}"
-else
-	fEcho_Chat "Profiler ............: (skipped)"
-fi
-if ((BUILD_CROSS)); then
-	fEcho_Chat "Cross + package .....: ${RELEASE_CMD[*]} -> ${RELEASE_ARTIFACT_DIR}/ (tgz/zip, deb/rpm, installers)"
-else
-	fEcho_Chat "Cross + package .....: (skipped)"
-fi
-if ((${#DOGFOOD_FIXED_DESTS[@]})); then
-	if [[ -n "$fixed_dest" ]]; then fEcho_Chat "Dogfood, fixed name .: overwrite ${fixed_dest}/${EXE_NAME}"
-	else fEcho_Chat "Dogfood, fixed name .: <none of: ${DOGFOOD_FIXED_DESTS[*]} exists - will skip>"; fi
-else
-	fEcho_Chat "Dogfood, fixed name .: (disabled)"
-fi
-for entry in "${DOGFOOD_CROSS[@]:-}"; do
-	[[ -n "$entry" ]] || continue
-	if ((! BUILD_CROSS)); then fEcho_Chat "Dogfood, cross ......: ${entry%%|*} (skipped, no stage 6)"
-	elif d="$(fCrossDest "$entry")"; [[ -n "$d" ]]; then fEcho_Chat "Dogfood, cross ......: ${entry%%|*} -> ${d}/$(cut -d'|' -f2 <<<"$entry")"
-	else fEcho_Chat "Dogfood, cross ......: ${entry%%|*} <no dir exists - will skip>"; fi
-done
-fEcho_Chat "Screenshots .........: $( ((DO_SCREENSHOTS)) && echo "${SCREENSHOT_CMD[*]}" || echo '(skipped)')"
-gif_plan="${DEMOGIF_CMD[*]}"
-((DO_DEMOGIF)) || gif_plan="(skipped)"
-if ((DO_DEMOGIF && ! use_container)) && [[ "${DEMOGIF_CONTAINER_ONLY:-0}" == "1" && "${CICD_IN_CONTAINER:-0}" != "1" ]]; then gif_plan="(skipped: only container runs make it)"; fi
-fEcho_Chat "Demo gif ............: ${gif_plan}"
-if ((${#GIT_PUBLISH[@]} == 0)); then
-	fEcho_Chat "Publish (last) ......: (disabled)"
-elif [[ -n "$publish_msg" ]]; then
-	fEcho_Chat "Publish (last) ......: ${GIT_PUBLISH[*]} (hands-off: \"${publish_msg}\")"
-else
-	fEcho_Chat "Publish (last) ......: ${GIT_PUBLISH[*]} (will prompt for message; blank = editor)"
-fi
-fEcho_Chat
-fEcho_Chat "Fail-fast: any error aborts before the next stage."
-fEcho_Chat
 
 if ((! assume_yes)); then
 	## Capture the commit message up front so the run can finish unattended. This
@@ -697,18 +806,18 @@ fi
 ## Scratch for this run, gone however it ends. An abort used to leave the fuzz log.
 run_tmp="$(mktemp -d "${TMPDIR:-/tmp}/cicd-run.XXXXXX")"
 fRunTmpGone(){ if [[ -d "${run_tmp}" && "${run_tmp}" == "${TMPDIR:-/tmp}/cicd-run."* ]]; then rm -rf "${run_tmp}"; fi; }
-fRunCleanup(){ fDockerCleanup; fRunTmpGone; }
+fRunCleanup(){ fStepExit "$?"; fDockerCleanup; fRunTmpGone; }
 trap fRunCleanup EXIT
 ## docker catches Ctrl+C and exits on its own, which bash takes as handled, so
 ## without this a failed build would carry on here and a container run go on to
-## the host stages.
+## the host steps.
 trap '{ fEcho_Force "STOPPED: Ctrl+C"; } >&2; exit 130' INT
 ## Every container, image and volume the run makes says whose it is.
 run_name="${run_tmp##*/}"
 docker_labels=(--label "dev.project=${APP_NAME}" --label "dev.run=${run_name}")
 
-## Tee the rest of the run (all stages) to a gitignored log so warnings from any
-## stage can be reviewed after the fact. Rotate the prior (closed) logs first.
+## Tee the rest of the run (all steps) to a gitignored log so warnings from any
+## step can be reviewed after the fact. Rotate the prior (closed) logs first.
 if [[ -n "${LINT_LOG_DIR:-}" ]] && mkdir -p "${root}/${LINT_LOG_DIR}" 2>/dev/null; then
 	gfs_rotate "${root}/${LINT_LOG_DIR}" run log >/dev/null 2>&1 || true
 	exec > >(tee "${root}/${LINT_LOG_DIR}/run_${stamp}.log") 2>&1
@@ -721,40 +830,43 @@ fi
 if ((use_container)); then
 	fSection "Container"
 	fRunContainer
-	if ((container_done)); then fEcho "OK: stages 1 to 4 and 6 passed in the container"; fi
+	## The run inside ends on a blank line, so the next step doesn't add one.
+	if ((container_done)); then _wasLastEchoBlank=1
+	else use_container=0; fStepPlan; fi
 fi
 if ((! container_done)); then
-	## Pinned tools: bring any go-installed tool that drifted from tool-versions.env
-	## back in line (warn-only; probe-gated stages still skip anything missing).
-	if [[ -n "${PIN_TOOLS_CMD[*]:-}" ]]; then
-		"${PIN_TOOLS_CMD[@]}"
-	fi
+	if fStep Pins; then
+		## Pinned tools: bring any go-installed tool that drifted from tool-versions.env
+		## back in line (warn-only; probe-gated steps still skip anything missing).
+		if ((${#PIN_TOOLS_CMD[@]})); then
+			"${PIN_TOOLS_CMD[@]}"
+		fi
 
-	## Pinned vendor: a vendored drop-in that drifted from its upstream tag aborts
-	## here, before anything is built against it. Warn-only when offline.
-	if [[ -n "${VENDOR_CHECK_CMD[*]:-}" ]]; then
-		"${VENDOR_CHECK_CMD[@]}" || fDie "vendored source does not match its pin (see cicd/vendor-pins.env)"
-	fi
+		## Pinned vendor: a vendored drop-in that drifted from its upstream tag aborts
+		## here, before anything is built against it. Warn-only when offline.
+		if ((${#VENDOR_CHECK_CMD[@]})); then
+			"${VENDOR_CHECK_CMD[@]}" || fDie "vendored source does not match its pin (see cicd/vendor-pins.env)"
+		fi
 
-	## Same idea for the interop suite's reference implementations, which are the
-	## only thing proving the four big bases interoperate at all.
-	if [[ -n "${INTEROP_CHECK_CMD[*]:-}" ]]; then
-		"${INTEROP_CHECK_CMD[@]}" || fDie "interop reference does not match its pin (see cicd/utility/interop/pins.env)"
+		## Same idea for the interop suite's reference implementations, which are the
+		## only thing proving the four big bases interoperate at all.
+		if ((${#INTEROP_CHECK_CMD[@]})); then
+			"${INTEROP_CHECK_CMD[@]}" || fDie "interop reference does not match its pin (see cicd/utility/interop/pins.env)"
+		fi
+		fStepDone
 	fi
 
 	## Stage 1: format.
-	fSection "1/8  Format"
-	if ((${#FMT_CMD[@]} == 0)); then
-		fEcho_Chat "format skipped"
-	else
+	if fStep Format; then
 		"${FMT_CMD[@]}"
 		fEcho "OK: formatted (${FMT_CMD[*]})"
+		fStepDone
 	fi
 
 	## Stage 2: native builds, staged aside from what the cross stage cleans. The
 	## debug build (symbols) is what the tests and profiler run against; the
 	## optimized build is smoke-checked here and dogfooded in stage 7.
-	fSection "2/8  Native build"
+	fStep "Native build"
 	"${NATIVE_BUILD_CMD[@]}"
 	[[ -f "${NATIVE_BUILD_OUT}" ]] || fDie "debug build produced no binary: ${NATIVE_BUILD_OUT}"
 	mkdir -p "$(dirname "${STAGED_BIN}")"
@@ -767,17 +879,17 @@ if ((! container_done)); then
 		"${STAGED_RELEASE_BIN}" --version >/dev/null 2>&1 || fDie "release build smoke check failed"
 		fEcho "OK: release build: ${STAGED_RELEASE_BIN} ($(du -h "${STAGED_RELEASE_BIN}" | cut -f1))  ($("${STAGED_RELEASE_BIN}" --version))"
 	fi
+	fStepDone
 
 	## Stage 3: lint. go vet is gating; golangci-lint, staticcheck, shellcheck, ruff and
 	## PSScriptAnalyzer run when installed (a failed probe skips that one with a
 	## warning). Any finding from one that runs aborts. All output lands in the run log.
-	fSection "3/8  Lint"
-	fLint
+	if fStep Lint; then fLint; fStepDone; fi
 
 	## Stage 4: tests. Unit (Go), integration harness (against the staged binary),
 	## fuzz (one target per invocation), govulncheck security (module + deps), and
 	## the leak checks.
-	fSection "4/8  Tests"
+	fStep Tests
 	## Every test has its own ID, so a failure, a backlog item and a commit can all
 	## name the same one. Each prints with its ID.
 	fUnitTests
@@ -833,12 +945,11 @@ if ((! container_done)); then
 	## 4d: race detector, soak test and CodeQL.
 	fLeakCheck
 	fEcho "OK: tests passed"
+	fStepDone
 fi
 
 ## Stage 5: profiler (non-gating artifact; failures classified below).
 run_profiler(){
-	((PROFILE_ENABLE)) || { fEcho_Chat "profiler disabled"; return 0; }
-
 	## Mundane/environmental reasons -> skip with a warning (not the app's fault),
 	## unless PROFILE_STRICT. Genuine run failures below still abort.
 	local skip=""
@@ -884,25 +995,19 @@ run_profiler(){
 		fEcho "WARNING: flamegraph generation failed (continuing)"
 	fi
 }
-fSection "5/8  Profiler"
-run_profiler
+if fStep Profiler; then run_profiler; fStepDone; fi
 
-if ((! container_done)); then
-	## Stage 6: cross-compile + package (build sanity + release artifacts).
-	fSection "6/8  Cross + package"
-	if ((BUILD_CROSS)); then
-		"${RELEASE_CMD[@]}"
-		count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.exe' \) 2>/dev/null | wc -l)"
-		((count > 0)) || fDie "cross + package produced no artifacts in ${RELEASE_ARTIFACT_DIR}/"
-		fEcho "OK: release artifacts: ${count} in ${RELEASE_ARTIFACT_DIR}/"
-	else
-		fEcho_Chat "cross + package skipped"
-	fi
+## Stage 6: cross-compile + package (build sanity + release artifacts).
+if fStep "Cross + package"; then
+	"${RELEASE_CMD[@]}"
+	count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.exe' \) 2>/dev/null | wc -l)"
+	((count > 0)) || fDie "cross + package produced no artifacts in ${RELEASE_ARTIFACT_DIR}/"
+	fEcho "OK: release artifacts: ${count} in ${RELEASE_ARTIFACT_DIR}/"
+	fStepDone
 fi
 
-## Stage 7: dogfood (fixed name) + screenshots. Dogfood the optimized release
-## build (the real thing), falling back to the debug build if it wasn't made.
-fSection "7/8  Dogfood"
+## Stage 7: dogfood (fixed name), screenshots and the demo gif. Dogfood the optimized
+## release build (the real thing), falling back to the debug build if it wasn't made.
 ## sudo -n never prompts, so it can't hang a run, and an unattended run
 ## doesn't try it at all.
 fDogfoodCopy(){
@@ -914,53 +1019,47 @@ fDogfoodCopy(){
 	fi
 	fEcho "OK: installed${how} -> ${to}"
 }
-dogfood_bin="${STAGED_BIN}"
-[[ -n "${STAGED_RELEASE_BIN:-}" && -f "${STAGED_RELEASE_BIN}" ]] && dogfood_bin="${STAGED_RELEASE_BIN}"
-if ((${#DOGFOOD_FIXED_DESTS[@]})); then
-	if [[ -n "$fixed_dest" ]]; then
-		fDogfoodCopy "${dogfood_bin}" "${fixed_dest}/${EXE_NAME}"
+if fStep Dogfood; then
+	dogfood_bin="${STAGED_BIN}"
+	[[ -n "${STAGED_RELEASE_BIN:-}" && -f "${STAGED_RELEASE_BIN}" ]] && dogfood_bin="${STAGED_RELEASE_BIN}"
+	if ((${#DOGFOOD_FIXED_DESTS[@]})); then
+		if [[ -n "$fixed_dest" ]]; then
+			fDogfoodCopy "${dogfood_bin}" "${fixed_dest}/${EXE_NAME}"
+		else
+			fEcho "WARNING: no dogfood dest exists (${DOGFOOD_FIXED_DESTS[*]}); skipping"
+		fi
 	else
-		fEcho "WARNING: no dogfood dest exists (${DOGFOOD_FIXED_DESTS[*]}); skipping"
+		fEcho_Chat "no fixed-name dogfood dir"
 	fi
-else
-	fEcho_Chat "dogfood disabled"
+	## The cross builds only count when cross + package made them this run. An old dist/ copy
+	## would be dogfooding something nobody tested.
+	for entry in "${DOGFOOD_CROSS[@]:-}"; do
+		[[ -n "$entry" ]] || continue
+		artifact="${entry%%|*}"
+		if ((! BUILD_CROSS)); then fEcho_Chat "dogfood ${artifact}: skipped, the cross + package step didn't run"; continue; fi
+		[[ -f "${RELEASE_ARTIFACT_DIR}/${artifact}" ]] || fDie "dogfood: cross + package made no ${RELEASE_ARTIFACT_DIR}/${artifact}"
+		d="$(fCrossDest "$entry")"
+		if [[ -z "$d" ]]; then fEcho "WARNING: no dogfood dir exists for ${artifact}; skipping"; continue; fi
+		fDogfoodCopy "${RELEASE_ARTIFACT_DIR}/${artifact}" "${d}/$(cut -d'|' -f2 <<<"$entry")"
+	done
+	fStepDone
 fi
-## The cross builds only count when stage 6 made them this run. An old dist/ copy
-## would be dogfooding something nobody tested.
-for entry in "${DOGFOOD_CROSS[@]:-}"; do
-	[[ -n "$entry" ]] || continue
-	artifact="${entry%%|*}"
-	if ((! BUILD_CROSS)); then fEcho_Chat "dogfood ${artifact}: skipped, stage 6 didn't run"; continue; fi
-	[[ -f "${RELEASE_ARTIFACT_DIR}/${artifact}" ]] || fDie "dogfood: stage 6 made no ${RELEASE_ARTIFACT_DIR}/${artifact}"
-	d="$(fCrossDest "$entry")"
-	if [[ -z "$d" ]]; then fEcho "WARNING: no dogfood dir exists for ${artifact}; skipping"; continue; fi
-	fDogfoodCopy "${RELEASE_ARTIFACT_DIR}/${artifact}" "${d}/$(cut -d'|' -f2 <<<"$entry")"
-done
 
-## Screenshots: off by default (retired, so the skip is silent); a failure is a
-## warning, never a stop.
-screenshot_util="${root}/${SCREENSHOT_CMD[0]}"
-if ((! DO_SCREENSHOTS)); then
-	: ## silent - the preflight summary already says skipped
-elif [[ -f "${screenshot_util}" ]]; then
-	if bash "${screenshot_util}" "${root}" "${root}/${STAGED_BIN}"; then fEcho "OK: screenshots regenerated"
-	else fEcho "WARNING: screenshot generation failed (continuing)"; fi
-else
-	fEcho_Clean "no screenshot utility at ${screenshot_util}; skipping"
+## Screenshots: off by default (retired); a failure is a warning, never a stop.
+if fStep Screenshots; then
+	screenshot_util="${root}/${SCREENSHOT_CMD[0]}"
+	if [[ -f "${screenshot_util}" ]]; then
+		if bash "${screenshot_util}" "${root}" "${root}/${STAGED_BIN}"; then fEcho "OK: screenshots regenerated"
+		else fEcho "WARNING: screenshot generation failed (continuing)"; fi
+	else
+		fEcho_Clean "no screenshot utility at ${screenshot_util}; skipping"
+	fi
+	fStepDone
 fi
 
 ## Demo gif: types the scenario into a fake terminal, runs each command against the
 ## tested binary, renders the animated loop. A failure is a warning, never a stop.
-demogif_util="${root}/${DEMOGIF_CMD[0]}"
-if ((container_done)); then
-	: ## made in the container
-elif ((! DO_DEMOGIF)); then
-	fEcho_Chat "demo gif skipped"
-elif [[ "${DEMOGIF_CONTAINER_ONLY:-0}" == "1" && "${CICD_IN_CONTAINER:-0}" != "1" ]]; then
-	## Its fallback fonts are whatever this machine has, so it would flip back
-	## and forth against the container's.
-	fEcho_Chat "demo gif skipped: only container runs make it"
-elif [[ -f "${demogif_util}" ]]; then
+if fStep "Demo gif"; then
 	demogif_out="${root}/${DEMOGIF_OUT}"
 	demogif_tmp="${demogif_out}.new"
 	if (cd "${root}" && python3 "${DEMOGIF_CMD[@]}" --out "${demogif_tmp}" --bin "${root}/${STAGED_BIN}"); then
@@ -979,39 +1078,39 @@ elif [[ -f "${demogif_util}" ]]; then
 		rm -f "${demogif_tmp}"
 		fSkip "demo gif generation failed"
 	fi
-else
-	fEcho_Clean "no demo gif utility at ${demogif_util}; skipping"
+	fStepDone
 fi
 
 ## Stage 8: backup + publish.
-fSection "8/8  Backup + publish"
-## Optional out-of-tree pre-publish hook (kept under ../private so it never ships
-## in the repo). Run it if present + executable; a missing dir/file is skipped,
-## not an error. Non-zero exit aborts before anything is published.
-if [[ -n "${PREPUBLISH_HOOK:-}" && -x "${PREPUBLISH_HOOK}" ]]; then
-	fEcho_Chat "pre-publish hook: ${PREPUBLISH_HOOK}"
-	"${PREPUBLISH_HOOK}" "${root}" || fDie "pre-publish hook rejected the tree"
-fi
-## Always run the publisher quiet: cicd already gave the initial prompt, so skip
-## its redundant continue-prompt. With no message it still lets git open the editor.
-pub_flags=(--quiet)
-## The pre-push hook would run the gate again on what this run just tested.
-export CICD_GATE_PASSED=1
-if ((${#GIT_PUBLISH[@]} == 0)); then
-	fEcho_Chat "publish disabled"
-elif [[ -n "$publish_msg" ]]; then
-	## Hands-off: the publisher fills the empty commit message from -m so `git
-	## commit` won't open an editor.
-	fEcho_Chat "hands-off publish (commit message: \"${publish_msg}\")"
-	"${GIT_PUBLISH[@]}" "${pub_flags[@]}" -m "${publish_msg}"
+if fStep "Backup + publish"; then
+	## Optional out-of-tree pre-publish hook (kept under ../private so it never ships
+	## in the repo). Run it if present + executable; a missing dir/file is skipped,
+	## not an error. Non-zero exit aborts before anything is published.
+	if [[ -n "${PREPUBLISH_HOOK:-}" && -x "${PREPUBLISH_HOOK}" ]]; then
+		fEcho_Chat "pre-publish hook: ${PREPUBLISH_HOOK}"
+		"${PREPUBLISH_HOOK}" "${root}" || fDie "pre-publish hook rejected the tree"
+	fi
+	## Always run the publisher quiet: cicd already gave the initial prompt, so skip
+	## its redundant continue-prompt. With no message it still lets git open the editor.
+	pub_flags=(--quiet)
+	## The pre-push hook would run the gate again on what this run just tested.
+	export CICD_GATE_PASSED=1
+	if [[ -n "$publish_msg" ]]; then
+		## Hands-off: the publisher fills the empty commit message from -m so `git
+		## commit` won't open an editor.
+		fEcho_Chat "hands-off publish (commit message: \"${publish_msg}\")"
+		"${GIT_PUBLISH[@]}" "${pub_flags[@]}" -m "${publish_msg}"
+	else
+		"${GIT_PUBLISH[@]}" "${pub_flags[@]}"
+	fi
 	fEcho "OK: published"
-else
-	"${GIT_PUBLISH[@]}" "${pub_flags[@]}"
-	fEcho "OK: published"
+	fStepDone
 fi
 
 fDockerCleanup
-if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then fSection "${APP_NAME} CI/CD: container part done."; else fSection "${APP_NAME} CI/CD: done."; fi
+## Inside the container the host run has more steps to go, and says when it's done.
+if [[ "${CICD_IN_CONTAINER:-0}" != "1" ]]; then fSection "${APP_NAME} CI/CD: done."
+elif [[ -z "${CICD_STEPS:-}" ]]; then fSection "${APP_NAME} CI/CD: container part done."; fi
 fEcho_Clean
 
 
@@ -1034,3 +1133,4 @@ fEcho_Clean
 ##		- 2026-10-25 JC: No docker, or an image that won't build, runs on the host. --no-container, --keep-temp.
 ##		- 2026-10-25 JC: Labels on what the run makes in docker, and cleanup of it at the end.
 ##		- 2026-10-25 JC: nice and ionice for the run, half the CPUs or a quarter when busy or heavy, rechecked each step. --cpus and --cpu-shares on the container.
+##		- 2026-10-25 JC: Step lines with the time and "Step N of M", PASS or FAIL, and the steps turned off listed first. The pin checks are a step.

@@ -30,7 +30,7 @@
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
 ##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. install.ps1 installs from a stand-in release and refuses a tampered checksum, and the PowerShell files are ASCII. The packaged Windows exes and installers have the icon and the version they were built as. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
-##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, what --quick runs and skips, the leak checks, -q, the dogfood copy, and the shellcheck, ruff and PSScriptAnalyzer gates.
+##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, what --quick runs and skips, the leak checks, -q, the step lines and what turned a step off, the dogfood copy, and the shellcheck, ruff and PSScriptAnalyzer gates.
 ##			- The harness itself: a run against a program that refuses everything, with Go off the PATH, counts each failure and reaches its summary.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
@@ -2561,7 +2561,7 @@ cp "${meDir}/cicd.bash" "${ceRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rota
 printf '%s\n' '#!/bin/sh' 'echo v0.0.0' >"${ceRepo}/lib/out"; chmod +x "${ceRepo}/lib/out"
 cat >"${ceRepo}/cicd/config.bash" <<'EOF'
 APP_NAME="cbv-test"; EXE_NAME="cbv-test"; SRC_DIR="lib"
-FMT_CMD=(); NATIVE_BUILD_CMD=(true); NATIVE_BUILD_OUT="lib/out"; STAGED_BIN="lib/bin/cbv-test"; RELEASE_BUILD_CMD=()
+FMT_CMD=(); NATIVE_BUILD_CMD=(${CE_BUILD_FAIL:+false}); NATIVE_BUILD_CMD+=(true); NATIVE_BUILD_OUT="lib/out"; STAGED_BIN="lib/bin/cbv-test"; RELEASE_BUILD_CMD=()
 PIN_TOOLS_CMD=(); VENDOR_CHECK_CMD=(); INTEROP_CHECK_CMD=(); VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=()
 UNIT_TEST_CMD=(true); TEST_ID_CMD=(); TEST_CMD=(sh -c 'env | grep "^CICDTEST_" | sort >"$CE_KNOBS"')
 GO_TEST_PKG="."; FUZZ_ENABLE=1; FUZZ_TIME="1s"; FUZZ_TIME_QUICK="1s"; FUZZ_MINIMIZE_TIME="1s"; FUZZ_MINIMIZE_TIME_QUICK="1s"
@@ -2640,7 +2640,8 @@ case "$1 $2" in
 			self) kill -INT "$PPID"; kill -INT $$ ;;
 			proxy) kill -INT "$PPID"; exit 130 ;;
 		esac
-		echo "inner run"; exit "${CE_RUN_RC:-0}" ;;
+		## The real run inside ends on a blank line.
+		printf 'inner run\n\n'; exit "${CE_RUN_RC:-0}" ;;
 esac
 exit 0
 EOF
@@ -2670,11 +2671,44 @@ fCeRun(){
 		-u OMP_NUM_THREADS -u CICD_LOADAVG_FILE -u CICD_JOBS_MAX -u GOFLAGS -u CPU_CAP "${ceMachine[@]}" \
 		HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${ceDir}/knobs" CE_SUDO_LOG="${ceDir}/sudo.log" \
 		CICD_NO_SKIP="${CE_NO_SKIP:-0}" CICD_IN_CONTAINER="${CE_INSIDE:-0}" CICD_DOCKER="${CE_DOCKER:-${ceBin}/docker}" CE_DOCKER_LOG="${ceDir}/docker.log" \
-		CICD_IMAGE_PREBUILT="${CE_PREBUILT:-0}" "${ceWrap[@]}" bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
+		CICD_IMAGE_PREBUILT="${CE_PREBUILT:-0}" CICD_STEPS="${CE_STEPS:-}" "${ceWrap[@]}" bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
 	ceOut="$(<"${CBT_OUT}")"; ceKnobs="$(<"${ceDir}/knobs")"; ceSudo="$(<"${ceDir}/sudo.log")"; ceTmp="$(ls -A "${ceDir}/tmp")"
 	ceDocker="$(<"${ceDir}/docker.log")"
 }
 fCeTail(){ printf 'rc=%s tmp=[%s] out=[%s]' "${ceRc}" "${ceTmp}" "$(tail -4 "${CBT_OUT}" | tr '\n' ' ')"; }
+## The last run's steps as "N/M NAME RESULT;" each, after a check of the shared
+## step format: a blank line and a rule of 79 bullets before each Starting line,
+## local time to the hundredth, numbers that count up by one under one M, a PASS
+## or FAIL that closes the step it started, then a blank line. No 2 blank lines
+## in a row, and one at the very end. Anything off comes first, after "BAD".
+fCeSteps(){
+	awk 'BEGIN { rule = ""; for (i = 0; i < 79; i++) rule = rule "\342\200\242" }
+		{ line[NR] = $0 }
+		END {
+			for (i = 1; i <= NR; i++) {
+				if (line[i] == "" && line[i - 1] == "" && i > 1) bad = bad "double-blank:" i " "
+				if (line[i] !~ /^\[ [^ ]+: Step /) continue
+				if (line[i] !~ /^\[ [0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9]\.[0-9][0-9]: Step [0-9]+ of [0-9]+; (Starting|PASS|FAIL) .+ \]$/) { bad = bad "format:" i " "; continue }
+				s = line[i]; sub(/^\[ [^ ]+ Step /, "", s); sub(/ \]$/, "", s)
+				n = s; sub(/ .*/, "", n); m = s; sub(/^[0-9]+ of /, "", m); sub(/;.*/, "", m)
+				word = s; sub(/^[^;]*; /, "", word); name = word; sub(/ .*/, "", word); sub(/^[A-Za-z]+ /, "", name)
+				if (total == "") total = m; else if (m != total) bad = bad "total:" i " "
+				if (word == "Starting") {
+					if (open != "") bad = bad "unclosed:" open " "
+					if (want != "" && n != want) bad = bad "number:" i " "
+					if (line[i - 1] != rule || line[i - 2] != "") bad = bad "rule:" i " "
+					open = name; want = n + 1
+				} else {
+					if (name != open) bad = bad "closes-other:" i " "
+					if (line[i + 1] != "") bad = bad "no-blank-after:" i " "
+					steps = steps n "/" m " " name " " word ";"; open = ""
+				}
+			}
+			if (open != "") bad = bad "unclosed:" open " "
+			if (NR && line[NR] != "") bad = bad "no-blank-at-end "
+			printf "%s%s\n", (bad == "" ? "" : "BAD " bad), steps
+		}' "${CBT_OUT}"
+}
 
 ## Go reports its own -fuzztime deadline as a failure (G18): that passes with a
 ## note, and a real find fails the stage with its own message.
@@ -2710,7 +2744,7 @@ rm -rf "${ceRepo}/dist"; CE_CROSS=1 fCeRun -y --quick; ceQuickCross=0
 { ((ceRc == 0)) && [[ -f "${ceRepo}/dist/cbv-test-windows-x86_64.exe" && "${ceOut}" == *"OK: release artifacts"* ]]; } && ceQuickCross=1
 rm -rf "${ceRepo}/dist"; CE_CROSS=1 fCeRun -y --no-cross --quick; ceNoCross="${ceRc}"
 CE_CROSS=1 fCeRun -y --quick --no-cross
-{ ((ceQuickCross && ceNoCross == 0 && ceRc == 0)) && [[ ! -e "${ceRepo}/dist" && "${ceOut}" == *"cross + package skipped"* ]]; } && _pass Et9RcH7 "--quick cross-compiles, --no-cross wins" \
+{ ((ceQuickCross && ceNoCross == 0 && ceRc == 0)) && [[ ! -e "${ceRepo}/dist" && "${ceOut}" == *"Cross + package (--no-cross)"* && "${ceOut}" != *"Starting Cross"* ]]; } && _pass Et9RcH7 "--quick cross-compiles, --no-cross wins" \
 	|| _fail Et9RcH7 "--quick cross-compiles, --no-cross wins" "quick made it: ${ceQuickCross}; $(fCeTail)"
 rm -rf "${ceRepo}/dist"
 
@@ -2762,9 +2796,40 @@ CE_NET=1 fCeRun -y --quick; ceNetQuick="$(grep -oE '^(vendor|interop|vuln)-net$'
 	|| _fail Et9RcHq "--quick skips checks that reach another host" "full=[${ceNetFull}] quick=[${ceNetQuick}] $(fCeTail)"
 
 fCeRun -q
-{ ((ceRc == 0)) && [[ "${ceOutFull}" == *"Repo root ..."* && "${ceOutFull}" == *"format skipped"* && "${ceOut}" != *"Repo root ..."* && "${ceOut}" != *"format skipped"* \
-	&& "${ceOut}" == *"1/8  Format"* && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass ErmCp2I "-q output" \
+{ ((ceRc == 0)) && [[ "${ceOutFull}" == *"Repo root ..."* && "${ceOut}" != *"Repo root ..."* && "${ceOut}" == *"Turned off ..........: "* \
+	&& "${ceOut}" == *"; Starting Tests ]"* && "${ceOut}" == *"; PASS Tests ]"* && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass ErmCp2I "-q output" \
 	|| _fail ErmCp2I "-q output" "$(fCeTail)"
+
+## Step output: a rule, a Starting line, the output and a PASS or FAIL line,
+## each with the time and "Step N of M", and blank lines between. A step that's
+## off isn't counted, and the first section says what turned it off.
+CE_NET=1 CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun -y; ceSteps="$(fCeSteps)"
+{ ((ceRc == 0)) && [[ "${ceSteps}" == "1/5 Pins PASS;2/5 Native build PASS;3/5 Tests PASS;4/5 Cross + package PASS;5/5 Dogfood PASS;" ]] \
+	&& [[ "${ceOut}" == *"[ "*": cbv-test local CI/CD: 5 steps ]"* && "${ceOut}" == *"[ "*": cbv-test CI/CD: done. ]" ]]; } \
+	&& _pass Etj4gBl "step lines: rule, time, Step N of M, PASS, blank lines" \
+	|| _fail Etj4gBl "step lines: rule, time, Step N of M, PASS, blank lines" "steps=[${ceSteps}] $(fCeTail)"
+rm -rf "${ceRepo}/dist"
+CE_NET=1 CE_CROSS=1 fCeRun -y --quick --no-cross; ceSteps="$(fCeSteps)"
+ceOffAt="$(grep -n '^Turned off \.\.\.' "${CBT_OUT}" | cut -d: -f1 || true)"; ceStartAt="$(grep -n '; Starting ' "${CBT_OUT}" | head -1 | cut -d: -f1 || true)"
+{ ((ceRc == 0)) && [[ "${ceSteps}" == "1/2 Native build PASS;2/2 Tests PASS;" && -n "${ceOffAt}" && -n "${ceStartAt}" ]] && ((ceOffAt < ceStartAt)) \
+	&& [[ "${ceOut}" == *"Turned off ..........: Pins (--quick)"$'\n'"                       Format (no FMT_CMD in config.bash)"$'\n'* ]] \
+	&& [[ "${ceOut}" == *$'\n'"                       Profiler (--quick)"$'\n'"                       Cross + package (--no-cross)"$'\n'* ]] \
+	&& [[ "${ceOut}" == *$'\n'"                       Demo gif (--quick)"$'\n'* && "${ceOut}" == *"cbv-test local CI/CD: 2 steps ]"* ]]; } \
+	&& _pass Etj4gCV "steps turned off aren't counted, and the first section says why" \
+	|| _fail Etj4gCV "steps turned off aren't counted, and the first section says why" "steps=[${ceSteps}] $(fCeTail)"
+## A step that fails, by its own check or by an error that stops the run, ends
+## on FAIL, and the run ends on a blank line.
+FAKE_FUZZ="find" fCeRun -y; ceStepsFind="$(fCeSteps)"; ceRcFind="${ceRc}"
+CE_BUILD_FAIL=1 fCeRun -y; ceSteps="$(fCeSteps)"
+{ ((ceRcFind == 1 && ceRc == 1)) && [[ "${ceStepsFind}" == "1/2 Native build PASS;2/2 Tests FAIL;" && "${ceSteps}" == "1/2 Native build FAIL;" && "${ceOut}" == *"CICD ABORTED"* ]]; } \
+	&& _pass Etj4gDF "a failed step ends on FAIL" \
+	|| _fail Etj4gDF "a failed step ends on FAIL" "find=[${ceStepsFind}] abort=[${ceSteps}] $(fCeTail)"
+## The gate's steps are its own, in the same form.
+fCeRun --gate; ceSteps="$(fCeSteps)"
+{ ((ceRc == 0)) && [[ "${ceSteps}" == "1/1 Unit tests PASS;" && "${ceOut}" == *": Merge gate: 1 step ]"* ]] \
+	&& [[ "${ceOut}" == *"Turned off ..........: Format check (no FMT_CHECK_CMD in config.bash)"$'\n'"                       Lint (no VET_CMD in config.bash)"* ]]; } \
+	&& _pass Etj4gGf "gate steps" \
+	|| _fail Etj4gGf "gate steps" "steps=[${ceSteps}] $(fCeTail)"
 
 ## Machine use. Half the CPUs, a quarter when the 1-minute load is over half the
 ## CPU count, a quarter for the heavy steps either way, and never under 1.
@@ -2846,7 +2911,7 @@ fCeCrossClean; CE_CROSS=1 CE_LOCAL="../priv/dogfood.bash" fCeRun -y
 	|| _fail Esj2PpU "dogfood: cross builds to the local file's dirs" "$(fCeTail)"
 fCeCrossClean; mkdir -p "${ceRepo}/dist"; echo stale >"${ceRepo}/dist/cbv-test-windows-x86_64.exe"
 CE_LOCAL="../priv/dogfood.bash" fCeRun -y
-{ ((ceRc == 0)) && fCeCrossNone && [[ "${ceOut}" == *"stage 6 didn't run"* ]]; } && _pass Esj2Pq1 "dogfood: no cross copy without stage 6" \
+{ ((ceRc == 0)) && fCeCrossNone && [[ "${ceOut}" == *"the cross + package step didn't run"* ]]; } && _pass Esj2Pq1 "dogfood: no cross copy without stage 6" \
 	|| _fail Esj2Pq1 "dogfood: no cross copy without stage 6" "$(fCeTail)"
 fCeCrossClean; CE_CROSS=1 CE_LOCAL="../priv/dogfood.bash" fCeRun -y --no-dogfood
 { ((ceRc == 0)) && [[ -f "${ceRepo}/dist/cbv-test-windows-x86_64.exe" ]] && fCeCrossNone; } && _pass Esj2PqY "dogfood: --no-dogfood skips the cross builds" \
@@ -2898,12 +2963,23 @@ ceLabels="--label dev.project=cbv-test --label dev.run=${ceRunName}"
 #	|| _fail Etil6xK "--container build, volume and run are labeled" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
 ## The container also gets the run's job count, 8 of 16 CPUs here, as its CPU
 ## limit and a low share, since nice on the docker client stops there.
-ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunName}-stages ${ceLabels} --cpus 8 --cpu-shares 256 -e CICD_JOBS_MAX=8 --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
+## Retired 2026-10-25 by the step output reset item: the run line now has
+## the step list. Etj4gEu checks the same things, and the list.
+#ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunName}-stages ${ceLabels} --cpus 8 --cpu-shares 256 -e CICD_JOBS_MAX=8 --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
+#{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceRunName}" == cicd-run.* ]] \
+#	&& grep -qxF "build -t ${ceTag} ${ceLabels} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
+#	&& grep -qxF "volume create ${ceLabels} cbv-test-cache" <<<"${ceDocker}" && grep -qxF "${ceRunWant}" <<<"${ceDocker}"; } \
+#	&& _pass EtixvQh "--container build, volume and run are labeled, and the run has a CPU limit" \
+#	|| _fail EtixvQh "--container build, volume and run are labeled, and the run has a CPU limit" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
+## The steps are numbered across both runs, so the one inside gets the host's
+## list: the container's steps, then the profiler, dogfood, screenshots and
+## publish, as far as each is on.
+ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunName}-stages ${ceLabels} --cpus 8 --cpu-shares 256 -e CICD_JOBS_MAX=8 -e CICD_STEPS=Native build|Tests|Cross + package|Dogfood --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
 { ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceRunName}" == cicd-run.* ]] \
 	&& grep -qxF "build -t ${ceTag} ${ceLabels} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
 	&& grep -qxF "volume create ${ceLabels} cbv-test-cache" <<<"${ceDocker}" && grep -qxF "${ceRunWant}" <<<"${ceDocker}"; } \
-	&& _pass EtixvQh "--container build, volume and run are labeled, and the run has a CPU limit" \
-	|| _fail EtixvQh "--container build, volume and run are labeled, and the run has a CPU limit" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
+	&& _pass Etj4gEu "--container build, volume and run are labeled, and the run has a CPU limit and the step list" \
+	|| _fail Etj4gEu "--container build, volume and run are labeled, and the run has a CPU limit and the step list" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
 ## After a pass: the run's containers, then the dangling images and every older
 ## tag but the newest, then the week-old build cache. Each lookup is by label,
 ## and nothing is forced or pruned system-wide.
@@ -2916,9 +2992,17 @@ ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | 
 	&& [[ "$(grep -n 'docker cleanup' <<<"${ceOut}" | cut -d: -f1)" -lt "$(grep -n 'CI/CD: done' <<<"${ceOut}" | cut -d: -f1)" ]]; } \
 	&& _pass Etil6xL "docker cleanup after a pass" \
 	|| _fail Etil6xL "docker cleanup after a pass" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
-{ ((ceRc == 0)) && [[ "${ceOut}" == *"inner run"* && "${ceOut}" == *"OK: stages 1 to 4 and 6 passed in the container"* && "${ceOut}" == *"OK: installed -> "* \
-	&& "${ceOut}" != *"1/8  Format"* && "${ceOut}" != *"OK: integration harness"* && "${ceOut}" != *"6/8  Cross"* ]]; } && _pass EsJjVwL "--container host stages" \
+ceStepsCont="$(fCeSteps)"
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"inner run"* && "${ceOut}" == *"Step 4 of 4; Starting Dogfood"* && "${ceOut}" == *"OK: installed -> "* \
+	&& "${ceOut}" != *"Starting Native build"* && "${ceOut}" != *"OK: integration harness"* && "${ceOut}" != *"Starting Cross"* ]]; } && _pass EsJjVwL "--container host stages" \
 	|| _fail EsJjVwL "--container host stages" "$(fCeTail)"
+## The host run's steps take up the numbers after the container's, and the run
+## inside numbers its own from the list it's handed, with no first section.
+CE_INSIDE=1 CE_STEPS="Native build|Tests|Dogfood" fCeRun -y; ceSteps="$(fCeSteps)"
+{ ((ceRc == 0)) && [[ "${ceStepsCont}" == "4/4 Dogfood PASS;" && "${ceSteps}" == "1/3 Native build PASS;2/3 Tests PASS;" ]] \
+	&& [[ "${ceOut}" != *"local CI/CD"* && "${ceOut}" != *"Turned off"* && "${ceOut}" != *"container part done"* ]]; } \
+	&& _pass Etj4gE6 "step numbers across the container and host runs" \
+	|| _fail Etj4gE6 "step numbers across the container and host runs" "host=[${ceStepsCont}] inside=[${ceSteps}] $(fCeTail)"
 CE_HAVE_IMAGE=1 CE_RUN_RC=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container
 { ((ceRc == 1)) && [[ "${ceOut}" == *"the run in the container failed"* && "${ceOut}" != *"OK: installed"* && "${ceDocker}" != *"build "* ]]; } && _pass EsJjVxK "--container inner failure" \
 	|| _fail EsJjVxK "--container inner failure" "docker=[${ceDocker}] $(fCeTail)"
@@ -2936,7 +3020,7 @@ for ceSig in self proxy build; do
 	esac
 	ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
 	{ ((ceRc == 130)) && [[ "${ceGone}" == "rm -f c0ffeec0ffee;rmi d4ngl3d4ngl3;builder prune -f --filter until=168h;" && -z "${ceTmp}" ]] \
-		&& [[ "${ceOut}" == *"STOPPED: Ctrl+C"* && "${ceOut}" != *"inner run"* && "${ceOut}" != *"OK: installed"* && "${ceOut}" != *"1/8  Format"* && "${ceOut}" != *"7/8  Dogfood"* ]]; } \
+		&& [[ "${ceOut}" == *"STOPPED: Ctrl+C"* && "${ceOut}" != *"inner run"* && "${ceOut}" != *"OK: installed"* && "${ceOut}" != *"; Starting "* ]]; } \
 		&& _pass Etil6xN "docker cleanup after Ctrl+C: ${ceSig}" \
 		|| _fail Etil6xN "docker cleanup after Ctrl+C: ${ceSig}" "gone=[${ceGone}] $(fCeTail)"
 done
@@ -2985,10 +3069,16 @@ CE_CTX=nope CE_BUILD_RC=1 fCeRun -y --container
 ## run passes. Etil6xR checks TMPDIR the same way.
 #{ ((ceRc == 1)) && [[ "${ceOut}" == *"could not build cbv-test-cicd:"* && -z "${ceTmp}" ]]; } && _pass EtAgsPA "failed image build leaves nothing in TMPDIR" \
 #	|| _fail EtAgsPA "failed image build leaves nothing in TMPDIR" "docker=[${ceDocker}] $(fCeTail)"
-{ ((ceRc == 0)) && [[ "${ceOut}" == *"NOTE: could not build cbv-test-cicd:"*", so stages 1 to 4 and 6 run on the host"* && "${ceOut}" == *"OK: integration harness"* ]] \
-	&& [[ -z "${ceTmp}" && "${ceOut}" != *"passed in the container"* ]] && ! grep -q '^run ' <<<"${ceDocker}" && grep -q '^builder prune' <<<"${ceDocker}"; } \
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"NOTE: could not build cbv-test-cicd:"*", so the container steps run on the host"* && "${ceOut}" == *"OK: integration harness"* ]] \
+	&& [[ -z "${ceTmp}" && "${ceOut}" != *"inner run"* ]] && ! grep -q '^run ' <<<"${ceDocker}" && grep -q '^builder prune' <<<"${ceDocker}"; } \
 	&& _pass Etil6xR "failed image build runs on the host" \
 	|| _fail Etil6xR "failed image build runs on the host" "docker=[${ceDocker}] $(fCeTail)"
+## Planned with the demo gif in the container, which a host run doesn't make,
+## so the steps are counted again.
+CE_GIF=1 CE_BUILD_RC=1 fCeRun -y --container; ceSteps="$(fCeSteps)"
+{ ((ceRc == 0)) && [[ "${ceOut}" == *"cbv-test local CI/CD: 3 steps ]"* && "${ceSteps}" == "1/2 Native build PASS;2/2 Tests PASS;" ]]; } \
+	&& _pass Etj4gFi "failed image build counts the steps again" \
+	|| _fail Etj4gFi "failed image build counts the steps again" "steps=[${ceSteps}] $(fCeTail)"
 ## No docker, or one with no daemon to answer, runs every stage here with a
 ## note, whether asked for or the default.
 ceNoDocker=""
@@ -2998,7 +3088,7 @@ for ceCase in missing daemon default; do
 		daemon)  CE_DAEMON_RC=1 fCeRun -y --container ;;
 		default) CE_DAEMON_RC=1 CE_CONTAINER_DEFAULT=1 fCeRun -y ;;
 	esac
-	ceNoDocker+="${ceCase}:${ceRc}:$(grep -c '^\[ NOTE: no working docker here, so every stage runs on the host \]$' <<<"${ceOut}" || true):$(grep -c 'OK: integration harness' <<<"${ceOut}" || true):$(grep -cvE '^(version |$)' <<<"${ceDocker}" || true);"
+	ceNoDocker+="${ceCase}:${ceRc}:$(grep -c '^\[ NOTE: no working docker here, so every step runs on the host \]$' <<<"${ceOut}" || true):$(grep -c 'OK: integration harness' <<<"${ceOut}" || true):$(grep -cvE '^(version |$)' <<<"${ceDocker}" || true);"
 done
 [[ "${ceNoDocker}" == "missing:0:1:1:0;daemon:0:1:1:0;default:0:1:1:0;" ]] && _pass Etil6xQ "no working docker runs on the host" \
 	|| _fail Etil6xQ "no working docker runs on the host" "got=[${ceNoDocker}] $(fCeTail)"
@@ -3226,7 +3316,7 @@ fSyRun
 ## Diverged stops before anything is built.
 fSyPushB notes.txt four; printf 'a\n' >>"${syA}/notes.txt"; fSyGit -C "${syA}" commit -qam "a"
 fSyRun
-{ ((syRc == 1)) && [[ "${syOut}" == *"have diverged (1 ahead, 1 behind)"* && "${syOut}" != *"1/8  Format"* ]]; } && _pass EshVwKS "sync: diverged stops" \
+{ ((syRc == 1)) && [[ "${syOut}" == *"have diverged (1 ahead, 1 behind)"* && "${syOut}" != *"; Starting "* ]]; } && _pass EshVwKS "sync: diverged stops" \
 	|| _fail EshVwKS "sync: diverged stops" "$(fSyTail)"
 fSyGit -C "${syA}" reset -q --hard origin/dev
 
@@ -3251,7 +3341,7 @@ fSyHook(){
 	syOut="$(<"${CBT_OUT}")"
 }
 syLine="refs/heads/dev ${syHeadA} refs/heads/dev ${syZeros}"; fSyHook env
-syDev=0; { ((syRc == 0)) && [[ "${syOut}" == *"OK: gate passed"* && "${syOut}" != *"1/8"* ]]; } && syDev=1
+syDev=0; { ((syRc == 0)) && [[ "${syOut}" == *"OK: gate passed"* && "${syOut}" != *"Starting Tests ]"* ]]; } && syDev=1
 syLine="refs/heads/x ${syHeadA} refs/heads/feature ${syZeros}"; fSyHook env
 syFeat=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syFeat=1
 syLine="(delete) ${syZeros} refs/heads/main ${syHeadA}"; fSyHook env
