@@ -34,103 +34,39 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- Run CICD on GitHub's free arm64 macOS runners.
-	- ID: 2026102318390688
-	- Type: Enhancement
-	- Status: Done
-	- Priority: Avg
-	- Opened: 20261023-183906
-	- Opened by: JC
-	- Related IDs: 2026101411014811
-	- Target OS: macOS
-	- Requirements:
-		- Build, run the tests, and smoke-test the CLI on the built binary.
-	- Progress log:
-		- 20261023: new `macos-arm64` job in `ci.yml` on `macos-15`. It runs `go test`, builds with the version stamp, checks the binary is arm64, and runs `--version` and 5 conversions, bytes both ways included.
-	- Verified: 20261023, run 40051477372 passed all 3 jobs. The Mac printed `convert-base-v2 v3.0.0-298-g515f6ee build debg3 (2026-10-24)`, the date in the runner's UTC.
-	- Test case: the job is the test. No local one, since it needs the hosted runner.
-	- Branch: macos-date
-	- Closed: 20261023
-
-- Non-release builds show the date after the build number.
-	- ID: 2026102318392210
-	- Type: Enhancement
-	- Status: Done
+- There is no PowerShell installer.
+	- ID: 2026101411014803
+	- Type: Feature
+	- Status: Waiting on automated testing
+	- Needs external testing: Yes. On vm925w or b29w, in both Windows PowerShell 5.1 and pwsh 7: the one-liner with no options, answered y, then run again to see it's current; a new shell finding `convert-base-v2` on PATH, and the user PATH still REG_EXPAND_SZ; `-Target system` from a plain shell (refused) and an elevated one, over a setup `.exe` install; a prompt answered n; and `-Help`. Optionally pwsh on b26. The one-liner's URL only works once `install.ps1` is on main.
 	- Priority: Low
-	- Opened: 20261023-183906
-	- Opened by: JC
-	- Target OS: Any
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: Windows, Linux, macOS
 	- Requirements:
-		- For non-release builds, include " (YYYY-mm-DD)" after the build number.
-		- Report the date as the local date of whoever views the version.
-	- Progress log:
-		- 20261023: a release is a bare tag, betas and RCs included. A describe suffix, `-dirty`, a bare hash or `dev` adds the commit date in the local time zone. Unstamped builds have no build number and no date. The installers read only the first word, so they're unaffected.
-	- Verified: 20261023, the same build reads 2026-10-19 here and 2026-10-20 with `TZ=Asia/Tokyo`. The date test failed with the date forced to UTC.
-	- Test case: `EtZtfNg` which versions count as releases. `EtZtfOY` the date and its time zone, and no date on a release. `ErlL5dO` now expects the date from a stamped non-release binary. Harness `ErlL5dx` takes the date on the one-line format.
-	- Branch: macos-date
-	- Closed: 20261023
-
-- Hosted CI fails at the native build on every dev push since the `install.ps1` merge.
-	- ID: 2026101911072100
-	- Type: Bug
-	- Status: Done
-	- Priority: High
-	- Opened: 20261019-110721
-	- Opened by: JC
-	- Related IDs: 2026101411014803
-	- Target OS: Linux
-	- Reproduced: 20261019, 7 runs in a row, from 39278064158 on the `install.ps1` merge to 39297916319: `mkdir /cache/home/.cache/go-build: permission denied`.
-	- Cause: the pwsh check at the end of the Dockerfile's pwsh `RUN` runs as root with `HOME=/cache/home`. It leaves root-owned `.cache/powershell` and `.local/share/powershell` there, which a new `/cache` volume copies in. Local runs pass because the existing volume hides it.
-	- Probable fix: run that check with a throwaway `HOME`, such as `HOME=/tmp/pwsh`, before the `rm -rf /tmp/pwsh`. Or remove both dirs in the same `RUN`.
-		- Add a harness check that `/cache/home` in the built image has nothing owned by root under it, so the next tool that does this fails here.
-		- Then run on a new docker volume, and watch hosted CI go green.
-	- Fixed: the pwsh check runs with `HOME=/tmp/pwsh`, which is removed after. The Dockerfile's last step fails the build if anything is in `/cache/home`.
-	- Verified: 20261019, on a new volume, the old image fails with the same `permission denied` making the Go cache, and the new one makes it. The old image fails the new last step.
-	- Test case: `EtAgsNr` the Dockerfile's last step checks `/cache/home`. `EtAgsOV` nothing root-owned in the container's HOME, which failed on the old image and a new volume.
-	- Branch: cleanup
-	- Closed: 20261019. Hosted CI passed on dev, run 39325671266.
-
-- Updates to CICD script flags.
-	- ID: 2026101816351431
-	- Type: Enhancement
-	- Status: Done
-	- Note: needs signoff, since `--quick` keeping sync, publish, and all of stage 6 is a reading of the requirement.
-	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage in 9.5 minutes, with the long tests, the race detector, the soak test, and CodeQL with no results from 54 queries.
-	- Verified: 20261019, the same with `--quick` passed in 4.2 minutes. It built all 25 cross artifacts, and skipped the long tests, the leak checks, the pin checks, and govulncheck.
-	- Priority: High
-	- Opened: 20261018-163514
-	- Opened by: JC
-	- Related IDs: 2026101411014801, 2026100413480012
-	- Target OS: Linux
-	- Requirements:
-		- `--ci`: Rename to `--gate`.
-		- `--quick`:
-			- Should run whatever linting, validation, and testing steps are very quick.
-			- Cross-compile whatever is fast; e.g. maybe skip slow arm64.
-			- Skip anything requiring an external host.
-		- No flags by default should do everything.
-		- The other existing flags can stay.
-	- Note: pre-next-cut. Do next.
-	- Note: there's no `--ci` in `cicd.bash` now. The fast merge gate is already `--gate`, from 2026101411014801.
-	- Note: `--quick` now skips all cross-compiling, the profiler, and the demo gif, shortens fuzz, and skips the harness perf section and packaging rebuild check.
-	- Note: a run with no flags still leaves out the `--long` tests.
-	- Decisions:
-		- 20261018: no flags do everything, the `--leakcheck` checks included. `--leakcheck` can be added to other flags that might otherwise skip them.
-		- 20261018: no flags include the `--long` tests too. `--long` stays, for use with other flags that would leave them out.
-		- 20261019: `--leakcheck` stays, and `--no-leakcheck` is added to skip them on a full run.
-	- Note: stage 6 steps timed one at a time on 16 threads. Each Go cross build takes about 3.4s with an empty cache, 1s after a source edit, and 0.3s when nothing changed. arm64 is no slower than amd64 for any OS. Each tgz or zip takes 0.17s, each deb or rpm 0.2 to 0.3s, and each Windows installer 1.1s. The whole stage is about 38s cold, 17s after an edit, and 8s warm.
-	- Note: what reaches another host. The remote sync fetches from the git host, publish pushes to it, the vendor pin check reads GitHub, the interop pin check downloads from npm and crates.io, govulncheck reads vuln.go.dev, and the pin step runs `go install` when a pin moved. No stage uses a test box.
-	- Done: a plain run includes the long tests. `--quick` leaves them out unless `--long` is given too, in either order.
-	- Done: `--quick` keeps all of stage 6, since no target or package stood out. `--no-cross` still skips it, in either order.
-	- Done: `--quick` skips the vendor and interop pin checks and govulncheck. It keeps the sync and publish, since they're what the run is for and have their own `--no-*` flags. It keeps the pin step, which only goes online when a pin moved.
-	- Done: the help, `config.bash` comments, contributing.md, development.md, and the changelog say so. `--ci` appears nowhere but this item.
-	- Verified: the harness's CI engine and remote sync sections passed 41 of 41. The 3 new checks failed against the old `cicd.bash`. `bash -n`, shellcheck, and `test-ids.py check` pass.
-	- Swept: `git grep` for `--quick`, `--long`, `--ci`, and the `CICDTEST_` knobs over the repo. README.md and design.md don't describe these flags.
-	- Verified: 20261019, a plain run and `-q` both run the leak checks. `Et9VxXX` now covers `-q`, and failed when `-q` was made to skip them.
-	- Done: `--no-leakcheck` skips the leak checks. Of it and `--leakcheck`, the last one named wins, and it goes to the container run. Both new checks failed against a `--no-leakcheck` that did nothing.
-	- Test case: `Et9RcGQ` long tests on a plain run, off under `--quick`, back with `--long`. `Et9RcH7` `--quick` cross-compiles and `--no-cross` wins. `Et9RcHq` `--quick` skips the checks that reach another host. `ErmCp2G` and `ErmCp2H` still pin the perf and quick knobs. `EtAaLOQ` `--no-leakcheck` skips them, last flag wins. `EtAaQDY` `--no-leakcheck` reaches the container run.
-	- Branch: flags
-	- Commit: 2abd0ac
+		- `install.ps1` beside `install.bash`, working on Windows PowerShell 5.1 and on pwsh 7 on any OS.
+		- It takes `-Release`, `-Target`, `-Yes`, `-Help` and `-Version`.
+		- It checks the download against `checksums.txt`.
+		- It shows the plan and asks before it installs, unless given `-Yes`.
+		- A permission problem gets a clear error.
+		- ASCII only.
+		- The README shows the one-line install.
+	- Done: `install.ps1` at the repo root, run from raw main like `install.bash`. Same releases list and version sort, same assets, same already-current check. On Windows it installs the bare `.exe` under `%LOCALAPPDATA%\Programs` or `%ProgramFiles%`, and adds the folder to the user or machine PATH through the registry. Elsewhere it uses `~/.local/bin` or `/usr/local/bin`, with sudo, as `install.bash` does.
+	- Done: a read-only folder is refused before any download, with the folder named. A system install on Windows from a plain shell is refused up front, and a running `.exe` that can't be replaced says so.
+	- Done: PSScriptAnalyzer runs in the lint stage over every tracked PowerShell file, with 5.1 and 7.0 syntax checks, and the pipeline image has pwsh 7.6.6 and PSScriptAnalyzer 1.25.0, pinned in `tool-versions.env`. The harness checks that PowerShell files are ASCII.
+	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
+	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
+	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
+	- Reproduced: 20261019, hosted CI run 39278064158 on the merge failed at the native build: `mkdir /cache/home/.cache/go-build: permission denied`.
+	- Cause: the image's pwsh check runs as root with `HOME=/cache/home`, and leaves root-owned `.cache/powershell` and `.local/share/powershell` there. A new `/cache` volume copies them in, so the build user can't make the Go cache. Local runs pass only because the existing volume hides it.
+	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
+	- Note: the fix is its own item, 2026101911072100.
+	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
+	- Swept: each `install.bash` check has a twin here (`Erm3T0M`, `EshY04X`, `EshY05J`, `EshY061`, `Esj2Pos`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
+	- Test case: `Et9uoIr` PowerShell files are ASCII. `Et9uoJX` parses from its raw bytes. `Et9uoKF` options. `Et9uoKx` and `Et9uoLd` the version pick. `Et9uoMI` installs in the one-liner form and leaves the caller's shell alone. `Et9uoMw` already current. `Et9uoNc` tampered checksum. `Et9uoOI` read-only folder. `Et9uoOx` the prompt. `Et9uoPc` says why. `Et9uoQG`, `Et9uoQv` and `Et9uoRc` the lint step. `Et9kwvY` now reads `install.ps1` too.
+	- Branch: ps1
+	- Commit: d3d16d7
 
 - The Windows `.exe` files have no icon or version information resource.
 	- ID: 2026101411014805
@@ -156,6 +92,30 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 22399be
 	- Test case: Et9pfRW (bare exes), Et9pfS9 (installers). Both failed before the change and pass after.
 
+- Run on the last Core 2 Duo, and AMD CPUs from that era.
+	- ID: 2026101301161880
+	- Type: Enhancement
+	- Status: Waiting on UAT
+	- Needs external testing: Yes, on an old CPU or an emulated one.
+	- Priority [Feature|Enhancement] | Severity [Bug]: Low
+	- Opened: 20261013-011618
+	- Opened by: JC
+	- Target OS: Linux, Windows and FreeBSD on x86_64, where this project builds them. Macs that old can't run a current macOS anyway.
+	- Requirements [Feature]:
+		- Release builds run on the last Core 2 Duo (Penryn, 2008), and on AMD Phenom II and Athlon II, if that's reasonably doable.
+			- Penryn has SSSE3 and SSE4.1 but no POPCNT. The AMD ones have POPCNT but no SSSE3. So the shared floor is plain x86-64, also called x86-64-v1.
+		- If that isn't doable, the floor is the first Core i3/i5/i7 (Nehalem, 2008), which is x86-64-v2. AMD's first chip at that level is Bulldozer, 2011.
+		- Faster code for newer CPUs is still fine, but it's picked at run time by a CPU feature test, never by the build target.
+		- Tests run the release build on an emulated Penryn and Phenom II, through Intel SDE or QEMU's `-cpu Penryn` and `-cpu phenom`.
+	- Progress log:
+		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
+			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
+		- 20261019: `package.bash` pins `GOAMD64=v1`. The pipeline image has qemu-user, and the harness runs the linux x86_64 release build as a Penryn and a Phenom II.
+	- Verified: 20261019, under qemu-user, a v1 build converts on Penryn, Phenom and Nehalem. A v2 build is refused on Penryn and Phenom and runs on Nehalem, and a v3 build is refused on all 3.
+	- Note: still open on real hardware, and for the Windows and FreeBSD builds, which are the same code.
+	- Test case: `EtAjZOv` every x86_64 release build says `GOAMD64=v1`. `EtAjy1j` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ErlP6B8` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
+	- Branch: cleanup
+
 - A bare `tail: ,` in a config reads as no tail.
 	- ID: 2026101411014813
 	- Type: Bug
@@ -175,6 +135,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
 	- Progress log:
 		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
+		- 20261025: shcl's dev tip 6d046939 refuses a bare comma in a value with `E026`, which may cover this. Unverified, since it's only from reading shcl's backlog. Still not tagged 3.0.0, so the pin stays.
 
 - CICD reset: containers.
 	- ID: 2026102416280100
@@ -349,40 +310,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 			- No FreeBSD `.pkg`.
 			- No end-of-run line saying what cleanup removed and freed.
 
-- There is no PowerShell installer.
-	- ID: 2026101411014803
-	- Type: Feature
-	- Status: Queued
-	- Needs external testing: Yes. On vm925w or b29w, in both Windows PowerShell 5.1 and pwsh 7: the one-liner with no options, answered y, then run again to see it's current; a new shell finding `convert-base-v2` on PATH, and the user PATH still REG_EXPAND_SZ; `-Target system` from a plain shell (refused) and an elevated one, over a setup `.exe` install; a prompt answered n; and `-Help`. Optionally pwsh on b26. The one-liner's URL only works once `install.ps1` is on main.
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: Windows, Linux, macOS
-	- Requirements:
-		- `install.ps1` beside `install.bash`, working on Windows PowerShell 5.1 and on pwsh 7 on any OS.
-		- It takes `-Release`, `-Target`, `-Yes`, `-Help` and `-Version`.
-		- It checks the download against `checksums.txt`.
-		- It shows the plan and asks before it installs, unless given `-Yes`.
-		- A permission problem gets a clear error.
-		- ASCII only.
-		- The README shows the one-line install.
-	- Done: `install.ps1` at the repo root, run from raw main like `install.bash`. Same releases list and version sort, same assets, same already-current check. On Windows it installs the bare `.exe` under `%LOCALAPPDATA%\Programs` or `%ProgramFiles%`, and adds the folder to the user or machine PATH through the registry. Elsewhere it uses `~/.local/bin` or `/usr/local/bin`, with sudo, as `install.bash` does.
-	- Done: a read-only folder is refused before any download, with the folder named. A system install on Windows from a plain shell is refused up front, and a running `.exe` that can't be replaced says so.
-	- Done: PSScriptAnalyzer runs in the lint stage over every tracked PowerShell file, with 5.1 and 7.0 syntax checks, and the pipeline image has pwsh 7.6.6 and PSScriptAnalyzer 1.25.0, pinned in `tool-versions.env`. The harness checks that PowerShell files are ASCII.
-	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
-	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
-	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
-	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
-	- Reproduced: 20261019, hosted CI run 39278064158 on the merge failed at the native build: `mkdir /cache/home/.cache/go-build: permission denied`.
-	- Cause: the image's pwsh check runs as root with `HOME=/cache/home`, and leaves root-owned `.cache/powershell` and `.local/share/powershell` there. A new `/cache` volume copies them in, so the build user can't make the Go cache. Local runs pass only because the existing volume hides it.
-	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
-	- Note: the fix is its own item, 2026101911072100.
-	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
-	- Swept: each `install.bash` check has a twin here (`Erm3T0M`, `EshY04X`, `EshY05J`, `EshY061`, `Esj2Pos`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
-	- Test case: `Et9uoIr` PowerShell files are ASCII. `Et9uoJX` parses from its raw bytes. `Et9uoKF` options. `Et9uoKx` and `Et9uoLd` the version pick. `Et9uoMI` installs in the one-liner form and leaves the caller's shell alone. `Et9uoMw` already current. `Et9uoNc` tampered checksum. `Et9uoOI` read-only folder. `Et9uoOx` the prompt. `Et9uoPc` says why. `Et9uoQG`, `Et9uoQv` and `Et9uoRc` the lint step. `Et9kwvY` now reads `install.ps1` too.
-	- Branch: ps1
-	- Commit: d3d16d7
-
 - The repo has no social preview image, so shared links show GitHub's generic card.
 	- ID: 2026101416210405
 	- Type: Task
@@ -406,29 +333,103 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: macOS
 	- Note: hosted CI now tests and runs a native darwin/arm64 build on an Apple silicon runner. That isn't the release's universal binary, so this stays open.
 
-- Run on the last Core 2 Duo, and AMD CPUs from that era.
-	- ID: 2026101301161880
+- Run CICD on GitHub's free arm64 macOS runners.
+	- ID: 2026102318390688
 	- Type: Enhancement
-	- Status: Waiting on UAT
-	- Needs external testing: Yes, on an old CPU or an emulated one.
-	- Priority [Feature|Enhancement] | Severity [Bug]: Low
-	- Opened: 20261013-011618
+	- Status: Done
+	- Priority: Avg
+	- Opened: 20261023-183906
 	- Opened by: JC
-	- Target OS: Linux, Windows and FreeBSD on x86_64, where this project builds them. Macs that old can't run a current macOS anyway.
-	- Requirements [Feature]:
-		- Release builds run on the last Core 2 Duo (Penryn, 2008), and on AMD Phenom II and Athlon II, if that's reasonably doable.
-			- Penryn has SSSE3 and SSE4.1 but no POPCNT. The AMD ones have POPCNT but no SSSE3. So the shared floor is plain x86-64, also called x86-64-v1.
-		- If that isn't doable, the floor is the first Core i3/i5/i7 (Nehalem, 2008), which is x86-64-v2. AMD's first chip at that level is Bulldozer, 2011.
-		- Faster code for newer CPUs is still fine, but it's picked at run time by a CPU feature test, never by the build target.
-		- Tests run the release build on an emulated Penryn and Phenom II, through Intel SDE or QEMU's `-cpu Penryn` and `-cpu phenom`.
+	- Related IDs: 2026101411014811
+	- Target OS: macOS
+	- Requirements:
+		- Build, run the tests, and smoke-test the CLI on the built binary.
 	- Progress log:
-		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
-			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
-		- 20261019: `package.bash` pins `GOAMD64=v1`. The pipeline image has qemu-user, and the harness runs the linux x86_64 release build as a Penryn and a Phenom II.
-	- Verified: 20261019, under qemu-user, a v1 build converts on Penryn, Phenom and Nehalem. A v2 build is refused on Penryn and Phenom and runs on Nehalem, and a v3 build is refused on all 3.
-	- Note: still open on real hardware, and for the Windows and FreeBSD builds, which are the same code.
-	- Test case: `EtAjZOv` every x86_64 release build says `GOAMD64=v1`. `EtAjy1j` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ErlP6B8` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
+		- 20261023: new `macos-arm64` job in `ci.yml` on `macos-15`. It runs `go test`, builds with the version stamp, checks the binary is arm64, and runs `--version` and 5 conversions, bytes both ways included.
+	- Verified: 20261023, run 40051477372 passed all 3 jobs. The Mac printed `convert-base-v2 v3.0.0-298-g515f6ee build debg3 (2026-10-24)`, the date in the runner's UTC.
+	- Test case: the job is the test. No local one, since it needs the hosted runner.
+	- Branch: macos-date
+	- Closed: 20261023
+
+- Non-release builds show the date after the build number.
+	- ID: 2026102318392210
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261023-183906
+	- Opened by: JC
+	- Target OS: Any
+	- Requirements:
+		- For non-release builds, include " (YYYY-mm-DD)" after the build number.
+		- Report the date as the local date of whoever views the version.
+	- Progress log:
+		- 20261023: a release is a bare tag, betas and RCs included. A describe suffix, `-dirty`, a bare hash or `dev` adds the commit date in the local time zone. Unstamped builds have no build number and no date. The installers read only the first word, so they're unaffected.
+	- Verified: 20261023, the same build reads 2026-10-19 here and 2026-10-20 with `TZ=Asia/Tokyo`. The date test failed with the date forced to UTC.
+	- Test case: `EtZtfNg` which versions count as releases. `EtZtfOY` the date and its time zone, and no date on a release. `ErlL5dO` now expects the date from a stamped non-release binary. Harness `ErlL5dx` takes the date on the one-line format.
+	- Branch: macos-date
+	- Closed: 20261023
+
+- Hosted CI fails at the native build on every dev push since the `install.ps1` merge.
+	- ID: 2026101911072100
+	- Type: Bug
+	- Status: Done
+	- Priority: High
+	- Opened: 20261019-110721
+	- Opened by: JC
+	- Related IDs: 2026101411014803
+	- Target OS: Linux
+	- Reproduced: 20261019, 7 runs in a row, from 39278064158 on the `install.ps1` merge to 39297916319: `mkdir /cache/home/.cache/go-build: permission denied`.
+	- Cause: the pwsh check at the end of the Dockerfile's pwsh `RUN` runs as root with `HOME=/cache/home`. It leaves root-owned `.cache/powershell` and `.local/share/powershell` there, which a new `/cache` volume copies in. Local runs pass because the existing volume hides it.
+	- Probable fix: run that check with a throwaway `HOME`, such as `HOME=/tmp/pwsh`, before the `rm -rf /tmp/pwsh`. Or remove both dirs in the same `RUN`.
+		- Add a harness check that `/cache/home` in the built image has nothing owned by root under it, so the next tool that does this fails here.
+		- Then run on a new docker volume, and watch hosted CI go green.
+	- Fixed: the pwsh check runs with `HOME=/tmp/pwsh`, which is removed after. The Dockerfile's last step fails the build if anything is in `/cache/home`.
+	- Verified: 20261019, on a new volume, the old image fails with the same `permission denied` making the Go cache, and the new one makes it. The old image fails the new last step.
+	- Test case: `EtAgsNr` the Dockerfile's last step checks `/cache/home`. `EtAgsOV` nothing root-owned in the container's HOME, which failed on the old image and a new volume.
 	- Branch: cleanup
+	- Closed: 20261019. Hosted CI passed on dev, run 39325671266.
+
+- Updates to CICD script flags.
+	- ID: 2026101816351431
+	- Type: Enhancement
+	- Status: Done
+	- Note: needs signoff, since `--quick` keeping sync, publish, and all of stage 6 is a reading of the requirement.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage in 9.5 minutes, with the long tests, the race detector, the soak test, and CodeQL with no results from 54 queries.
+	- Verified: 20261019, the same with `--quick` passed in 4.2 minutes. It built all 25 cross artifacts, and skipped the long tests, the leak checks, the pin checks, and govulncheck.
+	- Priority: High
+	- Opened: 20261018-163514
+	- Opened by: JC
+	- Related IDs: 2026101411014801, 2026100413480012
+	- Target OS: Linux
+	- Requirements:
+		- `--ci`: Rename to `--gate`.
+		- `--quick`:
+			- Should run whatever linting, validation, and testing steps are very quick.
+			- Cross-compile whatever is fast; e.g. maybe skip slow arm64.
+			- Skip anything requiring an external host.
+		- No flags by default should do everything.
+		- The other existing flags can stay.
+	- Note: pre-next-cut. Do next.
+	- Note: there's no `--ci` in `cicd.bash` now. The fast merge gate is already `--gate`, from 2026101411014801.
+	- Note: `--quick` now skips all cross-compiling, the profiler, and the demo gif, shortens fuzz, and skips the harness perf section and packaging rebuild check.
+	- Note: a run with no flags still leaves out the `--long` tests.
+	- Decisions:
+		- 20261018: no flags do everything, the `--leakcheck` checks included. `--leakcheck` can be added to other flags that might otherwise skip them.
+		- 20261018: no flags include the `--long` tests too. `--long` stays, for use with other flags that would leave them out.
+		- 20261019: `--leakcheck` stays, and `--no-leakcheck` is added to skip them on a full run.
+	- Note: stage 6 steps timed one at a time on 16 threads. Each Go cross build takes about 3.4s with an empty cache, 1s after a source edit, and 0.3s when nothing changed. arm64 is no slower than amd64 for any OS. Each tgz or zip takes 0.17s, each deb or rpm 0.2 to 0.3s, and each Windows installer 1.1s. The whole stage is about 38s cold, 17s after an edit, and 8s warm.
+	- Note: what reaches another host. The remote sync fetches from the git host, publish pushes to it, the vendor pin check reads GitHub, the interop pin check downloads from npm and crates.io, govulncheck reads vuln.go.dev, and the pin step runs `go install` when a pin moved. No stage uses a test box.
+	- Done: a plain run includes the long tests. `--quick` leaves them out unless `--long` is given too, in either order.
+	- Done: `--quick` keeps all of stage 6, since no target or package stood out. `--no-cross` still skips it, in either order.
+	- Done: `--quick` skips the vendor and interop pin checks and govulncheck. It keeps the sync and publish, since they're what the run is for and have their own `--no-*` flags. It keeps the pin step, which only goes online when a pin moved.
+	- Done: the help, `config.bash` comments, contributing.md, development.md, and the changelog say so. `--ci` appears nowhere but this item.
+	- Verified: the harness's CI engine and remote sync sections passed 41 of 41. The 3 new checks failed against the old `cicd.bash`. `bash -n`, shellcheck, and `test-ids.py check` pass.
+	- Swept: `git grep` for `--quick`, `--long`, `--ci`, and the `CICDTEST_` knobs over the repo. README.md and design.md don't describe these flags.
+	- Verified: 20261019, a plain run and `-q` both run the leak checks. `Et9VxXX` now covers `-q`, and failed when `-q` was made to skip them.
+	- Done: `--no-leakcheck` skips the leak checks. Of it and `--leakcheck`, the last one named wins, and it goes to the container run. Both new checks failed against a `--no-leakcheck` that did nothing.
+	- Test case: `Et9RcGQ` long tests on a plain run, off under `--quick`, back with `--long`. `Et9RcH7` `--quick` cross-compiles and `--no-cross` wins. `Et9RcHq` `--quick` skips the checks that reach another host. `ErmCp2G` and `ErmCp2H` still pin the perf and quick knobs. `EtAaLOQ` `--no-leakcheck` skips them, last flag wins. `EtAaQDY` `--no-leakcheck` reaches the container run.
+	- Branch: flags
+	- Commit: 2abd0ac
 
 - Verify or ensure that builds clean up stale artifacts and side-effects after they're done: caches, container cruft, tmp files, etc.
 	- ID: 2026101910123200
