@@ -269,7 +269,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: step output.
 	- ID: 2026102416280105
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on a full CICD run
+	- Needs local test suite run?: a full `cicd/cicd.bash` run, which shows the step lines from inside the container and from the host in one count.
+	- Needs hand testing: a look at the output of that run, since it's what a person reads.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -279,6 +281,20 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- One blank line between steps, and one at the end.
 		- Steps turned off aren't counted. The first section lists them with the flag or reason for each.
 		- The stage headers read "1/8 Format" now, under a shorter rule.
+	- Progress log:
+		- 20261025: each step prints the 79-character rule, a Starting line, its output, and a PASS or FAIL line, with the local time to the hundredth and "Step N of M". A step left open by an error or Ctrl+C ends on FAIL.
+		- 20261025: the first section is the plan, with a "Turned off" list naming the flag, or what in the config turned each step off. Those steps aren't counted. A new `--no-<step>` flag adds one call in its own line of the option list.
+		- 20261025: the pin checks before the format step became a step of their own, and dogfood, screenshots and the demo gif are 3 steps where they were one stage.
+		- 20261025: in a container run the host works out the whole list and hands it to the run inside, so the numbers run on across both. The profiler comes after cross + package there, as before. If the image won't build, the steps are counted again for the host.
+		- 20261025: inside the container only its own steps run. Screenshots used to run in both places when turned on; now only on the host.
+		- 20261025: the merge gate shows its 3 steps the same way. Messages that named stage numbers name the step instead, in the pipeline and in contributing.md.
+	- Verified: 20261025, the fast gate passed on this box and printed its steps in the new form.
+	- Verified: the pipeline's own tests pass, 94 of 94, with the old header checks moved to the new text. Each new check failed against the code before the change. The checks of the format, the FAIL line, a flag's reason, the step list and the recount each failed again with that one part broken.
+	- Note: the pre-push hook and hosted CI read no step text, so they're unchanged.
+	- Swept: every stage header and every message naming a stage number in `cicd.bash`, the pre-push hook, `.github/workflows/`, `lint-report.bash`, contributing.md, development.md and design.md. Comments in `cicd.bash` and `config.bash` still say "stage" for the old order, which nothing prints.
+	- Branch: steps
+	- Commit: 4c69d4b
+	- Test case: Etj4gBl (step lines), Etj4gCV (off steps listed and not counted), Etj4gDF (FAIL on a failed step), Etj4gGf (gate steps), Etj4gE6 (numbers across the container and host runs), Etj4gFi (counted again after a failed image build), Etj4gEu (the step list on the container run line). EtixvQh wanted a run line with no step list, so it's commented out with the reason. ErmCp2I, Et9RcH7, Esj2Pq1, EsJjVwL, Etil6xN, Etil6xQ, Etil6xR, EshVwKS and EshVwMN now match the new text.
 
 - CICD reset: test IDs.
 	- ID: 2026102416280106
