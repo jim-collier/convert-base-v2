@@ -910,7 +910,7 @@ if ((! container_done)); then
 				## Only || keeps the ERR trap off a failed run; set +e does not.
 				fuzz_rc=0
 				in_src "${heavy_env[@]}" go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" -parallel "${CPU_CAP_HEAVY}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}" || fuzz_rc=$?
-				fuzz_id="-------"
+				fuzz_id="-----"
 				((${#TEST_ID_CMD[@]})) && fuzz_id="$(cd "${root}" && "${TEST_ID_CMD[@]}" lookup "${SRC_DIR}/${GO_TEST_PKG:-.}" "${t}" || true)"
 				if ((fuzz_rc)); then
 					## A bare "context deadline exceeded" with no crasher is the
@@ -920,12 +920,12 @@ if ((! container_done)); then
 					## the failing input file.
 					if grep -q 'Failing input written to' "${fuzz_log}" \
 					|| ! grep -q 'context deadline exceeded' "${fuzz_log}"; then
-						printf ' FAIL %s  %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
+						printf 'FAIL %s %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
 						fDie "fuzz ${t} found a failure"
 					fi
 					fEcho "NOTE: fuzz ${t} reported the -fuzztime deadline; no failing input recorded"
 				fi
-				printf '  ok  %s  %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
+				printf 'PASS %s %s (fuzz, %s)\n' "${fuzz_id}" "${t}" "${ft}"
 			done
 			fEcho "OK: fuzz (${#fuzz_targets[@]} target(s), ${ft} each)"
 		else
@@ -1134,3 +1134,4 @@ fEcho_Clean
 ##		- 2026-10-25 JC: Labels on what the run makes in docker, and cleanup of it at the end.
 ##		- 2026-10-25 JC: nice and ionice for the run, half the CPUs or a quarter when busy or heavy, rechecked each step. --cpus and --cpu-shares on the container.
 ##		- 2026-10-25 JC: Step lines with the time and "Step N of M", PASS or FAIL, and the steps turned off listed first. The pin checks are a step.
+##		- 2026-10-25 JC: Fuzz lines read PASS or FAIL, then the ID and target.

@@ -76,7 +76,7 @@ func BenchmarkPositional64K(b *testing.B) { benchPositional(b, 64000) }
 // look it up again by symbol. A one-byte base reads input through its byte
 // table alone, so with the symbol map gone a second lookup reads every digit
 // as zero.
-// Test ID: ErmUk2J
+// Test ID: ddgpq
 func TestNumberPathUsesTokenValues(t *testing.T) {
 	reg := newReg(t)
 	dec10 := base(t, reg, "10")
@@ -108,7 +108,7 @@ func TestNumberPathUsesTokenValues(t *testing.T) {
 // and each side's fastest call is compared. Timing all of ours and then all of
 // theirs let a load change in between read as a slowdown. Many short rounds
 // give a busy box enough quiet moments for both minimums.
-// Test ID: ErmULlt
+// Test ID: ddgpm
 func TestPositionalNearMathBig(t *testing.T) {
 	if raceDetector {
 		t.Skip("timing ratio means nothing under -race")
@@ -228,7 +228,7 @@ func BenchmarkDecode2048(b *testing.B) {
 
 // The buffered big-base decoder once made a string per character to look it
 // up, about one allocation per digit. Its cost must not grow with the input.
-// Test ID: Erm5wyD
+// Test ID: ddgkp
 func TestBigBaseDecodeAllocs(t *testing.T) {
 	reg := newReg(t)
 	bytesB := base(t, reg, "bytes")

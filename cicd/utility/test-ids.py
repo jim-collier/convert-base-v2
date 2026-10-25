@@ -2,18 +2,19 @@
 
 ##	Purpose: Test IDs. Every check in cicd/test.bash and every Go Test or Fuzz
 ##		function has one, so a failure, a backlog item and a commit can all name
-##		the same test. An ID is the time the test was written, as milliseconds
-##		since 2000-01-01 00:00 UTC, in base 62 (0-9 A-Z a-z, the same as base 62
-##		here). Seven characters until the year 2111.
+##		the same test. An ID is the time the test was written, as whole minutes
+##		since 2000-01-01 00:00 UTC, in lower case Crockford base 32. Five
+##		characters until 2063. Two tests in one minute can't share it, so the
+##		newer takes the next free minute.
 ##	Usage:
-##		test-ids.py new [EPOCH_MS]  print an ID for now, or for a given time
+##		test-ids.py new [COUNT]     print COUNT unused IDs (default 1), from now on
 ##		test-ids.py check           fail if a test has no ID, a bad one, or shares one
 ##		test-ids.py list            every ID with its test, oldest first
 ##		test-ids.py lookup DIR NAME the ID of Go test NAME in package dir DIR
 ##		test-ids.py report          read `go test -json` on stdin and print one
 ##		                            line per top-level test with its ID; exit 1 on
 ##		                            any failure
-##		A Go test's ID sits on the line above its func, as `// Test ID: XXXXXXX`.
+##		A Go test's ID sits on the line above its func, as `// Test ID: xxxxx`.
 ##		A harness check takes its ID as the first argument of _pass, _fail,
 ##		check, _assert and the other reporting helpers.
 ##	History: At bottom of script.
@@ -33,13 +34,13 @@ from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
-DIGITS   = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-EPOCH_MS = 946684800000  # 2000-01-01 00:00 UTC
+DIGITS   = "0123456789abcdefghjkmnpqrstvwxyz"
+EPOCH    = 946684800  # 2000-01-01 00:00 UTC
 ROOT     = Path(__file__).resolve().parent.parent.parent
 HARNESS  = ROOT / "cicd" / "test.bash"
 SKIP_DIRS = {".git", "shcl", "testdata", "thirdparty", "node_modules", "build", "dist", "bin"}
 
-ID_RE     = re.compile(r"^[0-9A-Za-z]{7}$")
+ID_RE     = re.compile(r"^[0-9a-hjkmnp-tv-z]{5,}$")
 GO_FUNC   = re.compile(r"^func ((?:Test|Fuzz)\w*)\(")
 GO_ID     = re.compile(r"^// Test ID: (\S+)\s*$")
 GO_MODULE = re.compile(r'^module\s+"?([^"\s]+)', re.M)
@@ -48,6 +49,7 @@ GO_MODULE = re.compile(r'^module\s+"?([^"\s]+)', re.M)
 SH_CALL   = re.compile(r"(?:^|[;&|{]|(?<!=)\(|\bthen|\belse|\bdo)\s*(?:\w+=(?!\()\S*\s+)*"
                        r"(_pass|_fail|_warn|check|_assert|cvec|nvec|pipecheck|fCheckCoverage|fCheckLegacy)\s+(\S+)(?:\s+(\S+))?")
 PASSING   = {"_pass", "check", "_assert", "cvec", "nvec", "pipecheck", "fCheckCoverage", "fCheckLegacy"}
+NO_ID     = "-----"
 
 
 class GoTest(NamedTuple):
@@ -62,23 +64,26 @@ class HarnessCall(NamedTuple):
 	ids: list[str]
 
 
-def encode(ms: int) -> str:
-	if ms <= 0:
+def encode(minutes: int) -> str:
+	if minutes <= 0:
 		return "0"
 	out = ""
-	while ms:
-		ms, r = divmod(ms, 62)
+	while minutes:
+		minutes, r = divmod(minutes, 32)
 		out = DIGITS[r] + out
 	return out
 
 def decode(tid: str) -> int:
 	n = 0
 	for c in tid:
-		n = n * 62 + DIGITS.index(c)
+		n = n * 32 + DIGITS.index(c)
 	return n
 
 def when(tid: str) -> str:
-	return time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime((decode(tid) + EPOCH_MS) / 1000))
+	return time.strftime("%Y-%m-%d %H:%M", time.gmtime(decode(tid) * 60 + EPOCH))
+
+def now_minute() -> int:
+	return (int(time.time()) - EPOCH) // 60
 
 
 @cache
@@ -183,7 +188,7 @@ def collect() -> tuple[dict[str, str], list[str]]:
 			problems.append(f"test.bash: {tid} names more than one test, on lines {', '.join(map(str, lines))}")
 	for (_, name), test in sorted(go_tests().items()):
 		if test.tid is None or not ID_RE.match(test.tid):
-			problems.append(f"{test.path}:{test.line}: {name} needs a `// Test ID: XXXXXXX` line above it")
+			problems.append(f"{test.path}:{test.line}: {name} needs a `// Test ID: xxxxx` line above it")
 		elif test.tid in named:
 			problems.append(f"{test.path}:{test.line}: {test.tid} is already {named[test.tid]}")
 		else:
@@ -192,8 +197,8 @@ def collect() -> tuple[dict[str, str], list[str]]:
 	for n, tid in warned:
 		if tid not in named:
 			problems.append(f"test.bash:{n}: _warn names {tid}, which is no test")
-	now = int(time.time() * 1000) - EPOCH_MS + 86400000
-	floor = 1672531200000 - EPOCH_MS  # 2023-01-01, before anything here was written
+	now = now_minute() + 1440
+	floor = (1672531200 - EPOCH) // 60  # 2023-01-01, before anything here was written
 	for tid, where in named.items():
 		if not floor <= decode(tid) <= now:
 			problems.append(f"{where}: {tid} decodes to {when(tid)}, outside 2023 to now")
@@ -249,29 +254,50 @@ def report() -> int:
 			state[key] = action
 	failed = 0
 	for key in order:
-		tid = ids.get(key) or "-------"
+		tid = ids.get(key) or NO_ID
 		st = state[key]
-		tag = {"pass": "  ok ", "fail": " FAIL", "skip": " SKIP"}[st]
-		print(f"{tag} {tid}  {key[1]} ({short_name(key[0])})")
+		print(f"{st.upper()} {tid} {key[1]} ({short_name(key[0])})")
 		if st == "fail":
 			failed += 1
 			for line in failure_lines(output.get(key, [])):
-				print("       " + line.rstrip())
+				print("     " + line.rstrip())
 	for pkg in pkgfail:
 		if not any(k[0] == pkg and state[k] == "fail" for k in order):
 			failed += 1
-			print(f" FAIL -------  {pkg} (package failed outside its tests: a build error, or the leak check in TestMain)")
+			print(f"FAIL {NO_ID} {pkg} (package failed outside its tests: a build error, or the leak check in TestMain)")
 			for line in failure_lines(output.get((pkg, None), [])):
-				print("       " + line.rstrip())
+				print("     " + line.rstrip())
 	print(f"  {len(order) - failed}/{len(order)} Go tests passed" if not failed else f"  {failed} Go test(s) failed")
 	return 1 if failed or pkgfail else 0
 
 
+def taken_from_now() -> set[int]:
+	"""Minutes from now on that some ID already has, retired tests included.
+
+	Old tests that shared a minute were pushed forward, so a fresh ID can
+	land on one. Any word in the test files that reads as an ID counts.
+	"""
+	start = now_minute()
+	texts = [HARNESS.read_text(encoding="utf-8")]
+	texts += [Path(ROOT, t.path).read_text(encoding="utf-8") for t in go_tests().values()]
+	return {n for text in texts for w in re.findall(r"\b[0-9a-hjkmnp-tv-z]{5,}\b", text) if (n := decode(w)) >= start}
+
+
+def new_ids(count: int) -> list[str]:
+	taken = taken_from_now()
+	minute, out = now_minute(), []
+	while len(out) < count:
+		if minute not in taken:
+			out.append(encode(minute))
+		minute += 1
+	return out
+
+
 def main(argv: list[str]) -> int:
 	cmd = argv[1] if len(argv) > 1 else ""
-	if cmd == "new":
-		ms = int(argv[2]) if len(argv) > 2 else int(time.time() * 1000)
-		print(encode(ms - EPOCH_MS))
+	if cmd == "new" and len(argv) <= 3:
+		count = int(argv[2]) if len(argv) > 2 else 1
+		print("\n".join(new_ids(count)))
 		return 0
 	if cmd == "check":
 		named, problems = collect()
@@ -291,11 +317,11 @@ def main(argv: list[str]) -> int:
 	if cmd == "lookup" and len(argv) == 4:
 		found = go_tests().get((import_path(Path(argv[2]).resolve()), argv[3]))
 		lookup_id = found.tid if found else None
-		print(lookup_id or "-------")
+		print(lookup_id or NO_ID)
 		return 0 if lookup_id else 1
 	if cmd == "report":
 		return report()
-	print("usage: test-ids.py new [EPOCH_MS] | check | list | lookup DIR NAME | report", file=sys.stderr)
+	print("usage: test-ids.py new [COUNT] | check | list | lookup DIR NAME | report", file=sys.stderr)
 	return 2
 
 
@@ -308,3 +334,4 @@ if __name__ == "__main__":
 ##		- 2026-10-04 JC: A bash array of words is no test call.
 ##		- 2026-10-04 JC: Go tests are keyed by import path, not directory name, and a compile error prints under its package. Type hints and named records.
 ##		- 2026-10-19 JC: A failing test or package shows a race report or goleak list from its top.
+##		- 2026-10-25 JC: IDs are minutes in Crockford base 32, converted from the base 62 ones. `new` skips a minute already taken. PASS, FAIL and SKIP lines.

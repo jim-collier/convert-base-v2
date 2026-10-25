@@ -66,15 +66,16 @@ The shellcheck settings are in `.shellcheckrc`, the ruff settings in `pyproject.
 
 - The integration harness is `cicd/test.bash`. It runs the built binary from the outside, and most checks are one line. It tests `lib/bin/convert-base-v2`, which the pipeline puts there. To run it against another build, set `CICDTEST_EXE` to that binary.
 
-- Every test has an ID, so a failure, an issue and a commit can all name the same test. An ID is the time the test was written, in base 62. Get a new one with:
+- Every test has an ID, so a failure, an issue and a commit can all name the same test. An ID is the minute the test was written, counted from 2000 and written in lower case Crockford base 32, such as `decp8`. When 2 tests fall in the same minute, the newer one takes the next free minute. Get a new one with:
 
 	~~~bash
 	python3 cicd/utility/test-ids.py new
 	~~~
 
-	- A Go test has its ID in a comment on the line above the function, as `// Test ID: XXXXXXX`.
+	- A Go test has its ID in a comment on the line above the function, as `// Test ID: xxxxx`.
 	- A harness check takes its ID as the first argument to `check`, `_pass`, `_fail` and the other reporting helpers.
 	- The test stage runs `test-ids.py check` first, and stops on a test with no ID, a bad one, or one that another test already uses.
+	- Each test prints one line with its result, ID and name, such as `PASS decp8 empty input round-trips`. The result is `PASS`, `FAIL` or `SKIP`.
 
 ## Adding a base
 

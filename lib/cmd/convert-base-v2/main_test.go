@@ -43,7 +43,7 @@ func parseInfo(t *testing.T, args ...string) infoAsks {
 	return asked
 }
 
-// Test ID: Erfqe2I
+// Test ID: ddf3q
 func TestInfoFlagOrder(t *testing.T) {
 	cases := []struct {
 		args []string
@@ -67,7 +67,7 @@ func TestInfoFlagOrder(t *testing.T) {
 	}
 }
 
-// Test ID: Erfqe2J
+// Test ID: ddf3r
 func TestPrintInfoLone(t *testing.T) {
 	var got, want strings.Builder
 	if err := printInfo(&got, parseInfo(t, "--version"), nil); err != nil {
@@ -89,7 +89,7 @@ func TestPrintInfoLone(t *testing.T) {
 
 // One blank line between outputs, whether or not the first one already ends
 // in a blank line (the help does, the others do not).
-// Test ID: Erfqe2K
+// Test ID: ddf3s
 func TestPrintInfoSeparation(t *testing.T) {
 	help := func(w io.Writer) { fmt.Fprint(w, "HELP\n\n") }
 
@@ -108,7 +108,7 @@ func TestPrintInfoSeparation(t *testing.T) {
 	}
 }
 
-// Test ID: Erfqe2L
+// Test ID: ddf3t
 func TestAboutAndDonateContent(t *testing.T) {
 	var about, donate strings.Builder
 	printAbout(&about)
@@ -127,7 +127,7 @@ func TestAboutAndDonateContent(t *testing.T) {
 
 // Release builds stamp the version with -X main.version, and the linker can
 // only patch a variable. A const once made the stamp a silent no-op.
-// Test ID: ErkSf4g
+// Test ID: ddg7b
 func TestVersionIsPatchable(t *testing.T) {
 	gobin, err := exec.LookPath("go")
 	if err != nil {
@@ -149,7 +149,7 @@ func TestVersionIsPatchable(t *testing.T) {
 
 // Each alias sets its flag's one value, so the last spelling given wins, as
 // with -h and --help.
-// Test ID: ErqCOGX
+// Test ID: ddhk6
 func TestFlagAliasesShareOneValue(t *testing.T) {
 	type field func(*cliFlags) bool
 	binary := func(f *cliFlags) bool { return f.binary }
@@ -187,7 +187,7 @@ func TestFlagAliasesShareOneValue(t *testing.T) {
 
 // Pad and tail symbols pass through the case flags untouched, on either side of
 // a chunk split, and everything else recases as before.
-// Test ID: ErsqAaO
+// Test ID: ddj7j
 func TestRecaseWriterKeepsPadAndTail(t *testing.T) {
 	keep := []rune{'P', 'ω', 'x', '�'}
 	samples := []string{
@@ -233,7 +233,7 @@ func TestRecaseWriterKeepsPadAndTail(t *testing.T) {
 
 // A stream can split a multi-byte digit across two writes. Every split of every
 // sample has to give the same bytes as recasing the whole thing at once.
-// Test ID: Ersmg4k
+// Test ID: ddj75
 func TestRecaseWriterMatchesWholeRecase(t *testing.T) {
 	samples := []string{
 		"DEADbeef0123=",
@@ -275,7 +275,7 @@ func TestRecaseWriterMatchesWholeRecase(t *testing.T) {
 // together, reads back as the same digits through that base, on the number
 // path and the byte path. Built-ins, plus custom ones where only one-letter
 // ASCII digits or uncased ones are allowed.
-// Test ID: Ervq3zH
+// Test ID: ddjyk
 func TestCaseFlagOutputReadsBack(t *testing.T) {
 	reg, err := convertbase.NewRegistry()
 	if err != nil {
@@ -325,7 +325,7 @@ func TestCaseFlagOutputReadsBack(t *testing.T) {
 
 // The help names every flag the parser takes, and the query flags that pick a
 // base show it as an argument.
-// Test ID: ErsskKE
+// Test ID: ddj7y
 func TestHelpListsEveryFlag(t *testing.T) {
 	f, err := parseFlags(nil)
 	if err != nil {
@@ -356,7 +356,7 @@ func TestHelpListsEveryFlag(t *testing.T) {
 
 // A positional after the NUMBER that looks like a flag gets the flags-first
 // hint, so no built-in base may look like one.
-// Test ID: ErsskKs
+// Test ID: ddj7z
 func TestBuiltinNamesNotFlags(t *testing.T) {
 	reg, err := convertbase.NewRegistry()
 	if err != nil {
@@ -384,7 +384,7 @@ func TestBuiltinNamesNotFlags(t *testing.T) {
 // What each flag does in each mode, as the "Flags by mode" table in design.md
 // has it. Every flag the parser takes is covered in every mode it can be given
 // in, so a new flag can't skip the rule.
-// Test ID: ErsveFb
+// Test ID: ddj86
 func TestIdleFlagNotes(t *testing.T) {
 	reg, err := convertbase.NewRegistry()
 	if err != nil {
@@ -585,7 +585,7 @@ func longFlagName(name string) string {
 }
 
 // design.md's "Flags by mode" table has a row for every flag the parser takes.
-// Test ID: ErsveGF
+// Test ID: ddj87
 func TestDesignTableListsEveryFlag(t *testing.T) {
 	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "project", "design.md"))
 	if err != nil {

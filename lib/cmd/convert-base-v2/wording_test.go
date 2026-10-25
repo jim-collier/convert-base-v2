@@ -20,7 +20,7 @@ import (
 // Messages say "can't", not "cannot". Comments and identifiers aren't checked.
 var longNegation = regexp.MustCompile(`(?i)\b(cannot|can not|is not|are not|does not|do not|did not|was not|were not|will not|would not|could not|should not|has not|have not|had not|must not|need not)\b`)
 
-// Test ID: Et9kwvY
+// Test ID: de56v
 func TestMessagesUseContractions(t *testing.T) {
 	dirs := []string{".", "../../convertbase", "../../internal/errcode", "../../reactor", "../../wasm"}
 	fset := token.NewFileSet()

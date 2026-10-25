@@ -27,7 +27,7 @@ var (
 	reAliasesLine = regexp.MustCompile(`^\s*Aliases:\s*\[\]string\{(.*)\}`)
 )
 
-// Test ID: ElXEFcO
+// Test ID: dakj9
 func TestLegacyAliasesArePreserved(t *testing.T) {
 	src, err := os.ReadFile("bases.go")
 	if err != nil {

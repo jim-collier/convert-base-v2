@@ -30,7 +30,7 @@ func loadConfigText(t *testing.T, text string) error {
 // A field written twice reads back as Multiple, and every accessor answers that
 // with a zero value - so the loader would quietly fall back to a default and
 // build a base the file does not describe. Each of these was silent before.
-// Test ID: Em1008w
+// Test ID: datqe
 func TestConfigRejectsRepeatedField(t *testing.T) {
 	cases := map[string]string{
 		"symbols":  "base: a\n\tsymbols: ab\n\tsymbols: cd\n",
@@ -55,7 +55,7 @@ func TestConfigRejectsRepeatedField(t *testing.T) {
 
 // A name needing quotes was invisible to the path enumeration the check used to
 // walk, so a quoted typo slipped past the unknown-field guard entirely.
-// Test ID: Em1008x
+// Test ID: datqf
 func TestConfigRejectsQuotedUnknownField(t *testing.T) {
 	cases := map[string]string{
 		"dotted":    "base: a\n\tsymbols: ab\n\t\"weird.field\": 1\n",
@@ -78,7 +78,7 @@ func TestConfigRejectsQuotedUnknownField(t *testing.T) {
 // No base field takes fields of its own, so anything indented under one is a
 // mistake. The field above it still reads, often as Empty, which disables a
 // marker on purpose - so the stray line used to cost a marker without a word.
-// Test ID: Erg4X7J
+// Test ID: ddf59
 func TestConfigRejectsNestedField(t *testing.T) {
 	cases := map[string]string{
 		"under empty":  "base: a\n\tsymbols: ab\n\tnegative:\n\t\tdecimal: X\n",
@@ -108,7 +108,7 @@ func TestConfigRejectsNestedField(t *testing.T) {
 // Every way a config file can be refused cites the line it went wrong on. The
 // repeat is the one that needs Lines() rather than Line(), since a path with two
 // bindings is exactly what the singular cannot place.
-// Test ID: Em2MFrs
+// Test ID: dav1v
 func TestConfigErrorsCiteLines(t *testing.T) {
 	cases := []struct {
 		name string
@@ -148,7 +148,7 @@ func TestConfigErrorsCiteLines(t *testing.T) {
 
 // An empty pad: switches padding off, pad: X writes it, and pademit: false
 // keeps a pad that is read but never written.
-// Test ID: ErkSf4u
+// Test ID: ddg7s
 func TestConfigPadFields(t *testing.T) {
 	const b32 = "A B C D E F G H I J K L M N O P Q R S T U V W X Y Z 2 3 4 5 6 7"
 	cfg := "base: nopad\n\tsymbols: " + b32 + "\n\tpad:\n\n" +
@@ -177,7 +177,7 @@ func TestConfigPadFields(t *testing.T) {
 }
 
 // The forms the file is meant to have still load.
-// Test ID: Em1008y
+// Test ID: datqg
 func TestConfigValidForms(t *testing.T) {
 	text := "base: myb\n\taliases: mybase, mb\n\tsymbols: \"z y x w\"\n\n" +
 		"base: nodec\n\tsymbols: 0123456789\n\tdecimal:\n\n" +
@@ -194,7 +194,7 @@ func TestConfigValidForms(t *testing.T) {
 // ParseSymbolSpec, which has escapes of its own. These pin which layer reads
 // which backslash, so a parser change that would quietly change an alphabet
 // fails here first.
-// Test ID: Erg0gZ2
+// Test ID: ddf4x
 func TestConfigBackslashLayers(t *testing.T) {
 	uEscape := `"` + `\` + `u00e9 x"` // spelled in pieces to keep the escape out of the source text
 	cases := []struct {
@@ -260,7 +260,7 @@ func TestConfigBackslashLayers(t *testing.T) {
 // No field takes a raw block. One used to be dropped, as an alias or a tail was,
 // or read with its line breaks kept, as a marker was. Under symbols it could mean
 // two different alphabets, one digit per row or one per character.
-// Test ID: Erg6SWX
+// Test ID: ddf5h
 func TestConfigRejectsRawBlockValue(t *testing.T) {
 	block := "\n\t\t~~~\n\t\tx\n\t\t~~~\n"
 	cases := map[string]string{
@@ -292,7 +292,7 @@ func TestConfigRejectsRawBlockValue(t *testing.T) {
 // empty. It used to parse to no symbols with no error, which left a config base
 // with no tail and gave --to-symbols a symbol count error. An empty field still
 // means none on purpose, and never reaches the parser.
-// Test ID: Ermubbp
+// Test ID: ddgsw
 func TestSpecOnlyCommas(t *testing.T) {
 	for _, spec := range []string{",", ",,", ",,,,"} {
 		if syms, err := ParseSymbolSpec(spec); err == nil || !strings.Contains(err.Error(), "only commas") {
@@ -320,7 +320,7 @@ func TestSpecOnlyCommas(t *testing.T) {
 
 // A file whose second base is bad used to leave its first one registered.
 // --help goes on past a failed load, and listed that base as coming from it.
-// Test ID: ErmubcQ
+// Test ID: ddgsx
 func TestLoadConfigAllOrNothing(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "partial.shcl")
 	text := "base: good1\n\tsymbols: wxyz\n\nbase: bad2\n\tsymbols: aa a\n##    Format   3\n"
@@ -342,7 +342,7 @@ func TestLoadConfigAllOrNothing(t *testing.T) {
 // A stray byte inside a quoted value used to make shcl skip the closing quote,
 // so the file failed as E017 and never reached the digit check. These are the
 // spellings that did that (2026100508035901).
-// Test ID: ErsoOAI
+// Test ID: ddj79
 func TestConfigInvalidUTF8InQuotes(t *testing.T) {
 	cases := []struct{ value, want string }{
 		{`"a b ` + "\x80" + ` c"`, `digit "\x80" at index 2`},
