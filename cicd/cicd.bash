@@ -82,6 +82,11 @@
 ##	  dir or cicd/tool-versions.env changes. Its caches live in a docker volume.
 ##	  CICD_IMAGE_PREBUILT=1 makes a missing image an error instead, for a run whose
 ##	  image was built before it.
+##	- Every step runs at nice 19, and idle I/O priority where ionice is there. It gets
+##	  half the CPUs, or a quarter when the 1-minute load is over half the CPU count,
+##	  checked before each step. The race detector, soak, fuzz and CodeQL get a quarter
+##	  either way, and never under 1. A container gets the count as --cpus, with
+##	  --cpu-shares 256, since nice out here doesn't reach it.
 ##	- What the run makes in docker is labeled dev.project and dev.run. At the end,
 ##	  pass or fail, it removes the run's containers, the project's dangling images,
 ##	  and after a pass every older image tag but one. Then the build cache older than
@@ -104,12 +109,44 @@ here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 root="$(cd "${here}/.." && pwd)"   ## the git repo root (cicd/..)
 export PATH="${HOME}/.go/bin:${HOME}/go/bin:${PATH}"   ## `go install`ed tools (golangci-lint, staticcheck, govulncheck) win
 
-## Cap every stage at 50% of cores. build/test/lint all default to all cores;
+## Low priority for the whole run, which every child inherits. nice on the
+## docker client doesn't reach a container, so fRunContainer caps that too.
+renice -n 19 -p $$ >/dev/null 2>&1 || true
+if command -v ionice >/dev/null 2>&1; then ionice -c 3 -p $$ >/dev/null 2>&1 || true; fi
+
+## Job counts, worked out here and nowhere else: at the start, and again before
+## each step since the load moves under a long run. CPU_CAP is for a normal
+## step, and CPU_CAP_HEAVY for the race, soak, fuzz and CodeQL runs, which go
+## through heavy_env. In a container nproc still counts the host's CPUs, so the
+## run there gets its --cpus as CICD_JOBS_MAX.
 ## GOMAXPROCS bounds go build -p, go test, staticcheck and govulncheck, and
-## CPU_CAP feeds golangci-lint's own --concurrency (it ignores GOMAXPROCS).
-_cores="$(nproc 2>/dev/null || echo 2)"
-CPU_CAP=$(( _cores / 2 )); (( CPU_CAP < 1 )) && CPU_CAP=1
-export GOMAXPROCS="${CPU_CAP}"
+## GOFLAGS names -p and -parallel as well. Each compile runs up to 4 backend
+## threads of its own on top of -p, which took a cold go test at -p 8 to 33
+## runnable threads, so that's off. golangci-lint gets LINT_JOBS_FLAG, cargo and
+## ruff their own variables, and the publish's rar reads CPU_CAP.
+source "${here}/utility/include/machine-use.bash"
+goflags_base=""; read -r -a _goflags <<<"${GOFLAGS:-}"
+for _f in "${_goflags[@]}"; do [[ "${_f}" == -p=* || "${_f}" == -parallel=* ]] || goflags_base+="${goflags_base:+ }${_f}"; done
+jobs_was=""; machine_line=""; heavy_env=(env)
+fMachineUse(){
+	local cpus load max="${CICD_JOBS_MAX:-}"
+	cpus="$(fMachineCpus)"; load="$(fMachineLoad1)"
+	fMachineJobs "${cpus}" "${load}"
+	CPU_CAP="${machineJobs}"; CPU_CAP_HEAVY="${machineJobsHeavy}"
+	if [[ "${max}" =~ ^[0-9]+$ ]] && ((10#${max} > 0 && CPU_CAP > 10#${max})); then CPU_CAP=$((10#${max})); fi
+	((CPU_CAP_HEAVY <= CPU_CAP)) || CPU_CAP_HEAVY="${CPU_CAP}"
+	export CPU_CAP GOMAXPROCS="${CPU_CAP}" CARGO_BUILD_JOBS="${CPU_CAP}" RAYON_NUM_THREADS="${CPU_CAP}" GO19CONCURRENTCOMPILATION=0
+	export GOFLAGS="${goflags_base:+${goflags_base} }-p=${CPU_CAP} -parallel=${CPU_CAP}"
+	heavy_env=(env "CPU_CAP=${CPU_CAP_HEAVY}" "GOMAXPROCS=${CPU_CAP_HEAVY}" "CARGO_BUILD_JOBS=${CPU_CAP_HEAVY}" "RAYON_NUM_THREADS=${CPU_CAP_HEAVY}"
+		"GOFLAGS=${goflags_base:+${goflags_base} }-p=${CPU_CAP_HEAVY} -parallel=${CPU_CAP_HEAVY}")
+	machine_line="${CPU_CAP} jobs, ${CPU_CAP_HEAVY} for the heavy steps (load ${load} on ${cpus} CPUs"
+	if ((machineBusy)); then machine_line+=", busy"; fi
+	if [[ -n "${max}" ]]; then machine_line+=", at most ${max} in this container"; fi
+	machine_line+=")"
+	if [[ -n "${jobs_was}" && "${jobs_was}" != "${CPU_CAP}" ]]; then fEcho_Chat "jobs now ${machine_line}"; fi
+	jobs_was="${CPU_CAP}"
+}
+fMachineUse
 
 source "${here}/config.bash"
 [[ -v FMT_CHECK_CMD ]] || FMT_CHECK_CMD=()   ## older configs
@@ -118,6 +155,7 @@ source "${here}/config.bash"
 [[ -v SOAK_CMD ]] || SOAK_CMD=()
 [[ -v CODEQL_CMD ]] || CODEQL_CMD=()
 [[ -v PSSA_CMD ]] || PSSA_CMD=()
+[[ -v LINT_JOBS_FLAG ]] || LINT_JOBS_FLAG=""
 ## Personal dogfood dirs, kept out of the repo. Before the options, so --no-dogfood still wins.
 # shellcheck source=/dev/null
 if [[ -n "${DOGFOOD_LOCAL:-}" && -f "${root}/${DOGFOOD_LOCAL}" ]]; then source "${root}/${DOGFOOD_LOCAL}"; fi
@@ -199,7 +237,8 @@ fEcho(){       if [[ -n "$*"     ]]; then fEcho_Clean "[ $* ]"; else fEcho_Clean
 fEcho_Force(){ fEcho_ResetBlankCounter; fEcho "$*"; }
 fEcho_Chat(){  if ((quiet)); then return 0; fi; fEcho_Clean "$@"; }
 _letterbox="••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••"
-fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fEcho "$*"; [[ "${stage_pause:-0}" == 0 ]] || sleep "${stage_pause}"; }
+## Each step checks the load again before it starts.
+fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fEcho "$*"; fMachineUse; [[ "${stage_pause:-0}" == 0 ]] || sleep "${stage_pause}"; }
 fDie(){ { fEcho_Force "FAILED: $*"; } >&2; exit 1; }
 ## A tool that isn't installed skips its check, except where every tool is meant
 ## to be (CICD_NO_SKIP=1, set in the container).
@@ -299,8 +338,10 @@ fRunContainer(){
 	local -a gone=(--rm); if ((keep_temp)); then gone=(); fi
 	fEcho_Chat "inside: cicd/cicd.bash ${inner[*]}"
 	## Ctrl+C reaches only the init process, and without the whole group the
-	## step in progress would carry on.
-	"${engine}" run "${gone[@]}" --init -e TINI_KILL_PROCESS_GROUP=1 --name "${APP_NAME}-${run_name}-stages" "${docker_labels[@]}" --user "$(id -u):$(id -g)" "${mounts[@]}" -w "${root}" "${image}" \
+	## step in progress would carry on. nice out here stops at the docker client,
+	## so the container gets this run's job count as its CPU limit, and a low share.
+	"${engine}" run "${gone[@]}" --init -e TINI_KILL_PROCESS_GROUP=1 --name "${APP_NAME}-${run_name}-stages" "${docker_labels[@]}" \
+		--cpus "${CPU_CAP}" --cpu-shares 256 -e "CICD_JOBS_MAX=${CPU_CAP}" --user "$(id -u):$(id -g)" "${mounts[@]}" -w "${root}" "${image}" \
 		bash "${root}/cicd/cicd.bash" "${inner[@]}" || fDie "the run in the container failed; its output is above"
 	container_done=1
 }
@@ -378,7 +419,8 @@ fLint(){
 	fEcho "OK: go vet clean"
 	if ((${#LINT_CMD[@]})); then
 		if in_src "${LINT_PROBE[@]}" >/dev/null 2>&1; then
-			in_src "${LINT_CMD[@]}"; fEcho "OK: golangci-lint clean"
+			local -a lintJobs=(); if [[ -n "${LINT_JOBS_FLAG}" ]]; then lintJobs=("${LINT_JOBS_FLAG}=${CPU_CAP}"); fi
+			in_src "${LINT_CMD[@]}" "${lintJobs[@]}"; fEcho "OK: golangci-lint clean"
 		else
 			fSkip "golangci-lint skipped (not installed: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@latest)"
 		fi
@@ -442,7 +484,7 @@ fLeakCheck(){
 	fi
 	if ((${#RACE_TEST_CMD[@]})); then
 		if in_src "${RACE_PROBE[@]}" >/dev/null 2>&1; then
-			fGoTests "${RACE_TEST_CMD[@]}" || fDie "tests failed under the race detector"
+			fGoTests "${heavy_env[@]}" "${RACE_TEST_CMD[@]}" || fDie "tests failed under the race detector"
 			fEcho "OK: race detector clean"
 		else
 			fSkip "race detector skipped (it needs cgo and a C compiler)"
@@ -451,7 +493,7 @@ fLeakCheck(){
 	if ((${#SOAK_CMD[@]})); then
 		local soakDir="${root}/${SOAK_OUT_DIR}"
 		mkdir -p "${soakDir}"
-		fGoTests env "CICD_SOAK_OUT=${soakDir}" "${SOAK_CMD[@]}" || fDie "soak test failed; its heap profiles are in ${SOAK_OUT_DIR}/"
+		fGoTests "${heavy_env[@]}" "CICD_SOAK_OUT=${soakDir}" "${SOAK_CMD[@]}" || fDie "soak test failed; its heap profiles are in ${SOAK_OUT_DIR}/"
 		gfs_rotate "${soakDir}" heap-n pprof >/dev/null 2>&1 || true
 		gfs_rotate "${soakDir}" heap-2n pprof >/dev/null 2>&1 || true
 		fEcho "OK: soak test, heap profiles in ${SOAK_OUT_DIR}/"
@@ -460,7 +502,7 @@ fLeakCheck(){
 		if "${CODEQL_PROBE[@]}" >/dev/null 2>&1; then
 			local codeqlDir="${root}/${CODEQL_OUT_DIR}"
 			mkdir -p "${codeqlDir}"
-			"${CODEQL_CMD[@]}" "${codeqlDir}/codeql_${stamp}.sarif" || fDie "CodeQL found something, or couldn't run; the SARIF is in ${CODEQL_OUT_DIR}/"
+			"${heavy_env[@]}" "${CODEQL_CMD[@]}" "${codeqlDir}/codeql_${stamp}.sarif" || fDie "CodeQL found something, or couldn't run; the SARIF is in ${CODEQL_OUT_DIR}/"
 			gfs_rotate "${codeqlDir}" codeql sarif >/dev/null 2>&1 || true
 			fEcho "OK: CodeQL clean, SARIF in ${CODEQL_OUT_DIR}/"
 		else
@@ -572,6 +614,7 @@ fEcho_Chat
 fEcho_Chat "${APP_NAME} local CI/CD"
 fEcho_Chat
 fEcho_Chat "Repo root ...........: ${root}"
+fEcho_Chat "Jobs ................: ${machine_line}"
 ((use_container)) && \
 fEcho_Chat "Container ...........: $(fContainerImage) (stages 1-4, 6 and the demo gif)"
 fEcho_Chat "Vendor pins .........: ${VENDOR_CHECK_CMD[*]:-(skipped)}"
@@ -754,7 +797,7 @@ if ((! container_done)); then
 				fEcho_Chat "fuzz ${t} (${ft}) ..."
 				## Only || keeps the ERR trap off a failed run; set +e does not.
 				fuzz_rc=0
-				in_src go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}" || fuzz_rc=$?
+				in_src "${heavy_env[@]}" go test -run '^$' -fuzz "^${t}$" -fuzztime "${ft}" -fuzzminimizetime "${fuzz_min}" -parallel "${CPU_CAP_HEAVY}" "${GO_TEST_PKG:-.}" 2>&1 | tee "${fuzz_log}" || fuzz_rc=$?
 				fuzz_id="-------"
 				((${#TEST_ID_CMD[@]})) && fuzz_id="$(cd "${root}" && "${TEST_ID_CMD[@]}" lookup "${SRC_DIR}/${GO_TEST_PKG:-.}" "${t}" || true)"
 				if ((fuzz_rc)); then
@@ -990,3 +1033,4 @@ fEcho_Clean
 ##		- 2026-10-19 JC: PSScriptAnalyzer in the lint stage.
 ##		- 2026-10-25 JC: No docker, or an image that won't build, runs on the host. --no-container, --keep-temp.
 ##		- 2026-10-25 JC: Labels on what the run makes in docker, and cleanup of it at the end.
+##		- 2026-10-25 JC: nice and ionice for the run, half the CPUs or a quarter when busy or heavy, rechecked each step. --cpus and --cpu-shares on the container.

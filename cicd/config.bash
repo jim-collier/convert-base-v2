@@ -93,7 +93,9 @@ INTEROP_CHECK_CMD=(bash cicd/utility/interop/fetch.bash --upstream)
 ## cicd/tool-versions.env via the pin step above.
 VET_CMD=(go vet ./...)
 LINT_PROBE=(golangci-lint version)
-LINT_CMD=(golangci-lint run --concurrency="${CPU_CAP:-1}" ./...)
+LINT_CMD=(golangci-lint run ./...)
+## It ignores GOMAXPROCS, so the engine adds this flag with the step's job count.
+LINT_JOBS_FLAG="--concurrency"
 STATICCHECK_PROBE=(staticcheck -version)
 ## Named packages, not ./..., so the vendored shcl copy stays out of it.
 STATICCHECK_CMD=(staticcheck ./cmd/convert-base-v2 ./convertbase ./internal/errcode)

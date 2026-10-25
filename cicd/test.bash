@@ -1688,7 +1688,9 @@ fi
 ## Browser module: the js/wasm build's own tests, run under node
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Go's wasm runner hands node the whole environment, and node refuses one
-## over about 8K. So the tests get a short one. Each prints its own line and ID.
+## over about 8K. So the tests get a short one, with the job counts cicd set,
+## less GOMAXPROCS: the wasm program gets it too, and dies over 1 (newosproc).
+## Each prints its own line and ID.
 section "Browser module"
 goRoot="$(go env GOROOT 2>/dev/null || true)"
 wasmExec="${goRoot}/lib/wasm/go_js_wasm_exec"
@@ -1696,8 +1698,9 @@ wasmExec="${goRoot}/lib/wasm/go_js_wasm_exec"
 if ! command -v node >/dev/null 2>&1 || [[ ! -x "$wasmExec" ]]; then
 	_warn "ErkSf4j ErkSf4h ErkSf4i Ert2MSr" "browser module tests skipped: needs node and Go's go_js_wasm_exec"
 else
-	bwrc=0
-	(cd "${meDir}/../lib" && env -i PATH="$PATH" HOME="$HOME" GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)" \
+	bwrc=0; bwJobs=()
+	for bwVar in GOFLAGS GO19CONCURRENTCOMPILATION; do [[ -z "${!bwVar:-}" ]] || bwJobs+=("${bwVar}=${!bwVar}"); done
+	(cd "${meDir}/../lib" && env -i PATH="$PATH" HOME="$HOME" GOCACHE="$(go env GOCACHE)" GOMODCACHE="$(go env GOMODCACHE)" "${bwJobs[@]}" \
 		GOOS=js GOARCH=wasm go test -json -count=1 -exec "$wasmExec" ./wasm) 2>&1 | python3 "${meDir}/utility/test-ids.py" report || bwrc=$?
 	((bwrc == 0)) && _pass ErkSf4j "browser module tests" || _fail ErkSf4j "browser module tests" "exit ${bwrc}, see the lines above"
 fi
@@ -2554,7 +2557,7 @@ tgRep="$( {
 section "CI engine"
 ceDir="${CBT_TMP}/ce"; ceRepo="${ceDir}/repo"; ceBin="${ceDir}/bin"
 mkdir -p "${ceRepo}/cicd/utility/include" "${ceRepo}/lib" "${ceBin}" "${ceDir}/home/bin" "${ceDir}/sys" "${ceDir}/tmp"
-cp "${meDir}/cicd.bash" "${ceRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${ceRepo}/cicd/utility/include/"
+cp "${meDir}/cicd.bash" "${ceRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${meDir}/utility/include/machine-use.bash" "${ceRepo}/cicd/utility/include/"
 printf '%s\n' '#!/bin/sh' 'echo v0.0.0' >"${ceRepo}/lib/out"; chmod +x "${ceRepo}/lib/out"
 cat >"${ceRepo}/cicd/config.bash" <<'EOF'
 APP_NAME="cbv-test"; EXE_NAME="cbv-test"; SRC_DIR="lib"
@@ -2572,12 +2575,25 @@ PREPUBLISH_HOOK=""; GIT_PUBLISH=(); PUBLISH_AUTO_MESSAGE=""
 [[ -z "${CE_NET:-}" ]] || { VENDOR_CHECK_CMD=(echo vendor-net); INTEROP_CHECK_CMD=(echo interop-net); VULN_PROBE=(true); VULN_CMD=(echo vuln-net); }
 RACE_PROBE=("${CE_RACE_PROBE:-true}"); RACE_TEST_CMD=(echo race-ran); SOAK_CMD=(sh -c 'echo "soak-ran $CICD_SOAK_OUT"'); SOAK_OUT_DIR="soak"
 CODEQL_PROBE=("${CE_CODEQL_PROBE:-true}"); CODEQL_CMD=(sh -c 'echo "codeql-ran $1"; exit "${CE_CODEQL_RC:-0}"' sh); CODEQL_OUT_DIR="codeql"
+## Each stand-in writes down the job counts it was handed. The harness can make
+## the box busy partway, for the steps after it.
+if [[ -n "${CE_JOBS:-}" ]]; then
+	TEST_CMD=(sh -c 'echo "harness GOMAXPROCS=$GOMAXPROCS GOFLAGS=$GOFLAGS CARGO_BUILD_JOBS=$CARGO_BUILD_JOBS RAYON_NUM_THREADS=$RAYON_NUM_THREADS CPU_CAP=$CPU_CAP GO19CONCURRENTCOMPILATION=$GO19CONCURRENTCOMPILATION" >>"$CE_JOBS"
+		echo "nice=$(nice) io=$(ionice -p $$ 2>/dev/null || echo none)" >>"$CE_JOBS"
+		if [ -n "${CE_LOAD_LATER:-}" ]; then echo "$CE_LOAD_LATER 1.00 1.00 1/100 1" >"$CICD_LOADAVG_FILE"; fi')
+	VET_CMD=(true); LINT_PROBE=(true); LINT_CMD=(sh -c 'echo "lint $*" >>"$CE_JOBS"' sh); LINT_JOBS_FLAG="--concurrency"
+	RACE_TEST_CMD=(sh -c 'echo "race GOMAXPROCS=$GOMAXPROCS GOFLAGS=$GOFLAGS" >>"$CE_JOBS"')
+	SOAK_CMD=(sh -c 'echo "soak GOMAXPROCS=$GOMAXPROCS" >>"$CE_JOBS"')
+	CODEQL_CMD=(sh -c 'echo "codeql GOMAXPROCS=$GOMAXPROCS" >>"$CE_JOBS"' sh)
+	BUILD_CROSS=1; RELEASE_CMD=(sh -c 'echo "cross GOMAXPROCS=$GOMAXPROCS" >>"$CE_JOBS"; mkdir -p dist && echo x >dist/cbv-test-windows-x86_64.exe')
+fi
 EOF
 cat >"${ceBin}/go" <<'EOF'
 #!/bin/sh
 case "$*" in
 	*-list*) echo FuzzA ;;
 	*-fuzz*)
+		if [ -n "${CE_JOBS:-}" ]; then echo "fuzz GOMAXPROCS=$GOMAXPROCS $*" >>"$CE_JOBS"; fi
 		echo "--- FAIL: FuzzA"
 		case "${FAKE_FUZZ:-}" in
 			deadline) echo "    context deadline exceeded"; exit 1 ;;
@@ -2644,7 +2660,14 @@ mkdir -p "${ceRepo}/gif"
 fCeRun(){
 	: >"${ceDir}/knobs"; : >"${ceDir}/sudo.log"; : >"${ceDir}/docker.log"; ceRc=0
 	local -a ceWrap=(); if [[ -n "${CE_WRAP:-}" ]]; then ceWrap=(python3 "${ceBin}/nosig.py"); fi
+	## nproc takes its count from OMP_NUM_THREADS when that's set.
+	local -a ceMachine=()
+	if [[ -n "${CE_NPROC:-}" ]]; then ceMachine+=("OMP_NUM_THREADS=${CE_NPROC}"); fi
+	if [[ -n "${CE_LOADAVG:-}" ]]; then ceMachine+=("CICD_LOADAVG_FILE=${CE_LOADAVG}"); fi
+	if [[ -n "${CE_JOBS_MAX:-}" ]]; then ceMachine+=("CICD_JOBS_MAX=${CE_JOBS_MAX}"); fi
+	if [[ -n "${CE_GOFLAGS:-}" ]]; then ceMachine+=("GOFLAGS=${CE_GOFLAGS}"); fi
 	( cd "${ceDir}" && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
+		-u OMP_NUM_THREADS -u CICD_LOADAVG_FILE -u CICD_JOBS_MAX -u GOFLAGS -u CPU_CAP "${ceMachine[@]}" \
 		HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${ceDir}/knobs" CE_SUDO_LOG="${ceDir}/sudo.log" \
 		CICD_NO_SKIP="${CE_NO_SKIP:-0}" CICD_IN_CONTAINER="${CE_INSIDE:-0}" CICD_DOCKER="${CE_DOCKER:-${ceBin}/docker}" CE_DOCKER_LOG="${ceDir}/docker.log" \
 		CICD_IMAGE_PREBUILT="${CE_PREBUILT:-0}" "${ceWrap[@]}" bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
@@ -2743,6 +2766,54 @@ fCeRun -q
 	&& "${ceOut}" == *"1/8  Format"* && "${ceOut}" == *"OK: integration harness"* ]]; } && _pass ErmCp2I "-q output" \
 	|| _fail ErmCp2I "-q output" "$(fCeTail)"
 
+## Machine use. Half the CPUs, a quarter when the 1-minute load is over half the
+## CPU count, a quarter for the heavy steps either way, and never under 1.
+mjGot=""
+for mjCase in "32 10.00 16 8 0" "32 16.00 16 8 0" "32 16.01 8 8 1" "32 16 16 8 0" "16 8.009 8 4 0" "7 0.5 3 1 0" \
+	"4 3 1 1 1" "2 0 1 1 0" "1 0.51 1 1 1" "1 0.50 1 1 0" "0 0 1 1 0" "x y 1 1 0" "08 09.08 2 2 1" "32 1.5.3 16 8 0"; do
+	read -r mjCpus mjLoad mjWant <<<"${mjCase}"
+	mjGot="$( source "${meDir}/utility/include/machine-use.bash"; fMachineJobs "${mjCpus}" "${mjLoad}"; echo "${machineJobs} ${machineJobsHeavy} ${machineBusy}" )"
+	[[ "${mjGot}" == "${mjWant}" ]] && _pass EtixvQc "job counts: ${mjCpus} CPUs, load ${mjLoad}" \
+		|| _fail EtixvQc "job counts: ${mjCpus} CPUs, load ${mjLoad}" "want=[${mjWant}] got=[${mjGot}]"
+done
+## A run on 16 CPUs at load 2 that stays that way: every step at nice 19 and
+## idle I/O, the harness and lint at 8, and the heavy steps at 4 anyway.
+ceLoad="${ceDir}/loadavg"; mjLog="${ceDir}/jobs.log"
+echo "2.00 1.00 1.00 1/100 1" >"${ceLoad}"; : >"${mjLog}"
+CE_JOBS="${mjLog}" CE_NPROC=16 CE_LOADAVG="${ceLoad}" CE_GOFLAGS="-mod=mod -p=99 -parallel=99" fCeRun -y
+mjJobs="$(<"${mjLog}")"; mjIo="none"; if command -v ionice >/dev/null 2>&1; then mjIo="idle"; fi
+grep -qxF "nice=19 io=${mjIo}" <<<"${mjJobs}" && _pass EtixvQd "the run is at nice 19 and idle I/O" \
+	|| _fail EtixvQd "the run is at nice 19 and idle I/O" "jobs=[${mjJobs}] $(fCeTail)"
+{ ((ceRc == 0)) && grep -qxF "harness GOMAXPROCS=8 GOFLAGS=-mod=mod -p=8 -parallel=8 CARGO_BUILD_JOBS=8 RAYON_NUM_THREADS=8 CPU_CAP=8 GO19CONCURRENTCOMPILATION=0" <<<"${mjJobs}" \
+	&& grep -qxF "lint --concurrency=8" <<<"${mjJobs}" && grep -qxF "cross GOMAXPROCS=8" <<<"${mjJobs}" \
+	&& [[ "${ceOut}" == *"Jobs ................: 8 jobs, 4 for the heavy steps (load 2.00 on 16 CPUs)"* && "${ceOut}" != *"jobs now"* ]]; } \
+	&& _pass EtixvQe "half the CPUs for a step on a quiet box" \
+	|| _fail EtixvQe "half the CPUs for a step on a quiet box" "jobs=[${mjJobs}] $(fCeTail)"
+{ grep -qE '^fuzz GOMAXPROCS=4 .* -parallel 4 \.$' <<<"${mjJobs}" && grep -qxF "race GOMAXPROCS=4 GOFLAGS=-mod=mod -p=4 -parallel=4" <<<"${mjJobs}" \
+	&& grep -qxF "soak GOMAXPROCS=4" <<<"${mjJobs}" && grep -qxF "codeql GOMAXPROCS=4" <<<"${mjJobs}"; } \
+	&& _pass EtixvQf "a quarter for fuzz, race, soak and CodeQL on a quiet box" \
+	|| _fail EtixvQf "a quarter for fuzz, race, soak and CodeQL on a quiet box" "jobs=[${mjJobs}]"
+## The box gets busy during the tests, so the next step drops to a quarter.
+echo "2.00 1.00 1.00 1/100 1" >"${ceLoad}"; : >"${mjLog}"
+CE_JOBS="${mjLog}" CE_NPROC=16 CE_LOADAVG="${ceLoad}" CE_LOAD_LATER="12.00" fCeRun -y
+mjJobs="$(<"${mjLog}")"
+{ ((ceRc == 0)) && grep -qE '^harness GOMAXPROCS=8 ' <<<"${mjJobs}" && grep -qxF "cross GOMAXPROCS=4" <<<"${mjJobs}" \
+	&& [[ "${ceOut}" == *"jobs now 4 jobs, 4 for the heavy steps (load 12.00 on 16 CPUs, busy)"* ]]; } \
+	&& _pass EtixvQg "load checked again before each step" \
+	|| _fail EtixvQg "load checked again before each step" "jobs=[${mjJobs}] $(fCeTail)"
+## In a container nproc counts the host's CPUs, so the --cpus it got is the most.
+for mjCase in "2 2 2" "6 6 4" "99 8 4"; do
+	read -r mjMax mjWant mjWantHeavy <<<"${mjCase}"
+	echo "2.00 1.00 1.00 1/100 1" >"${ceLoad}"; : >"${mjLog}"
+	CE_JOBS="${mjLog}" CE_NPROC=16 CE_LOADAVG="${ceLoad}" CE_INSIDE=1 CE_JOBS_MAX="${mjMax}" fCeRun -y
+	mjJobs="$(<"${mjLog}")"
+	{ ((ceRc == 0)) && grep -qE "^harness GOMAXPROCS=${mjWant} " <<<"${mjJobs}" && grep -qE "^race GOMAXPROCS=${mjWantHeavy} " <<<"${mjJobs}" \
+		&& [[ "${ceOut}" == *"at most ${mjMax} in this container)"* ]]; } \
+		&& _pass EtiyAAx "in a container, at most its --cpus: ${mjMax}" \
+		|| _fail EtiyAAx "in a container, at most its --cpus: ${mjMax}" "jobs=[${mjJobs}] $(fCeTail)"
+done
+rm -rf "${ceRepo}/dist"
+
 ## Dogfood: a copy that fails is an error, and sudo is tried only as sudo -n,
 ## and only when someone is there.
 CE_DEST="${ceDir}/home/bin" fCeRun -y
@@ -2799,7 +2870,8 @@ CE_VULN=1 CE_NO_SKIP=1 fCeRun -y
 ## that leave the profiler, dogfood and publish to the host.
 fCeTag(){ sed -n 's/^image inspect //p' <<<"${ceDocker}" | head -1; }
 ## Cross builds are on, and would fail here, so the host must leave stage 6 alone too.
-CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container --long
+echo "2.00 1.00 1.00 1/100 1" >"${ceLoad}"
+CE_NPROC=16 CE_LOADAVG="${ceLoad}" CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container --long
 ceTag="$(fCeTag)"
 ## Retired 2026-10-25 by the container reset items: the build and run lines
 ## now have labels and a name, and old tags go only after a pass, at the end.
@@ -2816,12 +2888,22 @@ ceTz=""; [[ -e /etc/localtime ]] && ceTz=" -v /etc/localtime:/etc/localtime:ro"
 ## container a name from both.
 ceRunName="$(sed -n 's/^build .*--label dev\.run=\([^ ]*\) .*/\1/p' <<<"${ceDocker}")"
 ceLabels="--label dev.project=cbv-test --label dev.run=${ceRunName}"
-ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunName}-stages ${ceLabels} --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
+## Retired 2026-10-25 by the CPU and priority reset item: the run line now
+## has a CPU limit. EtixvQh checks the same things, and the limit.
+#ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunName}-stages ${ceLabels} --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
+#{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceRunName}" == cicd-run.* ]] \
+#	&& grep -qxF "build -t ${ceTag} ${ceLabels} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
+#	&& grep -qxF "volume create ${ceLabels} cbv-test-cache" <<<"${ceDocker}" && grep -qxF "${ceRunWant}" <<<"${ceDocker}"; } \
+#	&& _pass Etil6xK "--container build, volume and run are labeled" \
+#	|| _fail Etil6xK "--container build, volume and run are labeled" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
+## The container also gets the run's job count, 8 of 16 CPUs here, as its CPU
+## limit and a low share, since nice on the docker client stops there.
+ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunName}-stages ${ceLabels} --cpus 8 --cpu-shares 256 -e CICD_JOBS_MAX=8 --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
 { ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceRunName}" == cicd-run.* ]] \
 	&& grep -qxF "build -t ${ceTag} ${ceLabels} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
 	&& grep -qxF "volume create ${ceLabels} cbv-test-cache" <<<"${ceDocker}" && grep -qxF "${ceRunWant}" <<<"${ceDocker}"; } \
-	&& _pass Etil6xK "--container build, volume and run are labeled" \
-	|| _fail Etil6xK "--container build, volume and run are labeled" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
+	&& _pass EtixvQh "--container build, volume and run are labeled, and the run has a CPU limit" \
+	|| _fail EtixvQh "--container build, volume and run are labeled, and the run has a CPU limit" "run=[${ceRunName}] docker=[${ceDocker}] $(fCeTail)"
 ## After a pass: the run's containers, then the dangling images and every older
 ## tag but the newest, then the week-old build cache. Each lookup is by label,
 ## and nothing is forced or pruned system-wide.
@@ -2954,7 +3036,7 @@ CE_CONTAINER_DEFAULT=1 fCeRun -y --no-container
 if command -v shellcheck >/dev/null 2>&1 && command -v ruff >/dev/null 2>&1; then
 	clRepo="${ceDir}/lint"
 	mkdir -p "${clRepo}/cicd/utility/include" "${clRepo}/lib" "${clRepo}/skip"
-	cp "${meDir}/cicd.bash" "${clRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${clRepo}/cicd/utility/include/"
+	cp "${meDir}/cicd.bash" "${clRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${meDir}/utility/include/machine-use.bash" "${clRepo}/cicd/utility/include/"
 	cp "${ceRepo}/lib/out" "${clRepo}/lib/out"
 	## The linter commands are the real config's; the file list is the fixtures'.
 	cp "${ceRepo}/cicd/config.bash" "${clRepo}/cicd/config.bash"
@@ -3015,7 +3097,7 @@ fi
 if pwsh -NoProfile -NonInteractive -Command 'Import-Module PSScriptAnalyzer -ErrorAction Stop' </dev/null >/dev/null 2>&1; then
 	plRepo="${ceDir}/pslint"
 	mkdir -p "${plRepo}/cicd/utility/include" "${plRepo}/lib"
-	cp "${meDir}/cicd.bash" "${plRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${plRepo}/cicd/utility/include/"
+	cp "${meDir}/cicd.bash" "${plRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${meDir}/utility/include/machine-use.bash" "${plRepo}/cicd/utility/include/"
 	cp "${meDir}/utility/pssa-lint.ps1" "${plRepo}/cicd/utility/"; cp "${meDir}/../PSScriptAnalyzerSettings.psd1" "${plRepo}/"
 	cp "${ceRepo}/lib/out" "${plRepo}/lib/out"
 	cp "${ceRepo}/cicd/config.bash" "${plRepo}/cicd/config.bash"
@@ -3098,7 +3180,7 @@ fSyGit init -q --bare "${syDir}/o.git"
 fSyGit init -q "${syA}"
 mkdir -p "${syA}/cicd/utility/include" "${syA}/lib"
 cp "${ceRepo}/cicd/cicd.bash" "${ceRepo}/cicd/config.bash" "${syA}/cicd/"
-cp "${ceRepo}/cicd/utility/include/gfs-rotate.bash" "${syA}/cicd/utility/include/"
+cp "${ceRepo}/cicd/utility/include/gfs-rotate.bash" "${ceRepo}/cicd/utility/include/machine-use.bash" "${syA}/cicd/utility/include/"
 cp "${meDir}/utility/pre-push" "${syA}/cicd/utility/"
 cp "${ceRepo}/lib/out" "${syA}/lib/"
 printf '%s\n' '[[ -z "${CE_GATE_FAIL:-}" ]] || UNIT_TEST_CMD=(false)' >>"${syA}/cicd/config.bash"
