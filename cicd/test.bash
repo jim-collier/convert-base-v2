@@ -30,7 +30,7 @@
 ##			- Full-coverage symbol fuzz: for every base, a random-length string of its own random symbols is carried through a random target base and back. Base names and alphabets are read from the binary, so all bases are covered.
 ##			- Interop against the published implementations of the four big bases (qntm's base2048/base32768/base65536 and LLFourn's base2048), unpacked verbatim under utility/interop/thirdparty. Randomized bytes are encoded by both sides and compared, and each side reads the other's output back. Skips with a warning where node or cargo is missing; fails outright if a vendored reference no longer matches its manifest.
 ##			- Release and helper scripts: package.bash and make clean empty only a dir a build made, and the release, install and pin scripts print their own errors. install.ps1 installs from a stand-in release and refuses a tampered checksum, and the PowerShell files are ASCII. The packaged Windows exes and installers have the icon and the version they were built as. The benchmark and screenshot scripts run their commands clean, and stop when one fails.
-##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, what --quick runs and skips, the leak checks, -q, the step lines and what turned a step off, the dogfood copy, and the shellcheck, ruff and PSScriptAnalyzer gates.
+##			- CI engine: cicd.bash, run from a copy with fake tools. The fuzz deadline and a real find, the knobs handed to this harness, what --quick runs and skips, the leak checks, -q, the step lines and what turned a step off, the dogfood copy, and the shellcheck, ruff and PSScriptAnalyzer gates. The backlog runs and the merge gate, their areas, --list, and that they never sync, dogfood, publish, install or change a tracked file. The pre-push hook, for main only.
 ##			- The harness itself: a run against a program that refuses everything, with Go off the PATH, counts each failure and reaches its summary.
 ##			- Cross-check against the bundled convert-base-v1 and convert-base-v1b scripts: a base both tools share is checked against both, a base only one has is checked against that one. Every output base each tool offers is either mapped or listed as excused, so a gap can't go unnoticed. A missing script skips its suite with a warning that the summary repeats.
 ##		- Knobs (env):
@@ -40,6 +40,8 @@
 ##			- CICDTEST_QUICK ........: 1 to skip the packaging rebuild check. cicd.bash sets it under --quick.
 ##			- CICDTEST_FUZZ_ITERS ...: override the fuzz iteration count.
 ##			- CICDTEST_SELFCHECK ....: 1 in the run the harness makes of itself, which skips that self-check.
+##			- CICDTEST_AREAS ........: run only these areas, space-separated. Empty runs them all.
+##			                           cicd.bash --backlog-run-quick sets it.
 ##			- CICD_NO_SKIP ..........: 1 where every tool is installed, as in the container. A skip the run
 ##			                           didn't ask for, such as a missing node, then fails the run.
 ##	History: At bottom of script.
@@ -54,6 +56,32 @@ set -Eeuo pipefail
 export LANG="C.UTF-8" LC_ALL="C.UTF-8"
 
 meDir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+## Areas. Each is the sections inside an `if fArea NAME` block, up to its
+## `fi  ## area NAME`, and a name can have several blocks. CICDTEST_AREAS cuts
+## a run to some of them. --areas prints each name and its sections, and
+## fails on a section outside every block, so a new one can't go unlisted.
+fAreaList(){
+	awk '/^if fArea [a-z0-9]+/ { split($0, w, /[ ;]+/); area = w[3]; open = 1; if (!(area in seen)) { order[++n] = area; seen[area] = 1 }; next }
+		/^fi  ## area / { if (!open || $4 != area) bad = bad " " NR; open = 0; next }
+		/^[[:space:]]*section "/ {
+			s = $0; sub(/^[[:space:]]*section "/, "", s); sub(/".*/, "", s)
+			if (!open) bad = bad " " NR; else sections[area] = sections[area] (sections[area] == "" ? "" : "; ") s
+		}
+		END {
+			if (bad != "" || open) { printf "test.bash: a section outside an area, or an area not closed, at line(s)%s\n", bad > "/dev/stderr"; exit 1 }
+			for (i = 1; i <= n; i++) printf "%s\t%s\n", order[i], sections[order[i]]
+		}' "${BASH_SOURCE[0]}"
+}
+fArea(){ [[ -z "${CICDTEST_AREAS:-}" || " ${CICDTEST_AREAS} " == *" $1 "* ]]; }
+if [[ "${1:-}" == "--areas" ]]; then fAreaList; exit; fi
+if [[ -n "${CICDTEST_AREAS:-}" ]]; then
+	knownAreas=" $(fAreaList | cut -f1 | tr '\n' ' ')"
+	for wantArea in ${CICDTEST_AREAS}; do
+		[[ "${knownAreas}" == *" ${wantArea} "* ]] || { printf 'test.bash: no area named %s. They are:%s\n' "${wantArea}" "${knownAreas% }" >&2; exit 2; }
+	done
+	printf 'Areas: %s\n' "${CICDTEST_AREAS}"
+fi
 
 ## Binary under test, and the optional legacy binaries for back-compat cross-checks.
 EXE="${CICDTEST_EXE:-${meDir}/../lib/bin/convert-base-v2}"
@@ -82,6 +110,21 @@ trap cleanup EXIT
 ## warm-up run does the creating, so no later check sees the one-time note.
 export XDG_CONFIG_HOME="${CBT_TMP}/xdg"
 "${TIMEOUT[@]}" "${EXE}" --get-index-count >/dev/null 2>&1 || true
+
+## Every raw-capable base comes from the RAW column of --list, so a base that is
+## added or renamed is covered with no edit here. Both listings are scraped: the
+## compatibility bases carry raw bytes like the rest, and the index filter drops
+## the header rows. The power-of-2 bases are split out because they convert by
+## bit-packing; what is left is the binary-to-text codecs. Up here since the
+## streaming, frontend parity and perf areas all use them.
+## Columns: INDEX NAME SIZE NEG DEC RAW ALIASES
+declare -a RAW_BASES=() POW2_BASES=()
+while read -r idx bname bsize _ _ rawcol _; do
+	[[ "$idx" =~ ^[0-9]+$ ]] || continue
+	[[ "$rawcol" == "yes" && "$bname" != "bytes" ]] || continue
+	RAW_BASES+=("$bname")
+	(( (bsize & (bsize - 1)) == 0 )) && POW2_BASES+=("$bname")
+done < <("${EXE}" --list --list-compat 2>/dev/null)
 ## Inside $( ) or <( ) a non-zero status is often the answer: cmp and diff on a
 ## difference, a conversion that was refused. Ending the subshell there only cut
 ## the output short, so the status is left to whatever reads it.
@@ -155,6 +198,7 @@ _rand_int(){
 }
 
 
+if fArea cli; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## CLI surface
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -430,7 +474,9 @@ check d9qef err "spec marker-in-digit"       -        -- --from-symbols "a b a.b
 ## must stay exactly 85 symbols (regression pin for the escape/comma-split bug).
 sym85=$("${EXE}" --show-symbols-0 85ps 2>/dev/null | tr '\0' '\n' | grep -c . || true)
 [[ "$sym85" == 85 ]] && _pass d9qeg "85ps has exactly 85 symbols" || _fail d9qeg "85ps has exactly 85 symbols" "got=$sym85"
+fi  ## area cli
 
+if fArea config; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Config file loading (a user-defined base via --config)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -606,8 +652,10 @@ _assert ddf6w eq "explicit old config reads the old way" '12'
 [[ "$_err" == *"shcl migrate --write"* ]] && _pass ddf6x "explicit old config says how to convert it" || _fail ddf6x "explicit old config says how to convert it" "err=[$_err]"
 { cmp -s "${migdir}/convert-base-v2/convert-base-v2.shcl" "$oldcfg" && [[ "$(fBackups "$migdir")" == "0" ]]; } \
 	&& _pass ddf6y "explicit old config left alone" || _fail ddf6y "explicit old config left alone" "changed, or backups=$(fBackups "$migdir")"
+fi  ## area config
 
 
+if fArea cli; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Errors and robustness (security by construction: input is argv, never eval'd)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -737,25 +785,15 @@ if [[ -w /dev/full ]]; then
 else
 	_warn ddgjw "write-failure checks skipped: no /dev/full"
 fi
+fi  ## area cli
 
 
+if fArea stream; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Binary / streaming: bit-perfect round-trips + the byte-alignment guard
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 section "Binary / streaming"
-## Every raw-capable base comes from the RAW column of --list, so a base that is
-## added or renamed is covered with no edit here. Both listings are scraped: the
-## compatibility bases carry raw bytes like the rest, and the index filter drops
-## the header rows. The power-of-2 bases are split out because they convert by
-## bit-packing; what is left is the binary-to-text codecs.
-## Columns: INDEX NAME SIZE NEG DEC RAW ALIASES
-declare -a RAW_BASES=() POW2_BASES=()
-while read -r idx bname bsize _ _ rawcol _; do
-	[[ "$idx" =~ ^[0-9]+$ ]] || continue
-	[[ "$rawcol" == "yes" && "$bname" != "bytes" ]] || continue
-	RAW_BASES+=("$bname")
-	(( (bsize & (bsize - 1)) == 0 )) && POW2_BASES+=("$bname")
-done < <("${EXE}" --list --list-compat 2>/dev/null)
+## RAW_BASES and POW2_BASES are scraped at the top.
 ## Guard the scrapes themselves: if the --list format ever shifts and these parse
 ## nothing, every loop below passes vacuously. Assert a floor on each.
 (( ${#RAW_BASES[@]} >= 8 ))   && _pass d9qem "raw-base scrape found bases (${#RAW_BASES[@]})"          || _fail d9qem "raw-base scrape found bases" "only ${#RAW_BASES[@]} scraped (--list format changed?)"
@@ -1158,8 +1196,10 @@ _run -N --from 16 --to 64 deadbeef
 ## No note when a non-power-of-2 base is involved (no byte ambiguity).
 _run --from 10 --to 16 255
 [[ -z "$_err" ]] && _pass d9n08 "no note for non-pow2 conversion" || _fail d9n08 "no note for non-pow2 conversion" "err='$_err'"
+fi  ## area stream
 
 
+if fArea cli; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Keyboard (text) base: a plain-text document is valid input as-is
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1222,8 +1262,10 @@ check daqtm errmsg "escape the base cannot carry"       "not in base"         --
 check daqtn errmsg "escaping is refused in byte mode"   "number conversions only" -- --from 10 --to 16 --binary --escape-controls -n 65
 ## The marker is not a digit of any built-in base, so it is never mistaken for one.
 check daqtp err "a bare marker is not a digit"          "" -- --from keyboard --to 10 -n 'A⊳'
+fi  ## area cli
 
 
+if fArea fuzz; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Fuzz: random values round-tripped through every defined base
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1337,8 +1379,10 @@ for ((i = 0; i < iters && ${#ELIGIBLE[@]} > 0; i++)); do
 	{ ((_rc == 0)) && [[ "$_out" == "$src_str" ]]; } || { symfuzz_fail=$((symfuzz_fail+1)); _fail d9e29 "symbol fuzz round-trip $src_name<->$tgt_name" "src=[$src_str] enc=[$encoded] got=[$_out] rc=$_rc"; }
 done
 ((symfuzz_fail == 0)) && _pass d9e29 "full-coverage symbol round-trip (${symfuzz_n} iterations, ${#ELIGIBLE[@]} bases, maxlen ${maxlen})" || printf '  %s%d symbol-fuzz failures above%s\n' "${red}" "$symfuzz_fail" "${rst}"
+fi  ## area fuzz
 
 
+if fArea compat; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Back-compat against the bundled v1 and v1b binaries (gating, byte-for-byte)
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1467,8 +1511,10 @@ if [[ -x "${EXE_V1B}" ]]; then
 else
 	_warn "dakbq d9dyp d9dyq" "v1b back-compat skipped: script not found at ${EXE_V1B}"
 fi
+fi  ## area compat
 
 
+if fArea interop; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Interop: the four big bases against the implementations that defined them
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1596,8 +1642,10 @@ else
 		_warn "dan8e dan8f dan8g" "interop vs llfourn base2048 skipped: no adapter binary and cargo could not build one"
 	fi
 fi
+fi  ## area interop
 
 
+if fArea wasm; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## Reactor module: the callable WebAssembly library, driven from a host
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -1849,8 +1897,10 @@ else
 		fi
 	fi
 fi
+fi  ## area wasm
 
 
+if fArea release; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## The macOS universal binary is joined here, not by lipo, and there is no Mac
 ## to run it on. Its tests check the fat layout against hand-made slices and
@@ -2577,8 +2627,10 @@ tgRep="$( {
 { grep -qF "Write at 0x00c by goroutine 7" <<<"${tgRep}" && grep -qF "frame 30" <<<"${tgRep}" && grep -qF "goleak: Errors on successful test run" <<<"${tgRep}"; } \
 	&& _pass de553 "test-ids race and leak reports from the top" \
 	|| _fail de553 "test-ids race and leak reports from the top" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
+fi  ## area release
 
 
+if fArea ci; then
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## CI engine. cicd.bash runs from a copy with a stub config, so every stage is
 ## off or fake. The fake harness writes down the knobs it was handed, the fake
@@ -2616,6 +2668,11 @@ if [[ -n "${CE_JOBS:-}" ]]; then
 	CODEQL_CMD=(sh -c 'echo "codeql GOMAXPROCS=$GOMAXPROCS" >>"$CE_JOBS"' sh)
 	BUILD_CROSS=1; RELEASE_CMD=(sh -c 'echo "cross GOMAXPROCS=$GOMAXPROCS" >>"$CE_JOBS"; mkdir -p dist && echo x >dist/cbv-test-windows-x86_64.exe')
 fi
+## Areas for --backlog-run-quick and --list: two Go packages and two harness areas.
+UNIT_AREAS_CMD=(printf '%s\n' ./pkga ./sub/pkgb); TEST_AREAS_CMD=(printf '%s\t%s\n' alpha "Alpha one" beta "Beta one; Beta two"); QUICK_AREAS=(format lint go alpha)
+MERGE_GATE_SKIP=(notes.md 'docs/*')
+[[ -z "${CE_AREAS:-}" ]] || { FMT_CHECK_CMD=(true); VET_CMD=(true); UNIT_TEST_CMD=(sh -c 'echo "unit-ran $*"' sh ./...); }
+[[ -z "${CE_REMOTE:-}" ]] || REMOTE_CMD=(echo remote-ran)
 EOF
 cat >"${ceBin}/go" <<'EOF'
 #!/bin/sh
@@ -2784,13 +2841,13 @@ CE_CROSS=1 fCeRun -y --quick --no-cross
 rm -rf "${ceRepo}/dist"
 
 ## A plain run has the leak checks, -q included, and --quick leaves them out unless
-## --leakcheck is named too, before or after it. The gate never runs them.
+## --leakcheck is named too, before or after it. The backlog quick run never runs them.
 ceLeak=""
-for ceArgs in "-y" "-q" "-y --quick" "-y --quick --leakcheck" "-y --leakcheck --quick" "--gate"; do
+for ceArgs in "-y" "-q" "-y --quick" "-y --quick --leakcheck" "-y --leakcheck --quick" "--backlog-run-quick"; do
 	fCeRun ${ceArgs}; ceLeak+="$(grep -cxE "race-ran|soak-ran ${ceRepo}/soak|codeql-ran ${ceRepo}/codeql/codeql_[0-9]{8}-[0-9]{6}\.sarif" <<<"${ceOut}" || true);"
 done
-{ [[ "${ceLeak}" == "3;3;0;3;3;0;" && -d "${ceRepo}/soak" && -d "${ceRepo}/codeql" ]]; } && _pass de550 "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" \
-	|| _fail de550 "leak checks: plain on, --quick off, --leakcheck back on, not in the gate" "got=[${ceLeak}] $(fCeTail)"
+{ [[ "${ceLeak}" == "3;3;0;3;3;0;" && -d "${ceRepo}/soak" && -d "${ceRepo}/codeql" ]]; } && _pass de550 "leak checks: plain on, --quick off, --leakcheck back on, not in the backlog quick run" \
+	|| _fail de550 "leak checks: plain on, --quick off, --leakcheck back on, not in the backlog quick run" "got=[${ceLeak}] $(fCeTail)"
 ## --no-leakcheck drops them from a full run, and the last of the pair wins.
 ceNoLeak=""
 for ceArgs in "-y --no-leakcheck" "-y --leakcheck --no-leakcheck" "-y --no-leakcheck --leakcheck"; do
@@ -2859,12 +2916,90 @@ CE_BUILD_FAIL=1 fCeRun -y; ceSteps="$(fCeSteps)"
 { ((ceRcFind == 1 && ceRc == 1)) && [[ "${ceStepsFind}" == "1/2 Native build PASS;2/2 Tests FAIL;" && "${ceSteps}" == "1/2 Native build FAIL;" && "${ceOut}" == *"CICD ABORTED"* ]]; } \
 	&& _pass dedpq "a failed step ends on FAIL" \
 	|| _fail dedpq "a failed step ends on FAIL" "find=[${ceStepsFind}] abort=[${ceSteps}] $(fCeTail)"
-## The gate's steps are its own, in the same form.
-fCeRun --gate; ceSteps="$(fCeSteps)"
-{ ((ceRc == 0)) && [[ "${ceSteps}" == "1/1 Unit tests PASS;" && "${ceOut}" == *": Merge gate: 1 step ]"* ]] \
-	&& [[ "${ceOut}" == *"Turned off ..........: Format check (no FMT_CHECK_CMD in config.bash)"$'\n'"                       Lint (no VET_CMD in config.bash)"* ]]; } \
-	&& _pass dedpv "gate steps" \
-	|| _fail dedpv "gate steps" "steps=[${ceSteps}] $(fCeTail)"
+## Retired 2026-10-25 by the standard flags reset item: --gate is now another
+## name for --backlog-run-quick, which runs the main pipeline's steps. dedr8,
+## dedr9 and dedra check those.
+#fCeRun --gate; ceSteps="$(fCeSteps)"
+#{ ((ceRc == 0)) && [[ "${ceSteps}" == "1/1 Unit tests PASS;" && "${ceOut}" == *": Merge gate: 1 step ]"* ]] \
+#	&& [[ "${ceOut}" == *"Turned off ..........: Format check (no FMT_CHECK_CMD in config.bash)"$'\n'"                       Lint (no VET_CMD in config.bash)"* ]]; } \
+#	&& _pass dedpv "gate steps" \
+#	|| _fail dedpv "gate steps" "steps=[${ceSteps}] $(fCeTail)"
+
+## --list shows the steps a run with the other flags would take, what's off and
+## why, and the areas, with a * on the ones a quick run takes. It runs nothing.
+fCeRun --list --merge-gate
+{ ((ceRc == 0)) && [[ -z "${ceKnobs}" && -z "${ceTmp}" && "${ceOut}" != *"; Starting "* ]] \
+	&& [[ "${ceOut}" == *": cbv-test --merge-gate: 2 steps ]"$'\n''  1  Native build'$'\n''  2  Tests'$'\n'"Turned off ..........: "* ]] \
+	&& [[ "${ceOut}" == *"Dogfood (--merge-gate)"* && "${ceOut}" == *"Backup + publish (--merge-gate)"* && "${ceOut}" == *"Format (--merge-gate)"* ]] \
+	&& grep -qxE '  \* go +the Go unit tests, every package' <<<"${ceOut}" && grep -qxE '    pkgb +the Go unit tests in \./sub/pkgb' <<<"${ceOut}" \
+	&& grep -qxE '  \* alpha +harness: Alpha one' <<<"${ceOut}" && grep -qxE '    beta +harness: Beta one; Beta two' <<<"${ceOut}"; } \
+	&& _pass dedr7 "--list shows the steps and areas, and runs nothing" \
+	|| _fail dedr7 "--list shows the steps and areas, and runs nothing" "$(fCeTail)"
+
+## --backlog-run-quick with no area runs QUICK_AREAS: the format check, lint,
+## every Go package and the alpha harness area, as a quick run with no pins,
+## cross builds, fuzz, leak checks or checks that reach another host.
+rm -rf "${ceRepo}/dist"; CE_AREAS=1 CE_CROSS=1 CE_NET=1 fCeRun --backlog-run-quick; ceSteps="$(fCeSteps)"
+{ ((ceRc == 0)) && [[ "${ceSteps}" == "1/4 Format check PASS;2/4 Native build PASS;3/4 Lint PASS;4/4 Tests PASS;" && ! -e "${ceRepo}/dist" ]] \
+	&& grep -qxF "CICDTEST_AREAS=alpha" <<<"${ceKnobs}" && grep -qxF "CICDTEST_QUICK=1" <<<"${ceKnobs}" && grep -qxF "CICDTEST_DO_LONGTEST=0" <<<"${ceKnobs}" \
+	&& grep -qxF "unit-ran ./..." <<<"${ceOut}" && ! grep -qE '^(race-ran|soak-ran|codeql-ran|vendor-net|interop-net|vuln-net)|\(fuzz, ' <<<"${ceOut}" \
+	&& [[ "${ceOut}" == *"Pins (--backlog-run-quick)"* && "${ceOut}" == *"Cross + package (--backlog-run-quick)"* ]]; } \
+	&& _pass dedr8 "--backlog-run-quick with no area runs QUICK_AREAS, and only quick checks" \
+	|| _fail dedr8 "--backlog-run-quick with no area runs QUICK_AREAS, and only quick checks" "steps=[${ceSteps}] knobs=[${ceKnobs}] $(fCeTail)"
+## Named areas run only themselves: a Go package narrows the unit tests, a
+## harness area goes to the harness, and a step none of them asks for is off.
+## A name that isn't an area stops the run before it starts.
+CE_AREAS=1 fCeRun --backlog-run-quick beta pkgb -q; ceNamed="${ceRc}:$(fCeSteps):$(grep -xF 'CICDTEST_AREAS=beta' <<<"${ceKnobs}" || true):$(grep -x 'unit-ran .*' <<<"${ceOut}" || true)"
+ceNamedOff=0; [[ "${ceOut}" == *"Format check (not in the areas named)"$'\n'*"Lint (not in the areas named)"* ]] && ceNamedOff=1
+CE_AREAS=1 fCeRun --backlog-run-quick lint; ceLint="${ceRc}:$(fCeSteps):${ceKnobs}:$(grep -c 'unit-ran' <<<"${ceOut}" || true)"
+ceLintOff=0; [[ "${ceOut}" == *"Native build (no harness area named)"* && "${ceOut}" == *"Tests (no test area named)"* ]] && ceLintOff=1
+fCeRun --backlog-run-quick nope
+{ [[ "${ceNamed}" == "0:1/2 Native build PASS;2/2 Tests PASS;:CICDTEST_AREAS=beta:unit-ran ./sub/pkgb" && "${ceLint}" == "0:1/1 Lint PASS;::0" ]] && ((ceNamedOff && ceLintOff)) \
+	&& ((ceRc == 2)) && [[ "${ceOut}" == "unknown area: nope (--list shows them)" ]]; } \
+	&& _pass dedr9 "--backlog-run-quick runs only the areas named" \
+	|| _fail dedr9 "--backlog-run-quick runs only the areas named" "named=[${ceNamed}] off=${ceNamedOff} lint=[${ceLint}] off=${ceLintOff} $(fCeTail)"
+
+## --gate and --ci are other names, and say so in one line. --slow is --long.
+## Two of the three runs can't go together.
+CE_AREAS=1 fCeRun --backlog-run-quick; ceQuickSteps="$(fCeSteps)"
+CE_AREAS=1 fCeRun --gate; ceAlias="$(fCeSteps)|$(grep -cxE '\[ NOTE: --gate is another name for --backlog-run-quick \]' <<<"${ceOut}" || true)|"
+CE_AREAS=1 fCeRun --merge-gate; ceGateSteps="$(fCeSteps)"
+CE_AREAS=1 fCeRun --ci; ceAlias+="$(fCeSteps)|$(grep -cxE '\[ NOTE: --ci is another name for --merge-gate \]' <<<"${ceOut}" || true)|"
+fCeRun -y --quick --slow; ceAlias+="$(grep -xE 'CICDTEST_DO_LONGTEST=[01]' <<<"${ceKnobs}" || true)|"
+fCeRun --merge-gate --backlog-run-quick; ceAlias+="${ceRc}:${ceOut}"
+[[ "${ceAlias}" == "${ceQuickSteps}|1|${ceGateSteps}|1|CICDTEST_DO_LONGTEST=1|2:pick one of --backlog-run-quick, --backlog-run-full and --merge-gate" \
+	&& "${ceGateSteps}" == "1/4 Format check PASS;2/4 Native build PASS;3/4 Lint PASS;4/4 Tests PASS;" ]] \
+	&& _pass dedra "--gate, --ci and --slow are other names" \
+	|| _fail dedra "--gate, --ci and --slow are other names" "got=[${ceAlias}] gate=[${ceGateSteps}]"
+
+## The other hosts are a step of their own, from REMOTE_CMD, after the cross
+## builds. --no-remote turns it off and says so, and so does the quick run.
+ceRemote=""
+for ceArgs in "-y" "-y --no-remote" "--backlog-run-quick" "--merge-gate"; do
+	CE_REMOTE=1 fCeRun ${ceArgs}; ceRemote+="${ceRc}:$(grep -cx remote-ran <<<"${ceOut}" || true):$(grep -oE '(Step [0-9]+ of [0-9]+; PASS Other hosts|Other hosts \([^)]*\))' <<<"${ceOut}" | head -1 || true);"
+done
+fCeRun -y; ceRemote+="$(grep -oE 'Other hosts \([^)]*\)' <<<"${ceOut}" || true);"
+[[ "${ceRemote}" == "0:1:Step 3 of 3; PASS Other hosts;0:0:Other hosts (--no-remote);0:0:Other hosts (--backlog-run-quick);0:1:Step 3 of 3; PASS Other hosts;Other hosts (no REMOTE_CMD in config.bash);" ]] \
+	&& _pass dedrb "other hosts step, and --no-remote" \
+	|| _fail dedrb "other hosts step, and --no-remote" "got=[${ceRemote}] $(fCeTail)"
+
+## --backlog-run-full and --merge-gate run every check a plain run does: the pins,
+## long tests, fuzz, leak checks, the checks that reach another host, and the
+## cross builds. Format turns into the format check, and nothing is dogfooded.
+ceFull=""
+for ceMode in --merge-gate --backlog-run-full; do
+	rm -rf "${ceRepo}/dist" "${ceDir}/home/bin/cbv-test"; CE_AREAS=1 CE_NET=1 CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun "${ceMode}"
+	ceFull+="${ceMode}:${ceRc}:$(fCeSteps)"
+	ceFull+=":$(grep -cxE "race-ran|soak-ran ${ceRepo}/soak|codeql-ran ${ceRepo}/codeql/codeql_[0-9]{8}-[0-9]{6}\.sarif|vendor-net|interop-net|vuln-net|PASS ----- FuzzA \(fuzz, 1s\)|unit-ran \./\.\.\." <<<"${ceOut}" || true)"
+	ceFull+=":$(grep -E '^CICDTEST_(DO_LONGTEST|QUICK|DO_PERF|AREAS)=' <<<"${ceKnobs}" | tr '\n' ' ' || true)"
+	[[ -f "${ceRepo}/dist/cbv-test-windows-x86_64.exe" && ! -e "${ceDir}/home/bin/cbv-test" && "${ceOut}" == *"Dogfood (${ceMode})"* ]] && ceFull+=":ok"
+	ceFull+=";"
+done
+ceFullWant="1/6 Pins PASS;2/6 Format check PASS;3/6 Native build PASS;4/6 Lint PASS;5/6 Tests PASS;6/6 Cross + package PASS;:8:CICDTEST_AREAS= CICDTEST_DO_LONGTEST=1 CICDTEST_DO_PERF=1 CICDTEST_QUICK=0 :ok;"
+[[ "${ceFull}" == "--merge-gate:0:${ceFullWant}--backlog-run-full:0:${ceFullWant}" ]] \
+	&& _pass dedrc "--backlog-run-full and --merge-gate run every check" \
+	|| _fail dedrc "--backlog-run-full and --merge-gate run every check" "got=[${ceFull}] $(fCeTail)"
+rm -rf "${ceRepo}/dist"
 
 ## Machine use. Half the CPUs, a quarter when the 1-minute load is over half the
 ## CPU count, a quarter for the heavy steps either way, and never under 1.
@@ -3273,7 +3408,7 @@ wfUses="$(grep -rhoE 'uses:[[:space:]]*[^[:space:]]+' "${wfDir}" | grep -vE '^us
 wfCi="$(<"${wfDir}/ci.yml")"; wfMiss=""
 wfCtxDir="$(sed -n 's/^CONTAINER_DIR="\(.*\)"$/\1/p' "${meDir}/config.bash")"
 for wfWant in 'bash cicd/cicd.bash --image-tag' "grep -E '^[A-Z_]+=' cicd/tool-versions.env" "context: ${wfCtxDir:-none}" 'load: true' \
-	'cache-from: type=gha' 'cache-to: type=gha' 'CICD_IMAGE_PREBUILT: "1"' 'run: bash cicd/cicd.bash --container --quick -y --no-sync --no-publish --no-dogfood'; do
+	'cache-from: type=gha' 'cache-to: type=gha' 'CICD_IMAGE_PREBUILT: "1"' 'run: bash cicd/cicd.bash --container --merge-gate'; do
 	[[ "${wfCi}" == *"${wfWant}"* ]] || wfMiss+="[${wfWant}] "
 done
 while read -r wfFrom; do
@@ -3281,6 +3416,33 @@ while read -r wfFrom; do
 done < <(sed -n 's/^COPY --from=\([A-Za-z0-9_-]*\) .*/\1/p' "${meDir}/../${wfCtxDir:-none}/Dockerfile" 2>/dev/null)
 { [[ -n "${wfCtxDir}" && -z "${wfMiss}" ]] && grep -q '^COPY --from=' "${meDir}/../${wfCtxDir}/Dockerfile"; } && _pass de566 "ci.yml builds the image cicd.bash runs" \
 	|| _fail de566 "ci.yml builds the image cicd.bash runs" "missing: ${wfMiss}"
+## The pipeline job is the merge gate, for a push or pull request to main, or
+## by hand, and never a --quick run. The plain Go and macOS jobs keep running
+## on every push to main or dev and every pull request.
+wfPipe="$(awk '/^  pipeline:/ { on = 1; print; next } /^  [a-z]/ { on = 0 } on' "${wfDir}/ci.yml")"
+wfOthers="$(awk '/^  (build|macos-arm64):/ { on = 1; next } /^  [a-z]/ { on = 0 } on && /^    if:/' "${wfDir}/ci.yml")"
+{ [[ "${wfPipe}" == *"github.event_name == 'workflow_dispatch'"* && "${wfPipe}" == *"(github.event_name == 'push' && github.ref == 'refs/heads/main')"* \
+	&& "${wfPipe}" == *"(github.event_name == 'pull_request' && github.base_ref == 'main')"* && "${wfPipe}" == *"run: bash cicd/cicd.bash --container --merge-gate"* ]] \
+	&& [[ -z "${wfOthers}" ]] && ! grep -qE 'run: .*cicd\.bash.* --quick' "${wfDir}/ci.yml" && grep -qxE '    branches: \[main, dev\]' "${wfDir}/ci.yml"; } \
+	&& _pass dedrh "ci.yml: the merge gate, for main only" \
+	|| _fail dedrh "ci.yml: the merge gate, for main only" "pipeline=[${wfPipe//$'\n'/ }] others=[${wfOthers}]"
+## The paths a push to main can change without the merge gate. Each pattern
+## matches a tracked file, so none is stale, and none matches what a build or
+## test reads.
+mgSkip="$(source "${meDir}/config.bash" >/dev/null 2>&1; printf '%s\n' "${MERGE_GATE_SKIP[@]}")"
+mgFiles="$(git -C "${meDir}/.." ls-files)"; mgBad=""
+while IFS= read -r mgPat; do
+	mgHit=0
+	# shellcheck disable=2053  ## the pattern is meant to glob
+	while IFS= read -r mgFile; do if [[ "${mgFile}" == ${mgPat} ]]; then mgHit=1; break; fi; done <<<"${mgFiles}"
+	((mgHit)) || mgBad+="[${mgPat} matches nothing] "
+done <<<"${mgSkip}"
+for mgFile in README.md use_in_your_code.md changelog.md license.md project/design.md lib/reactor/README.md lib/go.mod cicd/cicd.bash assets/mascot.png; do
+	# shellcheck disable=2053  ## the pattern is meant to glob
+	while IFS= read -r mgPat; do if [[ -n "${mgPat}" && "${mgFile}" == ${mgPat} ]]; then mgBad+="[${mgPat} skips ${mgFile}] "; fi; done <<<"${mgSkip}"
+done
+[[ -n "${mgSkip}" && -z "${mgBad}" ]] && _pass dedrg "MERGE_GATE_SKIP: each pattern matches, none skips what a test reads" \
+	|| _fail dedrg "MERGE_GATE_SKIP: each pattern matches, none skips what a test reads" "list=[${mgSkip//$'\n'/ }] ${mgBad}"
 ## Hosted CI gets a new volume each run, a copy of the image's /cache, so a
 ## root-owned dir there broke the Go cache only on the runner. The Dockerfile's
 ## last RUN refuses one at build time; layers after it would get past it.
@@ -3375,16 +3537,43 @@ fSyHook(){
 		bash "${syA}/.git/hooks/pre-push" origin "${syDir}/o.git" <<<"${syLine}" >"${CBT_OUT}" 2>&1 ) || syRc=$?
 	syOut="$(<"${CBT_OUT}")"
 }
-syLine="refs/heads/dev ${syHeadA} refs/heads/dev ${syZeros}"; fSyHook env
-syDev=0; { ((syRc == 0)) && [[ "${syOut}" == *"OK: gate passed"* && "${syOut}" != *"Starting Tests ]"* ]]; } && syDev=1
-syLine="refs/heads/x ${syHeadA} refs/heads/feature ${syZeros}"; fSyHook env
-syFeat=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syFeat=1
-syLine="(delete) ${syZeros} refs/heads/main ${syHeadA}"; fSyHook env
-syDel=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syDel=1
-syLine="refs/heads/dev ${syHeadA} refs/heads/dev ${syZeros}"; fSyHook env CICD_GATE_PASSED=1
-syPub=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syPub=1
-((syDev && syFeat && syDel && syPub)) && _pass ddydq "pre-push: dev/main only" \
-	|| _fail ddydq "pre-push: dev/main only" "dev=${syDev} feature=${syFeat} delete=${syDel} publish=${syPub} $(fSyTail)"
+## Retired 2026-10-25 by the standard flags reset item: a push to dev is no
+## longer gated. dedrf checks the hook now.
+#syLine="refs/heads/dev ${syHeadA} refs/heads/dev ${syZeros}"; fSyHook env
+#syDev=0; { ((syRc == 0)) && [[ "${syOut}" == *"OK: gate passed"* && "${syOut}" != *"Starting Tests ]"* ]]; } && syDev=1
+#syLine="refs/heads/x ${syHeadA} refs/heads/feature ${syZeros}"; fSyHook env
+#syFeat=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syFeat=1
+#syLine="(delete) ${syZeros} refs/heads/main ${syHeadA}"; fSyHook env
+#syDel=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syDel=1
+#syLine="refs/heads/dev ${syHeadA} refs/heads/dev ${syZeros}"; fSyHook env CICD_GATE_PASSED=1
+#syPub=0; { ((syRc == 0)) && [[ -z "${syOut}" ]]; } && syPub=1
+#((syDev && syFeat && syDel && syPub)) && _pass ddydq "pre-push: dev/main only" \
+#	|| _fail ddydq "pre-push: dev/main only" "dev=${syDev} feature=${syFeat} delete=${syDel} publish=${syPub} $(fSyTail)"
+
+## The hook runs the merge gate for a push to main only, and not for one that
+## changes only the paths MERGE_GATE_SKIP names. A main it can't compare
+## against, new or never fetched here, is gated. Dev, other branches, deletes
+## and the pipeline's own publish go through.
+syBase="$(fSyHead "${syA}")"
+fSyGit -C "${syA}" checkout -q -b hk
+mkdir -p "${syA}/docs"; printf 'd\n' >"${syA}/docs/a.md"; printf 'n\n' >"${syA}/notes.md"
+fSyGit -C "${syA}" add docs/a.md notes.md; fSyGit -C "${syA}" commit -qm docs; syDocs="$(fSyHead "${syA}")"
+printf 'c\n' >"${syA}/lib/code.txt"; fSyGit -C "${syA}" add lib/code.txt; fSyGit -C "${syA}" commit -qm code; syCode="$(fSyHead "${syA}")"
+fSyGit -C "${syA}" checkout -q dev
+syHk=""; syOther=""
+for syCase in "dev:${syCode}:${syBase}" "feature:${syCode}:${syZeros}" "main:${syDocs}:${syBase}" "main:${syCode}:${syDocs}" "main:${syCode}:${syBase}" \
+	"main:${syDocs}:${syZeros}" "main:${syDocs}:1111111111111111111111111111111111111111" "main:${syZeros}:${syBase}" "main:${syCode}:${syBase}:published"; do
+	IFS=: read -r syRef syLocal syRemote syPub <<<"${syCase}"
+	syLine="refs/heads/hk ${syLocal} refs/heads/${syRef} ${syRemote}"
+	if [[ -n "${syPub}" ]]; then fSyHook env CICD_GATE_PASSED=1; else fSyHook env CE_KNOBS="${syDir}/knobs"; fi
+	if [[ "${syOut}" == *"running the merge gate for main"* && "${syOut}" == *"local CI/CD (--merge-gate): "* && "${syOut}" == *"CI/CD: done."* ]]; then syHk+="gate:${syRc};"
+	elif [[ "${syOut}" == "[ pre-push: only paths in MERGE_GATE_SKIP changed, so no merge gate for main ]" ]]; then syHk+="skip:${syRc};"
+	elif [[ -z "${syOut}" ]]; then syHk+="none:${syRc};"
+	else syHk+="other:${syRc};"; syOther="${syOther:-${syOut//$'\n'/ }}"; fi
+done
+fSyGit -C "${syA}" branch -qD hk
+[[ "${syHk}" == "none:0;none:0;skip:0;gate:0;gate:0;gate:0;gate:0;none:0;none:0;" ]] && _pass dedrf "pre-push: main only, and not for the skip list" \
+	|| _fail dedrf "pre-push: main only, and not for the skip list" "got=[${syHk}] first other=[${syOther}]"
 
 ## A failed gate refuses the push, and a hook already there is left alone.
 syLine="refs/heads/main ${syHeadA} refs/heads/main ${syZeros}"; fSyHook env CE_GATE_FAIL=1
@@ -3392,10 +3581,106 @@ syLine="refs/heads/main ${syHeadA} refs/heads/main ${syZeros}"; fSyHook env CE_G
 	|| _fail ddyds "pre-push: failed gate refuses" "$(fSyTail)"
 printf '%s\n' '#!/bin/sh' 'exit 0' >"${syDir}/mine"; chmod +x "${syDir}/mine"
 fSyGit -C "${syA}" config core.hooksPath "${syDir}/hooks2"; mkdir -p "${syDir}/hooks2"; cp "${syDir}/mine" "${syDir}/hooks2/pre-push"
-fSyRun --gate
-{ ((syRc == 0)) && cmp -s "${syDir}/mine" "${syDir}/hooks2/pre-push" && [[ "${syOut}" == *"OK: gate passed"* && "${syOut}" != *"added the pre-push hook"* ]]; } && _pass ddydr "gate keeps an existing hook" \
-	|| _fail ddydr "gate keeps an existing hook" "$(fSyTail)"
+fSyRun --no-sync
+{ ((syRc == 0)) && cmp -s "${syDir}/mine" "${syDir}/hooks2/pre-push" && [[ "${syOut}" == *"CI/CD: done."* && "${syOut}" != *"added the pre-push hook"* ]]; } && _pass ddydr "a run keeps an existing hook" \
+	|| _fail ddydr "a run keeps an existing hook" "$(fSyTail)"
 fSyGit -C "${syA}" config --unset core.hooksPath
+
+## The backlog runs and the merge gate never sync, dogfood, publish, install,
+## prompt, or rewrite a tracked file. This clone is one commit behind, and
+## every stage that could leaves a mark: format and the screenshots write a
+## tracked file, the gif replaces one and archives the old, the pins install,
+## publish commits and pushes, dogfood copies, and a plain run adds the hook.
+hoDir="${syDir}/ho"; hoA="${hoDir}/a"; hoMarks="${hoDir}/marks"
+mkdir -p "${hoDir}/home"
+fSyGit init -q --bare "${hoDir}/o.git"
+fSyGit init -q "${hoA}"
+mkdir -p "${hoA}/cicd/utility/include" "${hoA}/lib" "${hoA}/gif"
+cp "${ceRepo}/cicd/cicd.bash" "${ceRepo}/cicd/config.bash" "${hoA}/cicd/"
+cp "${ceRepo}/cicd/utility/include/gfs-rotate.bash" "${ceRepo}/cicd/utility/include/machine-use.bash" "${hoA}/cicd/utility/include/"
+cp "${meDir}/utility/pre-push" "${hoA}/cicd/utility/"; cp "${ceRepo}/lib/out" "${hoA}/lib/"; cp "${ceRepo}/gif.py" "${hoA}/"
+printf '%s\n' '#!/usr/bin/env bash' 'echo shot >>"$1/tracked.txt"' >"${hoA}/shot.bash"
+cat >>"${hoA}/cicd/config.bash" <<'EOF'
+FMT_CMD=(sh -c 'echo formatted >>tracked.txt'); FMT_CHECK_CMD=(true)
+PIN_TOOLS_CMD=(sh -c 'for a; do [ "$a" = --check ] && exit 0; done; touch "$HO_MARKS/installed"' sh)
+DOGFOOD_FIXED_DESTS=("${HO_MARKS}/bin"); DO_SCREENSHOTS=1; SCREENSHOT_CMD=(shot.bash)
+DO_DEMOGIF=1; DEMOGIF_CONTAINER_ONLY=0; DEMOGIF_ARCHIVE_DIR="${HO_MARKS}/gifs"
+GIT_PUBLISH=(sh -c 'git commit -q --allow-empty -m published && git push -q origin HEAD:refs/heads/published' sh)
+EOF
+printf 'base\n' >"${hoA}/tracked.txt"; printf 'old gif\n' >"${hoA}/gif/demo.gif"
+printf '%s\n' 'lib/bin/' 'soak/' 'codeql/' 'prof/' 'dist/' >"${hoA}/.gitignore"
+fSyGit -C "${hoA}" add -A; fSyGit -C "${hoA}" commit -qm one
+fSyGit -C "${hoA}" config user.name t; fSyGit -C "${hoA}" config user.email t@example.com
+fSyGit -C "${hoA}" remote add origin "${hoDir}/o.git"; fSyGit -C "${hoA}" push -q -u origin dev 2>/dev/null
+hoBase="$(fSyHead "${hoA}")"
+fSyGit clone -q "${hoDir}/o.git" "${hoDir}/b" 2>/dev/null; printf 'b\n' >"${hoDir}/b/other.txt"
+fSyGit -C "${hoDir}/b" add other.txt; fSyGit -C "${hoDir}/b" commit -qm b; fSyGit -C "${hoDir}/b" push -q origin dev 2>/dev/null
+hoAhead="$(fSyHead "${hoDir}/b")"
+## Back to one commit behind, with no marks, and optionally another cicd.bash.
+fHoReset(){
+	fSyGit -C "${hoA}" reset -q --hard "${hoBase}"; fSyGit -C "${hoA}" clean -qfd
+	fSyGit -C "${hoDir}/o.git" update-ref refs/heads/dev "${hoAhead}"
+	fSyGit -C "${hoDir}/o.git" update-ref -d refs/heads/published 2>/dev/null || true
+	rm -rf "${hoMarks}" "${hoA}/.git/hooks/pre-push"; mkdir -p "${hoMarks}/bin"
+	if [[ -n "${1:-}" ]]; then cp "$1" "${hoA}/cicd/cicd.bash"; fi
+	hoStatus="$(fSyGit -C "${hoA}" status --porcelain)"; hoRefs="$(fSyGit -C "${hoDir}/o.git" for-each-ref)"
+}
+## No -y, and stdin closed, so a prompt would fail the run.
+fHoRun(){
+	hoRc=0
+	( cd "${hoDir}" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK -u CICDTEST_AREAS \
+		HOME="${hoDir}/home" TMPDIR="${syDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${hoDir}/knobs" HO_MARKS="${hoMarks}" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 \
+		bash "${hoA}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || hoRc=$?
+	hoOut="$(<"${CBT_OUT}")"
+}
+## The marks the last run left, by name, or nothing.
+fHoMarks(){
+	local m=""
+	[[ "$(fSyGit -C "${hoA}" status --porcelain)" == "${hoStatus}" ]] || m+="tracked "
+	[[ "$(fSyHead "${hoA}")" == "${hoBase}" ]] || m+="head "
+	[[ "$(fSyGit -C "${hoDir}/o.git" for-each-ref)" == "${hoRefs}" ]] || m+="pushed "
+	[[ ! -e "${hoMarks}/installed" ]] || m+="installed "
+	[[ -z "$(ls -A "${hoMarks}/bin")" ]] || m+="dogfood "
+	[[ ! -e "${hoA}/.git/hooks/pre-push" ]] || m+="hook "
+	[[ ! -e "${hoMarks}/gifs" ]] || m+="gif-archive "
+	[[ "${hoOut}" != *"; Starting Dogfood ]"* && "${hoOut}" != *"; Starting Backup + publish ]"* && "${hoOut}" != *"fast-forwarded"* ]] || m+="ran "
+	[[ "${hoOut}" != *"Publish commit message"* ]] || m+="prompt "
+	((hoRc == 0)) || m+="rc=${hoRc} "
+	printf '%s' "${m% }"
+}
+hoGot=""
+for hoMode in --backlog-run-quick --backlog-run-full --merge-gate --gate --ci; do
+	fHoReset; fHoRun "${hoMode}"; hoGot+="${hoMode}:[$(fHoMarks)] "
+done
+## Each line of cicd.bash that keeps a stage off, taken out on its own, leaves
+## that stage's mark on a merge gate run. So a clean run above means the stages
+## were off, not that nothing could tell. Each is MARK|LINE|WHAT TO PUT THERE.
+hoMut=""
+while IFS='|' read -r hoWant hoLine hoNew; do
+	if ! awk -v l="${hoLine}" -v r="${hoNew}" '$0 == l { n++; if (r != "") print r; next } { print } END { exit n != 1 }' "${ceRepo}/cicd/cicd.bash" >"${hoDir}/cicd.mut"; then
+		hoMut+="${hoWant}:not-one-line "; continue
+	fi
+	fHoReset "${hoDir}/cicd.mut"; fHoRun --merge-gate; hoMarksGot="$(fHoMarks)"
+	if [[ " ${hoMarksGot} " == *" ${hoWant} "* ]]; then hoMut+="${hoWant}:ok "; else hoMut+="${hoWant}:missed[${hoMarksGot}] "; fi
+done <<'EOF'
+head|	do_sync=0|
+tracked|	FMT_CMD=()|
+dogfood|	DOGFOOD_FIXED_DESTS=(); DOGFOOD_CROSS=()|
+tracked|	DO_SCREENSHOTS=0|
+pushed|	GIT_PUBLISH=()|
+installed|	if ((${#PIN_TOOLS_CMD[@]})); then PIN_TOOLS_CMD+=(--check); fi|
+tracked|	if [[ -n "${run_mode}" ]]; then demogif_tmp="${run_tmp}/demo.gif"; fi|
+hook|	if [[ -z "${run_mode}" ]]; then fInstallGateHook; fi|	fInstallGateHook
+EOF
+## And a plain run leaves every mark there is.
+fHoReset; fHoRun -y -m plain; hoPlain="$(fHoMarks)"
+{ [[ "${hoGot}" == "--backlog-run-quick:[] --backlog-run-full:[] --merge-gate:[] --gate:[] --ci:[] " && "${hoPlain}" == "tracked head pushed installed dogfood hook gif-archive ran" ]]; } \
+	&& _pass dedrd "the backlog runs and the merge gate change nothing they mustn't" \
+	|| _fail dedrd "the backlog runs and the merge gate change nothing they mustn't" "got=[${hoGot}] plain=[${hoPlain}] $(tail -3 "${CBT_OUT}" | tr '\n' ' ')"
+[[ "${hoMut}" == "head:ok tracked:ok dogfood:ok tracked:ok pushed:ok installed:ok tracked:ok hook:ok " ]] \
+	&& _pass dedre "each stage left on in the merge gate is caught" \
+	|| _fail dedre "each stage left on in the merge gate is caught" "got=[${hoMut}]"
+fi  ## area ci
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -3404,14 +3689,26 @@ fSyGit -C "${syA}" config --unset core.hooksPath
 ## fails, and each failure has to be counted and the run carried on to the
 ## summary. A section that needs Go skips instead. A fake go stands in for a
 ## missing one, since go can share a dir with tools the run needs.
-if [[ "${CICDTEST_SELFCHECK:-0}" != "1" ]]; then
+if fArea self && [[ "${CICDTEST_SELFCHECK:-0}" != "1" ]]; then
 	section "Harness self-check"
+	## Every section is in an area, and a run of one area runs only its
+	## sections and passes. A name that isn't an area stops the run first.
+	haRc=0; haList="$(bash "${meDir}/test.bash" --areas 2>&1)" || haRc=$?
+	haSections="$(grep -cE '^[[:space:]]*section "' "${meDir}/test.bash")"
+	haListed="$(cut -s -f2 <<<"${haList}" | tr ';' '\n' | grep -c . || true)"
+	haRun=0; CICDTEST_AREAS=config bash "${meDir}/test.bash" </dev/null >"${CBT_TMP}/areas-one.out" 2>&1 || haRun=$?
+	haRan="$(grep -aoE '>>> [^[:cntrl:]]*' "${CBT_TMP}/areas-one.out" | tr '\n' ';' || true)"
+	haBad=0; CICDTEST_AREAS="config nope" bash "${meDir}/test.bash" </dev/null >"${CBT_TMP}/areas-bad.out" 2>&1 || haBad=$?
+	{ ((haRc == 0 && haRun == 0 && haBad == 2)) && [[ "${haListed}" == "${haSections}" && "${haRan}" == ">>> Config file;>>> Config migration;" ]] \
+		&& grep -qF 'no area named nope' "${CBT_TMP}/areas-bad.out" && ! grep -qE '^(PASS|FAIL) ' "${CBT_TMP}/areas-bad.out"; } \
+		&& _pass dedrj "harness areas: every section in one, one runs alone" \
+		|| _fail dedrj "harness areas: every section in one, one runs alone" "rc=${haRc}/${haRun}/${haBad} listed=${haListed} of ${haSections} ran=[${haRan}] $(tail -2 "${CBT_TMP}/areas-one.out" | tr '\n' ' ')"
 	hsDir="${CBT_TMP}/hs"; mkdir -p "${hsDir}/bin" "${hsDir}/tmp"
 	printf '%s\n' '#!/bin/sh' 'echo "refused" >&2' 'exit 1' >"${hsDir}/refuse"
 	printf '%s\n' '#!/bin/sh' 'echo "go: command not found" >&2' 'exit 127' >"${hsDir}/bin/go"
 	chmod +x "${hsDir}/refuse" "${hsDir}/bin/go"
 	hsrc=0
-	CICDTEST_SELFCHECK=1 CICDTEST_EXE="${hsDir}/refuse" CICDTEST_DO_LONGTEST=0 CICDTEST_DO_PERF=1 CICDTEST_QUICK=1 CICDTEST_FUZZ_ITERS=2 CICD_NO_SKIP=1 \
+	CICDTEST_SELFCHECK=1 CICDTEST_AREAS="" CICDTEST_EXE="${hsDir}/refuse" CICDTEST_DO_LONGTEST=0 CICDTEST_DO_PERF=1 CICDTEST_QUICK=1 CICDTEST_FUZZ_ITERS=2 CICD_NO_SKIP=1 \
 		TMPDIR="${hsDir}/tmp" PATH="${hsDir}/bin:${PATH}" bash "${meDir}/test.bash" </dev/null >"${hsDir}/out" 2>&1 || hsrc=$?
 	hsSummary="$(grep -E 'FAIL +[0-9]+ of [0-9]+ checks failed' "${hsDir}/out" || true)"
 	hsAbort="$(grep -F 'HARNESS ABORTED' "${hsDir}/out" | head -3 || true)"
@@ -3436,7 +3733,7 @@ if [[ "${CICDTEST_SELFCHECK:-0}" != "1" ]]; then
 	else
 		_warn ddgmz "interop detail not checked: needs node and the vendored references"
 	fi
-fi
+fi  ## area self
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -3445,7 +3742,7 @@ fi
 ## A repeatable throughput baseline for the streaming binary<->text path, with
 ## the system base64 alongside for context. Round-trips must still be
 ## bit-perfect; the numbers are informational and guard against regressions.
-if ((doPerf)); then
+if fArea perf && ((doPerf)); then
 	section "Performance and profiling"
 	perf_mib=4
 	perfsrc="${CBT_TMP}/perf_src"; perfmid="${CBT_TMP}/perf_mid"; perfout="${CBT_TMP}/perf_out"
@@ -3521,7 +3818,7 @@ if ((doPerf)); then
 	else
 		_fail d9jke "codec profile round-trip" "output mismatch"
 	fi
-fi
+fi  ## area perf
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
@@ -3535,6 +3832,11 @@ noSkipFail=0
 if [[ "${CICD_NO_SKIP:-0}" == "1" ]] && ((${#UNASKED[@]})); then
 	noSkipFail=1
 	printf '%s  FAIL  skipped under CICD_NO_SKIP=1: %s%s\n' "${red}${b}" "${UNASKED[*]}" "${rst}"
+fi
+## A run that checked nothing proves nothing.
+if ((TOTAL == 0)); then
+	printf '%s  FAIL  no checks ran%s\n' "${red}${b}" "${rst}"
+	exit 1
 fi
 if ((FAIL == 0 && ! noSkipFail)); then
 	printf '%s  PASS  %d/%d checks%s\n' "${grn}${b}" "$PASS" "$TOTAL" "${rst}"

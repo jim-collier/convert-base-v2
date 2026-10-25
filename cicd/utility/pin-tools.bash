@@ -13,6 +13,8 @@ set -euo pipefail
 ##		- Warn-only: an install failure (e.g. offline) keeps whatever is there;
 ##		  the probe-gated stages still skip a tool that stays missing.
 ##		- shellcheck and ruff are only checked, not installed.
+##		- --check installs nothing, and only says what differs. The backlog runs
+##		  and the merge gate use it.
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "${here}/../tool-versions.env"
@@ -21,6 +23,14 @@ source "${here}/../tool-versions.env"
 export GOBIN="${HOME}/.go/bin"
 
 changed=0   ## stay quiet when every tool already matches; only speak up on drift
+checkOnly=0; [[ "${1:-}" != "--check" ]] || checkOnly=1
+
+fInstall(){
+	local exe="$1" want="$2" module="$3"
+	if ((checkOnly)); then echo "[ pin: WARNING: ${exe} is not the pinned ${want}; --check installs nothing ]"; return 0; fi
+	echo "[ pin: installing ${exe} ${want} ... ]"
+	go install "${module}@${want}" || echo "[ pin: WARNING: ${exe} install failed; keeping what's there ]"
+}
 
 fPin(){
 	local exe="$1" want="$2" module="$3"; shift 3
@@ -30,8 +40,7 @@ fPin(){
 		return 0
 	fi
 	changed=1
-	echo "[ pin: installing ${exe} ${want} ... ]"
-	go install "${module}@${want}" || echo "[ pin: WARNING: ${exe} install failed; keeping what's there ]"
+	fInstall "${exe}" "${want}" "${module}"
 }
 
 fPin golangci-lint "${GOLANGCI_LINT_VERSION}" github.com/golangci/golangci-lint/v2/cmd/golangci-lint version
@@ -50,8 +59,7 @@ fPinModule(){
 	fi
 	[[ "${have}" == "${want}" ]] && return 0
 	changed=1
-	echo "[ pin: installing ${exe} ${want} ... ]"
-	go install "${module}@${want}" || echo "[ pin: WARNING: ${exe} install failed; keeping what's there ]"
+	fInstall "${exe}" "${want}" "${module}"
 }
 fPinModule nfpm "${NFPM_VERSION}" github.com/goreleaser/nfpm/v2/cmd/nfpm
 fPinModule goversioninfo "${GOVERSIONINFO_VERSION}" github.com/josephspurrier/goversioninfo/cmd/goversioninfo
