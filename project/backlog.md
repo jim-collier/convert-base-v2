@@ -68,6 +68,68 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: ps1
 	- Commit: d3d16d7
 
+- CICD reset: containers.
+	- ID: 2026102416280100
+	- Type: Enhancement
+	- Status: Waiting on a full CICD run
+	- Needs local test suite run?: a full `cicd/cicd.bash` run, for the whole harness and the image rebuilt under its new tag.
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101011445741, 2026101009523061
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides 2026101011445741, where a run without docker stops and says to install it or use `--host`.
+		- Build and test already run in the pinned image by default. What's left is below.
+		- A missing docker, or an image that won't build, falls back to the host with one line saying so, and never fails the run.
+		- `--no-container` runs on the host on purpose. `--host` stays as another name for it.
+	- Progress log:
+		- 20261025: a run checks docker first. With none, or one that can't reach its daemon, it says so in one line and runs every stage on the host. An image or volume that can't be made does the same.
+		- 20261025: `--no-container` is the new name, and `--host` still works.
+		- 20261025: `CICD_IMAGE_PREBUILT=1` still fails on a missing image, since hosted CI sets it to catch a tag that doesn't match.
+	- Decisions:
+		- A failed run inside the container still fails the run. Only a missing or broken docker falls back.
+	- Verified: 20261025, a run with no docker, and one whose docker can't reach its daemon, ran on the host and passed. So did one whose recipe fails to build.
+	- Verified: each new check fails with its code broken.
+	- Swept: `cicd.bash` is the only script that runs docker. Hosted CI builds the image with its own action. `development.md`, `contributing.md` and `design.md` now say `--no-container` or a host run.
+	- Branch: docker
+	- Commit: 0f72411
+	- Test case: Etil6xQ (no working docker), Etil6xR (image won't build), EtilQ9a (`--no-container`). EtAgsPA wanted a failed build to fail the run, so it's commented out with the reason.
+
+- CICD reset: container cleanup.
+	- ID: 2026102416280102
+	- Type: Enhancement
+	- Status: Waiting on a full CICD run
+	- Needs local test suite run?: a full `cicd/cicd.bash` run, which builds the image with its labels and prints the cleanup line at the end. Then the hand pass in the progress log.
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101910123200
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides 2026101910123200, where the pipeline leaves the docker build cache alone and a new image removes the one it replaces.
+		- Containers already run with `--rm`. What's left is below.
+		- Every container, image, and volume the pipeline makes gets the `dev.project` and `dev.run` labels. Containers are named by project, run, and step.
+		- `--keep-temp` keeps the containers.
+		- At the end of a run, on failure and Ctrl+C too, the run's containers are removed by label. Then the project's dangling images, and its older tags once a newer one passed, keeping the current tag and the one before.
+		- Then `docker builder prune -f --filter until=168h`, which keeps a week of every project's cache.
+		- The cache volume is emptied when it's over 2 GB.
+		- Nothing without this project's label is touched. No `docker rmi -f` and no `docker system prune`.
+	- Progress log:
+		- 20261025: what a run makes in docker has the project and run labels, and the container is named by project, run, and step. The recipe has the project label too, so the image tag changes once.
+		- 20261025: at the end of every run, pass, fail or Ctrl+C, the run's containers go, then the project's dangling images. After a pass, older tags go too, keeping the current one and the one before. Then `docker builder prune -f --filter until=168h`, and the cache volume when it's over 2 GB. One line says what went and about how much it freed.
+		- 20261025: `--keep-temp` keeps the run's containers and prints their names. It doesn't keep the temp folder yet. That's left for the temp files item.
+		- 20261025: Ctrl+C in a container run didn't stop it, since docker hands the signal to the container's first process only and then exits on its own. It stops the step and the run now.
+		- 20261025: needs a hand pass by ID, since both were made before the labels: the image `convert-base-v2-cicd:8293d61d21a0`, once the new one passes, and the cache volume. The volume is still used, but its size isn't checked until it's made again with the label.
+	- Decisions:
+		- Older tags are ordered by when they were tagged on this machine. The created date can be the base image's, which put them in the wrong order.
+	- Verified: 20261025, in real docker runs: labels and names on the build, volume and container, the oldest of 3 tags removed and the one before kept, `--keep-temp` keeping its container, the volume removed past the cap and made again with labels, and Ctrl+C during a build and during a container run stopping the run with nothing left behind.
+	- Verified: each new check fails with its code broken.
+	- Swept: every docker listing in the cleanup filters on the project label, and nothing calls `rmi -f` or `system prune`.
+	- Branch: docker
+	- Commit: 0f72411
+	- Test case: Etil6xK (labels and names), Etil6xL (cleanup after a pass), Etil6xM (after a failure), Etil6xN (after Ctrl+C), Etil6xO (`--keep-temp`), Etil6xP (volume cap). EsJjVuH and EsJjVvF wanted the old tag gone right after a build and a run line without labels, so they're commented out with the reason.
+
 - The Windows `.exe` files have no icon or version information resource.
 	- ID: 2026101411014805
 	- Type: Enhancement
@@ -137,21 +199,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
 		- 20261025: shcl's dev tip 6d046939 refuses a bare comma in a value with `E026`, which may cover this. Unverified, since it's only from reading shcl's backlog. Still not tagged 3.0.0, so the pin stays.
 
-- CICD reset: containers.
-	- ID: 2026102416280100
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: High
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026101011445741, 2026101009523061
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides 2026101011445741, where a run without docker stops and says to install it or use `--host`.
-		- Build and test already run in the pinned image by default. What's left is below.
-		- A missing docker, or an image that won't build, falls back to the host with one line saying so, and never fails the run.
-		- `--no-container` runs on the host on purpose. `--host` stays as another name for it.
-
 - CICD reset: other hosts and VMs.
 	- ID: 2026102416280101
 	- Type: Enhancement
@@ -168,25 +215,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Each box is held through the shared host lock while it's in use. A VM is put back the way it was found, through the VM state helper.
 		- A box that isn't there shows as SKIP with a warning, and the run goes on.
 		- Each box gets a work folder for this project under its temp root.
-
-- CICD reset: container cleanup.
-	- ID: 2026102416280102
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: High
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026101910123200
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides 2026101910123200, where the pipeline leaves the docker build cache alone and a new image removes the one it replaces.
-		- Containers already run with `--rm`. What's left is below.
-		- Every container, image, and volume the pipeline makes gets the `dev.project` and `dev.run` labels. Containers are named by project, run, and step.
-		- `--keep-temp` keeps the containers.
-		- At the end of a run, on failure and Ctrl+C too, the run's containers are removed by label. Then the project's dangling images, and its older tags once a newer one passed, keeping the current tag and the one before.
-		- Then `docker builder prune -f --filter until=168h`, which keeps a week of every project's cache.
-		- The cache volume is emptied when it's over 2 GB.
-		- Nothing without this project's label is touched. No `docker rmi -f` and no `docker system prune`.
 
 - CICD reset: CPU and priority.
 	- ID: 2026102416280103
