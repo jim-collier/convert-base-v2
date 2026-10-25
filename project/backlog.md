@@ -176,6 +176,119 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Progress log:
 		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
 
+- CICD reset: containers.
+	- ID: 2026102416280100
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101011445741, 2026101009523061
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides 2026101011445741, where a run without docker stops and says to install it or use `--host`.
+		- Build and test already run in the pinned image by default. What's left is below.
+		- A missing docker, or an image that won't build, falls back to the host with one line saying so, and never fails the run.
+		- `--no-container` runs on the host on purpose. `--host` stays as another name for it.
+
+- CICD reset: other hosts and VMs.
+	- ID: 2026102416280101
+	- Type: Enhancement
+	- Status: Queued
+	- Needs external testing: Yes, on the Windows, macOS, FreeBSD, and arm64 Linux test boxes.
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101411014805, 2026101411014811, 2026101301161880
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- The default run tests the Windows, Intel macOS, FreeBSD, and arm64 Linux builds on the test boxes, and the installers where a box can run them. `--no-remote` skips them.
+		- Windows tests go to b29w first, and to vm925w only for GPU or timed work.
+		- Each box is held through the shared host lock while it's in use. A VM is put back the way it was found, through the VM state helper.
+		- A box that isn't there shows as SKIP with a warning, and the run goes on.
+		- Each box gets a work folder for this project under its temp root.
+
+- CICD reset: container cleanup.
+	- ID: 2026102416280102
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101910123200
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides 2026101910123200, where the pipeline leaves the docker build cache alone and a new image removes the one it replaces.
+		- Containers already run with `--rm`. What's left is below.
+		- Every container, image, and volume the pipeline makes gets the `dev.project` and `dev.run` labels. Containers are named by project, run, and step.
+		- `--keep-temp` keeps the containers.
+		- At the end of a run, on failure and Ctrl+C too, the run's containers are removed by label. Then the project's dangling images, and its older tags once a newer one passed, keeping the current tag and the one before.
+		- Then `docker builder prune -f --filter until=168h`, which keeps a week of every project's cache.
+		- The cache volume is emptied when it's over 2 GB.
+		- Nothing without this project's label is touched. No `docker rmi -f` and no `docker system prune`.
+
+- CICD reset: CPU and priority.
+	- ID: 2026102416280103
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Stages already hold to half the cores through `GOMAXPROCS` and golangci-lint's own setting. What's left is below.
+		- On a busy box they drop to a quarter. Busy means the 1-minute load is over half the CPU count, checked at the start and before each step.
+		- The race detector, soak test, CodeQL, and fuzzing use a quarter, busy or not.
+		- Every step runs under `nice -n 19` and `ionice -c 3`. The container gets `--cpus` and `--cpu-shares 256`, with `nice` inside it too.
+		- The counts are worked out in one place and passed to every tool that runs in parallel.
+		- Other hosts follow the same rules with their own CPU count and load.
+
+- CICD reset: standard flags.
+	- ID: 2026102416280104
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101816351431, 2026101411014801
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides 2026101411014801, where the pre-push hook runs the gate on pushes to dev and main, and 2026101816351431, where `--ci` became `--gate`.
+		- `--quick`, `--long`, `--leakcheck`, `--no-leakcheck`, and `--no-sync` are in. What's left is below.
+		- New flags: `--backlog-run-quick` with optional areas, `--backlog-run-full`, `--merge-gate`, `--slow` as another name for `--long`, `--no-remote`, `--keep-temp`, and `--list`.
+		- `--gate` and `--ci` become other names for `--backlog-run-quick` and `--merge-gate`, and say so in one line when used.
+		- The backlog runs and the merge gate never dogfood, publish, commit, push, install, sync, or rewrite a tracked file, and never prompt.
+		- The pre-push hook runs `--merge-gate` on a push to main only. It skips the gate when the commits touch only docs and the other paths listed in one place.
+		- No gate on a push to dev. Hosted CI runs `--merge-gate` as far as the runner can, on push and PR to main, plus the manual trigger, in place of a `--quick` run on every dev push.
+
+- CICD reset: step output.
+	- ID: 2026102416280105
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each step prints a 79-character rule, a `Starting` line, its output, and a `PASS` or `FAIL` line, in the shared format with a local timestamp and "Step N of M".
+		- One blank line between steps, and one at the end.
+		- Steps turned off aren't counted. The first section lists them with the flag or reason for each.
+		- The stage headers read "1/8 Format" now, under a shorter rule.
+
+- CICD reset: test IDs.
+	- ID: 2026102416280106
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides the 7-character base 62 test IDs in milliseconds.
+		- Every test ID becomes its creation time in whole minutes since 2000-01-01 UTC, in lowercase Crockford base 32. The old IDs are converted once, from the same times. When 2 come out the same, the newer one takes the next free minute.
+		- The ID tool, the harness's ID check, and the `Test case:` rows in this backlog move to the new IDs together.
+		- The run prints one `PASS`, `FAIL`, or `SKIP` line per regression and fuzz test, with its ID and name. The harness prints `ok` now, and the Go tests print no per-test line.
+
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
 	- Type: Task
@@ -191,6 +304,50 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- A rebuild of the tag with the Go, nfpm and NSIS versions the workflow used gives the same checksums. NSIS comes from the runner's apt, so its version is read from the workflow log.
 		- The release notes table renders, every link downloads, and the notes end with the build line.
 	- Note: once this passes, add one line under Packages and installers in `install.md`: every asset rebuilds to the same bytes from its tagged commit, so the published checksums can be checked against your own build.
+
+- CICD reset: temp files and safe removal.
+	- ID: 2026102416280107
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101910123200
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each run already has its own temp folder, removed on exit. What's left is below.
+		- The folder goes under `${HOST_TEMP}/<project>/`, named by time and a counter, and `TMPDIR`, `TEMP`, and `TMP` point at it.
+		- `--keep-temp` keeps it and prints the path.
+		- Each run also removes this project's stale run folders, older than 2 days with no live process from their `run.pid`.
+		- Every recursive remove in the pipeline, the helpers, and the installers goes through the repo's own copy of the safe removal guard, or one that names the one parent it may remove under. File list in the private notes.
+
+- CICD reset: version line.
+	- ID: 2026102416280108
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026102318392210
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides the one-line `--version` that `ErlL5cs` pins.
+		- The build number and the date of a non-release build are in. What's left is the copyright line after the version line in `--version`.
+
+- CICD reset: CICD process gaps.
+	- ID: 2026102416280109
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- What's left of the shared CICD rules after the other reset items:
+			- No goleak check in the Go tests.
+			- The leak checks aren't sorted into fast, slow, and hours-long groups by measured time.
+			- No FreeBSD `.pkg`.
+			- No end-of-run line saying what cleanup removed and freed.
 
 - There is no PowerShell installer.
 	- ID: 2026101411014803
