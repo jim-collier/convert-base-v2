@@ -190,7 +190,7 @@ if ((! ASSUME_YES)); then
 fi
 
 tmpRoot="$(cd "${TMPDIR:-/tmp}" && pwd -P)" || fDie "no temp folder at ${TMPDIR:-/tmp}"
-work="$(mktemp -d "${tmpRoot}/cbv2-install.XXXXXX")" || fDie "could not make a work folder in ${tmpRoot}"
+work="$(mktemp -d "${tmpRoot}/cbv2-install.XXXXXX")" || fDie "couldn't make a work folder in ${tmpRoot}"
 ## Removes only the one folder it made, under the one temp folder it named.
 fWorkGone(){
 	case "${work}" in

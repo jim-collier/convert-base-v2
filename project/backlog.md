@@ -408,35 +408,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: dee6x (the FreeBSD check on the box), dee71 (hold and cleanup), dee72 (no answer is a SKIP), dee73 (no hold is a SKIP), dee74 (different answers fail), dee75 (the step gets the boxes and the hold, and is off with none).
 	- Branch: cicd2
 
-- The contractions test fails on the new temp folder message in `install.bash`.
-	- ID: 2026102518082587
-	- Type: Bug
-	- Status: Queued
-	- Severity: High
-	- Opened: 20261025-180825
-	- Opened by: found while testing 2026102416280109
-	- Related IDs: 2026102416280107
-	- Steps to reproduce [Bug]:
-		- From `lib/`, `go test -run TestMessagesUseContractions ./cmd/convert-base-v2`.
-	- Incorrect behavior [Bug]: de56v fails with `install.bash:193: "could not"`, so the Go unit tests and the merge gate fail on cicd2.
-	- Expected behavior [Bug]: It passes, with the message written as "couldn't".
-	- Possible cause [Bug]: faa094f added the line, in the temp files work.
-
-- In the container, the stale run folder sweep takes a live run's folder for a dead one.
-	- ID: 2026102518111571
-	- Type: Bug
-	- Status: Queued
-	- Severity: High
-	- Opened: 20261025-181115
-	- Opened by: found while testing 2026102416280109
-	- Related IDs: 2026102416280107
-	- Steps to reproduce [Bug]:
-		- `cicd/cicd.bash --backlog-run-quick ci`, in the container.
-	- Incorrect behavior [Bug]: dee7v fails. The folder whose `run.pid` names a live process is removed too.
-	- Expected behavior [Bug]: Only the folder whose process is gone is removed, as on the host.
-	- Possible cause [Bug]: the image has no `ps`, so `fRunTmpSweep`'s `ps -p` always fails. `kill -0` is a builtin.
-	- Note: dee8z fails with it in the container too, since it counts 2 stale folders there rather than 1.
-
 - CICD reset: other hosts, Windows.
 	- ID: 2026102516555347
 	- Type: Enhancement
@@ -568,6 +539,51 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Related IDs: 2026100313304792, 2026102318390688
 	- Target OS: macOS
 	- Note: hosted CI now tests and runs a native darwin/arm64 build on an Apple silicon runner. That isn't the release's universal binary, so this stays open.
+
+- The contractions test fails on the new temp folder message in `install.bash`.
+	- ID: 2026102518082587
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261025-180825
+	- Opened by: found while testing 2026102416280109
+	- Related IDs: 2026102416280107
+	- Steps to reproduce [Bug]:
+		- From `lib/`, `go test -run TestMessagesUseContractions ./cmd/convert-base-v2`.
+	- Incorrect behavior [Bug]: de56v fails with `install.bash:193: "could not"`, so the Go unit tests and the merge gate fail on cicd2.
+	- Expected behavior [Bug]: It passes, with the message written as "couldn't".
+	- Possible cause [Bug]: faa094f added the line, in the temp files work.
+	- Reproduced [Bug]: 20261025, de56v failed as described.
+	- Actual cause [Bug]: the line faa094f added said "could not".
+	- Actual fix [Bug]: it says "couldn't" now.
+	- Verified: 20261025, de56v failed before and passes after. The format, lint and convert-base-v2 areas pass.
+	- Swept: every string faa094f added. `cicd.bash` mixes both forms, and de56v doesn't read it.
+	- Branch: cicd2
+	- Test case: de56v
+	- Closed: 20261025-182633
+
+- In the container, the stale run folder sweep takes a live run's folder for a dead one.
+	- ID: 2026102518111571
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261025-181115
+	- Opened by: found while testing 2026102416280109
+	- Related IDs: 2026102416280107
+	- Steps to reproduce [Bug]:
+		- `cicd/cicd.bash --backlog-run-quick ci`, in the container.
+	- Incorrect behavior [Bug]: dee7v fails. The folder whose `run.pid` names a live process is removed too.
+	- Expected behavior [Bug]: Only the folder whose process is gone is removed, as on the host.
+	- Possible cause [Bug]: the image has no `ps`, so `fRunTmpSweep`'s `ps -p` always fails. `kill -0` is a builtin.
+	- Note: dee8z fails with it in the container too, since it counts 2 stale folders there rather than 1.
+	- Reproduced [Bug]: 20261025, in the container dee7v and dee8z failed with `ps -p` back in.
+	- Actual cause [Bug]: the image has no `ps`, so every `run.pid` read as dead.
+	- Actual fix [Bug]: the sweep checks the pid with `kill -0`, a builtin. A "not permitted" answer counts as live, as `ps -p` did for another user's process.
+	- Verified: 20261025, `--backlog-run-quick ci` in the container failed dee7v and dee8z before the fix, and passed both, and the rest of the area, after. Nothing was left under `HOST_TEMP`.
+	- Swept: every `ps`, `pgrep` and `pidof` in the scripts and `lib/Makefile`. The rest are `docker ps`. `fRunTmpSweep` is the only reader of `run.pid`.
+	- Branch: cicd2
+	- Test case: dee7v, dee8z
+	- Closed: 20261025-182633
 
 - CICD reset: version line.
 	- ID: 2026102416280108

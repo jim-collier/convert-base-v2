@@ -1029,12 +1029,15 @@ export HOST_TEMP projectName
 mkdir -p "${run_parent}" || fDie "could not make ${run_parent}"
 ## A run folder older than 2 days whose run.pid names no live process is a
 ## leftover from a killed run. A folder with no run.pid wasn't made by a run.
+## kill -0 rather than ps, which the cicd image doesn't have. Not permitted
+## still means the process is there, just another user's.
+fPidLive(){ local e; e="$(LC_ALL=C kill -0 "$1" 2>&1)" && return 0; [[ "${e}" == *"not permitted"* ]]; }
 fRunTmpSweep(){
 	local d pid bytes staleBytes=0
 	local -i staleN=0
 	while IFS= read -r d; do
 		pid=""; if [[ -f "${d}/run.pid" ]]; then read -r pid <"${d}/run.pid" || true; else continue; fi
-		if [[ "${pid}" =~ ^[0-9]+$ ]] && ps -p "${pid}" >/dev/null 2>&1; then continue; fi
+		if [[ "${pid}" =~ ^[0-9]+$ ]] && fPidLive "${pid}"; then continue; fi
 		bytes="$(fDirBytes "${d}")"
 		if fSafeRm "${d}"; then fEcho_Chat "removed stale run folder ${d}"; staleN+=1; staleBytes=$((staleBytes + bytes)); fi
 	done < <(find "${run_parent}" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*-[0-9]*_[0-9][0-9][0-9]' -mmin +2880 2>/dev/null)
