@@ -159,6 +159,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: docker
 	- Commit: 0f72411
 	- Test case: dedm7 (labels and names), dedm8 (cleanup after a pass), dedm9 (after a failure), dedma (after Ctrl+C), dedmb (`--keep-temp`), dedmc (volume cap). ddrph and ddrpj wanted the old tag gone right after a build and a run line without labels, so they're commented out with the reason.
+	- 2026-10-26: `--keep-temp` now keeps the run's temp folder too, through 2026102416280107.
 
 - CICD reset: CPU and priority.
 	- ID: 2026102416280103
