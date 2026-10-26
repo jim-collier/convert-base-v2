@@ -527,6 +527,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: `--leakcheck`, `--no-leakcheck`, "leak checks" and "docker cleanup" across the scripts and docs. contributing.md, development.md and the changelog have it now. The four `leak_test.go` files all have the tag.
 	- Test case: dee8p (goleak in every package, and the tag drops it), dee8q (by length), dee8r (`--leakcheck` and `--no-leakcheck`), dee8s (no goleak under `--no-leakcheck`), dee8t (race run follows the Go areas), dee8z (the cleanup line).
 	- Branch: cicd2
+	- Prereq IDs: 2026102518082587, 2026102518111571
+	- Its full run waits on the two bugs from the temp files work.
 
 - CICD reset: FreeBSD `.pkg`.
 	- ID: 2026102518082687
