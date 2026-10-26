@@ -34,71 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- There is no PowerShell installer.
-	- ID: 2026101411014803
-	- Type: Feature
-	- Status: Waiting on automated testing
-	- Needs external testing: Yes. On vm925w or b29w, in both Windows PowerShell 5.1 and pwsh 7: the one-liner with no options, answered y, then run again to see it's current; a new shell finding `convert-base-v2` on PATH, and the user PATH still REG_EXPAND_SZ; `-Target system` from a plain shell (refused) and an elevated one, over a setup `.exe` install; a prompt answered n; and `-Help`. Optionally pwsh on b26. The one-liner's URL only works once `install.ps1` is on main.
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: Windows, Linux, macOS
-	- Requirements:
-		- `install.ps1` beside `install.bash`, working on Windows PowerShell 5.1 and on pwsh 7 on any OS.
-		- It takes `-Release`, `-Target`, `-Yes`, `-Help` and `-Version`.
-		- It checks the download against `checksums.txt`.
-		- It shows the plan and asks before it installs, unless given `-Yes`.
-		- A permission problem gets a clear error.
-		- ASCII only.
-		- The README shows the one-line install.
-	- Done: `install.ps1` at the repo root, run from raw main like `install.bash`. Same releases list and version sort, same assets, same already-current check. On Windows it installs the bare `.exe` under `%LOCALAPPDATA%\Programs` or `%ProgramFiles%`, and adds the folder to the user or machine PATH through the registry. Elsewhere it uses `~/.local/bin` or `/usr/local/bin`, with sudo, as `install.bash` does.
-	- Done: a read-only folder is refused before any download, with the folder named. A system install on Windows from a plain shell is refused up front, and a running `.exe` that can't be replaced says so.
-	- Done: PSScriptAnalyzer runs in the lint stage over every tracked PowerShell file, with 5.1 and 7.0 syntax checks, and the pipeline image has pwsh 7.6.6 and PSScriptAnalyzer 1.25.0, pinned in `tool-versions.env`. The harness checks that PowerShell files are ASCII.
-	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
-	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
-	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
-	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
-	- Reproduced: 20261019, hosted CI run 39278064158 on the merge failed at the native build: `mkdir /cache/home/.cache/go-build: permission denied`.
-	- Cause: the image's pwsh check runs as root with `HOME=/cache/home`, and leaves root-owned `.cache/powershell` and `.local/share/powershell` there. A new `/cache` volume copies them in, so the build user can't make the Go cache. Local runs pass only because the existing volume hides it.
-	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
-	- Note: the fix is its own item, 2026101911072100.
-	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
-	- Swept: each `install.bash` check has a twin here (`ddgke`, `ddydt`, `ddydv`, `ddydw`, `ddys7`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
-	- Test case: `de582` PowerShell files are ASCII. `de583` parses from its raw bytes. `de584` options. `de585` and `de586` the version pick. `de587` installs in the one-liner form and leaves the caller's shell alone. `de588` already current. `de589` tampered checksum. `de58a` read-only folder. `de58b` the prompt. `de58c` says why. `de58d`, `de58e` and `de58f` the lint step. `de56v` now reads `install.ps1` too.
-	- Branch: ps1
-	- Commit: d3d16d7
-
-- CICD reset: temp files and safe removal.
-	- ID: 2026102416280107
-	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: No.
-	- Needs external testing: `install.bash` on an Intel Mac (b26) and `install.ps1` on Windows (vm925w), under the host lock, each leaving no `cbv2-install` folder in the temp folder.
-	- Priority: Avg
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026101910123200
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each run already has its own temp folder, removed on exit. What's left is below.
-		- The folder goes under `${HOST_TEMP}/<project>/`, named by time and a counter, and `TMPDIR`, `TEMP`, and `TMP` point at it.
-		- `--keep-temp` keeps it and prints the path.
-		- Each run also removes this project's stale run folders, older than 2 days with no live process from their `run.pid`.
-		- Every recursive remove in the pipeline, the helpers, and the installers goes through the repo's own copy of the safe removal guard, or one that names the one parent it may remove under. File list in the private notes.
-	- Progress log:
-		- 20261025: the run folder is `${HOST_TEMP}/convert-base-v2/<time>_<NNN>`, made with a plain `mkdir` that counts up when the name is taken, and `TMPDIR`, `TEMP` and `TMP` point at it. It holds `run.pid`. It goes at the end, pass, fail or Ctrl+C, and the project folder too once empty.
-		- 20261025: `--keep-temp` keeps the folder and prints its path, as it already did for the containers.
-		- 20261025: a run first removes this project's run folders older than 2 days whose `run.pid` names no live process. A folder with no `run.pid`, and another project's, stay.
-		- 20261025: `cicd/utility/include/safe-rm.bash` is the repo's copy of the guard, with `fSafeRm` for temp paths and `fSafeRmUnder` for one named parent. The pipeline, `check-vendor`, `codeql-scan`, `gen-winres`, `interop/fetch`, `package.bash`, the harness, `bench-encoders`, `gen-screenshots` and `make clean` use it. The installers check their one work folder inline, since they run alone.
-		- 20261025: it works on BSD and macOS too, which have no `realpath -e` or `rm --one-file-system`.
-	- Decisions:
-		- 20261025: the run folder's name is now the docker run label and container name, so `dedps` and `dedmb` expect `<time>_<NNN>` where they wanted `cicd-run.*`. The harness's own runs of the pipeline get their own `HOST_TEMP`.
-	- Verified: 20261025, the format, lint, ci, self, cli and release areas pass, the release area with packaging. `dee7s`, `dee7t`, `dee7v` and `dee7w` each fail with the code they watch broken. `check-vendor.bash` and `make clean` leave nothing behind.
-	- Swept: every `rm -rf` and `Remove-Item -Recurse` in the repo. The Dockerfile's run in the image build on paths it made, and stay. The remote side of `remote-hosts.bash` keeps its own check of the work folder's shape.
-	- Test case: `dee7s` the run folder and its env, `dee7t` `--keep-temp`, `dee7v` the stale sweep, `dee7w` the guard. `de587` checks `install.ps1` leaves its temp folder empty.
-	- Branch: cicd2
-	- Verified: 2026-10-26, the full run at e23b810 in the container left nothing of its own under HOST_TEMP and `git status` clean. The installer checks on other boxes are left.
-
 - CICD reset: containers.
 	- ID: 2026102416280100
 	- Type: Enhancement
@@ -300,54 +235,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 14fe62d
 	- Verified: 2026-10-26, two `--backlog-run-full` runs passed with pins, demo gif and profiler, and left `git status` clean. Hosted run 40256013604 passed, its pipeline job included (17m41s). `--list` and `--help` read clearly.
 
-- The Windows `.exe` files have no icon or version information resource.
-	- ID: 2026101411014805
-	- Type: Enhancement
-	- Status: Waiting on UAT
-	- Needs external testing: Yes. On Windows, look at the icon in Explorer on both exes and both installers, and the Add/Remove Programs icon after an install.
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: Windows
-	- Note: Explorer shows a generic icon and an empty Details tab.
-	- Requirements:
-		- Each `.exe` has the project icon and version information.
-	- Progress log:
-		- 20261019: The resource is built at packaging time from the stamped version, not committed, so `--version` and the Details tab agree. goversioninfo is pinned and in the container image. The installers get the same icon and version details. Design notes are in design.md under packaging.
-	- Decisions:
-		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
-	- Verified: `make release` builds both exes and both installers with the icon (16 to 256 px) and the right version, read back from the files. The release assets still rebuild to the same bytes, with and without every packaging tool required.
-	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, packaging included.
-	- Verified: 20261019, on vm925w, Windows PowerShell 5.1 and pwsh 7 read the version info on both exes and both installers: product, description, version, prerelease flag on the exes, company, original filename, and the copyright with its real U+00A9. Windows pulls the icon from each of the 4 files. The x86_64 exe runs and its `--version` matches.
-	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
-	- Branch: winres
-	- Commit: 22399be
-	- Test case: de57e (bare exes), de57f (installers). Both failed before the change and pass after.
-
-- Run on the last Core 2 Duo, and AMD CPUs from that era.
-	- ID: 2026101301161880
-	- Type: Enhancement
-	- Status: Waiting on UAT
-	- Needs external testing: Yes, on an old CPU or an emulated one.
-	- Priority [Feature|Enhancement] | Severity [Bug]: Low
-	- Opened: 20261013-011618
-	- Opened by: JC
-	- Target OS: Linux, Windows and FreeBSD on x86_64, where this project builds them. Macs that old can't run a current macOS anyway.
-	- Requirements [Feature]:
-		- Release builds run on the last Core 2 Duo (Penryn, 2008), and on AMD Phenom II and Athlon II, if that's reasonably doable.
-			- Penryn has SSSE3 and SSE4.1 but no POPCNT. The AMD ones have POPCNT but no SSSE3. So the shared floor is plain x86-64, also called x86-64-v1.
-		- If that isn't doable, the floor is the first Core i3/i5/i7 (Nehalem, 2008), which is x86-64-v2. AMD's first chip at that level is Bulldozer, 2011.
-		- Faster code for newer CPUs is still fine, but it's picked at run time by a CPU feature test, never by the build target.
-		- Tests run the release build on an emulated Penryn and Phenom II, through Intel SDE or QEMU's `-cpu Penryn` and `-cpu phenom`.
-	- Progress log:
-		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
-			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
-		- 20261019: `package.bash` pins `GOAMD64=v1`. The pipeline image has qemu-user, and the harness runs the linux x86_64 release build as a Penryn and a Phenom II.
-	- Verified: 20261019, under qemu-user, a v1 build converts on Penryn, Phenom and Nehalem. A v2 build is refused on Penryn and Phenom and runs on Nehalem, and a v3 build is refused on all 3.
-	- Note: still open on real hardware, and for the Windows and FreeBSD builds, which are the same code.
-	- Test case: `de5ec` every x86_64 release build says `GOAMD64=v1`. `de5ee` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ddge9` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
-	- Branch: cleanup
-
 - A bare `tail: ,` in a config reads as no tail.
 	- ID: 2026101411014813
 	- Type: Bug
@@ -416,6 +303,26 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: dee6x (the FreeBSD check on the box), dee71 (hold and cleanup), dee72 (no answer is a SKIP), dee73 (no hold is a SKIP), dee74 (different answers fail), dee75 (the step gets the boxes and the hold, and is off with none), deeaz (step numbers in run order, with the profiler and other hosts on).
 	- Branch: cicd2
 	- Verified: 2026-10-26, both full runs ended Other hosts with `PASS dee6x freebsd-x86_64 on vmFreeBSD`, and vmFreeBSD was off again after.
+
+- The Windows setup `.exe` replaces a long machine PATH with its own folder.
+	- ID: 2026102519371715
+	- Type: Bug
+	- Status: Queued
+	- Severity: Critical
+	- Opened: 20261025-193717
+	- Opened by: cicd2 test batch
+	- Related IDs: 2026101411014803, 2026101411014805
+	- Target OS: Windows
+	- Test environment: b29w, Windows 11 10.0.26200, machine PATH 4030 characters in 78 entries.
+	- Version and build: setup from e23b810 (3.0.0-336-ge23b810). The PATH code is the same in v3.0.0's `installer.nsi`, so the released setup most likely has it too (unverified).
+	- Steps to reproduce:
+		- On a box whose machine PATH is longer than 1024 characters, run `convert-base-v2-windows-x86_64-setup.exe /S` elevated.
+	- Incorrect behavior: the machine PATH afterwards holds only `C:\Program Files\convert-base-v2`. All 78 old entries were gone.
+	- Expected behavior: the old PATH kept as it was, with the folder added once at the end.
+	- Reproduced: 20261025, twice on b29w, once per shell, during the `install.ps1` checks. The PATH was saved first and put back after each run.
+	- Possible cause: `installer.nsi` reads the PATH with `ReadRegStr`, which gives an empty string for a value longer than NSIS's string limit (1024 by default). The `$0 == ""` branch then writes `$INSTDIR` alone.
+	- Note: the uninstall section never removes the PATH entry it added.
+	- Test case: none yet. A check could run the setup under Wine with a long PATH in the registry and compare before and after.
 
 - CICD reset: other hosts, Windows.
 	- ID: 2026102516555347
@@ -566,6 +473,134 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Related IDs: 2026100313304792, 2026102318390688
 	- Target OS: macOS
 	- Note: hosted CI now tests and runs a native darwin/arm64 build on an Apple silicon runner. That isn't the release's universal binary, so this stays open.
+
+- CICD reset: temp files and safe removal.
+	- ID: 2026102416280107
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Needs external testing: None left.
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101910123200
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each run already has its own temp folder, removed on exit. What's left is below.
+		- The folder goes under `${HOST_TEMP}/<project>/`, named by time and a counter, and `TMPDIR`, `TEMP`, and `TMP` point at it.
+		- `--keep-temp` keeps it and prints the path.
+		- Each run also removes this project's stale run folders, older than 2 days with no live process from their `run.pid`.
+		- Every recursive remove in the pipeline, the helpers, and the installers goes through the repo's own copy of the safe removal guard, or one that names the one parent it may remove under. File list in the private notes.
+	- Progress log:
+		- 20261025: the run folder is `${HOST_TEMP}/convert-base-v2/<time>_<NNN>`, made with a plain `mkdir` that counts up when the name is taken, and `TMPDIR`, `TEMP` and `TMP` point at it. It holds `run.pid`. It goes at the end, pass, fail or Ctrl+C, and the project folder too once empty.
+		- 20261025: `--keep-temp` keeps the folder and prints its path, as it already did for the containers.
+		- 20261025: a run first removes this project's run folders older than 2 days whose `run.pid` names no live process. A folder with no `run.pid`, and another project's, stay.
+		- 20261025: `cicd/utility/include/safe-rm.bash` is the repo's copy of the guard, with `fSafeRm` for temp paths and `fSafeRmUnder` for one named parent. The pipeline, `check-vendor`, `codeql-scan`, `gen-winres`, `interop/fetch`, `package.bash`, the harness, `bench-encoders`, `gen-screenshots` and `make clean` use it. The installers check their one work folder inline, since they run alone.
+		- 20261025: it works on BSD and macOS too, which have no `realpath -e` or `rm --one-file-system`.
+	- Decisions:
+		- 20261025: the run folder's name is now the docker run label and container name, so `dedps` and `dedmb` expect `<time>_<NNN>` where they wanted `cicd-run.*`. The harness's own runs of the pipeline get their own `HOST_TEMP`.
+	- Verified: 20261025, the format, lint, ci, self, cli and release areas pass, the release area with packaging. `dee7s`, `dee7t`, `dee7v` and `dee7w` each fail with the code they watch broken. `check-vendor.bash` and `make clean` leave nothing behind.
+	- Swept: every `rm -rf` and `Remove-Item -Recurse` in the repo. The Dockerfile's run in the image build on paths it made, and stay. The remote side of `remote-hosts.bash` keeps its own check of the work folder's shape.
+	- Test case: `dee7s` the run folder and its env, `dee7t` `--keep-temp`, `dee7v` the stale sweep, `dee7w` the guard. `de587` checks `install.ps1` leaves its temp folder empty.
+	- Branch: cicd2
+	- Verified: 2026-10-26, the full run at e23b810 in the container left nothing of its own under HOST_TEMP and `git status` clean. The installer checks on other boxes are left.
+	- Verified: 20261025, on b26 as `mactest`, under stock bash 3.2 and Homebrew bash 5.3, `install.bash` in the `bash <(...)` form left no `cbv2-install.*` folder in `$TMPDIR` after a good install, after a prompt answered n, and after a download made to fail once the work folder existed.
+	- Verified: 20261025, on b29w rather than vm925w, which another session held: `install.ps1` left no `cbv2-install-*` folder in the temp folder, in 5.1 and pwsh 7, as a plain user and elevated.
+	- Closed: 20261025-193717
+
+- There is no PowerShell installer.
+	- ID: 2026101411014803
+	- Type: Feature
+	- Status: Done
+	- Needs external testing: None left. The one-liner reads raw main, so its URL works once `install.ps1` is merged there. The code it runs is the same.
+	- Priority: Low
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: Windows, Linux, macOS
+	- Requirements:
+		- `install.ps1` beside `install.bash`, working on Windows PowerShell 5.1 and on pwsh 7 on any OS.
+		- It takes `-Release`, `-Target`, `-Yes`, `-Help` and `-Version`.
+		- It checks the download against `checksums.txt`.
+		- It shows the plan and asks before it installs, unless given `-Yes`.
+		- A permission problem gets a clear error.
+		- ASCII only.
+		- The README shows the one-line install.
+	- Done: `install.ps1` at the repo root, run from raw main like `install.bash`. Same releases list and version sort, same assets, same already-current check. On Windows it installs the bare `.exe` under `%LOCALAPPDATA%\Programs` or `%ProgramFiles%`, and adds the folder to the user or machine PATH through the registry. Elsewhere it uses `~/.local/bin` or `/usr/local/bin`, with sudo, as `install.bash` does.
+	- Done: a read-only folder is refused before any download, with the folder named. A system install on Windows from a plain shell is refused up front, and a running `.exe` that can't be replaced says so.
+	- Done: PSScriptAnalyzer runs in the lint stage over every tracked PowerShell file, with 5.1 and 7.0 syntax checks, and the pipeline image has pwsh 7.6.6 and PSScriptAnalyzer 1.25.0, pinned in `tool-versions.env`. The harness checks that PowerShell files are ASCII.
+	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
+	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
+	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
+	- Reproduced: 20261019, hosted CI run 39278064158 on the merge failed at the native build: `mkdir /cache/home/.cache/go-build: permission denied`.
+	- Cause: the image's pwsh check runs as root with `HOME=/cache/home`, and leaves root-owned `.cache/powershell` and `.local/share/powershell` there. A new `/cache` volume copies them in, so the build user can't make the Go cache. Local runs pass only because the existing volume hides it.
+	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
+	- Note: the fix is its own item, 2026101911072100.
+	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
+	- Swept: each `install.bash` check has a twin here (`ddgke`, `ddydt`, `ddydv`, `ddydw`, `ddys7`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
+	- Test case: `de582` PowerShell files are ASCII. `de583` parses from its raw bytes. `de584` options. `de585` and `de586` the version pick. `de587` installs in the one-liner form and leaves the caller's shell alone. `de588` already current. `de589` tampered checksum. `de58a` read-only folder. `de58b` the prompt. `de58c` says why. `de58d`, `de58e` and `de58f` the lint step. `de56v` now reads `install.ps1` too.
+	- Branch: ps1
+	- Commit: d3d16d7
+	- Verified: 20261025, on b29w as `wintest`, in Windows PowerShell 5.1 and pwsh 7.6.6, from a local copy run the one-liner way through `[scriptblock]::Create`: `-Help`, `-Version`, a prompt answered n touches nothing, answered y installs v3.0.0 under `%LOCALAPPDATA%\Programs`, the caller shell keeps its preferences, the user PATH stays REG_EXPAND_SZ with its old entries unexpanded, a shell built from the registry PATH finds `convert-base-v2`, a second run is current, and `-Target system` from a plain shell is refused before any download.
+	- Verified: 20261025, on b29w as an elevated `collierjr`, in both shells: over a setup `.exe` install, `-Target system` names the setup copy in its plan and replaces it, and leaves the machine PATH alone. On a clean box it installs to `%ProgramFiles%` and adds the folder at the end of the machine PATH, REG_EXPAND_SZ, with the old value kept as it was. A second run is current. No `cbv2-install-*` folder is left in either user's temp folder.
+	- Stand-in: the y and n answers came from a `Read-Host` function defined in the calling scope, since ssh has no console to type into. The "new shell" was a `cmd` started with the PATH built from the registry, machine then user.
+	- Note: 20261025, the setup `.exe` run for the "over a setup install" case wiped b29w's machine PATH. That is the setup's bug, filed as 2026102519371715, not this script's.
+	- Closed: 20261025-193717
+
+- The Windows `.exe` files have no icon or version information resource.
+	- ID: 2026101411014805
+	- Type: Enhancement
+	- Status: Done
+	- Needs external testing: None left. A look in Explorer by eye was replaced by the stand-in below.
+	- Priority: Low
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: Windows
+	- Note: Explorer shows a generic icon and an empty Details tab.
+	- Requirements:
+		- Each `.exe` has the project icon and version information.
+	- Progress log:
+		- 20261019: The resource is built at packaging time from the stamped version, not committed, so `--version` and the Details tab agree. goversioninfo is pinned and in the container image. The installers get the same icon and version details. Design notes are in design.md under packaging.
+	- Decisions:
+		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
+	- Verified: `make release` builds both exes and both installers with the icon (16 to 256 px) and the right version, read back from the files. The release assets still rebuild to the same bytes, with and without every packaging tool required.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, packaging included.
+	- Verified: 20261019, on vm925w, Windows PowerShell 5.1 and pwsh 7 read the version info on both exes and both installers: product, description, version, prerelease flag on the exes, company, original filename, and the copyright with its real U+00A9. Windows pulls the icon from each of the 4 files. The x86_64 exe runs and its `--version` matches.
+	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
+	- Branch: winres
+	- Commit: 22399be
+	- Test case: de57e (bare exes), de57f (installers). Both failed before the change and pass after.
+	- Verified: 20261025, on b29w, in Windows PowerShell 5.1 and pwsh 7, on the e23b810 release build: all 4 `.exe` files have their version info, with a real U+00A9, and the shell's Details columns (Copyright, Company, File description) read it back. Each file's icon, as Explorer extracts it, differs from the generic application icon.
+	- Verified: 20261025, after a silent install of the x86_64 setup `.exe`, the Add/Remove Programs entry has the name, version and publisher, and its `DisplayIcon` is the installed exe, which yields the full-color project icon.
+	- Stand-in: the icon and Details tab were read through the shell and `ExtractAssociatedIcon` over ssh, in place of a look in Explorer. Departs from the wording that way.
+	- Closed: 20261025-193717
+
+- Run on the last Core 2 Duo, and AMD CPUs from that era.
+	- ID: 2026101301161880
+	- Type: Enhancement
+	- Status: Done
+	- Needs external testing: None left. Real old hardware isn't at hand, and the emulated CPUs stand in for it.
+	- Priority [Feature|Enhancement] | Severity [Bug]: Low
+	- Opened: 20261013-011618
+	- Opened by: JC
+	- Target OS: Linux, Windows and FreeBSD on x86_64, where this project builds them. Macs that old can't run a current macOS anyway.
+	- Requirements [Feature]:
+		- Release builds run on the last Core 2 Duo (Penryn, 2008), and on AMD Phenom II and Athlon II, if that's reasonably doable.
+			- Penryn has SSSE3 and SSE4.1 but no POPCNT. The AMD ones have POPCNT but no SSSE3. So the shared floor is plain x86-64, also called x86-64-v1.
+		- If that isn't doable, the floor is the first Core i3/i5/i7 (Nehalem, 2008), which is x86-64-v2. AMD's first chip at that level is Bulldozer, 2011.
+		- Faster code for newer CPUs is still fine, but it's picked at run time by a CPU feature test, never by the build target.
+		- Tests run the release build on an emulated Penryn and Phenom II, through Intel SDE or QEMU's `-cpu Penryn` and `-cpu phenom`.
+	- Progress log:
+		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
+			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
+		- 20261019: `package.bash` pins `GOAMD64=v1`. The pipeline image has qemu-user, and the harness runs the linux x86_64 release build as a Penryn and a Phenom II.
+	- Verified: 20261019, under qemu-user, a v1 build converts on Penryn, Phenom and Nehalem. A v2 build is refused on Penryn and Phenom and runs on Nehalem, and a v3 build is refused on all 3.
+	- Note: still open on real hardware, and for the Windows and FreeBSD builds, which are the same code.
+	- Test case: `de5ec` every x86_64 release build says `GOAMD64=v1`. `de5ee` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ddge9` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
+	- Branch: cleanup
+	- Verified: 20261025, both full runs at e23b810 passed `de5ec` (every x86_64 release build says `GOAMD64=v1`, the Windows and FreeBSD ones included) and `de5ee` (the linux x86_64 build converts on an emulated Penryn and Phenom II).
+	- Note: closed on emulation alone, which departs from "still open on real hardware". The Windows and FreeBSD builds are the same Go code with the same `GOAMD64=v1`, so they weren't run emulated.
+	- Closed: 20261025-193717
 
 - The contractions test fails on the new temp folder message in `install.bash`.
 	- ID: 2026102518082587
