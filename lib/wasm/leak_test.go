@@ -4,7 +4,7 @@
 //		https://spdx.org/licenses/Apache-2.0.html
 //	SPDX-License-Identifier: Apache-2.0
 
-//go:build js && wasm
+//go:build js && wasm && !noleakcheck
 
 package main
 

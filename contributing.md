@@ -31,7 +31,7 @@ make vet
 make test
 ~~~
 
-Before sending a pull request, run the pipeline from the repo root. `--quick` skips the slow tests, the leak checks, and the checks that reach other hosts. `--no-dogfood` keeps it from installing the build over a copy on your PATH, and `--no-publish` from committing and pushing.
+Before sending a pull request, run the pipeline from the repo root. `--quick` skips the slow tests, the slow leak checks, and the checks that reach other hosts. `--no-dogfood` keeps it from installing the build over a copy on your PATH, and `--no-publish` from committing and pushing.
 
 ~~~bash
 cicd/cicd.bash --quick --no-dogfood --no-publish -y
@@ -61,7 +61,7 @@ The shellcheck settings are in `.shellcheckrc`, the ruff settings in `pyproject.
 
 - Each Go test package checks for leftover goroutines once its tests finish, with goleak in its `TestMain`. A run that leaves one running fails, even when every test passed.
 
-- The leak checks run on a full pipeline run, or with `--leakcheck`, and `--no-leakcheck` skips them. They run the Go tests again under the race detector, then a soak test, `TestSoak` in `lib/cmd/convert-base-v2/`. It runs the command's main jobs over and over, and fails if the heap or the goroutine count keeps growing. Its two heap profiles are kept in `cicd/artifacts/soak/`, and `go tool pprof -base` on the pair shows what grew.
+- Each leak check runs by how long it takes, set in `LEAK_LENGTH` in `cicd/config.bash`. Fast ones run in every run, slow ones in a full run and with `--long`, and any that take hours only with `--long`. `--leakcheck` adds them all, and `--no-leakcheck` takes them all out. goleak and the race detector run are fast. The race detector runs the Go tests again, and then the slow ones run: a soak test, `TestSoak` in `lib/cmd/convert-base-v2/`. It runs the command's main jobs over and over, and fails if the heap or the goroutine count keeps growing. Its two heap profiles are kept in `cicd/artifacts/soak/`, and `go tool pprof -base` on the pair shows what grew.
 	- Last comes CodeQL, which is only in the pipeline image. It scans a copy of `lib/` with the dependencies vendored into it, so goleak and the shcl copy get the same queries as our code. The queries are in `cicd/utility/codeql/leak-checks.qls`. Any result fails the run, and the SARIF report is kept in `cicd/artifacts/codeql/`.
 
 - The integration harness is `cicd/test.bash`. It runs the built binary from the outside, and most checks are one line. It tests `lib/bin/convert-base-v2`, which the pipeline puts there. To run it against another build, set `CICDTEST_EXE` to that binary.

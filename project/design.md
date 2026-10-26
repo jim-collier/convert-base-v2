@@ -96,7 +96,7 @@ Inside the package:
 
 - Query flags (`--list`, `--show-symbols`, and friends) print and exit, so scripts can read the base set from the program itself. `--get-base-name` and `--show-symbols` take the base as a positional argument, or from `--by-index`, which only picks a base.
 
-- The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` stays one bare line for scripts, such as `convert-base-v2 v3.1.0 build dbrk8`, with no build part when the build wasn't stamped. The version is always the second word. Only the help reports on the config files, so the others print before any config is read.
+- The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` prints the version line, such as `convert-base-v2 v3.1.0 build dbrk8`, with no build part when the build wasn't stamped, then the copyright line. Scripts read the first line, and the version is always its second word. Only the help reports on the config files, so the others print before any config is read.
 
 #### Flags by mode
 
@@ -234,6 +234,13 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 - The backlog runs and the merge gate never fetch, dogfood, publish, install, prompt, or rewrite a tracked file. Format becomes a format check, the pin step only checks, and the demo gif is made in the run's temp dir and compared. `--backlog-run-quick` is the few-minute check before a commit, over areas: format, lint, go and each Go package, and the harness's own, which `cicd/test.bash --areas` lists. `--backlog-run-full` runs the same checks as the merge gate, once at the end of a round.
 
+- Each run works in its own folder, `${HOST_TEMP}/convert-base-v2/<time>_<NNN>`, with `TMPDIR`, `TEMP` and `TMP` pointing at it, and removes it at the end, on a failure or Ctrl+C too. `--keep-temp` keeps it and the run's containers, and prints where they are. A run also removes this project's run folders older than 2 days whose `run.pid` names no live process.
+
+- Every recursive remove in the pipeline, its helpers and the harness goes through `cicd/utility/include/safe-rm.bash`. It takes only a path under a temp folder, or under the one parent its caller names, and refuses links. The installers run on their own, so each checks its one work folder the same way inline.
+
+- The Other hosts step runs the release builds on the test boxes and VMs, after cross + package, in a plain run, the full backlog run and the merge gate. `cicd/utility/remote-hosts.bash` copies each build to a work folder under the box's temp root, runs a fixed set of cases there and here against the native build, and fails on any difference. The boxes are personal, so `REMOTE_LOCAL` in `cicd/config.bash` names a file outside the repo that lists them, with the command that holds each box in the shared host lock and wakes a VM, then puts it back as it was. Without that file the step is off. A box that doesn't answer, or can't be had, is a SKIP with a warning, and the run goes on. `--no-remote` turns the step off.
+	- A box listed with a root login also installs its platform's package, the FreeBSD `.pkg` for now, runs the same cases with it, and removes it. A package already installed there, or a binary in its place, is a SKIP, so nobody's install is touched.
+
 - A pipeline run fetches first and fast-forwards when only behind, since publish pulls after the tests and would otherwise push a remote change nobody tested. Edits in the tree are stashed around the fast-forward. A diverged branch stops the run before anything is built. Offline, or with no upstream, it warns and builds what's there. When the fast-forward changed `cicd/`, the run starts over on the new copy, since Bash reads a script while it runs it.
 
 - Hosted CI has three jobs. Two run on every push to main or dev and every pull request: one vets, tests, and builds with Go alone, and one tests and runs it on an Apple silicon Mac. The third builds the pipeline image on the runner from the GitHub Actions layer cache, and runs `--merge-gate` in it, so the long tests, the leak checks, the harness, the interop suite, and every linter run there too. It runs for a push to main, a pull request against it, and by hand. Nothing goes to a registry. The demo gif, dogfood and publish stay local.
@@ -244,7 +251,9 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 	- Targets: linux, darwin, freebsd, and windows on amd64 and arm64. ARM is built by default, since Go cross-compiles it at native speed, and `--no-arm` skips it.
 
-	- Per platform: a tarball (zip on Windows) of the static binary, a `.deb` and `.rpm` for each Linux arch, a single-file Windows installer that adds the tool to PATH and can update an existing install, and a checksums file. macOS `.dmg` and a native FreeBSD `.pkg` are deferred; those platforms get tarballs for now.
+	- Per platform: a tarball (zip on Windows) of the static binary, a `.deb` and `.rpm` for each Linux arch, a single-file Windows installer that adds the tool to PATH and can update an existing install, a FreeBSD `.pkg` for each arch, and a checksums file. A macOS `.dmg` is deferred, so macOS gets tarballs for now.
+
+	- nfpm can't write a FreeBSD `.pkg`, so `package.bash` writes it with tar and zstd: `+COMPACT_MANIFEST` and `+MANIFEST` first, then the files under their absolute paths, as `pkg create` would. Its ABI is `FreeBSD:*:<arch>`, any release, since the build is static. pkg allows no `-` in a version, so a prerelease such as `3.1.0-beta1` is `3.1.0.beta1`, which pkg sorts below `3.1.0`.
 
 	- The WASI build of the command is released too, as one `.wasm` for every CPU.
 

@@ -4,6 +4,8 @@
 //		https://spdx.org/licenses/Apache-2.0.html
 //	SPDX-License-Identifier: Apache-2.0
 
+//go:build !noleakcheck
+
 package errcode
 
 import (

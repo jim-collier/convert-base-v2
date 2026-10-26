@@ -14,6 +14,7 @@
 ##		    - the WASI build of the command, one .wasm for every CPU
 ##		    - .deb and .rpm per Linux arch (nfpm - cross-arch, no native tooling)
 ##		    - single-file Windows installer .exe per arch (makensis / NSIS)
+##		    - FreeBSD .pkg per arch (tar + zstd, no native tooling)
 ##		    - checksums.txt
 ##		- Windows exes, installers too, get the icon and version details
 ##		  Explorer shows. gen-winres.bash writes the resource for each arch.
@@ -86,7 +87,7 @@ esac; done
 [[ -z "${BUILD_EPOCH}" || "${BUILD_EPOCH}" =~ ^[0-9]+$ ]] || { echo "--build-epoch takes unix seconds, not '${BUILD_EPOCH}'" >&2; exit 2; }
 ## Before the cross builds, so a missing packager fails in a second, not a minute.
 if [[ "${CICD_NO_SKIP:-0}" == "1" ]]; then
-	for tool in nfpm makensis goversioninfo; do command -v "${tool}" >/dev/null 2>&1 || fSkip "${tool} missing"; done
+	for tool in nfpm makensis goversioninfo zstd; do command -v "${tool}" >/dev/null 2>&1 || fSkip "${tool} missing"; done
 fi
 
 ## A relative --out is resolved against the caller's CWD (make/cicd invoke from
@@ -130,18 +131,21 @@ platforms=(
 	freebsd/amd64 freebsd/arm64
 )
 
-work="$(mktemp -d)"
+source "${here}/include/safe-rm.bash"
+tmpRoot="$(realpath -- "${TMPDIR:-/tmp}")"
+work="$(mktemp -d "${tmpRoot}/package.XXXXXX")"
 ## The linker only takes a .syso from the package dir itself (go build -overlay
 ## doesn't cover them), so the resource goes there for the Windows builds and no
 ## longer. The _windows_<arch> suffix keeps it out of every other target.
 winres=""
-trap 'rm -rf "${work}"; [[ -z "${winres}" ]] || rm -f "${winres}"' EXIT
+trap 'fSafeRmUnder "${tmpRoot}" "${work}" || true; [[ -z "${winres}" ]] || rm -f "${winres}"' EXIT
 
 ## Only a dir with the mark is cleared, so --out can't empty someone's folder.
 ## An empty dir is taken over. lib/Makefile writes the same mark.
 distMark=".convert-base-v2-dist"
 if [[ -f "${OUT}/${distMark}" ]]; then
-	rm -rf "${OUT}"
+	outReal="$(realpath -- "${OUT}")"
+	fSafeRmUnder "${outReal%/*}" "${outReal}"
 elif [[ -e "${OUT}" ]]; then
 	rmdir "${OUT}" 2>/dev/null || { echo "${OUT} has files in it and no sign a build made them; empty it or pick another --out" >&2; exit 1; }
 fi
@@ -286,10 +290,57 @@ fBuildNsis(){
 	fi
 }
 
+#•••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
+## FreeBSD: a .pkg per arch, for `pkg add`. nfpm can't write one, but the format
+## is plain: a zstd tar with +COMPACT_MANIFEST and +MANIFEST first, then the
+## files under their absolute paths. The manifests match what `pkg create` writes.
+## A pkg version can't hold a -, so 3.1.0-beta1 is 3.1.0.beta1, which pkg sorts
+## below 3.1.0. The ABI takes any FreeBSD release, since the build is static.
+
+fJsonStr(){ local s="${1//\\/\\\\}"; s="${s//\"/\\\"}"; printf '"%s"' "${s}"; }
+
+fBuildFreebsdPkg(){
+	local arch="$1" bin="$2"   ## arch: amd64|arm64
+	command -v zstd >/dev/null 2>&1 || { fSkip "zstd missing; skipping FreeBSD .pkg (${arch})"; return 0; }
+	local label="${arch}" abiArch="${arch}" legacy="x86:64"
+	[[ "${arch}" == amd64 ]] && label="x86_64"
+	[[ "${arch}" == arm64 ]] && { abiArch="aarch64"; legacy="aarch64:64"; }
+	local pkgver="${plainver//-/.}" mtime="${BUILD_EPOCH:-$(date +%s)}" stage="${work}/fbsdpkg-${arch}"
+	local -a paths=(/usr/local/bin/"${EXE}" /usr/local/share/licenses/"${PKG}"/license.md)
+	mkdir -p "${stage}/usr/local/bin" "${stage}/usr/local/share/licenses/${PKG}"
+	cp "${bin}" "${stage}${paths[0]}"; chmod 0755 "${stage}${paths[0]}"
+	cp "${root}/license.md" "${stage}${paths[1]}"; chmod 0644 "${stage}${paths[1]}"
+	local p files="" flatsize=0 perm sum
+	for p in "${paths[@]}"; do
+		perm=0644; [[ "${p}" == */bin/* ]] && perm=0755
+		sum="$(sha256sum "${stage}${p}")"
+		files+="${files:+,}$(fJsonStr "${p}"):{\"sum\":\"1\$${sum%% *}\",\"uname\":\"root\",\"gname\":\"wheel\",\"perm\":\"${perm}\",\"mtime\":${mtime}}"
+		flatsize=$((flatsize + $(stat -c %s "${stage}${p}")))
+	done
+	local compact maint="${MAINTAINER##*<}"; maint="${maint%>}"
+	compact="{\"name\":$(fJsonStr "${PKG}"),\"origin\":$(fJsonStr "converters/${PKG}"),\"version\":$(fJsonStr "${pkgver}")"
+	compact+=",\"comment\":$(fJsonStr "${SUMMARY}"),\"maintainer\":$(fJsonStr "${maint}"),\"www\":$(fJsonStr "${HOMEPAGE}")"
+	compact+=",\"abi\":\"FreeBSD:*:${abiArch}\",\"arch\":\"freebsd:*:${legacy}\",\"prefix\":\"/usr/local\",\"flatsize\":${flatsize}"
+	compact+=",\"licenselogic\":\"single\",\"licenses\":[\"GPLv2+\"],\"desc\":$(fJsonStr "${DESC_LONG}"),\"categories\":[\"converters\"]"
+	printf '%s}' "${compact}" >"${stage}/+COMPACT_MANIFEST"
+	printf '%s,"files":{%s}}' "${compact}" "${files}" >"${stage}/+MANIFEST"
+	chmod 0644 "${stage}/+COMPACT_MANIFEST" "${stage}/+MANIFEST"
+	## -P with the transform keeps the leading / that pkg matches against the
+	## manifest. Single-threaded zstd, so the bytes don't depend on the CPU count.
+	local out="${OUT}/${PKG}-${pkgver}-freebsd-${label}.pkg"
+	if tar -C "${stage}" -P --transform 's,^usr/,/usr/,' --format=ustar --owner=root:0 --group=wheel:0 \
+		--mtime="@${mtime}" -cf - +COMPACT_MANIFEST +MANIFEST "${paths[@]#/}" | zstd -q -19 -T1 >"${out}"; then
+		fEcho "built .pkg (${label})"
+	else
+		rm -f "${out}"; fSkip "FreeBSD .pkg failed (${label})"
+	fi
+}
+
 for arch in amd64 arm64; do
 	((WANT_ARM)) || [[ "${arch}" != arm64 ]] || continue
 	fBuildNfpm "${arch}" "${work}/linux-${arch}/${EXE}"
 	fBuildNsis "${arch}" "${work}/windows-${arch}/${EXE}.exe"
+	fBuildFreebsdPkg "${arch}" "${work}/freebsd-${arch}/${EXE}"
 done
 
 
@@ -325,3 +376,4 @@ fEcho "done: $(find "${OUT}" -maxdepth 1 -type f ! -name checksums.txt ! -name "
 ##		- 2026-10-10: A skipped package is an error under CICD_NO_SKIP=1.
 ##		- 2026-10-19: Windows exes and installers get an icon and version info.
 ##		- 2026-10-19: GOAMD64=v1 pinned.
+##		- 2026-10-25: FreeBSD .pkg per arch.

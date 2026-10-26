@@ -28,7 +28,7 @@ Grab a build for your platform from the [Releases page](https://github.com/jim-c
 
 - macOS gets a `.tgz` tarball. The universal build runs on both Intel and Apple silicon Macs. A build for just one is half the size.
 
-- FreeBSD gets a `.tgz` tarball.
+- FreeBSD gets a `.pkg` for x86_64 or arm64, installed with `pkg add`, or a `.tgz` tarball.
 
 - `convert-base-v2.wasm` is the whole command for any WASI runtime. One file for every CPU.
 

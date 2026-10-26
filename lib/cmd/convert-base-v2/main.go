@@ -1074,7 +1074,7 @@ func (f *infoFlag) Set(s string) error {
 
 // printInfo writes each informational output asked for, in order, with one
 // blank line between them. A lone one prints just as it would by itself, so
-// --version stays one bare line for scripts.
+// --version's first line is still the bare version line for scripts.
 func printInfo(out io.Writer, asked infoAsks, help func(io.Writer)) error {
 	var all strings.Builder
 	for i, name := range asked {
@@ -1086,6 +1086,7 @@ func printInfo(out io.Writer, asked infoAsks, help func(io.Writer)) error {
 			help(&all)
 		case "version":
 			fmt.Fprintln(&all, versionText())
+			fmt.Fprintln(&all, copyrightLine())
 		case "about":
 			printAbout(&all)
 		case "donate":
@@ -1523,7 +1524,7 @@ Other:
 Program info (several in one run each print once, in order, then exit):
   --help, -h           Show this help
   --examples           Show usage examples
-  --version, -v, -V    Print version and build number
+  --version, -v, -V    Print version, build number, and copyright
   --about              Print version, copyright, license, and project home
   --donate             Print ways to support the project
 
@@ -1623,14 +1624,18 @@ func reportSide(out io.Writer, label string, reg *convertbase.Registry, name, sy
 	}
 }
 
+func copyrightLine() string {
+	return "Copyright © " + copyrightYear + " " + author + "."
+}
+
 func printCopyright(out io.Writer) {
 	fmt.Fprintf(out, `%s
-Copyright © %s %s.
+%s
 Licensed under the GNU General Public License v2.0 or later. Full text at:
   https://spdx.org/licenses/GPL-2.0-or-later.html
 There is no warranty, to the extent permitted by law.
 
-`, versionText(), copyrightYear, author)
+`, versionText(), copyrightLine())
 }
 
 func printAbout(out io.Writer) {

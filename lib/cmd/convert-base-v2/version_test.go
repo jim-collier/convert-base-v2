@@ -66,7 +66,8 @@ func TestBuildNumber(t *testing.T) {
 	}
 }
 
-// One line either way, so a script reading --version still gets one line.
+// One line either way, so a script reading the first line of --version gets
+// all of it.
 // Test ID: ddgdv
 func TestVersionText(t *testing.T) {
 	savedEpoch, savedVersion := buildEpoch, version
@@ -163,7 +164,8 @@ func TestBuildEpochIsPatchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := string(out); got != "convert-base-v2 v9.8.7-stamped build dbd05 (2026-08-17)\n" {
-		t.Errorf("--version = %q, want one line, convert-base-v2 v9.8.7-stamped build dbd05 (2026-08-17)", got)
+	want := "convert-base-v2 v9.8.7-stamped build dbd05 (2026-08-17)\n" + copyrightLine() + "\n"
+	if got := string(out); got != want {
+		t.Errorf("--version = %q, want %q", got, want)
 	}
 }

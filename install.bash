@@ -29,7 +29,7 @@
 
 set -Eeuo pipefail
 
-INSTALLER_VERSION="1.1.1"
+INSTALLER_VERSION="1.1.2"
 PKG="convert-base-v2"
 REPO="jim-collier/convert-base-v2"
 API="https://api.github.com/repos/${REPO}/releases"
@@ -157,8 +157,8 @@ url="https://github.com/${REPO}/releases/download/${tag}/${asset}"
 
 ## Already current? Then there is nothing to do.
 if [[ -x "${destPath}" ]]; then
-	## "convert-base-v2 v3.1.0 build dbrk8". Before 3.0.1 it had no name in front.
-	haveVer="$("${destPath}" --version 2>/dev/null || true)"; haveVer="${haveVer#"${PKG} "}"
+	## "convert-base-v2 v3.1.0 build dbrk8", then the copyright. Before 3.0.1 it had no name in front.
+	haveVer="$("${destPath}" --version 2>/dev/null || true)"; haveVer="${haveVer%%$'\n'*}"; haveVer="${haveVer#"${PKG} "}"
 	if [[ "${haveVer%% *}" == "${tag}" ]]; then
 		fEcho "${destPath} is already ${tag}; nothing to do"
 		echo
@@ -189,8 +189,15 @@ if ((! ASSUME_YES)); then
 	fEcho_Clean ""
 fi
 
-work="$(mktemp -d)"
-trap 'rm -rf "${work}"' EXIT
+tmpRoot="$(cd "${TMPDIR:-/tmp}" && pwd -P)" || fDie "no temp folder at ${TMPDIR:-/tmp}"
+work="$(mktemp -d "${tmpRoot}/cbv2-install.XXXXXX")" || fDie "couldn't make a work folder in ${tmpRoot}"
+## Removes only the one folder it made, under the one temp folder it named.
+fWorkGone(){
+	case "${work}" in
+		"${tmpRoot}"/cbv2-install.?*) if [[ -d "${work}" && ! -L "${work}" && "${work}" != *..* ]]; then rm -rf -- "${work}"; fi ;;
+	esac
+}
+trap fWorkGone EXIT
 
 fEcho "Downloading ${asset} ${tag}"
 curl -fSL --progress-bar -o "${work}/${asset}" "${url}" || fDie "download failed: ${url}"
@@ -212,7 +219,7 @@ else
 	install -m 0755 "${work}/${asset}" "${destPath}"
 fi
 
-fEcho "Installed: $("${destPath}" --version)"
+nowVer="$("${destPath}" --version)"; fEcho "Installed: ${nowVer%%$'\n'*}"
 case ":${PATH}:" in
 	*":${destDir}:"*) : ;;
 	*) fEcho "NOTE: ${destDir} isn't in your PATH" ;;

@@ -101,9 +101,18 @@ b=$'\e[1m'; dim=$'\e[2m'; grn=$'\e[32m'; red=$'\e[31m'; ylw=$'\e[33m'; rst=$'\e[
 declare -i TOTAL=0 PASS=0 FAIL=0
 declare -a FAILURES=() WARNINGS=() UNASKED=()
 
-CBT_OUT="$(mktemp)"; CBT_ERR="$(mktemp)"; CBT_TMP="$(mktemp -d)"
-cleanup(){ rm -rf "${CBT_OUT}" "${CBT_ERR}" "${CBT_TMP}"; }
+source "${meDir}/utility/include/safe-rm.bash"
+cbtRoot="$(realpath -- "${TMPDIR:-/tmp}")"
+CBT_OUT="$(mktemp "${cbtRoot}/cbt-out.XXXXXX")"; CBT_ERR="$(mktemp "${cbtRoot}/cbt-err.XXXXXX")"; CBT_TMP="$(mktemp -d "${cbtRoot}/cbt.XXXXXX")"
+cleanup(){ rm -f -- "${CBT_OUT}" "${CBT_ERR}"; fSafeRmUnder "${cbtRoot}" "${CBT_TMP}" || true; }
 trap cleanup EXIT
+## Removes what a check made under CBT_TMP: a folder through the guard, anything else as a file.
+fTreeGone(){
+	local p
+	for p in "$@"; do
+		if [[ -d "${p}" && ! -L "${p}" ]]; then fSafeRmUnder "${CBT_TMP}" "${p}"; elif [[ -e "${p}" || -L "${p}" ]]; then rm -f -- "${p}"; fi
+	done
+}
 
 ## Sandbox the user config: the binary writes a default one on its first run,
 ## and that must land here, not in whoever's home is running the tests. The
@@ -213,11 +222,13 @@ done
 ## build from a clone once stamped the library's version on the command.
 _run --version
 { ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"[1-9]* ]]; } && _pass ddg7f "--version: command tag" || _fail ddg7f "--version: command tag" "out=[$_out]"
-## Still one line for scripts: the name, the version, then the build number when
-## the build was stamped, with no space at either end. Crockford base32, lower
-## case, so no i, l, o or u. A build between releases ends with its date.
+## The first line is for scripts: the name, the version, then the build number
+## when the build was stamped, with no space at either end. Crockford base32,
+## lower case, so no i, l, o or u. A build between releases ends with its date.
+## The copyright line follows, and nothing else.
+cbVerRe='^convert-base-v2 v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+( \([0-9]{4}-[0-9]{2}-[0-9]{2}\))?)?'$'\n''Copyright © [0-9-]+ Jim Collier [^'$'\n'']+\.$'
 _run --version
-{ ((_rc == 0)) && [[ "$_out" =~ ^convert-base-v2\ v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+( \([0-9]{4}-[0-9]{2}-[0-9]{2}\))?)?$ ]]; } && _pass ddgdx "--version one-line format" || _fail ddgdx "--version one-line format" "out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" =~ ${cbVerRe} ]]; } && _pass ddgdx "--version format" || _fail ddgdx "--version format" "out=[$_out]"
 ## make stamps the commit's time, never the clock, so a release rebuilds to its checksums.
 cbEpoch="$(git -C "${meDir}" log -1 --format=%ct 2>/dev/null || true)"
 if [[ -z "${cbEpoch}" ]] || ! command -v make >/dev/null 2>&1; then
@@ -246,9 +257,9 @@ _run --version --donate
 { ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n\n'"convert-base-v2 is free"* ]]; } && _pass ddf3m "--version --donate prints both, in order" || _fail ddf3m "--version --donate prints both, in order" "rc=$_rc out=[$_out]"
 _run --help --donate --help
 { ((_rc == 0)) && [[ "$_out" == "${cbVer}"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]] && (($(grep -c '^Usage:' <<<"$_out") == 1)); } && _pass ddf3n "--help --donate --help prints help once, then donate" || _fail ddf3n "--help --donate --help prints help once, then donate" "rc=$_rc out=[$_out]"
-## --about opens with the version line, so --version adds nothing to it.
+## --about opens with the version and copyright lines, so --version adds nothing to it.
 _run --about --version
-{ ((_rc == 0)) && (($(grep -cxF -- "${cbVer}" <<<"$_out") == 1)); } && _pass ddf3p "--about covers --version" || _fail ddf3p "--about covers --version" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && (($(grep -cxF -- "${cbVer%%$'\n'*}" <<<"$_out") == 1)) && [[ "$_out" == "${cbVer}"$'\n'* ]]; } && _pass ddf3p "--about covers --version" || _fail ddf3p "--about covers --version" "rc=$_rc out=[$_out]"
 ## No-args error path keeps help on stderr, exit 2, stdout empty.
 _run
 { ((_rc == 2)) && [[ -z "$_out" ]] && [[ -n "$_err" ]]; } && _pass d9qdc "no-args help stays on stderr" || _fail d9qdc "no-args help stays on stderr" "rc=$_rc outlen=${#_out} errlen=${#_err}"
@@ -1926,7 +1937,7 @@ for rnName in checksums.txt convert-base-v2.wasm notes.txt \
 	convert-base-v2_9.9.9~beta1_amd64.deb convert-base-v2_9.9.9~beta1_arm64.deb \
 	convert-base-v2-9.9.9~beta1-1.x86_64.rpm convert-base-v2-9.9.9~beta1-1.aarch64.rpm \
 	convert-base-v2-{linux,darwin,freebsd}-{x86_64,arm64}{,.tgz} convert-base-v2-darwin-universal{,.tgz} \
-	convert-base-v2-windows-{x86_64,arm64}{.exe,.zip,-setup.exe}; do
+	convert-base-v2-windows-{x86_64,arm64}{.exe,.zip,-setup.exe} convert-base-v2-9.9.9.beta1-freebsd-{x86_64,arm64}.pkg; do
 	if [[ "${rnName}" =~ ^convert-base-v2-(linux|darwin|freebsd)-[a-z0-9_]+$ ]]; then
 		printf '#!/bin/sh\necho "convert-base-v2 v9.9.9-beta1 build abcde"\n' >"${rnDist}/${rnName}"; chmod +x "${rnDist}/${rnName}"
 	else
@@ -1947,7 +1958,7 @@ rnWant="$(cat <<EOF
 | Linux | [binary](${rnU}/convert-base-v2-linux-x86_64), [.tgz](${rnU}/convert-base-v2-linux-x86_64.tgz), [.deb](${rnU}/convert-base-v2_9.9.9.beta1_amd64.deb), [.rpm](${rnU}/convert-base-v2-9.9.9.beta1-1.x86_64.rpm) | [binary](${rnU}/convert-base-v2-linux-arm64), [.tgz](${rnU}/convert-base-v2-linux-arm64.tgz), [.deb](${rnU}/convert-base-v2_9.9.9.beta1_arm64.deb), [.rpm](${rnU}/convert-base-v2-9.9.9.beta1-1.aarch64.rpm) |
 | macOS | [binary](${rnU}/convert-base-v2-darwin-x86_64), [.tgz](${rnU}/convert-base-v2-darwin-x86_64.tgz) | [binary](${rnU}/convert-base-v2-darwin-arm64), [.tgz](${rnU}/convert-base-v2-darwin-arm64.tgz) | [binary](${rnU}/convert-base-v2-darwin-universal), [.tgz](${rnU}/convert-base-v2-darwin-universal.tgz)
 | Windows | [.exe](${rnU}/convert-base-v2-windows-x86_64.exe), [.zip](${rnU}/convert-base-v2-windows-x86_64.zip), [installer](${rnU}/convert-base-v2-windows-x86_64-setup.exe) | [.exe](${rnU}/convert-base-v2-windows-arm64.exe), [.zip](${rnU}/convert-base-v2-windows-arm64.zip), [installer](${rnU}/convert-base-v2-windows-arm64-setup.exe) |
-| FreeBSD | [binary](${rnU}/convert-base-v2-freebsd-x86_64), [.tgz](${rnU}/convert-base-v2-freebsd-x86_64.tgz) | [binary](${rnU}/convert-base-v2-freebsd-arm64), [.tgz](${rnU}/convert-base-v2-freebsd-arm64.tgz) |
+| FreeBSD | [binary](${rnU}/convert-base-v2-freebsd-x86_64), [.tgz](${rnU}/convert-base-v2-freebsd-x86_64.tgz), [.pkg](${rnU}/convert-base-v2-9.9.9.beta1-freebsd-x86_64.pkg) | [binary](${rnU}/convert-base-v2-freebsd-arm64), [.tgz](${rnU}/convert-base-v2-freebsd-arm64.tgz), [.pkg](${rnU}/convert-base-v2-9.9.9.beta1-freebsd-arm64.pkg) |
 | WebAssembly (WASI) |  |  | [.wasm](${rnU}/convert-base-v2.wasm)
 
 Also: [notes.txt](${rnU}/notes.txt)
@@ -2003,7 +2014,7 @@ make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc
 	|| _fail ddgkc "make clean: own dist only" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
 ## The two full packaging runs take several seconds each, so --quick skips them.
 if ((doQuick)); then
-	_warn "ddge9 ddgkb de5ec de5ee ddgea ddgeb de57e de57f" "packaging rebuild checks skipped: --quick" asked
+	_warn "ddge9 ddgkb de5ec de5ee ddgea ddgeb de57e de57f dee9w" "packaging rebuild checks skipped: --quick" asked
 else
 	pkDir="${CBT_TMP}/pk"; pkrc=0
 	pkArgs=(--version v9.9.9-beta1 --build-epoch 1700000000)
@@ -2095,6 +2106,35 @@ else
 			[[ "${pkVers}" =~ ^(9\.9\.9~beta1 )+$ ]] && _pass ddgeb "prerelease package version keeps its ~" || _fail ddgeb "prerelease package version keeps its ~" "got [${pkVers}]"
 		fi
 	fi
+	## FreeBSD .pkg: the two manifests first, then each file at the absolute path
+	## and with the checksum +MANIFEST gives it, and a version pkg can read.
+	if ! command -v zstd >/dev/null 2>&1; then
+		_warn dee9w "FreeBSD .pkg check skipped: zstd not installed"
+	else
+		pkWhy=""
+		for pkArch in x86_64:amd64 arm64:aarch64; do
+			pkFile="convert-base-v2-9.9.9.beta1-freebsd-${pkArch%%:*}.pkg"
+			grep -qE "^[0-9a-f]{64}  ${pkFile//./\\.}\$" "${pkSums}" 2>/dev/null || { pkWhy+="${pkFile} not in checksums.txt; "; continue; }
+			zstd -qdc "${pkDir}/a/${pkFile}" >"${pkDir}/fbsd.tar" 2>/dev/null || { pkWhy+="${pkFile} isn't zstd; "; continue; }
+			pkWhy+="$(python3 -I - "${pkDir}/fbsd.tar" "FreeBSD:*:${pkArch#*:}" <<-'EOF'
+				import hashlib, json, sys, tarfile
+				t = tarfile.open(sys.argv[1]); names = t.getnames()
+				m = json.load(t.extractfile("+MANIFEST")); c = json.load(t.extractfile("+COMPACT_MANIFEST"))
+				bad = []
+				if names[:2] != ["+COMPACT_MANIFEST", "+MANIFEST"]: bad.append(f"order {names[:2]}")
+				if sorted(names[2:]) != sorted(m.get("files", {})): bad.append(f"files {names[2:]}")
+				for n in names[2:]:
+				    f = t.extractfile(n)
+				    if f is None or m["files"].get(n, {}).get("sum") != "1$" + hashlib.sha256(f.read()).hexdigest(): bad.append(f"sum {n}")
+				if (m["version"], m["abi"], m["name"]) != ("9.9.9.beta1", sys.argv[2], "convert-base-v2"): bad.append(f"meta {m['version']} {m['abi']}")
+				if "files" in c or {k: v for k, v in m.items() if k != "files"} != c: bad.append("compact manifest")
+				if "/usr/local/bin/convert-base-v2" not in names: bad.append("no binary")
+				print("; ".join(bad) + ("; " if bad else ""), end="")
+			EOF
+			)" || pkWhy+="${pkFile} unreadable; "
+		done
+		[[ -z "${pkWhy}" ]] && _pass dee9w "FreeBSD .pkg per arch, manifests first, sums match" || _fail dee9w "FreeBSD .pkg per arch, manifests first, sums match" "${pkWhy}"
+	fi
 fi
 
 
@@ -2169,8 +2209,8 @@ fInRun; [[ "${inrc}" == 1 && "${inOut}" == *"aborted; nothing was touched"* && !
 ## Already current, read from the installed build's --version, with the name in
 ## front as now, or without it as before 3.0.1.
 fInList v3.0.0 >"${inDir}/release.json"; mkdir -p "${inDir}/home/.local/bin"
-for inLine in "convert-base-v2 v3.0.0 build abcde" "v3.0.0 build abcde" "v3.0.0"; do
-	printf '#!/bin/sh\necho "%s"\n' "${inLine}" >"${inDir}/home/.local/bin/convert-base-v2"; chmod +x "${inDir}/home/.local/bin/convert-base-v2"
+for inLine in "convert-base-v2 v3.0.0 build abcde" "convert-base-v2 v3.0.0\nCopyright" "v3.0.0 build abcde" "v3.0.0"; do
+	printf '#!/bin/sh\nprintf "%s\\n"\n' "${inLine}" >"${inDir}/home/.local/bin/convert-base-v2"; chmod +x "${inDir}/home/.local/bin/convert-base-v2"
 	fInRun -y
 	{ ((inrc == 0)) && [[ "${inOut}" == *"is already v3.0.0; nothing to do"* ]]; } && _pass ddys7 "install.bash sees it's current: ${inLine}" \
 		|| _fail ddys7 "install.bash sees it's current: ${inLine}" "rc=${inrc} out=[${inOut}]"
@@ -2242,7 +2282,7 @@ EOF
 		(cd "${psFix}/dist" && sha256sum "${psAsset}.tgz" "${psAsset}" >checksums.txt); psFrom="stub"
 	fi
 	chmod +x "${psFix}/dist/${psAsset}"; cp "${psFix}/dist/checksums.txt" "${psDir}/checksums.good"
-	psVerLine="$("${psFix}/dist/${psAsset}" --version 2>/dev/null || true)"; psTag="${psVerLine#convert-base-v2 }"; psTag="${psTag%% *}"
+	psVerLine="$("${psFix}/dist/${psAsset}" --version 2>/dev/null || true)"; psVerLine="${psVerLine%%$'\n'*}"; psTag="${psVerLine#convert-base-v2 }"; psTag="${psTag%% *}"
 	## fPsRun STDIN MODE ARGS...: block is the one-liner form, file runs the file.
 	fPsRun(){
 		local psIn="$1"; shift; psRc=0
@@ -2276,13 +2316,13 @@ EOF
 	fInList "${psTag}" >"${psFix}/release.json"
 	fPsRun "" block -Yes
 	psUrls="$(tr '\n' ' ' <"${psFix}/urls.log")"; psU="https://github.com/jim-collier/convert-base-v2/releases/download/${psTag}"
-	{ ((psRc == 0)) && [[ -n "${psTag}" && -x "${psBin}" && "$("${psBin}" --version 2>&1)" == "${psVerLine}" && "${psOut}" == *"[ Installed: ${psVerLine} ]"* ]] \
+	{ ((psRc == 0)) && [[ -n "${psTag}" && -x "${psBin}" && "$("${psBin}" --version 2>&1 | head -n 1)" == "${psVerLine}" && "${psOut}" == *"[ Installed: ${psVerLine} ]"* ]] \
 		&& [[ "${psUrls}" == *"/releases?per_page=100 ${psU}/${psAsset} ${psU}/checksums.txt " && "${psOut}" == *"caller still here, EAP=Continue, unset=True"* ]] \
 		&& [[ ! -e "${psHome}/.local/bin/.convert-base-v2.new" && -z "$(ls -A "${psDir}/tmp")" ]]; } && _pass de587 "install.ps1 installs, ${psFrom} release" \
 		|| _fail de587 "install.ps1 installs, ${psFrom} release" "tag=[${psTag}] urls=[${psUrls}] $(fPsTail)"
 	mkdir -p "${psHome}/.local/bin"
-	for psLine in "convert-base-v2 ${psTag} build abcde" "${psTag} build abcde" "${psTag}"; do
-		printf '#!/bin/sh\necho "%s"\n' "${psLine}" >"${psBin}"; chmod +x "${psBin}"
+	for psLine in "convert-base-v2 ${psTag} build abcde" "convert-base-v2 ${psTag}\nCopyright" "${psTag} build abcde" "${psTag}"; do
+		printf '#!/bin/sh\nprintf "%s\\n"\n' "${psLine}" >"${psBin}"; chmod +x "${psBin}"
 		fPsRun "" file -Yes
 		{ ((psRc == 0)) && [[ "${psOut}" == *"is already ${psTag}; nothing to do"* ]]; } && _pass de588 "install.ps1 sees it's current: ${psLine}" \
 			|| _fail de588 "install.ps1 sees it's current: ${psLine}" "$(fPsTail)"
@@ -2370,7 +2410,7 @@ rbGot="$(bash "${meDir}/utility/release-notes.bash" --version "${rbVer}" --dist 
 feDir="${CBT_TMP}/fe"; mkdir -p "${feDir}/bin" "${feDir}/src/pkg" "${feDir}/thirdparty/keep"
 echo keep >"${feDir}/thirdparty/keep/file"; echo x >"${feDir}/src/pkg/file"
 tar czf "${feDir}/pkg.tgz" -C "${feDir}/src" pkg || true
-cp "${meDir}/utility/interop/fetch.bash" "${feDir}/"
+cp "${meDir}/utility/interop/fetch.bash" "${feDir}/"; mkdir -p "${CBT_TMP}/include"; cp "${meDir}/utility/include/safe-rm.bash" "${CBT_TMP}/include/"
 printf 'INTEROP_PINS=("|1.0|https://example.invalid/pkg.tgz|%s|example.invalid/pkg")\n' "$(sha256sum "${feDir}/pkg.tgz" | cut -d' ' -f1)" >"${feDir}/pins.env"
 printf '%s\n' '#!/bin/sh' 'while [ $# -gt 0 ]; do [ "$1" = -o ] && { cp "$FAKE_TGZ" "$2"; exit 0; }; shift; done' 'exit 7' >"${feDir}/bin/curl"
 chmod +x "${feDir}/bin/curl"
@@ -2627,6 +2667,18 @@ tgRep="$( {
 { grep -qF "Write at 0x00c by goroutine 7" <<<"${tgRep}" && grep -qF "frame 30" <<<"${tgRep}" && grep -qF "goleak: Errors on successful test run" <<<"${tgRep}"; } \
 	&& _pass de553 "test-ids race and leak reports from the top" \
 	|| _fail de553 "test-ids race and leak reports from the top" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
+## Every Go package with tests runs goleak, and the tag --no-leakcheck builds
+## with drops it. The browser module only builds for js/wasm.
+if command -v go >/dev/null 2>&1 && [[ -d "${meDir}/../lib" ]]; then
+	glList(){ (cd "${meDir}/../lib" && go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}} {{.TestImports}} {{.XTestImports}}{{end}}' "$@" 2>/dev/null) | grep -v '^$' || true; }
+	glOn="$(glList ./...; GOOS=js GOARCH=wasm glList ./wasm)"
+	glOff="$(glList -tags=noleakcheck ./...; GOOS=js GOARCH=wasm glList -tags=noleakcheck ./wasm)"
+	glBad="$(grep -v 'go.uber.org/goleak' <<<"${glOn}" | cut -d' ' -f1 || true)$(grep 'go.uber.org/goleak' <<<"${glOff}" | cut -d' ' -f1 || true)"
+	{ [[ -z "${glBad}" ]] && (( $(wc -l <<<"${glOn}") >= 4 )) && grep -q '/wasm ' <<<"${glOn}"; } && _pass dee8p "every Go package with tests runs goleak, and noleakcheck drops it" \
+		|| _fail dee8p "every Go package with tests runs goleak, and noleakcheck drops it" "bad=[${glBad}] on=[$(cut -d' ' -f1 <<<"${glOn}" | tr '\n' ' ')]"
+else
+	_warn dee8p "goleak in every Go package (no go here)"
+fi
 fi  ## area release
 
 
@@ -2638,15 +2690,15 @@ if fArea ci; then
 section "CI engine"
 ceDir="${CBT_TMP}/ce"; ceRepo="${ceDir}/repo"; ceBin="${ceDir}/bin"
 mkdir -p "${ceRepo}/cicd/utility/include" "${ceRepo}/lib" "${ceBin}" "${ceDir}/home/bin" "${ceDir}/sys" "${ceDir}/tmp"
-cp "${meDir}/cicd.bash" "${ceRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${meDir}/utility/include/machine-use.bash" "${ceRepo}/cicd/utility/include/"
+cp "${meDir}/cicd.bash" "${ceRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${meDir}/utility/include/machine-use.bash" "${meDir}/utility/include/safe-rm.bash" "${ceRepo}/cicd/utility/include/"
 printf '%s\n' '#!/bin/sh' 'echo v0.0.0' >"${ceRepo}/lib/out"; chmod +x "${ceRepo}/lib/out"
 cat >"${ceRepo}/cicd/config.bash" <<'EOF'
 APP_NAME="cbv-test"; EXE_NAME="cbv-test"; SRC_DIR="lib"
 FMT_CMD=(); NATIVE_BUILD_CMD=(${CE_BUILD_FAIL:+false}); NATIVE_BUILD_CMD+=(true); NATIVE_BUILD_OUT="lib/out"; STAGED_BIN="lib/bin/cbv-test"; RELEASE_BUILD_CMD=()
 PIN_TOOLS_CMD=(); VENDOR_CHECK_CMD=(); INTEROP_CHECK_CMD=(); VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=()
-UNIT_TEST_CMD=(true); TEST_ID_CMD=(); TEST_CMD=(sh -c 'env | grep "^CICDTEST_" | sort >"$CE_KNOBS"')
+UNIT_TEST_CMD=(true); TEST_ID_CMD=(); TEST_CMD=(sh -c 'env | grep "^CICDTEST_" | sort >"$CE_KNOBS"; printf "%s|%s|%s|%s\n" "$TMPDIR" "$TEMP" "$TMP" "$(cat "$TMPDIR/run.pid" 2>/dev/null)" >"$CE_KNOBS.tmp"')
 GO_TEST_PKG="."; FUZZ_ENABLE=1; FUZZ_TIME="1s"; FUZZ_TIME_QUICK="1s"; FUZZ_MINIMIZE_TIME="1s"; FUZZ_MINIMIZE_TIME_QUICK="1s"
-VULN_PROBE=(false); VULN_CMD=(${CE_VULN:+true}); PROFILE_ENABLE=0; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=${CE_CROSS:-0}; RELEASE_ARTIFACT_DIR="dist"
+VULN_PROBE=(false); VULN_CMD=(${CE_VULN:+true}); PROFILE_ENABLE=${CE_PROFILE:-0}; PROFILE_STRICT=0; PROFILE_BENCH="BenchmarkX"; PROFILE_TIME="1s"; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=${CE_CROSS:-0}; RELEASE_ARTIFACT_DIR="dist"
 RELEASE_CMD=(sh -c 'mkdir -p dist && echo "win $$" >dist/cbv-test-windows-x86_64.exe && echo "mac $$" >dist/cbv-test-darwin-universal')
 CONTAINER_DIR="cicd/container"; CONTAINER_IMAGE="cbv-test-cicd"; CONTAINER_VOLUME="cbv-test-cache"; CONTAINER_MOUNTS=("demos" "nowhere")
 CONTAINER_DEFAULT=${CE_CONTAINER_DEFAULT:-0}; CONTAINER_CONTEXTS=("ctx=${CE_CTX:-ctxdir}"); CONTAINER_CONTEXT_MISSING=(--no-demogif)
@@ -2672,7 +2724,15 @@ fi
 UNIT_AREAS_CMD=(printf '%s\n' ./pkga ./sub/pkgb); TEST_AREAS_CMD=(printf '%s\t%s\n' alpha "Alpha one" beta "Beta one; Beta two"); QUICK_AREAS=(format lint go alpha)
 MERGE_GATE_SKIP=(notes.md 'docs/*')
 [[ -z "${CE_AREAS:-}" ]] || { FMT_CHECK_CMD=(true); VET_CMD=(true); UNIT_TEST_CMD=(sh -c 'echo "unit-ran $*"' sh ./...); }
+## One leak check of each length, codeql's from CE_LEAK_LEN.
+[[ -z "${CE_LEAK_LEN:-}" ]] || { declare -A LEAK_LENGTH=([race]=fast [soak]=slow [codeql]="${CE_LEAK_LEN}"); GOLEAK_OFF_TAG="noleakcheck"
+	UNIT_TEST_CMD=(sh -c 'echo "unit-ran GOFLAGS=$GOFLAGS $*"' sh ./...); RACE_TEST_CMD=(sh -c 'echo "race-ran $*"' sh ./...); }
 [[ -z "${CE_REMOTE:-}" ]] || REMOTE_CMD=(echo remote-ran)
+case "${CE_REMOTE_HOSTS:-}" in
+	"") ;;
+	none) REMOTE_CMD=(true); REMOTE_HOSTS=(); REMOTE_LOCAL="nowhere.bash" ;;
+	*) REMOTE_CMD=(sh -c 'echo "remote-args $CICD_CROSS_RAN $*"' sh); REMOTE_HOSTS=('vmA|freebsd-x86_64|a@box'); REMOTE_WRAP=(hold '{}' --) ;;
+esac
 EOF
 cat >"${ceBin}/go" <<'EOF'
 #!/bin/sh
@@ -2714,7 +2774,15 @@ case "$1 $2" in
 	"volume inspect")
 		[ -n "${CE_HAVE_VOL:-}" ] || exit 1
 		case "$*" in *--format*) echo "${CE_VOL_PROJ:-}" ;; esac ;;
-	"system df") case "$*" in *" -v "*) echo "cbv-test-cache ${CE_VOL_SIZE:-1.5GB}" ;; *) printf '%s\n' 1GB 2.5GB ;; esac ;;
+	## Docker's total reads once, then fails, as on a busy daemon. Other
+	## projects' images are in the -v list too.
+	"system df")
+		case "$*" in
+			*" -v "*) printf '%s\n' "I sha256:d4ngl3d4ngl3e5e5 100MB <none>:<none>" "I sha256:0ld0ld0ld0ldaaaa 200MB cbv-test-cicd:0ld0ld0ld0ld" \
+				"I sha256:2222zzzz0000bbbb 300MB cbv-test-cicd:zzz000000000" "I sha256:pr3v10us0000cccc 400MB cbv-test-cicd:pr3v10us0000" \
+				"I sha256:07he707he7dddd 5GB other-cicd:1" "V cbv-test-cache ${CE_VOL_SIZE:-1.5GB}" "V other-cache 9GB" ;;
+			*) [ "$(grep -c '^system df --format' "$CE_DOCKER_LOG")" -le 1 ] || exit 1; printf '%s\n' 1GB 2.5GB ;;
+		esac ;;
 	"builder prune") printf 'Total:\t12.5MB\n' ;;
 	build*)
 		if [ -n "${CE_BUILD_SIGINT:-}" ]; then kill -INT "$PPID"; exit 1; fi
@@ -2755,7 +2823,7 @@ fCeRun(){
 	if [[ -n "${CE_GOFLAGS:-}" ]]; then ceMachine+=("GOFLAGS=${CE_GOFLAGS}"); fi
 	( cd "${ceDir}" && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
 		-u OMP_NUM_THREADS -u CICD_LOADAVG_FILE -u CICD_JOBS_MAX -u GOFLAGS -u CPU_CAP "${ceMachine[@]}" \
-		HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${ceDir}/knobs" CE_SUDO_LOG="${ceDir}/sudo.log" \
+		HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" HOST_TEMP="${ceDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${ceDir}/knobs" CE_SUDO_LOG="${ceDir}/sudo.log" \
 		CICD_NO_SKIP="${CE_NO_SKIP:-0}" CICD_IN_CONTAINER="${CE_INSIDE:-0}" CICD_DOCKER="${CE_DOCKER:-${ceBin}/docker}" CE_DOCKER_LOG="${ceDir}/docker.log" \
 		CICD_IMAGE_PREBUILT="${CE_PREBUILT:-0}" CICD_STEPS="${CE_STEPS:-}" "${ceWrap[@]}" bash "${ceRepo}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || ceRc=$?
 	ceOut="$(<"${CBT_OUT}")"; ceKnobs="$(<"${ceDir}/knobs")"; ceSudo="$(<"${ceDir}/sudo.log")"; ceTmp="$(ls -A "${ceDir}/tmp")"
@@ -2811,6 +2879,54 @@ ceFuzzFail="$(grep -E '^(PASS|FAIL) .*\(fuzz, ' <<<"${ceOut}" || true)"
 [[ "${ceFuzzPass}" == "PASS ----- FuzzA (fuzz, "* && "${ceFuzzFail}" == "FAIL ----- FuzzA (fuzz, "* ]] && _pass dedqb "fuzz PASS and FAIL lines" \
 	|| _fail dedqb "fuzz PASS and FAIL lines" "pass=[${ceFuzzPass}] fail=[${ceFuzzFail}]"
 
+## The run folder is ${HOST_TEMP}/<project>/<time>_<NNN>, the steps get it as
+## TMPDIR, TEMP and TMP, and it holds the run's pid. A taken name counts up.
+ceRealTmp="$(realpath -- "${ceDir}/tmp")"; ceProj="${ceRealTmp}/cbv-test"; ceNow="$(date +%s)"; mkdir -p "${ceProj}"
+for ((ceS = 0; ceS < 40; ceS++)); do printf -v ceStamp '%(%Y%m%d-%H%M%S)T' "$((ceNow + ceS))"; mkdir -p "${ceProj}/${ceStamp}_001"; done
+fCeRun -y
+IFS='|' read -r ceRunDir ceRunTemp ceRunTmp2 ceRunPid <"${ceDir}/knobs.tmp" || true
+{ ((ceRc == 0)) && [[ "${ceRunDir}" =~ ^${ceProj}/[0-9]{8}-[0-9]{6}_002$ && "${ceRunTemp}" == "${ceRunDir}" && "${ceRunTmp2}" == "${ceRunDir}" && "${ceRunPid}" =~ ^[0-9]+$ && ! -e "${ceRunDir}" ]]; } \
+	&& _pass dee7s "run folder under HOST_TEMP, in TMPDIR, TEMP and TMP, with run.pid, gone after" \
+	|| _fail dee7s "run folder under HOST_TEMP, in TMPDIR, TEMP and TMP, with run.pid, gone after" "dir=[${ceRunDir}] temp=[${ceRunTemp}] tmp=[${ceRunTmp2}] pid=[${ceRunPid}] $(fCeTail)"
+for ceD in "${ceProj}"/*_001; do fSafeRmUnder "${ceProj}" "${ceD}" || true; done; rmdir "${ceProj}" || true
+## --keep-temp keeps it and says where.
+fCeRun -y --keep-temp; ceKeepOut="${ceOut}"
+IFS='|' read -r ceRunDir _ _ _ <"${ceDir}/knobs.tmp" || true
+{ ((ceRc == 0)) && [[ -n "${ceRunDir}" && -d "${ceRunDir}" && "${ceOut}" == *"[ kept temp folder ${ceRunDir} (--keep-temp) ]"* ]]; } \
+	&& _pass dee7t "--keep-temp keeps the run folder and prints it" || _fail dee7t "--keep-temp keeps the run folder and prints it" "dir=[${ceRunDir}] $(fCeTail)"
+if [[ -n "${ceRunDir}" && -d "${ceRunDir}" ]]; then fSafeRmUnder "${ceProj}" "${ceRunDir}" || true; rmdir "${ceProj}" || true; fi
+## A run removes the project's run folders older than 2 days whose run.pid
+## names no live process, and nothing else: a live one, one with no run.pid, a
+## new one, and another project's.
+ceOld="$(date -d '3 days ago' +%Y%m%d-%H%M%S)"; sh -c 'exit 0' & ceDead=$!; wait "${ceDead}" || true
+mkdir -p "${ceProj}/${ceOld}_001" "${ceProj}/${ceOld}_002" "${ceProj}/${ceOld}_003" "${ceProj}/20990101-000000_001" "${ceRealTmp}/other/${ceOld}_001"
+echo "${ceDead}" >"${ceProj}/${ceOld}_001/run.pid"; echo "$$" >"${ceProj}/${ceOld}_002/run.pid"; echo "${ceDead}" >"${ceProj}/20990101-000000_001/run.pid"; echo "${ceDead}" >"${ceRealTmp}/other/${ceOld}_001/run.pid"
+head -c 300000 /dev/zero >"${ceProj}/${ceOld}_001/leftover"
+touch -d '3 days ago' "${ceProj}/${ceOld}_001" "${ceProj}/${ceOld}_002" "${ceProj}/${ceOld}_003" "${ceRealTmp}/other/${ceOld}_001"
+fCeRun -y
+{ ((ceRc == 0)) && [[ ! -e "${ceProj}/${ceOld}_001" && -d "${ceProj}/${ceOld}_002" && -d "${ceProj}/${ceOld}_003" && -d "${ceProj}/20990101-000000_001" && -d "${ceRealTmp}/other/${ceOld}_001" ]] \
+	&& [[ "${ceOut}" == *"removed stale run folder ${ceProj}/${ceOld}_001"* ]]; } && _pass dee7v "stale run folders of ours go, and nothing else" \
+	|| _fail dee7v "stale run folders of ours go, and nothing else" "left=[$(find "${ceProj}" "${ceRealTmp}/other" -mindepth 1 -maxdepth 1 2>&1 | tr '\n' ' ')] $(fCeTail)"
+## One line at the end says what went, the stale folder and the run's own, and
+## about what that freed. --keep-temp leaves the run folder out of it.
+{ ((ceRc == 0)) && grep -qE '^\[ cleanup: removed 1 stale run folder\(s\) \([0-9.]+ (KB|MB)\), the run folder \([0-9.]+ (KB|MB)\); about [0-9.]+ (KB|MB) freed \]$' <<<"${ceOut}" \
+	&& [[ "${ceKeepOut}" == *"[ cleanup: nothing to remove ]"* ]]; } && _pass dee8z "one cleanup line: stale folders, the run folder, and about what it freed" \
+	|| _fail dee8z "one cleanup line: stale folders, the run folder, and about what it freed" "keep=[$(grep 'cleanup:' <<<"${ceKeepOut}" || true)] $(fCeTail)"
+for ceD in "${ceProj}"/*_00[0-9] "${ceRealTmp}/other/${ceOld}_001"; do if [[ -d "${ceD}" ]]; then fSafeRmUnder "${ceRealTmp}" "${ceD}" || true; fi; done; rmdir "${ceProj}" "${ceRealTmp}/other" || true
+## The guard refuses what it should, and removes the rest.
+ceSr="${ceRealTmp}/sr"; mkdir -p "${ceSr}/a/b" "${ceSr}/c" "${ceRealTmp}/sr2"; touch "${ceSr}/a/b/f"; ln -s "${ceSr}" "${ceRealTmp}/srlink"; ceRefused=""
+for ceP in "" "rel/tmp/x" "${ceSr}/../sr" "${ceSr}//a" "${ceRealTmp}/srlink" "${ceRealTmp}/srlink/a" "/etc/cbv-test-no" "${ceSr}/nothere" "${ceSr}/a"$'\n'"b"; do
+	if fSafeRm "${ceP}" 2>/dev/null; then ceRefused+="took:${ceP} "; fi
+done
+fSafeRm "${ceSr}" "${ceSr}/c" 2>/dev/null && ceRefused+="took:two "
+fSafeRmUnder "${ceSr}" "${ceSr}" 2>/dev/null && ceRefused+="took:parent "
+fSafeRmUnder "${ceSr}" "${ceRealTmp}/sr2" 2>/dev/null && ceRefused+="took:outside "
+fSafeRmUnder / /cbv-test-no 2>/dev/null && ceRefused+="took:root "
+fSafeRmUnder "${ceRealTmp}" "${ceRealTmp}/srlink" 2>/dev/null && ceRefused+="took:underlink "
+{ [[ -z "${ceRefused}" && -d "${ceSr}/a" && -d "${ceRealTmp}/sr2" ]] && fSafeRm "${ceSr}/a" && fSafeRmUnder "${ceSr}" "${ceSr}/c" && [[ ! -e "${ceSr}/a" && ! -e "${ceSr}/c" && -d "${ceSr}" ]]; } \
+	&& _pass dee7w "safe-rm refuses bad paths and links, and removes good ones" || _fail dee7w "safe-rm refuses bad paths and links, and removes good ones" "[${ceRefused}] $(find "${ceSr}" -mindepth 1 | tr '\n' ' ')"
+rm -f "${ceRealTmp}/srlink"; rmdir "${ceSr}" "${ceRealTmp}/sr2" 2>/dev/null || true
+
 ## The harness runs its perf section, and skips the packaging rebuilds, as
 ## --quick says. A plain -y run also keeps its plan and progress lines; -q drops them.
 fCeRun -y; ceKnobsFull="${ceKnobs}"; ceOutFull="${ceOut}"
@@ -2832,13 +2948,13 @@ done
 	|| _fail de54e "long tests: plain on, --quick off, --long back on" "got=[${ceLong}]"
 
 ## --quick still cross-compiles, and --no-cross wins in either order.
-rm -rf "${ceRepo}/dist"; CE_CROSS=1 fCeRun -y --quick; ceQuickCross=0
+fTreeGone "${ceRepo}/dist"; CE_CROSS=1 fCeRun -y --quick; ceQuickCross=0
 { ((ceRc == 0)) && [[ -f "${ceRepo}/dist/cbv-test-windows-x86_64.exe" && "${ceOut}" == *"OK: release artifacts"* ]]; } && ceQuickCross=1
-rm -rf "${ceRepo}/dist"; CE_CROSS=1 fCeRun -y --no-cross --quick; ceNoCross="${ceRc}"
+fTreeGone "${ceRepo}/dist"; CE_CROSS=1 fCeRun -y --no-cross --quick; ceNoCross="${ceRc}"
 CE_CROSS=1 fCeRun -y --quick --no-cross
 { ((ceQuickCross && ceNoCross == 0 && ceRc == 0)) && [[ ! -e "${ceRepo}/dist" && "${ceOut}" == *"Cross + package (--no-cross)"* && "${ceOut}" != *"Starting Cross"* ]]; } && _pass de54f "--quick cross-compiles, --no-cross wins" \
 	|| _fail de54f "--quick cross-compiles, --no-cross wins" "quick made it: ${ceQuickCross}; $(fCeTail)"
-rm -rf "${ceRepo}/dist"
+fTreeGone "${ceRepo}/dist"
 
 ## A plain run has the leak checks, -q included, and --quick leaves them out unless
 ## --leakcheck is named too, before or after it. The backlog quick run never runs them.
@@ -2855,6 +2971,37 @@ for ceArgs in "-y --no-leakcheck" "-y --leakcheck --no-leakcheck" "-y --no-leakc
 done
 [[ "${ceNoLeak}" == "0:0;0:0;0:3;" ]] && _pass de5d7 "--no-leakcheck skips the leak checks, last flag wins" \
 	|| _fail de5d7 "--no-leakcheck skips the leak checks, last flag wins" "got=[${ceNoLeak}] $(fCeTail)"
+## Each leak check runs by its length: fast in every run, slow in a plain run
+## and --long, hours only with --long. A length that isn't one of those stops it.
+fCeLeaks(){ local l=""; grep -q '^race-ran ' <<<"${ceOut}" && l+=r; grep -q '^soak-ran ' <<<"${ceOut}" && l+=s; grep -q '^codeql-ran ' <<<"${ceOut}" && l+=c; printf '%s' "${l:--}"; }
+ceLens=""
+for ceArgs in "-y --quick" "--backlog-run-quick" "-y" "--backlog-run-full" "-y --long" "-y --quick --long"; do
+	CE_LEAK_LEN=hours fCeRun ${ceArgs}; ceLens+="${ceRc}:$(fCeLeaks);"
+done
+CE_LEAK_LEN=weekly fCeRun -y
+{ [[ "${ceLens}" == "0:r;0:r;0:rs;0:rs;0:rsc;0:rsc;" ]] && ((ceRc == 2)) && [[ "${ceOut}" == *"LEAK_LENGTH[codeql] is weekly, not fast, slow or hours"* ]]; } \
+	&& _pass dee8q "leak checks by length: fast always, slow in a plain run, hours with --long" \
+	|| _fail dee8q "leak checks by length: fast always, slow in a plain run, hours with --long" "got=[${ceLens}] $(fCeTail)"
+## --leakcheck adds every length, --no-leakcheck drops every one, and of the two
+## the last one named wins.
+ceLens=""
+for ceArgs in "-y --quick --leakcheck" "--backlog-run-quick --leakcheck" "-y --long --no-leakcheck" "--backlog-run-quick --no-leakcheck" "-y --no-leakcheck --leakcheck" "-y --leakcheck --no-leakcheck"; do
+	CE_LEAK_LEN=hours fCeRun ${ceArgs}; ceLens+="${ceRc}:$(fCeLeaks);"
+done
+[[ "${ceLens}" == "0:rsc;0:rsc;0:-;0:-;0:rsc;0:-;" ]] && _pass dee8r "--leakcheck adds every leak check, --no-leakcheck drops every one" \
+	|| _fail dee8r "--leakcheck adds every leak check, --no-leakcheck drops every one" "got=[${ceLens}] $(fCeTail)"
+## goleak is in the unit tests, so --no-leakcheck builds them with the tag that drops it.
+CE_LEAK_LEN=hours fCeRun -y; ceUnitOn="$(grep '^unit-ran ' <<<"${ceOut}" || true)"
+CE_LEAK_LEN=hours fCeRun -y --no-leakcheck
+{ ((ceRc == 0)) && [[ -n "${ceUnitOn}" && "${ceUnitOn}" != *"-tags="* ]] && grep -qE '^unit-ran GOFLAGS=.* -tags=noleakcheck \./\.\.\.$' <<<"${ceOut}" \
+	&& [[ "${ceOut}" == *"OK: unit tests, without goleak (--no-leakcheck)"* ]]; } && _pass dee8s "--no-leakcheck runs the unit tests without goleak" \
+	|| _fail dee8s "--no-leakcheck runs the unit tests without goleak" "on=[${ceUnitOn}] $(fCeTail)"
+## In a backlog quick run the race run takes the Go areas named, and none is no race run.
+CE_AREAS=1 CE_LEAK_LEN=hours fCeRun --backlog-run-quick pkga; ceRaceA="${ceRc}:$(grep '^race-ran ' <<<"${ceOut}" || true)"
+CE_AREAS=1 CE_LEAK_LEN=hours fCeRun --backlog-run-quick alpha
+{ [[ "${ceRaceA}" == "0:race-ran ./pkga" ]] && ((ceRc == 0)) && ! grep -q '^race-ran' <<<"${ceOut}" && [[ "${ceOut}" == *"race leak check skipped (no Go area named)"* ]]; } \
+	&& _pass dee8t "backlog quick run: the race run takes the Go areas named" \
+	|| _fail dee8t "backlog quick run: the race run takes the Go areas named" "pkga=[${ceRaceA}] $(fCeTail)"
 ## -race needs cgo. Without it the race run warns and the soak test still runs,
 ## except where every tool must be there.
 CE_RACE_PROBE=false fCeRun -y --quick --leakcheck; ceNoCgo=0
@@ -2900,7 +3047,7 @@ CE_NET=1 CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun -y; ceSteps="$(fCeSteps)"
 	&& [[ "${ceOut}" == *"[ "*": cbv-test local CI/CD: 5 steps ]"* && "${ceOut}" == *"[ "*": cbv-test CI/CD: done. ]" ]]; } \
 	&& _pass dedpn "step lines: rule, time, Step N of M, PASS, blank lines" \
 	|| _fail dedpn "step lines: rule, time, Step N of M, PASS, blank lines" "steps=[${ceSteps}] $(fCeTail)"
-rm -rf "${ceRepo}/dist"
+fTreeGone "${ceRepo}/dist"
 CE_NET=1 CE_CROSS=1 fCeRun -y --quick --no-cross; ceSteps="$(fCeSteps)"
 ceOffAt="$(grep -n '^Turned off \.\.\.' "${CBT_OUT}" | cut -d: -f1 || true)"; ceStartAt="$(grep -n '; Starting ' "${CBT_OUT}" | head -1 | cut -d: -f1 || true)"
 { ((ceRc == 0)) && [[ "${ceSteps}" == "1/2 Native build PASS;2/2 Tests PASS;" && -n "${ceOffAt}" && -n "${ceStartAt}" ]] && ((ceOffAt < ceStartAt)) \
@@ -2939,7 +3086,7 @@ fCeRun --list --merge-gate
 ## --backlog-run-quick with no area runs QUICK_AREAS: the format check, lint,
 ## every Go package and the alpha harness area, as a quick run with no pins,
 ## cross builds, fuzz, leak checks or checks that reach another host.
-rm -rf "${ceRepo}/dist"; CE_AREAS=1 CE_CROSS=1 CE_NET=1 fCeRun --backlog-run-quick; ceSteps="$(fCeSteps)"
+fTreeGone "${ceRepo}/dist"; CE_AREAS=1 CE_CROSS=1 CE_NET=1 fCeRun --backlog-run-quick; ceSteps="$(fCeSteps)"
 { ((ceRc == 0)) && [[ "${ceSteps}" == "1/4 Format check PASS;2/4 Native build PASS;3/4 Lint PASS;4/4 Tests PASS;" && ! -e "${ceRepo}/dist" ]] \
 	&& grep -qxF "CICDTEST_AREAS=alpha" <<<"${ceKnobs}" && grep -qxF "CICDTEST_QUICK=1" <<<"${ceKnobs}" && grep -qxF "CICDTEST_DO_LONGTEST=0" <<<"${ceKnobs}" \
 	&& grep -qxF "unit-ran ./..." <<<"${ceOut}" && ! grep -qE '^(race-ran|soak-ran|codeql-ran|vendor-net|interop-net|vuln-net)|\(fuzz, ' <<<"${ceOut}" \
@@ -2983,12 +3130,99 @@ fCeRun -y; ceRemote+="$(grep -oE 'Other hosts \([^)]*\)' <<<"${ceOut}" || true);
 	&& _pass dedrb "other hosts step, and --no-remote" \
 	|| _fail dedrb "other hosts step, and --no-remote" "got=[${ceRemote}] $(fCeTail)"
 
+## The step hands REMOTE_CMD the hold command as --wrap words, then the boxes,
+## and is off when REMOTE_HOSTS is there but empty.
+ceRemote=""
+CE_REMOTE_HOSTS=1 fCeRun -y; ceRemote+="${ceRc}:$(grep '^remote-args' <<<"${ceOut}" || true);"
+CE_REMOTE_HOSTS=none fCeRun -y; ceRemote+="${ceRc}:$(grep -oE 'Other hosts \([^)]*\)' <<<"${ceOut}" || true)"
+[[ "${ceRemote}" == "0:remote-args 0 --wrap hold --wrap {} --wrap -- vmA|freebsd-x86_64|a@box;0:Other hosts (no boxes in nowhere.bash)" ]] \
+	&& _pass dee75 "other hosts step gets the boxes and the hold" \
+	|| _fail dee75 "other hosts step gets the boxes and the hold" "got=[${ceRemote}] $(fCeTail)"
+
+## The runner itself, against stand-ins: an ssh that runs the command here, with
+## the box's temp root in a folder of its own, and a hold that writes down its box.
+## A run folder of ours from 2020 is stale, and keep isn't ours.
+rhDir="${CBT_TMP}/rh"; rhBox="${rhDir}/box/cbv"
+mkdir -p "${rhDir}/bin" "${rhDir}/dist" "${rhBox}/20200101-000000_001" "${rhBox}/keep"
+cat >"${rhDir}/bin/ssh" <<'EOF'
+#!/bin/sh
+while [ "$1" = -o ]; do shift 2; done
+case "$1" in gone@*) exit 255 ;; esac
+case "$1" in root@*) shift; c="$(printf '%s' "$*" | sed "s,/usr/local/,$RH_ROOT/usr/local/,g")"; PATH="$RH_FAKE:$PATH" TMPDIR="$RH_BOX" exec sh -c "$c" ;; esac
+shift
+TMPDIR="$RH_BOX" exec sh -c "$*"
+EOF
+## pkg as root on the box, over a folder of its own. Its package is the stub.
+mkdir -p "${rhDir}/fake"
+cat >"${rhDir}/fake/pkg" <<'EOF'
+#!/bin/sh
+r="$RH_ROOT/usr/local"
+case "$1" in
+	info) [ -e "$RH_ROOT/installed" ] ;;
+	add) echo add >>"$RH_PKG_LOG"; mkdir -p "$r/bin" "$r/share/licenses/cbv" && cp "$2" "$r/bin/cbv" && chmod +x "$r/bin/cbv" && : >"$r/share/licenses/cbv/license.md" && : >"$RH_ROOT/installed" ;;
+	delete) echo delete >>"$RH_PKG_LOG"; [ -z "${RH_PKG_KEEP:-}" ] || exit 0; rm -f "$RH_ROOT/installed" "$r/bin/cbv" "$r/share/licenses/cbv/license.md" && rmdir "$r/share/licenses/cbv" ;;
+esac
+EOF
+printf '%s\n' '#!/bin/sh' 'echo "hold $1" >>"$RH_HOLDS"' 'if [ -n "${RH_HOLD_RC:-}" ]; then exit "$RH_HOLD_RC"; fi' 'shift 2' 'exec "$@"' >"${rhDir}/bin/hold"
+printf '%s\n' '#!/bin/sh' 'echo "stub $*"' >"${rhDir}/ref"
+printf '%s\n' '#!/bin/sh' 'echo "stub${RH_ODD:-} $*"' >"${rhDir}/dist/cbv-freebsd-x86_64"
+cp "${rhDir}/dist/cbv-freebsd-x86_64" "${rhDir}/dist/cbv-9.9.9-freebsd-x86_64.pkg"
+chmod +x "${rhDir}/bin/ssh" "${rhDir}/bin/hold" "${rhDir}/ref" "${rhDir}/dist/cbv-freebsd-x86_64" "${rhDir}/fake/pkg"
+fRhRun(){
+	local run; run="$(mktemp -d "${rhDir}/run.XXXXXX")"; : >"${rhDir}/holds"; mkdir -p "${rhBox}/20200101-000000_001"; touch -d 2020-01-01 "${rhBox}/20200101-000000_001"; rhRc=0
+	rhRoot="$(mktemp -d "${rhDir}/root.XXXXXX")"; : >"${rhDir}/pkglog"
+	[[ -z "${RH_PRE:-}" ]] || { mkdir -p "${rhRoot}/usr/local/bin"; : >"${rhRoot}/${RH_PRE}"; }
+	rhOut="$(RH_ROOT="${rhRoot}" RH_FAKE="${rhDir}/fake" RH_PKG_LOG="${rhDir}/pkglog" RH_BOX="${rhDir}/box" RH_HOLDS="${rhDir}/holds" CICD_SSH="${rhDir}/bin/ssh" CICD_APP=cbv CICD_DIST="${rhDir}/dist" CICD_REF_BIN="${rhDir}/ref" \
+		CICD_RUN_TMP="${run}" CICD_CROSS_RAN=1 bash "${meDir}/utility/remote-hosts.bash" --wrap "${rhDir}/bin/hold" --wrap '{}' --wrap -- "$@" 2>&1)" || rhRc=$?
+	rhHolds="$(tr '\n' ',' <"${rhDir}/holds")"; rhLeft="$(cd "${rhBox}" && printf '%s,' *)"
+	rhPkg="$(tr '\n' ',' <"${rhDir}/pkglog")"; rhLeftRoot="$(cd "${rhRoot}" && find . -mindepth 1 ! -type d | sort | tr '\n' ',')"
+}
+fRhRun 'vmA|freebsd-x86_64|a@box'
+[[ "${rhRc}" == 0 && "${rhHolds}" == "hold vmA," && "${rhLeft}" == "keep," ]] && grep -qxF 'PASS dee6x freebsd-x86_64 on vmA' <<<"${rhOut}" \
+	&& grep -qE '^vmA: work folder .*/box/cbv/[0-9]{8}-[0-9]{6}_001$' <<<"${rhOut}" \
+	&& _pass dee71 "other hosts: a box runs inside its hold, and its folders are removed" \
+	|| _fail dee71 "other hosts: a box runs inside its hold, and its folders are removed" "rc=${rhRc} holds=[${rhHolds}] left=[${rhLeft}] out=[${rhOut}]"
+fRhRun 'vmGone|freebsd-x86_64|gone@box' 'vmA|freebsd-x86_64|a@box'
+[[ "${rhRc}" == 0 && "${rhHolds}" == "hold vmGone,hold vmA," ]] && grep -qxF 'SKIP dee6x freebsd-x86_64 on vmGone, no answer' <<<"${rhOut}" \
+	&& grep -qxF 'WARNING: vmGone skipped, no answer' <<<"${rhOut}" && grep -qxF 'PASS dee6x freebsd-x86_64 on vmA' <<<"${rhOut}" \
+	&& _pass dee72 "other hosts: a box that doesn't answer is a SKIP, and the rest go on" \
+	|| _fail dee72 "other hosts: a box that doesn't answer is a SKIP, and the rest go on" "rc=${rhRc} holds=[${rhHolds}] out=[${rhOut}]"
+RH_HOLD_RC=3 fRhRun 'vmA|freebsd-x86_64|a@box'
+[[ "${rhRc}" == 0 ]] && grep -qxF "SKIP dee6x freebsd-x86_64 on vmA, couldn't have it (exit 3)" <<<"${rhOut}" && grep -q '^WARNING: vmA skipped' <<<"${rhOut}" \
+	&& _pass dee73 "other hosts: a box the hold can't have is a SKIP" \
+	|| _fail dee73 "other hosts: a box the hold can't have is a SKIP" "rc=${rhRc} out=[${rhOut}]"
+RH_ODD=-odd fRhRun 'vmA|freebsd-x86_64|a@box'
+[[ "${rhRc}" == 1 && "${rhLeft}" == "keep," ]] && grep -qxF 'FAIL dee6x freebsd-x86_64 on vmA' <<<"${rhOut}" && grep -qxF '> stub-odd 255 16' <<<"${rhOut}" \
+	&& _pass dee74 "other hosts: answers that differ from the native build fail" \
+	|| _fail dee74 "other hosts: answers that differ from the native build fail" "rc=${rhRc} left=[${rhLeft}] out=[${rhOut}]"
+## The package, where a root login is given: added, run, removed, and nothing left.
+fRhRun 'vmA|freebsd-x86_64|a@box|root@box'
+[[ "${rhRc}" == 0 && "${rhPkg}" == "add,delete," && -z "${rhLeftRoot}" && "${rhLeft}" == "keep," ]] && grep -qxF 'PASS dee9x freebsd-x86_64 package on vmA' <<<"${rhOut}" \
+	&& grep -qxF 'PASS dee6x freebsd-x86_64 on vmA' <<<"${rhOut}" \
+	&& _pass dee9y "other hosts: the package is installed, runs, and is removed" \
+	|| _fail dee9y "other hosts: the package is installed, runs, and is removed" "rc=${rhRc} pkg=[${rhPkg}] root left=[${rhLeftRoot}] left=[${rhLeft}] out=[${rhOut}]"
+## Somebody's install, or a binary in its place, is left alone. No root login is a SKIP.
+rhGuard=""
+RH_PRE=installed fRhRun 'vmA|freebsd-x86_64|a@box|root@box'
+[[ "${rhRc}" == 0 && -z "${rhPkg}" && "${rhLeftRoot}" == "./installed," ]] && grep -qxF "SKIP dee9x freebsd-x86_64 package on vmA, cbv is already installed on vmA, so it's left alone" <<<"${rhOut}" || rhGuard+="installed: rc=${rhRc} pkg=[${rhPkg}] root=[${rhLeftRoot}] out=[${rhOut}] "
+RH_PRE=usr/local/bin/cbv fRhRun 'vmA|freebsd-x86_64|a@box|root@box'
+[[ "${rhRc}" == 0 && -z "${rhPkg}" && "${rhLeftRoot}" == "./usr/local/bin/cbv," ]] && grep -qxF "SKIP dee9x freebsd-x86_64 package on vmA, /usr/local/bin/cbv on vmA isn't from the package, so it's left alone" <<<"${rhOut}" || rhGuard+="binary: rc=${rhRc} pkg=[${rhPkg}] root=[${rhLeftRoot}] out=[${rhOut}] "
+fRhRun 'vmA|freebsd-x86_64|a@box'
+[[ "${rhRc}" == 0 && -z "${rhPkg}" ]] && grep -qxF 'SKIP dee9x freebsd-x86_64 package on vmA, no root login for vmA' <<<"${rhOut}" || rhGuard+="no root: rc=${rhRc} out=[${rhOut}] "
+[[ -z "${rhGuard}" ]] && _pass dee9z "other hosts: an install already there is left alone, and no root login is a SKIP" \
+	|| _fail dee9z "other hosts: an install already there is left alone, and no root login is a SKIP" "${rhGuard}"
+## A package that won't go away fails.
+RH_PKG_KEEP=1 fRhRun 'vmA|freebsd-x86_64|a@box|root@box'
+[[ "${rhRc}" == 1 && "${rhPkg}" == "add,delete," ]] && grep -qxF 'FAIL dee9x freebsd-x86_64 package on vmA, pkg delete left the package or its files on vmA' <<<"${rhOut}" \
+	&& _pass deea0 "other hosts: a package that isn't removed fails" \
+	|| _fail deea0 "other hosts: a package that isn't removed fails" "rc=${rhRc} pkg=[${rhPkg}] out=[${rhOut}]"
+
 ## --backlog-run-full and --merge-gate run every check a plain run does: the pins,
 ## long tests, fuzz, leak checks, the checks that reach another host, and the
 ## cross builds. Format turns into the format check, and nothing is dogfooded.
 ceFull=""
 for ceMode in --merge-gate --backlog-run-full; do
-	rm -rf "${ceRepo}/dist" "${ceDir}/home/bin/cbv-test"; CE_AREAS=1 CE_NET=1 CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun "${ceMode}"
+	fTreeGone "${ceRepo}/dist" "${ceDir}/home/bin/cbv-test"; CE_AREAS=1 CE_NET=1 CE_CROSS=1 CE_DEST="${ceDir}/home/bin" fCeRun "${ceMode}"
 	ceFull+="${ceMode}:${ceRc}:$(fCeSteps)"
 	ceFull+=":$(grep -cxE "race-ran|soak-ran ${ceRepo}/soak|codeql-ran ${ceRepo}/codeql/codeql_[0-9]{8}-[0-9]{6}\.sarif|vendor-net|interop-net|vuln-net|PASS ----- FuzzA \(fuzz, 1s\)|unit-ran \./\.\.\." <<<"${ceOut}" || true)"
 	ceFull+=":$(grep -E '^CICDTEST_(DO_LONGTEST|QUICK|DO_PERF|AREAS)=' <<<"${ceKnobs}" | tr '\n' ' ' || true)"
@@ -2999,7 +3233,7 @@ ceFullWant="1/6 Pins PASS;2/6 Format check PASS;3/6 Native build PASS;4/6 Lint P
 [[ "${ceFull}" == "--merge-gate:0:${ceFullWant}--backlog-run-full:0:${ceFullWant}" ]] \
 	&& _pass dedrc "--backlog-run-full and --merge-gate run every check" \
 	|| _fail dedrc "--backlog-run-full and --merge-gate run every check" "got=[${ceFull}] $(fCeTail)"
-rm -rf "${ceRepo}/dist"
+fTreeGone "${ceRepo}/dist"
 
 ## Machine use. Half the CPUs, a quarter when the 1-minute load is over half the
 ## CPU count, a quarter for the heavy steps either way, and never under 1.
@@ -3047,7 +3281,7 @@ for mjCase in "2 2 2" "6 6 4" "99 8 4"; do
 		&& _pass dedp0 "in a container, at most its --cpus: ${mjMax}" \
 		|| _fail dedp0 "in a container, at most its --cpus: ${mjMax}" "jobs=[${mjJobs}] $(fCeTail)"
 done
-rm -rf "${ceRepo}/dist"
+fTreeGone "${ceRepo}/dist"
 
 ## Dogfood: a copy that fails is an error, and sudo is tried only as sudo -n,
 ## and only when someone is there.
@@ -3073,7 +3307,7 @@ DOGFOOD_CROSS=(
 	"cbv-test-darwin-universal|cbv-test|${ceDir}/home/mac"
 )
 EOF
-fCeCrossClean(){ rm -rf "${ceDir}/home/win" "${ceDir}/home/mac" "${ceRepo}/dist"; mkdir -p "${ceDir}/home/win" "${ceDir}/home/mac"; }
+fCeCrossClean(){ fTreeGone "${ceDir}/home/win" "${ceDir}/home/mac" "${ceRepo}/dist"; mkdir -p "${ceDir}/home/win" "${ceDir}/home/mac"; }
 fCeCrossNone(){ [[ -z "$(ls -A "${ceDir}/home/win")$(ls -A "${ceDir}/home/mac")" ]]; }
 fCeCrossClean; CE_CROSS=1 CE_LOCAL="../priv/dogfood.bash" fCeRun -y
 { ((ceRc == 0)) && cmp -s "${ceRepo}/dist/cbv-test-windows-x86_64.exe" "${ceDir}/home/win/cbv-test.exe" && cmp -s "${ceRepo}/dist/cbv-test-darwin-universal" "${ceDir}/home/mac/cbv-test" \
@@ -3086,7 +3320,7 @@ CE_LOCAL="../priv/dogfood.bash" fCeRun -y
 fCeCrossClean; CE_CROSS=1 CE_LOCAL="../priv/dogfood.bash" fCeRun -y --no-dogfood
 { ((ceRc == 0)) && [[ -f "${ceRepo}/dist/cbv-test-windows-x86_64.exe" ]] && fCeCrossNone; } && _pass ddysa "dogfood: --no-dogfood skips the cross builds" \
 	|| _fail ddysa "dogfood: --no-dogfood skips the cross builds" "$(fCeTail)"
-rm -rf "${ceRepo}/dist"
+fTreeGone "${ceRepo}/dist"
 ## The public config names no personal dir.
 if grep -nE '/synced/|/Dropbox/|/mnt/zfs/' "${meDir}/config.bash" >"${CBT_OUT}"; then _fail ddysb "config.bash names no personal dir" "$(tr '\n' ' ' <"${CBT_OUT}")"
 else _pass ddysb "config.bash names no personal dir"; fi
@@ -3145,7 +3379,7 @@ ceLabels="--label dev.project=cbv-test --label dev.run=${ceRunName}"
 ## list: the container's steps, then the profiler, dogfood, screenshots and
 ## publish, as far as each is on.
 ceRunWant="run --rm --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-${ceRunName}-stages ${ceLabels} --cpus 8 --cpu-shares 256 -e CICD_JOBS_MAX=8 -e CICD_STEPS=Native build|Tests|Cross + package|Dogfood --user $(id -u):$(id -g) -v ${ceRepo}:${ceRepo} -v cbv-test-cache:/cache${ceTz} -v $(readlink -f "${ceDir}/demos-real"):${ceRepo}/demos -w ${ceRepo} ${ceTag} bash ${ceRepo}/cicd/cicd.bash -y --no-profile --no-dogfood --no-publish --long"
-{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceRunName}" == cicd-run.* ]] \
+{ ((ceRc == 0)) && [[ "${ceTag}" =~ ^cbv-test-cicd:[0-9a-f]{12}$ && "${ceRunName}" =~ ^[0-9]{8}-[0-9]{6}_[0-9]{3}$ ]] \
 	&& grep -qxF "build -t ${ceTag} ${ceLabels} --build-arg FOO_VERSION=1.2 --build-context ctx=$(readlink -f "${ceRepo}/ctxdir") ${ceRepo}/cicd/container" <<<"${ceDocker}" \
 	&& grep -qxF "volume create ${ceLabels} cbv-test-cache" <<<"${ceDocker}" && grep -qxF "${ceRunWant}" <<<"${ceDocker}"; } \
 	&& _pass dedps "--container build, volume and run are labeled, and the run has a CPU limit and the step list" \
@@ -3158,10 +3392,15 @@ ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | 
 	&& grep -qxF "ps -aq --filter label=dev.project=cbv-test --filter label=dev.run=${ceRunName}" <<<"${ceDocker}" \
 	&& grep -qxF "image ls -q --filter dangling=true --filter label=dev.project=cbv-test" <<<"${ceDocker}" \
 	&& grep -qxF "image ls cbv-test-cicd --filter label=dev.project=cbv-test --format {{.Repository}}:{{.Tag}}" <<<"${ceDocker}" \
-	&& [[ "${ceOut}" == *"[ docker cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB); about 0.0 GB freed ]"* ]] \
-	&& [[ "$(grep -n 'docker cleanup' <<<"${ceOut}" | cut -d: -f1)" -lt "$(grep -n 'CI/CD: done' <<<"${ceOut}" | cut -d: -f1)" ]]; } \
+	&& [[ "${ceOut}" == *"[ cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB), the run folder ("*"); about "*" freed ]"* ]] \
+	&& [[ "$(grep -n 'cleanup: removed 1 container' <<<"${ceOut}" | cut -d: -f1)" -lt "$(grep -n 'CI/CD: done' <<<"${ceOut}" | cut -d: -f1)" ]]; } \
 	&& _pass dedm8 "docker cleanup after a pass" \
 	|| _fail dedm8 "docker cleanup after a pass" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
+## What it freed is what it removed: 3 images of 100, 200 and 300 MB, and
+## 12.5 MB of build cache, plus a run folder of a few KB. Docker's total isn't
+## read, since another project can change it, and it can come back empty.
+[[ "${ceOut}" == *"; about 612.5 MB freed ]"* ]] && _pass deeay "cleanup counts only what it removed" \
+	|| _fail deeay "cleanup counts only what it removed" "line=[$(grep 'cleanup:' <<<"${ceOut}" || true)]"
 ceStepsCont="$(fCeSteps)"
 { ((ceRc == 0)) && [[ "${ceOut}" == *"inner run"* && "${ceOut}" == *"Step 4 of 4; Starting Dogfood"* && "${ceOut}" == *"OK: installed -> "* \
 	&& "${ceOut}" != *"Starting Native build"* && "${ceOut}" != *"OK: integration harness"* && "${ceOut}" != *"Starting Cross"* ]]; } && _pass ddrpk "--container host stages" \
@@ -3173,12 +3412,19 @@ CE_INSIDE=1 CE_STEPS="Native build|Tests|Dogfood" fCeRun -y; ceSteps="$(fCeSteps
 	&& [[ "${ceOut}" != *"local CI/CD"* && "${ceOut}" != *"Turned off"* && "${ceOut}" != *"container part done"* ]]; } \
 	&& _pass dedpr "step numbers across the container and host runs" \
 	|| _fail dedpr "step numbers across the container and host runs" "host=[${ceStepsCont}] inside=[${ceSteps}] $(fCeTail)"
+## The steps run in the order they're numbered, in a container run and a plain
+## one, with the profiler and other hosts both on, since those two swapped once.
+CE_PROFILE=1 CE_REMOTE=1 CE_CROSS=1 CE_HAVE_IMAGE=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container; ceOrder="${ceRc}:$(fCeSteps)|"
+CE_PROFILE=1 CE_REMOTE=1 CE_CROSS=1 fCeRun -y; ceOrder+="${ceRc}:$(fCeSteps)"
+[[ "${ceOrder}" == "0:4/6 Profiler PASS;5/6 Other hosts PASS;6/6 Dogfood PASS;|0:1/5 Native build PASS;2/5 Tests PASS;3/5 Profiler PASS;4/5 Cross + package PASS;5/5 Other hosts PASS;" ]] \
+	&& _pass deeaz "steps run in the order they're numbered" \
+	|| _fail deeaz "steps run in the order they're numbered" "got=[${ceOrder}] $(fCeTail)"
 CE_HAVE_IMAGE=1 CE_RUN_RC=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container
 { ((ceRc == 1)) && [[ "${ceOut}" == *"the run in the container failed"* && "${ceOut}" != *"OK: installed"* && "${ceDocker}" != *"build "* ]]; } && _pass ddrpm "--container inner failure" \
 	|| _fail ddrpm "--container inner failure" "docker=[${ceDocker}] $(fCeTail)"
 ## A failed run cleans up too, but keeps the older tags, since nothing newer passed.
 ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
-{ ((ceRc == 1)) && [[ "${ceGone}" == "rm -f c0ffeec0ffee;rmi d4ngl3d4ngl3;builder prune -f --filter until=168h;" && "${ceOut}" == *"docker cleanup: removed"* ]]; } \
+{ ((ceRc == 1)) && [[ "${ceGone}" == "rm -f c0ffeec0ffee;rmi d4ngl3d4ngl3;builder prune -f --filter until=168h;" && "${ceOut}" == *"cleanup: removed 1 container(s)"* ]]; } \
 	&& _pass dedm9 "docker cleanup after a failure" \
 	|| _fail dedm9 "docker cleanup after a failure" "gone=[${ceGone}] $(fCeTail)"
 ## So does Ctrl+C in the middle of the container run or the image build, and
@@ -3197,9 +3443,11 @@ done
 ## --keep-temp keeps the run's containers, and says which.
 CE_HAVE_IMAGE=1 fCeRun -y --container --keep-temp
 ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
-{ ((ceRc == 0)) && grep -qE '^run --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-cicd-run\.[^ ]+-stages ' <<<"${ceDocker}" && [[ "${ceGone}" != *"rm -f"* && "${ceGone}" == *"builder prune"* ]] \
+{ ((ceRc == 0)) && grep -qE '^run --init -e TINI_KILL_PROCESS_GROUP=1 --name cbv-test-[0-9]{8}-[0-9]{6}_[0-9]{3}-stages ' <<<"${ceDocker}" && [[ "${ceGone}" != *"rm -f"* && "${ceGone}" == *"builder prune"* ]] \
 	&& [[ "${ceOut}" == *"[ kept container cbv-test-kept (--keep-temp) ]"* ]]; } && _pass dedmb "--keep-temp keeps the containers" \
 	|| _fail dedmb "--keep-temp keeps the containers" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
+## It keeps the run folder too, which dee7t checks. Gone here so later checks start clean.
+for ceD in "${ceRealTmp}/cbv-test"/*_[0-9][0-9][0-9]; do if [[ -d "${ceD}" ]]; then fSafeRmUnder "${ceRealTmp}/cbv-test" "${ceD}" || true; fi; done; rmdir "${ceRealTmp}/cbv-test" 2>/dev/null || true
 ## The cache volume goes once it's over the cap, and only when it's labeled ours.
 ceVol=""
 for ceCase in "cbv-test 2.5GB" "cbv-test 1.5GB" "other 9GB" " 9GB"; do
@@ -3296,7 +3544,7 @@ CE_CONTAINER_DEFAULT=1 fCeRun -y --no-container
 if command -v shellcheck >/dev/null 2>&1 && command -v ruff >/dev/null 2>&1; then
 	clRepo="${ceDir}/lint"
 	mkdir -p "${clRepo}/cicd/utility/include" "${clRepo}/lib" "${clRepo}/skip"
-	cp "${meDir}/cicd.bash" "${clRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${meDir}/utility/include/machine-use.bash" "${clRepo}/cicd/utility/include/"
+	cp "${meDir}/cicd.bash" "${clRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${meDir}/utility/include/machine-use.bash" "${meDir}/utility/include/safe-rm.bash" "${clRepo}/cicd/utility/include/"
 	cp "${ceRepo}/lib/out" "${clRepo}/lib/out"
 	## The linter commands are the real config's; the file list is the fixtures'.
 	cp "${ceRepo}/cicd/config.bash" "${clRepo}/cicd/config.bash"
@@ -3317,7 +3565,7 @@ EOF
 	fClRun(){
 		clRc=0
 		( cd "${clRepo}" && git add -A && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
-			HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 bash "${clRepo}/cicd/cicd.bash" -y </dev/null >"${CBT_OUT}" 2>&1 ) || clRc=$?
+			HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" HOST_TEMP="${ceDir}/tmp" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 bash "${clRepo}/cicd/cicd.bash" -y </dev/null >"${CBT_OUT}" 2>&1 ) || clRc=$?
 		clOut="$(<"${CBT_OUT}")"
 	}
 	fClTail(){ printf 'rc=%s out=[%s]' "${clRc}" "$(grep -E 'OK: (shellcheck|ruff)|FAILED|ABORTED|SC[0-9]{4}|\.py:' "${CBT_OUT}" | head -4 | tr '\n' ' ')"; }
@@ -3357,7 +3605,7 @@ fi
 if pwsh -NoProfile -NonInteractive -Command 'Import-Module PSScriptAnalyzer -ErrorAction Stop' </dev/null >/dev/null 2>&1; then
 	plRepo="${ceDir}/pslint"
 	mkdir -p "${plRepo}/cicd/utility/include" "${plRepo}/lib"
-	cp "${meDir}/cicd.bash" "${plRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${meDir}/utility/include/machine-use.bash" "${plRepo}/cicd/utility/include/"
+	cp "${meDir}/cicd.bash" "${plRepo}/cicd/"; cp "${meDir}/utility/include/gfs-rotate.bash" "${meDir}/utility/include/machine-use.bash" "${meDir}/utility/include/safe-rm.bash" "${plRepo}/cicd/utility/include/"
 	cp "${meDir}/utility/pssa-lint.ps1" "${plRepo}/cicd/utility/"; cp "${meDir}/../PSScriptAnalyzerSettings.psd1" "${plRepo}/"
 	cp "${ceRepo}/lib/out" "${plRepo}/lib/out"
 	cp "${ceRepo}/cicd/config.bash" "${plRepo}/cicd/config.bash"
@@ -3370,7 +3618,7 @@ if pwsh -NoProfile -NonInteractive -Command 'Import-Module PSScriptAnalyzer -Err
 	fPlRun(){
 		plRc=0
 		( cd "${plRepo}" && git add -A && env -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
-			HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" PSModulePath="${plModPath}" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 bash "${plRepo}/cicd/cicd.bash" -y </dev/null >"${CBT_OUT}" 2>&1 ) || plRc=$?
+			HOME="${ceDir}/home" TMPDIR="${ceDir}/tmp" HOST_TEMP="${ceDir}/tmp" PSModulePath="${plModPath}" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 bash "${plRepo}/cicd/cicd.bash" -y </dev/null >"${CBT_OUT}" 2>&1 ) || plRc=$?
 		plOut="$(<"${CBT_OUT}")"
 	}
 	fPlTail(){ printf 'rc=%s out=[%s]' "${plRc}" "$(grep -E 'PSScriptAnalyzer|FAILED|ABORTED|\.ps1:' "${CBT_OUT}" | head -4 | tr '\n' ' ')"; }
@@ -3467,7 +3715,7 @@ fSyGit init -q --bare "${syDir}/o.git"
 fSyGit init -q "${syA}"
 mkdir -p "${syA}/cicd/utility/include" "${syA}/lib"
 cp "${ceRepo}/cicd/cicd.bash" "${ceRepo}/cicd/config.bash" "${syA}/cicd/"
-cp "${ceRepo}/cicd/utility/include/gfs-rotate.bash" "${ceRepo}/cicd/utility/include/machine-use.bash" "${syA}/cicd/utility/include/"
+cp "${ceRepo}/cicd/utility/include/gfs-rotate.bash" "${ceRepo}/cicd/utility/include/machine-use.bash" "${ceRepo}/cicd/utility/include/safe-rm.bash" "${syA}/cicd/utility/include/"
 cp "${meDir}/utility/pre-push" "${syA}/cicd/utility/"
 cp "${ceRepo}/lib/out" "${syA}/lib/"
 printf '%s\n' '[[ -z "${CE_GATE_FAIL:-}" ]] || UNIT_TEST_CMD=(false)' >>"${syA}/cicd/config.bash"
@@ -3480,7 +3728,7 @@ fSyPushB(){ printf '%s\n' "$2" >>"${syB}/$1"; fSyGit -C "${syB}" commit -qam "b 
 fSyRun(){
 	syRc=0
 	( cd "${syDir}" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK \
-		HOME="${syDir}/home" TMPDIR="${syDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${syDir}/knobs" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 \
+		HOME="${syDir}/home" TMPDIR="${syDir}/tmp" HOST_TEMP="${syDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${syDir}/knobs" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 \
 		bash "${syA}/cicd/cicd.bash" -y "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || syRc=$?
 	syOut="$(<"${CBT_OUT}")"
 }
@@ -3535,7 +3783,7 @@ fSyHook(){
 	syRc=0
 	## In a container run the outer step list and container flag would reach the gate it starts.
 	( cd "${syA}" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u CICD_GATE_PASSED -u CICD_STEPS CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 \
-		HOME="${syDir}/home" TMPDIR="${syDir}/tmp" PATH="${ceBin}:${PATH}" "$@" \
+		HOME="${syDir}/home" TMPDIR="${syDir}/tmp" HOST_TEMP="${syDir}/tmp" PATH="${ceBin}:${PATH}" "$@" \
 		bash "${syA}/.git/hooks/pre-push" origin "${syDir}/o.git" <<<"${syLine}" >"${CBT_OUT}" 2>&1 ) || syRc=$?
 	syOut="$(<"${CBT_OUT}")"
 }
@@ -3599,7 +3847,7 @@ fSyGit init -q --bare "${hoDir}/o.git"
 fSyGit init -q "${hoA}"
 mkdir -p "${hoA}/cicd/utility/include" "${hoA}/lib" "${hoA}/gif"
 cp "${ceRepo}/cicd/cicd.bash" "${ceRepo}/cicd/config.bash" "${hoA}/cicd/"
-cp "${ceRepo}/cicd/utility/include/gfs-rotate.bash" "${ceRepo}/cicd/utility/include/machine-use.bash" "${hoA}/cicd/utility/include/"
+cp "${ceRepo}/cicd/utility/include/gfs-rotate.bash" "${ceRepo}/cicd/utility/include/machine-use.bash" "${ceRepo}/cicd/utility/include/safe-rm.bash" "${hoA}/cicd/utility/include/"
 cp "${meDir}/utility/pre-push" "${hoA}/cicd/utility/"; cp "${ceRepo}/lib/out" "${hoA}/lib/"; cp "${ceRepo}/gif.py" "${hoA}/"
 printf '%s\n' '#!/usr/bin/env bash' 'echo shot >>"$1/tracked.txt"' >"${hoA}/shot.bash"
 cat >>"${hoA}/cicd/config.bash" <<'EOF'
@@ -3623,7 +3871,7 @@ fHoReset(){
 	fSyGit -C "${hoA}" reset -q --hard "${hoBase}"; fSyGit -C "${hoA}" clean -qfd
 	fSyGit -C "${hoDir}/o.git" update-ref refs/heads/dev "${hoAhead}"
 	fSyGit -C "${hoDir}/o.git" update-ref -d refs/heads/published 2>/dev/null || true
-	rm -rf "${hoMarks}" "${hoA}/.git/hooks/pre-push"; mkdir -p "${hoMarks}/bin"
+	fTreeGone "${hoMarks}" "${hoA}/.git/hooks/pre-push"; mkdir -p "${hoMarks}/bin"
 	if [[ -n "${1:-}" ]]; then cp "$1" "${hoA}/cicd/cicd.bash"; fi
 	hoStatus="$(fSyGit -C "${hoA}" status --porcelain)"; hoRefs="$(fSyGit -C "${hoDir}/o.git" for-each-ref)"
 }
@@ -3631,7 +3879,7 @@ fHoReset(){
 fHoRun(){
 	hoRc=0
 	( cd "${hoDir}" && env -u GIT_DIR -u GIT_WORK_TREE -u GIT_INDEX_FILE -u CICDTEST_EXE -u CICDTEST_DO_LONGTEST -u CICDTEST_DO_PERF -u CICDTEST_QUICK -u CICDTEST_AREAS \
-		HOME="${hoDir}/home" TMPDIR="${syDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${hoDir}/knobs" HO_MARKS="${hoMarks}" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 \
+		HOME="${hoDir}/home" TMPDIR="${syDir}/tmp" HOST_TEMP="${syDir}/tmp" PATH="${ceBin}:${PATH}" CE_KNOBS="${hoDir}/knobs" HO_MARKS="${hoMarks}" CICD_NO_SKIP=0 CICD_IN_CONTAINER=0 \
 		bash "${hoA}/cicd/cicd.bash" "$@" </dev/null >"${CBT_OUT}" 2>&1 ) || hoRc=$?
 	hoOut="$(<"${CBT_OUT}")"
 }

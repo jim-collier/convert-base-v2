@@ -34,45 +34,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- There is no PowerShell installer.
-	- ID: 2026101411014803
-	- Type: Feature
-	- Status: Waiting on automated testing
-	- Needs external testing: Yes. On vm925w or b29w, in both Windows PowerShell 5.1 and pwsh 7: the one-liner with no options, answered y, then run again to see it's current; a new shell finding `convert-base-v2` on PATH, and the user PATH still REG_EXPAND_SZ; `-Target system` from a plain shell (refused) and an elevated one, over a setup `.exe` install; a prompt answered n; and `-Help`. Optionally pwsh on b26. The one-liner's URL only works once `install.ps1` is on main.
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: Windows, Linux, macOS
-	- Requirements:
-		- `install.ps1` beside `install.bash`, working on Windows PowerShell 5.1 and on pwsh 7 on any OS.
-		- It takes `-Release`, `-Target`, `-Yes`, `-Help` and `-Version`.
-		- It checks the download against `checksums.txt`.
-		- It shows the plan and asks before it installs, unless given `-Yes`.
-		- A permission problem gets a clear error.
-		- ASCII only.
-		- The README shows the one-line install.
-	- Done: `install.ps1` at the repo root, run from raw main like `install.bash`. Same releases list and version sort, same assets, same already-current check. On Windows it installs the bare `.exe` under `%LOCALAPPDATA%\Programs` or `%ProgramFiles%`, and adds the folder to the user or machine PATH through the registry. Elsewhere it uses `~/.local/bin` or `/usr/local/bin`, with sudo, as `install.bash` does.
-	- Done: a read-only folder is refused before any download, with the folder named. A system install on Windows from a plain shell is refused up front, and a running `.exe` that can't be replaced says so.
-	- Done: PSScriptAnalyzer runs in the lint stage over every tracked PowerShell file, with 5.1 and 7.0 syntax checks, and the pipeline image has pwsh 7.6.6 and PSScriptAnalyzer 1.25.0, pinned in `tool-versions.env`. The harness checks that PowerShell files are ASCII.
-	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
-	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
-	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
-	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
-	- Reproduced: 20261019, hosted CI run 39278064158 on the merge failed at the native build: `mkdir /cache/home/.cache/go-build: permission denied`.
-	- Cause: the image's pwsh check runs as root with `HOME=/cache/home`, and leaves root-owned `.cache/powershell` and `.local/share/powershell` there. A new `/cache` volume copies them in, so the build user can't make the Go cache. Local runs pass only because the existing volume hides it.
-	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
-	- Note: the fix is its own item, 2026101911072100.
-	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
-	- Swept: each `install.bash` check has a twin here (`ddgke`, `ddydt`, `ddydv`, `ddydw`, `ddys7`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
-	- Test case: `de582` PowerShell files are ASCII. `de583` parses from its raw bytes. `de584` options. `de585` and `de586` the version pick. `de587` installs in the one-liner form and leaves the caller's shell alone. `de588` already current. `de589` tampered checksum. `de58a` read-only folder. `de58b` the prompt. `de58c` says why. `de58d`, `de58e` and `de58f` the lint step. `de56v` now reads `install.ps1` too.
-	- Branch: ps1
-	- Commit: d3d16d7
-
 - CICD reset: containers.
 	- ID: 2026102416280100
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, for the whole harness and the image rebuilt under its new tag.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -95,12 +61,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: docker
 	- Commit: 0f72411
 	- Test case: dedmd (no working docker), dedme (image won't build), dedmf (`--no-container`). de5e3 wanted a failed build to fail the run, so it's commented out with the reason.
+	- Verified: 2026-10-26, two `--backlog-run-full` runs in the container passed the whole harness, the second at e23b810, on image c6400da47edb.
 
 - CICD reset: container cleanup.
 	- ID: 2026102416280102
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, which builds the image with its labels and prints the cleanup line at the end. Then the hand pass in the progress log.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -129,12 +96,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: docker
 	- Commit: 0f72411
 	- Test case: dedm7 (labels and names), dedm8 (cleanup after a pass), dedm9 (after a failure), dedma (after Ctrl+C), dedmb (`--keep-temp`), dedmc (volume cap). ddrph and ddrpj wanted the old tag gone right after a build and a run line without labels, so they're commented out with the reason.
+	- 2026-10-26: `--keep-temp` now keeps the run's temp folder too, through 2026102416280107.
+	- Verified: 2026-10-26, the full run at e23b810 passed dedps and ended with one believable `cleanup:` line. The hand pass removed image d02e0f0c5509 and the unlabeled volume convert-base-v2-cicd-cache by ID; the next run makes the volume with its label.
 
 - CICD reset: CPU and priority.
 	- ID: 2026102416280103
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, which builds the new image and runs every step in it with the CPU limit. The plan's Jobs line shows the counts it started with.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -161,13 +130,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: cpu
 	- Commit: a898a75
 	- Test case: dednt (the counts), dednv (nice and idle I/O), dednw (half on a quiet box), dednx (a quarter for the heavy steps), dedny (load checked again before each step), dedp0 (at most the container's `--cpus`), dednz (labels and the CPU limit on the container run), retired by the step output item for dedps, which checks the same. dedm7 wanted a run line with no CPU limit, so it's commented out with the reason.
+	- Verified: 2026-10-26, the full run at e23b810 showed the Jobs line (8 jobs, load 35 on 32 CPUs) and passed dednv, dednw, dednx, dedp0 and dedps.
 
 - CICD reset: step output.
 	- ID: 2026102416280105
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, which shows the step lines from inside the container and from the host in one count.
-	- Needs hand testing: a look at the output of that run, since it's what a person reads.
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Needs hand testing: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -191,12 +161,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: steps
 	- Commit: 4c69d4b
 	- Test case: dedpn (step lines), dedpp (off steps listed and not counted), dedpq (FAIL on a failed step), dedpv (gate steps), dedpr (numbers across the container and host runs), dedpt (counted again after a failed image build), dedps (the step list on the container run line). dednz wanted a run line with no step list, so it's commented out with the reason. ddgmj, de54f, ddys9, ddrpk, dedma, dedmd, dedme, ddydm and ddydq now match the new text.
+	- Verified: 2026-10-26, the full run at e23b810 numbered every step 1 to 9 in order across the container and the host, after the step order fix (deeaz). The output reads clearly.
 
 - CICD reset: test IDs.
 	- ID: 2026102416280106
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, for the fuzz lines with their real IDs and the harness in the container with the packaging rebuilds.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -218,14 +189,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: testids
 	- Commit: 7618572
 	- Test case: dedq9 (old IDs refused), dedqa (`new` skips a taken minute), dedq8 (harness PASS, FAIL and SKIP lines), dedqb (fuzz lines). ddgwd now checks the Go test line too.
+	- Verified: 2026-10-26, the full run at e23b810 printed the fuzz lines with their IDs (d9nx3, d9nx4, d9nx5) and passed the harness in the container, ddge9 included.
 
 - CICD reset: standard flags.
 	- ID: 2026102416280104
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, then one `--backlog-run-full`, which builds the current image and runs the real pins check, the demo gif made in the temp folder, and the profiler. `git status` should be the same after it.
-	- Needs external testing: Yes. Hosted CI: a manual run of the workflow, which is the first merge gate on the runner.
-	- Needs hand testing: a look at the `--list` and `--help` output and the area names, since they're what a person reads and types.
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Needs external testing: No.
+	- Needs hand testing: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -261,54 +233,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: dedr7 (`--list`), dedr8 (quick run, no areas), dedr9 (named areas), dedra (`--gate`, `--ci`, `--slow`), dedrb (other hosts and `--no-remote`), dedrc (full run and merge gate run every check), dedrd (the three change nothing they mustn't, against a plain run that does all of it), dedre (each of those stages left on is caught), dedrf (hook: main only, and the skip list), dedrg (the skip list matches files, and skips nothing a test reads), dedrh (workflow), dedrj (harness areas).
 	- Branch: flags2
 	- Commit: 14fe62d
-
-- The Windows `.exe` files have no icon or version information resource.
-	- ID: 2026101411014805
-	- Type: Enhancement
-	- Status: Waiting on UAT
-	- Needs external testing: Yes. On Windows, look at the icon in Explorer on both exes and both installers, and the Add/Remove Programs icon after an install.
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: Windows
-	- Note: Explorer shows a generic icon and an empty Details tab.
-	- Requirements:
-		- Each `.exe` has the project icon and version information.
-	- Progress log:
-		- 20261019: The resource is built at packaging time from the stamped version, not committed, so `--version` and the Details tab agree. goversioninfo is pinned and in the container image. The installers get the same icon and version details. Design notes are in design.md under packaging.
-	- Decisions:
-		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
-	- Verified: `make release` builds both exes and both installers with the icon (16 to 256 px) and the right version, read back from the files. The release assets still rebuild to the same bytes, with and without every packaging tool required.
-	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, packaging included.
-	- Verified: 20261019, on vm925w, Windows PowerShell 5.1 and pwsh 7 read the version info on both exes and both installers: product, description, version, prerelease flag on the exes, company, original filename, and the copyright with its real U+00A9. Windows pulls the icon from each of the 4 files. The x86_64 exe runs and its `--version` matches.
-	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
-	- Branch: winres
-	- Commit: 22399be
-	- Test case: de57e (bare exes), de57f (installers). Both failed before the change and pass after.
-
-- Run on the last Core 2 Duo, and AMD CPUs from that era.
-	- ID: 2026101301161880
-	- Type: Enhancement
-	- Status: Waiting on UAT
-	- Needs external testing: Yes, on an old CPU or an emulated one.
-	- Priority [Feature|Enhancement] | Severity [Bug]: Low
-	- Opened: 20261013-011618
-	- Opened by: JC
-	- Target OS: Linux, Windows and FreeBSD on x86_64, where this project builds them. Macs that old can't run a current macOS anyway.
-	- Requirements [Feature]:
-		- Release builds run on the last Core 2 Duo (Penryn, 2008), and on AMD Phenom II and Athlon II, if that's reasonably doable.
-			- Penryn has SSSE3 and SSE4.1 but no POPCNT. The AMD ones have POPCNT but no SSSE3. So the shared floor is plain x86-64, also called x86-64-v1.
-		- If that isn't doable, the floor is the first Core i3/i5/i7 (Nehalem, 2008), which is x86-64-v2. AMD's first chip at that level is Bulldozer, 2011.
-		- Faster code for newer CPUs is still fine, but it's picked at run time by a CPU feature test, never by the build target.
-		- Tests run the release build on an emulated Penryn and Phenom II, through Intel SDE or QEMU's `-cpu Penryn` and `-cpu phenom`.
-	- Progress log:
-		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
-			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
-		- 20261019: `package.bash` pins `GOAMD64=v1`. The pipeline image has qemu-user, and the harness runs the linux x86_64 release build as a Penryn and a Phenom II.
-	- Verified: 20261019, under qemu-user, a v1 build converts on Penryn, Phenom and Nehalem. A v2 build is refused on Penryn and Phenom and runs on Nehalem, and a v3 build is refused on all 3.
-	- Note: still open on real hardware, and for the Windows and FreeBSD builds, which are the same code.
-	- Test case: `de5ec` every x86_64 release build says `GOAMD64=v1`. `de5ee` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ddge9` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
-	- Branch: cleanup
+	- Verified: 2026-10-26, two `--backlog-run-full` runs passed with pins, demo gif and profiler, and left `git status` clean. Hosted run 40256013604 passed, its pipeline job included (17m41s). `--list` and `--help` read clearly.
 
 - A bare `tail: ,` in a config reads as no tail.
 	- ID: 2026101411014813
@@ -334,7 +259,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: other hosts and VMs.
 	- ID: 2026102416280101
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Started
 	- Needs external testing: Yes, on the Windows, macOS, FreeBSD, and arm64 Linux test boxes.
 	- Priority: High
 	- Opened: 20261024-162801
@@ -347,6 +272,100 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Each box is held through the shared host lock while it's in use. A VM is put back the way it was found, through the VM state helper.
 		- A box that isn't there shows as SKIP with a warning, and the run goes on.
 		- Each box gets a work folder for this project under its temp root.
+	- Progress log:
+		- 20261025: split by platform into 2026102516555342 (the runner, and FreeBSD), 2026102516555347 (Windows), 2026102516555352 (Intel macOS) and 2026102516555357 (arm64 Linux). This closes with the last of them.
+
+- CICD reset: other hosts, the runner and FreeBSD.
+	- ID: 2026102516555342
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Target OS: FreeBSD
+	- Requirements:
+		- The Other hosts step runs each box named in config, held through the host lock and put back by the VM state helper.
+		- A box that isn't there, or is busy past the wait, shows as SKIP with a warning, and the run goes on.
+		- Each box gets a work folder for this project under its temp root, removed at the end.
+		- vmFreeBSD runs the freebsd x86_64 release build, and its answers match the native build's.
+	- Progress log:
+		- 20261025: `cicd/utility/remote-hosts.bash` is the Other hosts step. It copies each box's build to a work folder under the box's temp root, runs a fixed set of conversions there and here, and fails on any difference. Both sides use a scratch HOME and UTC, so neither touches a user config.
+		- 20261025: the boxes and the hold command live in `../private/remote-hosts.bash`, read through `REMOTE_LOCAL`, since they're personal. Without it the step is off. The hold is the VM state helper's `wrap`, which takes the host lock.
+		- 20261025: a box that doesn't answer, or that the hold can't have, is a SKIP with a warning. Each box prints one PASS, FAIL or SKIP line with its test ID at the end.
+		- 20261025: stale work folders of ours on a box, older than 2 days, are removed at the start.
+		- 20261026: the container run numbered Other hosts before the profiler but ran the profiler first. Both plans now come from one list in the order the script runs the steps. deeaz failed before and passes after.
+	- Verified: 20261025, on vmFreeBSD from off: 13 cases matched the native build, the work folder was gone after, and the VM was off again. A run with a box the lock doesn't know went on with a SKIP.
+	- Verified: the CI engine area passes 109 of 109 and the self-check 6 of 6. dee71 to dee74 each failed with the code they watch broken, and dee75 failed before the empty-list fix.
+	- Note: the remote check's ID, dee6x, is in `remote-hosts.bash`, which `test-ids.py` doesn't read, so it can't see a clash there.
+	- Swept: `--no-remote`, `REMOTE_CMD` and "other hosts" across the docs. design.md, development.md and the changelog have it now. contributing.md's other hosts are the network checks, and stay.
+	- Test case: dee6x (the FreeBSD check on the box), dee71 (hold and cleanup), dee72 (no answer is a SKIP), dee73 (no hold is a SKIP), dee74 (different answers fail), dee75 (the step gets the boxes and the hold, and is off with none), deeaz (step numbers in run order, with the profiler and other hosts on).
+	- Branch: cicd2
+	- Verified: 2026-10-26, both full runs ended Other hosts with `PASS dee6x freebsd-x86_64 on vmFreeBSD`, and vmFreeBSD was off again after.
+
+- The Windows setup `.exe` replaces a long machine PATH with its own folder.
+	- ID: 2026102519371715
+	- Type: Bug
+	- Status: Queued
+	- Severity: Critical
+	- Opened: 20261025-193717
+	- Opened by: cicd2 test batch
+	- Related IDs: 2026101411014803, 2026101411014805
+	- Target OS: Windows
+	- Test environment: b29w, Windows 11 10.0.26200, machine PATH 4030 characters in 78 entries.
+	- Version and build: setup from e23b810 (3.0.0-336-ge23b810). The PATH code is the same in v3.0.0's `installer.nsi`, so the released setup most likely has it too (unverified).
+	- Steps to reproduce:
+		- On a box whose machine PATH is longer than 1024 characters, run `convert-base-v2-windows-x86_64-setup.exe /S` elevated.
+	- Incorrect behavior: the machine PATH afterwards holds only `C:\Program Files\convert-base-v2`. All 78 old entries were gone.
+	- Expected behavior: the old PATH kept as it was, with the folder added once at the end.
+	- Reproduced: 20261025, twice on b29w, once per shell, during the `install.ps1` checks. The PATH was saved first and put back after each run.
+	- Possible cause: `installer.nsi` reads the PATH with `ReadRegStr`, which gives an empty string for a value longer than NSIS's string limit (1024 by default). The `$0 == ""` branch then writes `$INSTDIR` alone.
+	- Note: the uninstall section never removes the PATH entry it added.
+	- Test case: none yet. A check could run the setup under Wine with a long PATH in the registry and compare before and after.
+
+- CICD reset: other hosts, Windows.
+	- ID: 2026102516555347
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: Windows
+	- Requirements:
+		- b29w runs the windows x86_64 exe through the runner from 2026102516555342, and its answers match the native build's.
+		- The installer is run there too, in its quiet mode, then uninstalled. b29w has admin over ssh.
+		- vm925w only for GPU or timed work, so not here.
+
+- CICD reset: other hosts, Intel macOS.
+	- ID: 2026102516555352
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: macOS
+	- Requirements:
+		- An Intel Mac runs the darwin x86_64 and universal builds through the runner from 2026102516555342, and their answers match the native build's.
+		- `install.bash` is tried there if it can run against the local build with a stand-in for the download.
+
+- CICD reset: other hosts, arm64 Linux.
+	- ID: 2026102516555357
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: Linux
+	- Requirements:
+		- vmDebARM64 runs the linux arm64 build through the runner from 2026102516555342, and its answers match the native build's.
+		- The arm64 deb is installed and removed there, if that fits its slow emulated CPU.
 
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
@@ -364,39 +383,11 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- The release notes table renders, every link downloads, and the notes end with the build line.
 	- Note: once this passes, add one line under Packages and installers in `install.md`: every asset rebuilds to the same bytes from its tagged commit, so the published checksums can be checked against your own build.
 
-- CICD reset: temp files and safe removal.
-	- ID: 2026102416280107
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026101910123200
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each run already has its own temp folder, removed on exit. What's left is below.
-		- The folder goes under `${HOST_TEMP}/<project>/`, named by time and a counter, and `TMPDIR`, `TEMP`, and `TMP` point at it.
-		- `--keep-temp` keeps it and prints the path.
-		- Each run also removes this project's stale run folders, older than 2 days with no live process from their `run.pid`.
-		- Every recursive remove in the pipeline, the helpers, and the installers goes through the repo's own copy of the safe removal guard, or one that names the one parent it may remove under. File list in the private notes.
-
-- CICD reset: version line.
-	- ID: 2026102416280108
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026102318392210
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides the one-line `--version` that `ddgdv` pins.
-		- The build number and the date of a non-release build are in. What's left is the copyright line after the version line in `--version`.
-
 - CICD reset: CICD process gaps.
 	- ID: 2026102416280109
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: Avg
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -407,6 +398,58 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 			- The leak checks aren't sorted into fast, slow, and hours-long groups by measured time.
 			- No FreeBSD `.pkg`.
 			- No end-of-run line saying what cleanup removed and freed.
+	- Progress log:
+		- 20261025: goleak was already in every Go package with tests, from 2026101816351432. dee8p now checks that it stays so.
+		- 20261025: each leak check has a length in `LEAK_LENGTH` in `config.bash`. Fast runs in every run, `--quick` and the backlog quick run included. Slow runs in a plain run and with `--long`. Hours runs only with `--long`. `--leakcheck` adds them all, and `--no-leakcheck` takes them all out.
+		- 20261025: the race run is fast, at 9 s on 8 jobs. The soak test (11 s) and CodeQL are slow, since the CICD rules name them so. Nothing takes hours yet.
+		- 20261025: `--no-leakcheck` runs the unit tests with the `noleakcheck` build tag, which drops goleak's `TestMain`.
+		- 20261025: in a backlog quick run the race run takes the same Go areas as the unit tests, and none when no Go area is named.
+		- 20261025: one `cleanup:` line at the end says what went, from docker, stale run folders and the run's own folder, and about how much that freed. It comes before the closing banner, as the docker line did. The run inside the container doesn't print one.
+		- 20261025: the FreeBSD `.pkg` is split into 2026102518082687.
+		- 2026-10-25: dedm8 wanted `[ docker cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB); about 0.0 GB freed ]`, and now wants `[ cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB), the run folder (SIZE); about SIZE freed ]`, with any size. dedm9 wanted `docker cleanup: removed`, and now wants `cleanup: removed 1 container(s)`.
+		- 20261026: the full run's cleanup line said about 315.7 GB freed, which was all of docker, since docker's total came back empty after. The docker part is now the sum of what the run removed, sized before: each image's unique size, the volume, and the pruned build cache. Docker's total isn't read, since other projects change it during a run. deeay failed before and passes after.
+	- Decisions:
+		- 20261025: goleak goes by a build tag rather than an env var, so a normal `go test` always has it.
+	- Verified: 20261025, a real `--backlog-run-quick convertbase errcode` ran the unit tests and the race run on those 2 packages and passed, and with `--no-leakcheck` ran the unit tests without goleak and no race run.
+	- Verified: 20261025, on the host, the CI engine area passes 118 of 118 and the release area's dee8p passes. In the container, all but dee7v and dee8z pass, through 2026102518111571. dee8p failed with the tag gone from one package and with goleak gone from another. dee8q, dee8r, dee8s, dee8t and dee8z each failed with the code they watch broken.
+	- Swept: `--leakcheck`, `--no-leakcheck`, "leak checks" and "docker cleanup" across the scripts and docs. contributing.md, development.md and the changelog have it now. The four `leak_test.go` files all have the tag.
+	- Test case: dee8p (goleak in every package, and the tag drops it), dee8q (by length), dee8r (`--leakcheck` and `--no-leakcheck`), dee8s (no goleak under `--no-leakcheck`), dee8t (race run follows the Go areas), dee8z (the cleanup line), deeay (only what was removed counts as freed).
+	- Branch: cicd2
+	- Prereq IDs: 2026102518082587, 2026102518111571
+	- Its full run waits on the two bugs from the temp files work.
+	- Verified: 2026-10-26, the full run at e23b810 ran the race detector, the soak test (de54s) and CodeQL clean, and ended with one `cleanup:` line of about 46 KB (deeay).
+
+- CICD reset: FreeBSD `.pkg`.
+	- ID: 2026102518082687
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Priority: Avg
+	- Opened: 20261025-180826
+	- Opened by: split from 2026102416280109
+	- Parent ID: 2026102416280109
+	- Related IDs: 2026101411014806, 2026102516555342
+	- Target OS: FreeBSD
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes the deferral in design.md and in 2026101411014806.
+		- Each FreeBSD release build, x86_64 and arm64, gets a native `.pkg` beside its tarball, named with the version, and listed in the checksums file.
+		- vmFreeBSD installs it with `pkg add`, runs it, and removes it, through the Other hosts runner.
+	- Note: nfpm doesn't write `.pkg`. A `.pkg` is a compressed tar with `+COMPACT_MANIFEST` and `+MANIFEST` first, so `package.bash` could write one with tar, or `pkg create` could on the box.
+	- Progress log:
+		- 20261025: `package.bash` writes `convert-base-v2-VERSION-freebsd-ARCH.pkg` for x86_64 and arm64 with tar and zstd, in the layout `pkg create` gives. It holds the binary in `/usr/local/bin` and the license in `/usr/local/share/licenses/convert-base-v2/`. It rebuilds to the same bytes, and `checksums.txt` lists it.
+		- 20261025: the release notes table and `install.md` list it, and design.md no longer defers it.
+		- 20261025: a box in `REMOTE_HOSTS` can have a fourth field, a root login. With one, the Other hosts step adds the package with `pkg add`, runs the same cases with the installed binary, removes it, and checks nothing is left. A package already installed, or a binary already in its place, is a SKIP, so nobody's install is touched. vmFreeBSD has `root@vmFreeBSD` now.
+	- Decisions:
+		- 20261025: the version in the name and inside has a `.` where the tag has a `-`, such as `3.1.0.beta1`, since pkg allows no `-` there. pkg sorts it below `3.1.0`.
+		- 20261025: the ABI is `FreeBSD:*:amd64` or `FreeBSD:*:aarch64`, any release, since the build is static. Origin and category are `converters`.
+		- 20261025: written here with tar rather than by `pkg create` on the box, so a release needs no FreeBSD box, and the release workflow gets the same file.
+	- Verified: 20261025, on vmFreeBSD 15.1 with pkg 2.7.5: the x86_64 `.pkg` installed with `pkg add`, ran, passed `pkg check -s`, and `pkg delete` left no file or folder. The arm64 one was refused there as the wrong arch. The Other hosts runner gave `PASS dee9x freebsd-x86_64 package on vmFreeBSD`, and FAIL with the arm64 package put in its place. The VM was off again after each.
+	- Verified: 20261025, on the host, the release area passes 71 of 71 and the CI area 121 of 121, and `--backlog-run-quick format lint release ci` passes. dee9w and ddge1 failed against the old `package.bash` and `release-notes.bash`. dee9y, dee9z and deea0 failed against the old `remote-hosts.bash`, and dee9z with the installed-package guard taken out.
+	- Swept: every reader of asset names: `release-notes.bash`, the stage 6 count in `cicd.bash`, the release workflow, which uploads `lib/dist/*` and now installs zstd, `install.md`, README and design.md. The `REMOTE_HOSTS` format in `config.bash` and the private list.
+	- Test case: dee9w (two `.pkg` files, manifests first, sums and version right), ddge9 (rebuilds to the same bytes), ddge1 (release notes list it), dee9x (installed, run and removed on the box), dee9y (the same against stand-ins), dee9z (an install already there is left alone, no root login is a SKIP), deea0 (a package that isn't removed fails).
+	- Branch: cicd2
+	- Note: 20261025, ddge1 wanted a FreeBSD row of binary and `.tgz`, and now wants the `.pkg` after them too.
+	- Verified: 2026-10-26, the full run at e23b810 passed ddge9 and dee9w with the image's zstd, and Other hosts ended with `PASS dee9x freebsd-x86_64 package on vmFreeBSD`.
 
 - The repo has no social preview image, so shared links show GitHub's generic card.
 	- ID: 2026101416210405
@@ -430,6 +473,203 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Related IDs: 2026100313304792, 2026102318390688
 	- Target OS: macOS
 	- Note: hosted CI now tests and runs a native darwin/arm64 build on an Apple silicon runner. That isn't the release's universal binary, so this stays open.
+
+- CICD reset: temp files and safe removal.
+	- ID: 2026102416280107
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Needs external testing: None left.
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101910123200
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each run already has its own temp folder, removed on exit. What's left is below.
+		- The folder goes under `${HOST_TEMP}/<project>/`, named by time and a counter, and `TMPDIR`, `TEMP`, and `TMP` point at it.
+		- `--keep-temp` keeps it and prints the path.
+		- Each run also removes this project's stale run folders, older than 2 days with no live process from their `run.pid`.
+		- Every recursive remove in the pipeline, the helpers, and the installers goes through the repo's own copy of the safe removal guard, or one that names the one parent it may remove under. File list in the private notes.
+	- Progress log:
+		- 20261025: the run folder is `${HOST_TEMP}/convert-base-v2/<time>_<NNN>`, made with a plain `mkdir` that counts up when the name is taken, and `TMPDIR`, `TEMP` and `TMP` point at it. It holds `run.pid`. It goes at the end, pass, fail or Ctrl+C, and the project folder too once empty.
+		- 20261025: `--keep-temp` keeps the folder and prints its path, as it already did for the containers.
+		- 20261025: a run first removes this project's run folders older than 2 days whose `run.pid` names no live process. A folder with no `run.pid`, and another project's, stay.
+		- 20261025: `cicd/utility/include/safe-rm.bash` is the repo's copy of the guard, with `fSafeRm` for temp paths and `fSafeRmUnder` for one named parent. The pipeline, `check-vendor`, `codeql-scan`, `gen-winres`, `interop/fetch`, `package.bash`, the harness, `bench-encoders`, `gen-screenshots` and `make clean` use it. The installers check their one work folder inline, since they run alone.
+		- 20261025: it works on BSD and macOS too, which have no `realpath -e` or `rm --one-file-system`.
+	- Decisions:
+		- 20261025: the run folder's name is now the docker run label and container name, so `dedps` and `dedmb` expect `<time>_<NNN>` where they wanted `cicd-run.*`. The harness's own runs of the pipeline get their own `HOST_TEMP`.
+	- Verified: 20261025, the format, lint, ci, self, cli and release areas pass, the release area with packaging. `dee7s`, `dee7t`, `dee7v` and `dee7w` each fail with the code they watch broken. `check-vendor.bash` and `make clean` leave nothing behind.
+	- Swept: every `rm -rf` and `Remove-Item -Recurse` in the repo. The Dockerfile's run in the image build on paths it made, and stay. The remote side of `remote-hosts.bash` keeps its own check of the work folder's shape.
+	- Test case: `dee7s` the run folder and its env, `dee7t` `--keep-temp`, `dee7v` the stale sweep, `dee7w` the guard. `de587` checks `install.ps1` leaves its temp folder empty.
+	- Branch: cicd2
+	- Verified: 2026-10-26, the full run at e23b810 in the container left nothing of its own under HOST_TEMP and `git status` clean. The installer checks on other boxes are left.
+	- Verified: 20261025, on b26 as `mactest`, under stock bash 3.2 and Homebrew bash 5.3, `install.bash` in the `bash <(...)` form left no `cbv2-install.*` folder in `$TMPDIR` after a good install, after a prompt answered n, and after a download made to fail once the work folder existed.
+	- Verified: 20261025, on b29w rather than vm925w, which another session held: `install.ps1` left no `cbv2-install-*` folder in the temp folder, in 5.1 and pwsh 7, as a plain user and elevated.
+	- Closed: 20261025-193717
+
+- There is no PowerShell installer.
+	- ID: 2026101411014803
+	- Type: Feature
+	- Status: Done
+	- Needs external testing: None left. The one-liner reads raw main, so its URL works once `install.ps1` is merged there. The code it runs is the same.
+	- Priority: Low
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: Windows, Linux, macOS
+	- Requirements:
+		- `install.ps1` beside `install.bash`, working on Windows PowerShell 5.1 and on pwsh 7 on any OS.
+		- It takes `-Release`, `-Target`, `-Yes`, `-Help` and `-Version`.
+		- It checks the download against `checksums.txt`.
+		- It shows the plan and asks before it installs, unless given `-Yes`.
+		- A permission problem gets a clear error.
+		- ASCII only.
+		- The README shows the one-line install.
+	- Done: `install.ps1` at the repo root, run from raw main like `install.bash`. Same releases list and version sort, same assets, same already-current check. On Windows it installs the bare `.exe` under `%LOCALAPPDATA%\Programs` or `%ProgramFiles%`, and adds the folder to the user or machine PATH through the registry. Elsewhere it uses `~/.local/bin` or `/usr/local/bin`, with sudo, as `install.bash` does.
+	- Done: a read-only folder is refused before any download, with the folder named. A system install on Windows from a plain shell is refused up front, and a running `.exe` that can't be replaced says so.
+	- Done: PSScriptAnalyzer runs in the lint stage over every tracked PowerShell file, with 5.1 and 7.0 syntax checks, and the pipeline image has pwsh 7.6.6 and PSScriptAnalyzer 1.25.0, pinned in `tool-versions.env`. The harness checks that PowerShell files are ASCII.
+	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
+	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
+	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
+	- Reproduced: 20261019, hosted CI run 39278064158 on the merge failed at the native build: `mkdir /cache/home/.cache/go-build: permission denied`.
+	- Cause: the image's pwsh check runs as root with `HOME=/cache/home`, and leaves root-owned `.cache/powershell` and `.local/share/powershell` there. A new `/cache` volume copies them in, so the build user can't make the Go cache. Local runs pass only because the existing volume hides it.
+	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
+	- Note: the fix is its own item, 2026101911072100.
+	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
+	- Swept: each `install.bash` check has a twin here (`ddgke`, `ddydt`, `ddydv`, `ddydw`, `ddys7`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
+	- Test case: `de582` PowerShell files are ASCII. `de583` parses from its raw bytes. `de584` options. `de585` and `de586` the version pick. `de587` installs in the one-liner form and leaves the caller's shell alone. `de588` already current. `de589` tampered checksum. `de58a` read-only folder. `de58b` the prompt. `de58c` says why. `de58d`, `de58e` and `de58f` the lint step. `de56v` now reads `install.ps1` too.
+	- Branch: ps1
+	- Commit: d3d16d7
+	- Verified: 20261025, on b29w as `wintest`, in Windows PowerShell 5.1 and pwsh 7.6.6, from a local copy run the one-liner way through `[scriptblock]::Create`: `-Help`, `-Version`, a prompt answered n touches nothing, answered y installs v3.0.0 under `%LOCALAPPDATA%\Programs`, the caller shell keeps its preferences, the user PATH stays REG_EXPAND_SZ with its old entries unexpanded, a shell built from the registry PATH finds `convert-base-v2`, a second run is current, and `-Target system` from a plain shell is refused before any download.
+	- Verified: 20261025, on b29w as an elevated `collierjr`, in both shells: over a setup `.exe` install, `-Target system` names the setup copy in its plan and replaces it, and leaves the machine PATH alone. On a clean box it installs to `%ProgramFiles%` and adds the folder at the end of the machine PATH, REG_EXPAND_SZ, with the old value kept as it was. A second run is current. No `cbv2-install-*` folder is left in either user's temp folder.
+	- Stand-in: the y and n answers came from a `Read-Host` function defined in the calling scope, since ssh has no console to type into. The "new shell" was a `cmd` started with the PATH built from the registry, machine then user.
+	- Note: 20261025, the setup `.exe` run for the "over a setup install" case wiped b29w's machine PATH. That is the setup's bug, filed as 2026102519371715, not this script's.
+	- Closed: 20261025-193717
+
+- The Windows `.exe` files have no icon or version information resource.
+	- ID: 2026101411014805
+	- Type: Enhancement
+	- Status: Done
+	- Needs external testing: None left. A look in Explorer by eye was replaced by the stand-in below.
+	- Priority: Low
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: Windows
+	- Note: Explorer shows a generic icon and an empty Details tab.
+	- Requirements:
+		- Each `.exe` has the project icon and version information.
+	- Progress log:
+		- 20261019: The resource is built at packaging time from the stamped version, not committed, so `--version` and the Details tab agree. goversioninfo is pinned and in the container image. The installers get the same icon and version details. Design notes are in design.md under packaging.
+	- Decisions:
+		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
+	- Verified: `make release` builds both exes and both installers with the icon (16 to 256 px) and the right version, read back from the files. The release assets still rebuild to the same bytes, with and without every packaging tool required.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, packaging included.
+	- Verified: 20261019, on vm925w, Windows PowerShell 5.1 and pwsh 7 read the version info on both exes and both installers: product, description, version, prerelease flag on the exes, company, original filename, and the copyright with its real U+00A9. Windows pulls the icon from each of the 4 files. The x86_64 exe runs and its `--version` matches.
+	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
+	- Branch: winres
+	- Commit: 22399be
+	- Test case: de57e (bare exes), de57f (installers). Both failed before the change and pass after.
+	- Verified: 20261025, on b29w, in Windows PowerShell 5.1 and pwsh 7, on the e23b810 release build: all 4 `.exe` files have their version info, with a real U+00A9, and the shell's Details columns (Copyright, Company, File description) read it back. Each file's icon, as Explorer extracts it, differs from the generic application icon.
+	- Verified: 20261025, after a silent install of the x86_64 setup `.exe`, the Add/Remove Programs entry has the name, version and publisher, and its `DisplayIcon` is the installed exe, which yields the full-color project icon.
+	- Stand-in: the icon and Details tab were read through the shell and `ExtractAssociatedIcon` over ssh, in place of a look in Explorer. Departs from the wording that way.
+	- Closed: 20261025-193717
+
+- Run on the last Core 2 Duo, and AMD CPUs from that era.
+	- ID: 2026101301161880
+	- Type: Enhancement
+	- Status: Done
+	- Needs external testing: None left. Real old hardware isn't at hand, and the emulated CPUs stand in for it.
+	- Priority [Feature|Enhancement] | Severity [Bug]: Low
+	- Opened: 20261013-011618
+	- Opened by: JC
+	- Target OS: Linux, Windows and FreeBSD on x86_64, where this project builds them. Macs that old can't run a current macOS anyway.
+	- Requirements [Feature]:
+		- Release builds run on the last Core 2 Duo (Penryn, 2008), and on AMD Phenom II and Athlon II, if that's reasonably doable.
+			- Penryn has SSSE3 and SSE4.1 but no POPCNT. The AMD ones have POPCNT but no SSSE3. So the shared floor is plain x86-64, also called x86-64-v1.
+		- If that isn't doable, the floor is the first Core i3/i5/i7 (Nehalem, 2008), which is x86-64-v2. AMD's first chip at that level is Bulldozer, 2011.
+		- Faster code for newer CPUs is still fine, but it's picked at run time by a CPU feature test, never by the build target.
+		- Tests run the release build on an emulated Penryn and Phenom II, through Intel SDE or QEMU's `-cpu Penryn` and `-cpu phenom`.
+	- Progress log:
+		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
+			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
+		- 20261019: `package.bash` pins `GOAMD64=v1`. The pipeline image has qemu-user, and the harness runs the linux x86_64 release build as a Penryn and a Phenom II.
+	- Verified: 20261019, under qemu-user, a v1 build converts on Penryn, Phenom and Nehalem. A v2 build is refused on Penryn and Phenom and runs on Nehalem, and a v3 build is refused on all 3.
+	- Note: still open on real hardware, and for the Windows and FreeBSD builds, which are the same code.
+	- Test case: `de5ec` every x86_64 release build says `GOAMD64=v1`. `de5ee` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ddge9` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
+	- Branch: cleanup
+	- Verified: 20261025, both full runs at e23b810 passed `de5ec` (every x86_64 release build says `GOAMD64=v1`, the Windows and FreeBSD ones included) and `de5ee` (the linux x86_64 build converts on an emulated Penryn and Phenom II).
+	- Note: closed on emulation alone, which departs from "still open on real hardware". The Windows and FreeBSD builds are the same Go code with the same `GOAMD64=v1`, so they weren't run emulated.
+	- Closed: 20261025-193717
+
+- The contractions test fails on the new temp folder message in `install.bash`.
+	- ID: 2026102518082587
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261025-180825
+	- Opened by: found while testing 2026102416280109
+	- Related IDs: 2026102416280107
+	- Steps to reproduce [Bug]:
+		- From `lib/`, `go test -run TestMessagesUseContractions ./cmd/convert-base-v2`.
+	- Incorrect behavior [Bug]: de56v fails with `install.bash:193: "could not"`, so the Go unit tests and the merge gate fail on cicd2.
+	- Expected behavior [Bug]: It passes, with the message written as "couldn't".
+	- Possible cause [Bug]: faa094f added the line, in the temp files work.
+	- Reproduced [Bug]: 20261025, de56v failed as described.
+	- Actual cause [Bug]: the line faa094f added said "could not".
+	- Actual fix [Bug]: it says "couldn't" now.
+	- Verified: 20261025, de56v failed before and passes after. The format, lint and convert-base-v2 areas pass.
+	- Swept: every string faa094f added. `cicd.bash` mixes both forms, and de56v doesn't read it.
+	- Branch: cicd2
+	- Test case: de56v
+	- Closed: 20261025-182633
+
+- In the container, the stale run folder sweep takes a live run's folder for a dead one.
+	- ID: 2026102518111571
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261025-181115
+	- Opened by: found while testing 2026102416280109
+	- Related IDs: 2026102416280107
+	- Steps to reproduce [Bug]:
+		- `cicd/cicd.bash --backlog-run-quick ci`, in the container.
+	- Incorrect behavior [Bug]: dee7v fails. The folder whose `run.pid` names a live process is removed too.
+	- Expected behavior [Bug]: Only the folder whose process is gone is removed, as on the host.
+	- Possible cause [Bug]: the image has no `ps`, so `fRunTmpSweep`'s `ps -p` always fails. `kill -0` is a builtin.
+	- Note: dee8z fails with it in the container too, since it counts 2 stale folders there rather than 1.
+	- Reproduced [Bug]: 20261025, in the container dee7v and dee8z failed with `ps -p` back in.
+	- Actual cause [Bug]: the image has no `ps`, so every `run.pid` read as dead.
+	- Actual fix [Bug]: the sweep checks the pid with `kill -0`, a builtin. A "not permitted" answer counts as live, as `ps -p` did for another user's process.
+	- Verified: 20261025, `--backlog-run-quick ci` in the container failed dee7v and dee8z before the fix, and passed both, and the rest of the area, after. Nothing was left under `HOST_TEMP`.
+	- Swept: every `ps`, `pgrep` and `pidof` in the scripts and `lib/Makefile`. The rest are `docker ps`. `fRunTmpSweep` is the only reader of `run.pid`.
+	- Branch: cicd2
+	- Test case: dee7v, dee8z
+	- Closed: 20261025-182633
+
+- CICD reset: version line.
+	- ID: 2026102416280108
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026102318392210
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides the one-line `--version` that `ddgdv` pins.
+		- The build number and the date of a non-release build are in. What's left is the copyright line after the version line in `--version`.
+	- Progress log:
+		- 20261025: `--version` prints the version line, then the same copyright line `--about` and `--help` have. `--about` still covers `--version`. The version line itself is unchanged, so `ddgdv` stays as it was.
+		- 20261025: both installers and the release notes read only the first line now. The installers' own versions went to 1.1.2 and 1.0.1.
+		- 20261025: README, design.md, the help text and the changelog say so.
+	- Decisions:
+		- 20261025: `ddgdw`, `ddf3r`, `ddf3s` and `ddg7b` now expect the copyright line after the version line, where they wanted the version line alone. Harness `ddgdx` was "one-line format" and checks both lines now. `ddf3p` counts the first line only.
+	- Verified: 20261025, the Go tests and the format, lint, go, cli and release areas pass. `ddgdw`, `ddf3r` and `ddf3s` fail with the copyright line taken out. The new `ddys7` case, an unstamped build with the copyright line, fails on the old `install.bash` logic.
+	- Swept: every `--version` reader in the repo: both installers, `release-notes.bash`, `remote-hosts.bash`, which compares the whole output on both sides, and the harness.
+	- Test case: `ddgdx` both lines, `ddgdw` from a stamped binary, `ddf3r` and `ddf3s` in Go, `ddys7` and `de588` for the installers.
+	- Branch: cicd2
+	- Closed: 20261025
 
 - Run CICD on GitHub's free arm64 macOS runners.
 	- ID: 2026102318390688
@@ -2674,7 +2914,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - FreeBSD gets only a tarball.
 	- ID: 2026101411014806
 	- Type: Feature
-	- Status: Deferred
+	- Status: Done
 	- Priority: Low
 	- Opened: 20261014-110148
 	- Opened by: Repo review 20261014
@@ -2682,6 +2922,9 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Requirements:
 		- Build a native `.pkg` for FreeBSD.
 	- Note: design.md defers it, beside the macOS `.dmg`.
+	- Prereq IDs: 2026102518082687
+	- 2026-10-26: the `.pkg` went in through 2026102518082687, so this needs only that item's full run.
+	- Verified: 2026-10-26, through 2026102518082687's full run.
 
 ## Old format
 

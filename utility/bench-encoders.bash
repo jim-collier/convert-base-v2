@@ -39,13 +39,15 @@ fi
 [[ -x "$EXE" ]] || { echo "convert-base-v2 not found; pass its path as the first argument" >&2; exit 1; }
 
 # Work in RAM so slow disks don't skew the result.
+source "${meDir}/../cicd/utility/include/safe-rm.bash"
 if [[ -d /dev/shm && -w /dev/shm ]]; then
-	work="$(mktemp -d /dev/shm/cbench.XXXXXX)"
+	workRoot="$(realpath -- /dev/shm)"
 else
 	echo "note: /dev/shm unavailable, falling back to \$TMPDIR (may hit disk)" >&2
-	work="$(mktemp -d)"
+	workRoot="$(realpath -- "${TMPDIR:-/tmp}")"
 fi
-trap 'rm -rf "$work"' EXIT
+work="$(mktemp -d "${workRoot}/cbench.XXXXXX")"
+trap 'fSafeRmUnder "${workRoot}" "${work}" || true' EXIT
 
 blob="${work}/blob"
 head -c "$(( SIZE_MIB * 1024 * 1024 ))" /dev/urandom >"$blob"

@@ -38,11 +38,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - `--about` prints the version, copyright, license and project home, with a short description. `--donate` lists the GitHub Sponsors and Ko-fi links. `-v` and `-V` work as `--version`.
 
-- `--version` names the program and the build too, as `convert-base-v2 v3.1.0 build dbrk8`, still on one line. The build number is the minutes from the start of 2000 to the time of the commit it was built from, in lower-case Crockford base32. It comes from the commit, not the clock, so a release can still be rebuilt to its published checksums. `--about` and `--help` open with the same line. A plain `go build` or `go install` leaves the build number off. A build between releases adds the commit date in the local time zone of whoever runs it, as `build dbrk8 (2026-10-23)`.
+- `--version` names the program and the build too, as `convert-base-v2 v3.1.0 build dbrk8`, with the copyright on the line after it. The build number is the minutes from the start of 2000 to the time of the commit it was built from, in lower-case Crockford base32. It comes from the commit, not the clock, so a release can still be rebuilt to its published checksums. `--about` and `--help` open with the same line. A plain `go build` or `go install` leaves the build number off. A build between releases adds the commit date in the local time zone of whoever runs it, as `build dbrk8 (2026-10-23)`.
 
 - A universal macOS build, `convert-base-v2-darwin-universal`, that runs on both Intel and Apple silicon Macs. The separate Intel and ARM builds are still there.
 
 - Releases include the WASI build of the command, `convert-base-v2.wasm`, for any WebAssembly runtime.
+
+- FreeBSD releases include a `.pkg` for x86_64 and arm64, such as `convert-base-v2-3.1.0.beta1-freebsd-x86_64.pkg`, for `pkg add`. A beta's version has a `.` where the tag has a `-`, since pkg doesn't allow one there, and it still sorts below its final release. `pkg delete convert-base-v2` removes it.
 
 - The Windows `.exe` files and installers have an icon, the project mascot, and version details that Explorer shows on the Properties tab.
 
@@ -141,6 +143,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The pipeline has a fast `--gate` run of the format check, lint and unit tests, which a pre-push hook runs for `dev` and `main`. A full run fast-forwards from the remote first.  [20261014]
 
 - The pipeline takes the flags its sister projects share. `--backlog-run-quick` runs the quick checks, or only the areas named after it, and `--backlog-run-full` and `--merge-gate` run every check. None of the three installs, commits, pushes, or changes a tracked file. The pre-push hook runs the merge gate for `main` only, and not for a push that only changes docs. Hosted CI runs it for `main` in place of a quick run on every push.  [20261025]
+
+- Each pipeline run works in its own temp folder under `HOST_TEMP`, removed at the end, and `--keep-temp` keeps it. Folders left by a killed run are removed after 2 days. Every recursive remove in the scripts goes through one guard that refuses links and anything outside a temp folder or the one parent it names.  [20261025]
+
+- A full pipeline run also runs the release builds on other machines, starting with FreeBSD, and checks that they give the same answers as the native build. Each box is listed in a file outside the repo. A box that doesn't answer is skipped with a warning, and `--no-remote` skips them all.  [20261025]
+
+- The pipeline's leak checks run by how long each takes. The fast ones, goleak and the race detector run, are in every run, `--quick` and the backlog quick run too. The soak test and CodeQL are slow, and run in a plain run and with `--long`, which would also have any that take hours. `--leakcheck` adds them all, and `--no-leakcheck` takes them all out, goleak included.  [20261025]
+
+- The pipeline's Other hosts step installs the FreeBSD `.pkg` with `pkg add` where the box list gives a root login, runs the same cases with it, and removes it. A box that already has the package, or a binary in its place, is left alone.  [20261025]
+
+- One line at the end of a pipeline run says what its cleanup removed, from docker, old run folders and its own, and about how much that freed.  [20261025]
 
 - A pipeline run with no flags includes the long tests. `--quick` still cross-compiles and packages, which takes seconds, and leaves out the checks that reach other hosts.  [20261019]
 

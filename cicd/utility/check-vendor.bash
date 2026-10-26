@@ -31,8 +31,10 @@ root="$(cd "${here}/../.." && pwd)"
 # shellcheck disable=1091  ## 'Not following.' The pin file is data, and it sits next to this script.
 source "${here}/../vendor-pins.env"
 
-tmp="$(mktemp -d)"
-trap 'rm -rf "${tmp}"' EXIT
+source "${here}/include/safe-rm.bash"
+tmpRoot="$(realpath -- "${TMPDIR:-/tmp}")"
+tmp="$(mktemp -d "${tmpRoot}/check-vendor.XXXXXX")"
+trap 'fSafeRmUnder "${tmpRoot}" "${tmp}" || true' EXIT
 
 declare -i failed=0 checked=0 unchecked=0
 

@@ -3,6 +3,8 @@
 //		https://spdx.org/licenses/GPL-2.0-or-later.html
 //	SPDX-License-Identifier: GPL-2.0-or-later
 
+//go:build !noleakcheck
+
 package main
 
 import (
