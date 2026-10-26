@@ -73,7 +73,7 @@ func TestPrintInfoLone(t *testing.T) {
 	if err := printInfo(&got, parseInfo(t, "--version"), nil); err != nil {
 		t.Fatal(err)
 	}
-	if got.String() != versionText()+"\n" {
+	if got.String() != versionText()+"\n"+copyrightLine()+"\n" {
 		t.Errorf("--version: got %q", got.String())
 	}
 
@@ -99,7 +99,7 @@ func TestPrintInfoSeparation(t *testing.T) {
 	}
 	var donate strings.Builder
 	printDonate(&donate)
-	want := versionText() + "\n\nHELP\n\n" + donate.String()
+	want := versionText() + "\n" + copyrightLine() + "\n\nHELP\n\n" + donate.String()
 	if got.String() != want {
 		t.Errorf("got %q\nwant %q", got.String(), want)
 	}
@@ -142,7 +142,7 @@ func TestVersionIsPatchable(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := strings.TrimSpace(string(out)); got != "convert-base-v2 v9.8.7-stamped" {
+	if got, _, _ := strings.Cut(string(out), "\n"); got != "convert-base-v2 v9.8.7-stamped" {
 		t.Errorf("--version = %q, want the stamped v9.8.7-stamped", got)
 	}
 }

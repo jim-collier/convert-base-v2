@@ -69,7 +69,7 @@ param(
 	## 5.1 repaints the bar per chunk, which slows a download a lot.
 	$ProgressPreference = 'SilentlyContinue'
 
-	$installerVersion = '1.0.0'
+	$installerVersion = '1.0.1'
 	$pkg = 'convert-base-v2'
 	$repo = 'jim-collier/convert-base-v2'
 
@@ -160,7 +160,7 @@ Notes:
 		return $best
 	}
 
-	## Runs a program's --version, or '' when it won't. Started directly, never
+	## The first line of a program's --version, or '' when it won't run. Started directly, never
 	## through `&`, which on Linux hands a non-executable file to xdg-open.
 	function Get-ProgramVersion {
 		[CmdletBinding()]
@@ -176,7 +176,7 @@ Notes:
 			$null = $proc.StandardError.ReadToEnd()
 			if (-not $proc.WaitForExit(10000)) { $proc.Kill(); return '' }
 			if ($proc.ExitCode -ne 0) { return '' }
-			return $text.Trim()
+			return ($text.Trim() -split '\r?\n')[0].Trim()
 		} catch {
 			return ''
 		}

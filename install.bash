@@ -29,7 +29,7 @@
 
 set -Eeuo pipefail
 
-INSTALLER_VERSION="1.1.1"
+INSTALLER_VERSION="1.1.2"
 PKG="convert-base-v2"
 REPO="jim-collier/convert-base-v2"
 API="https://api.github.com/repos/${REPO}/releases"
@@ -157,8 +157,8 @@ url="https://github.com/${REPO}/releases/download/${tag}/${asset}"
 
 ## Already current? Then there is nothing to do.
 if [[ -x "${destPath}" ]]; then
-	## "convert-base-v2 v3.1.0 build dbrk8". Before 3.0.1 it had no name in front.
-	haveVer="$("${destPath}" --version 2>/dev/null || true)"; haveVer="${haveVer#"${PKG} "}"
+	## "convert-base-v2 v3.1.0 build dbrk8", then the copyright. Before 3.0.1 it had no name in front.
+	haveVer="$("${destPath}" --version 2>/dev/null || true)"; haveVer="${haveVer%%$'\n'*}"; haveVer="${haveVer#"${PKG} "}"
 	if [[ "${haveVer%% *}" == "${tag}" ]]; then
 		fEcho "${destPath} is already ${tag}; nothing to do"
 		echo
@@ -212,7 +212,7 @@ else
 	install -m 0755 "${work}/${asset}" "${destPath}"
 fi
 
-fEcho "Installed: $("${destPath}" --version)"
+nowVer="$("${destPath}" --version)"; fEcho "Installed: ${nowVer%%$'\n'*}"
 case ":${PATH}:" in
 	*":${destDir}:"*) : ;;
 	*) fEcho "NOTE: ${destDir} isn't in your PATH" ;;

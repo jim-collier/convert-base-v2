@@ -213,11 +213,13 @@ done
 ## build from a clone once stamped the library's version on the command.
 _run --version
 { ((_rc == 0)) && [[ "$_out" == "convert-base-v2 v"[1-9]* ]]; } && _pass ddg7f "--version: command tag" || _fail ddg7f "--version: command tag" "out=[$_out]"
-## Still one line for scripts: the name, the version, then the build number when
-## the build was stamped, with no space at either end. Crockford base32, lower
-## case, so no i, l, o or u. A build between releases ends with its date.
+## The first line is for scripts: the name, the version, then the build number
+## when the build was stamped, with no space at either end. Crockford base32,
+## lower case, so no i, l, o or u. A build between releases ends with its date.
+## The copyright line follows, and nothing else.
+cbVerRe='^convert-base-v2 v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+( \([0-9]{4}-[0-9]{2}-[0-9]{2}\))?)?'$'\n''Copyright © [0-9-]+ Jim Collier [^'$'\n'']+\.$'
 _run --version
-{ ((_rc == 0)) && [[ "$_out" =~ ^convert-base-v2\ v[^[:space:]]+( build [0-9a-hjkmnp-tv-z]+( \([0-9]{4}-[0-9]{2}-[0-9]{2}\))?)?$ ]]; } && _pass ddgdx "--version one-line format" || _fail ddgdx "--version one-line format" "out=[$_out]"
+{ ((_rc == 0)) && [[ "$_out" =~ ${cbVerRe} ]]; } && _pass ddgdx "--version format" || _fail ddgdx "--version format" "out=[$_out]"
 ## make stamps the commit's time, never the clock, so a release rebuilds to its checksums.
 cbEpoch="$(git -C "${meDir}" log -1 --format=%ct 2>/dev/null || true)"
 if [[ -z "${cbEpoch}" ]] || ! command -v make >/dev/null 2>&1; then
@@ -246,9 +248,9 @@ _run --version --donate
 { ((_rc == 0)) && [[ "$_out" == "${cbVer}"$'\n\n'"convert-base-v2 is free"* ]]; } && _pass ddf3m "--version --donate prints both, in order" || _fail ddf3m "--version --donate prints both, in order" "rc=$_rc out=[$_out]"
 _run --help --donate --help
 { ((_rc == 0)) && [[ "$_out" == "${cbVer}"* ]] && [[ "$_out" == *"https://ko-fi.com/jimcollier"* ]] && (($(grep -c '^Usage:' <<<"$_out") == 1)); } && _pass ddf3n "--help --donate --help prints help once, then donate" || _fail ddf3n "--help --donate --help prints help once, then donate" "rc=$_rc out=[$_out]"
-## --about opens with the version line, so --version adds nothing to it.
+## --about opens with the version and copyright lines, so --version adds nothing to it.
 _run --about --version
-{ ((_rc == 0)) && (($(grep -cxF -- "${cbVer}" <<<"$_out") == 1)); } && _pass ddf3p "--about covers --version" || _fail ddf3p "--about covers --version" "rc=$_rc out=[$_out]"
+{ ((_rc == 0)) && (($(grep -cxF -- "${cbVer%%$'\n'*}" <<<"$_out") == 1)) && [[ "$_out" == "${cbVer}"$'\n'* ]]; } && _pass ddf3p "--about covers --version" || _fail ddf3p "--about covers --version" "rc=$_rc out=[$_out]"
 ## No-args error path keeps help on stderr, exit 2, stdout empty.
 _run
 { ((_rc == 2)) && [[ -z "$_out" ]] && [[ -n "$_err" ]]; } && _pass d9qdc "no-args help stays on stderr" || _fail d9qdc "no-args help stays on stderr" "rc=$_rc outlen=${#_out} errlen=${#_err}"
@@ -2169,8 +2171,8 @@ fInRun; [[ "${inrc}" == 1 && "${inOut}" == *"aborted; nothing was touched"* && !
 ## Already current, read from the installed build's --version, with the name in
 ## front as now, or without it as before 3.0.1.
 fInList v3.0.0 >"${inDir}/release.json"; mkdir -p "${inDir}/home/.local/bin"
-for inLine in "convert-base-v2 v3.0.0 build abcde" "v3.0.0 build abcde" "v3.0.0"; do
-	printf '#!/bin/sh\necho "%s"\n' "${inLine}" >"${inDir}/home/.local/bin/convert-base-v2"; chmod +x "${inDir}/home/.local/bin/convert-base-v2"
+for inLine in "convert-base-v2 v3.0.0 build abcde" "convert-base-v2 v3.0.0\nCopyright" "v3.0.0 build abcde" "v3.0.0"; do
+	printf '#!/bin/sh\nprintf "%s\\n"\n' "${inLine}" >"${inDir}/home/.local/bin/convert-base-v2"; chmod +x "${inDir}/home/.local/bin/convert-base-v2"
 	fInRun -y
 	{ ((inrc == 0)) && [[ "${inOut}" == *"is already v3.0.0; nothing to do"* ]]; } && _pass ddys7 "install.bash sees it's current: ${inLine}" \
 		|| _fail ddys7 "install.bash sees it's current: ${inLine}" "rc=${inrc} out=[${inOut}]"
@@ -2242,7 +2244,7 @@ EOF
 		(cd "${psFix}/dist" && sha256sum "${psAsset}.tgz" "${psAsset}" >checksums.txt); psFrom="stub"
 	fi
 	chmod +x "${psFix}/dist/${psAsset}"; cp "${psFix}/dist/checksums.txt" "${psDir}/checksums.good"
-	psVerLine="$("${psFix}/dist/${psAsset}" --version 2>/dev/null || true)"; psTag="${psVerLine#convert-base-v2 }"; psTag="${psTag%% *}"
+	psVerLine="$("${psFix}/dist/${psAsset}" --version 2>/dev/null || true)"; psVerLine="${psVerLine%%$'\n'*}"; psTag="${psVerLine#convert-base-v2 }"; psTag="${psTag%% *}"
 	## fPsRun STDIN MODE ARGS...: block is the one-liner form, file runs the file.
 	fPsRun(){
 		local psIn="$1"; shift; psRc=0
@@ -2276,13 +2278,13 @@ EOF
 	fInList "${psTag}" >"${psFix}/release.json"
 	fPsRun "" block -Yes
 	psUrls="$(tr '\n' ' ' <"${psFix}/urls.log")"; psU="https://github.com/jim-collier/convert-base-v2/releases/download/${psTag}"
-	{ ((psRc == 0)) && [[ -n "${psTag}" && -x "${psBin}" && "$("${psBin}" --version 2>&1)" == "${psVerLine}" && "${psOut}" == *"[ Installed: ${psVerLine} ]"* ]] \
+	{ ((psRc == 0)) && [[ -n "${psTag}" && -x "${psBin}" && "$("${psBin}" --version 2>&1 | head -n 1)" == "${psVerLine}" && "${psOut}" == *"[ Installed: ${psVerLine} ]"* ]] \
 		&& [[ "${psUrls}" == *"/releases?per_page=100 ${psU}/${psAsset} ${psU}/checksums.txt " && "${psOut}" == *"caller still here, EAP=Continue, unset=True"* ]] \
 		&& [[ ! -e "${psHome}/.local/bin/.convert-base-v2.new" && -z "$(ls -A "${psDir}/tmp")" ]]; } && _pass de587 "install.ps1 installs, ${psFrom} release" \
 		|| _fail de587 "install.ps1 installs, ${psFrom} release" "tag=[${psTag}] urls=[${psUrls}] $(fPsTail)"
 	mkdir -p "${psHome}/.local/bin"
-	for psLine in "convert-base-v2 ${psTag} build abcde" "${psTag} build abcde" "${psTag}"; do
-		printf '#!/bin/sh\necho "%s"\n' "${psLine}" >"${psBin}"; chmod +x "${psBin}"
+	for psLine in "convert-base-v2 ${psTag} build abcde" "convert-base-v2 ${psTag}\nCopyright" "${psTag} build abcde" "${psTag}"; do
+		printf '#!/bin/sh\nprintf "%s\\n"\n' "${psLine}" >"${psBin}"; chmod +x "${psBin}"
 		fPsRun "" file -Yes
 		{ ((psRc == 0)) && [[ "${psOut}" == *"is already ${psTag}; nothing to do"* ]]; } && _pass de588 "install.ps1 sees it's current: ${psLine}" \
 			|| _fail de588 "install.ps1 sees it's current: ${psLine}" "$(fPsTail)"

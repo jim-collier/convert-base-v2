@@ -96,7 +96,7 @@ Inside the package:
 
 - Query flags (`--list`, `--show-symbols`, and friends) print and exit, so scripts can read the base set from the program itself. `--get-base-name` and `--show-symbols` take the base as a positional argument, or from `--by-index`, which only picks a base.
 
-- The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` stays one bare line for scripts, such as `convert-base-v2 v3.1.0 build dbrk8`, with no build part when the build wasn't stamped. The version is always the second word. Only the help reports on the config files, so the others print before any config is read.
+- The informational flags are `--help`/`-h`, `--examples`, `--version`, `--about` and `--donate`, matching sister project shcl. They write to stdout and exit 0. Several in one run each print once, in the order given, with one blank line between. `--about` opens with the version line, so it covers `--version`. A lone `--version` prints the version line, such as `convert-base-v2 v3.1.0 build dbrk8`, with no build part when the build wasn't stamped, then the copyright line. Scripts read the first line, and the version is always its second word. Only the help reports on the config files, so the others print before any config is read.
 
 #### Flags by mode
 

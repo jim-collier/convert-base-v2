@@ -452,19 +452,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Each run also removes this project's stale run folders, older than 2 days with no live process from their `run.pid`.
 		- Every recursive remove in the pipeline, the helpers, and the installers goes through the repo's own copy of the safe removal guard, or one that names the one parent it may remove under. File list in the private notes.
 
-- CICD reset: version line.
-	- ID: 2026102416280108
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026102318392210
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides the one-line `--version` that `ddgdv` pins.
-		- The build number and the date of a non-release build are in. What's left is the copyright line after the version line in `--version`.
-
 - CICD reset: CICD process gaps.
 	- ID: 2026102416280109
 	- Type: Enhancement
@@ -502,6 +489,30 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Related IDs: 2026100313304792, 2026102318390688
 	- Target OS: macOS
 	- Note: hosted CI now tests and runs a native darwin/arm64 build on an Apple silicon runner. That isn't the release's universal binary, so this stays open.
+
+- CICD reset: version line.
+	- ID: 2026102416280108
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026102318392210
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides the one-line `--version` that `ddgdv` pins.
+		- The build number and the date of a non-release build are in. What's left is the copyright line after the version line in `--version`.
+	- Progress log:
+		- 20261025: `--version` prints the version line, then the same copyright line `--about` and `--help` have. `--about` still covers `--version`. The version line itself is unchanged, so `ddgdv` stays as it was.
+		- 20261025: both installers and the release notes read only the first line now. The installers' own versions went to 1.1.2 and 1.0.1.
+		- 20261025: README, design.md, the help text and the changelog say so.
+	- Decisions:
+		- 20261025: `ddgdw`, `ddf3r`, `ddf3s` and `ddg7b` now expect the copyright line after the version line, where they wanted the version line alone. Harness `ddgdx` was "one-line format" and checks both lines now. `ddf3p` counts the first line only.
+	- Verified: 20261025, the Go tests and the format, lint, go, cli and release areas pass. `ddgdw`, `ddf3r` and `ddf3s` fail with the copyright line taken out. The new `ddys7` case, an unstamped build with the copyright line, fails on the old `install.bash` logic.
+	- Swept: every `--version` reader in the repo: both installers, `release-notes.bash`, `remote-hosts.bash`, which compares the whole output on both sides, and the harness.
+	- Test case: `ddgdx` both lines, `ddgdw` from a stamped binary, `ddf3r` and `ddf3s` in Go, `ddys7` and `de588` for the installers.
+	- Branch: cicd2
+	- Closed: 20261025
 
 - Run CICD on GitHub's free arm64 macOS runners.
 	- ID: 2026102318390688
