@@ -72,7 +72,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- ID: 2026102416280107
 	- Type: Enhancement
 	- Status: Waiting on automated testing
-	- Needs local test suite run?: one `cicd/cicd.bash --backlog-run-full`, in the container, where the run inside makes its folder under the image's `/tmp`. Nothing of the run should be left under `HOST_TEMP` after, and `git status` should be the same.
+	- Needs local test suite run?: No.
 	- Needs external testing: `install.bash` on an Intel Mac (b26) and `install.ps1` on Windows (vm925w), under the host lock, each leaving no `cbv2-install` folder in the temp folder.
 	- Priority: Avg
 	- Opened: 20261024-162801
@@ -97,12 +97,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every `rm -rf` and `Remove-Item -Recurse` in the repo. The Dockerfile's run in the image build on paths it made, and stay. The remote side of `remote-hosts.bash` keeps its own check of the work folder's shape.
 	- Test case: `dee7s` the run folder and its env, `dee7t` `--keep-temp`, `dee7v` the stale sweep, `dee7w` the guard. `de587` checks `install.ps1` leaves its temp folder empty.
 	- Branch: cicd2
+	- Verified: 2026-10-26, the full run at e23b810 in the container left nothing of its own under HOST_TEMP and `git status` clean. The installer checks on other boxes are left.
 
 - CICD reset: containers.
 	- ID: 2026102416280100
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, for the whole harness and the image rebuilt under its new tag.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -125,12 +126,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: docker
 	- Commit: 0f72411
 	- Test case: dedmd (no working docker), dedme (image won't build), dedmf (`--no-container`). de5e3 wanted a failed build to fail the run, so it's commented out with the reason.
+	- Verified: 2026-10-26, two `--backlog-run-full` runs in the container passed the whole harness, the second at e23b810, on image c6400da47edb.
 
 - CICD reset: container cleanup.
 	- ID: 2026102416280102
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, which builds the image with its labels and prints the cleanup line at the end. Then the hand pass in the progress log.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -160,12 +162,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 0f72411
 	- Test case: dedm7 (labels and names), dedm8 (cleanup after a pass), dedm9 (after a failure), dedma (after Ctrl+C), dedmb (`--keep-temp`), dedmc (volume cap). ddrph and ddrpj wanted the old tag gone right after a build and a run line without labels, so they're commented out with the reason.
 	- 2026-10-26: `--keep-temp` now keeps the run's temp folder too, through 2026102416280107.
+	- Verified: 2026-10-26, the full run at e23b810 passed dedps and ended with one believable `cleanup:` line. The hand pass removed image d02e0f0c5509 and the unlabeled volume convert-base-v2-cicd-cache by ID; the next run makes the volume with its label.
 
 - CICD reset: CPU and priority.
 	- ID: 2026102416280103
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, which builds the new image and runs every step in it with the CPU limit. The plan's Jobs line shows the counts it started with.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -192,13 +195,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: cpu
 	- Commit: a898a75
 	- Test case: dednt (the counts), dednv (nice and idle I/O), dednw (half on a quiet box), dednx (a quarter for the heavy steps), dedny (load checked again before each step), dedp0 (at most the container's `--cpus`), dednz (labels and the CPU limit on the container run), retired by the step output item for dedps, which checks the same. dedm7 wanted a run line with no CPU limit, so it's commented out with the reason.
+	- Verified: 2026-10-26, the full run at e23b810 showed the Jobs line (8 jobs, load 35 on 32 CPUs) and passed dednv, dednw, dednx, dedp0 and dedps.
 
 - CICD reset: step output.
 	- ID: 2026102416280105
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, which shows the step lines from inside the container and from the host in one count.
-	- Needs hand testing: a look at the output of that run, since it's what a person reads.
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Needs hand testing: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -222,12 +226,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: steps
 	- Commit: 4c69d4b
 	- Test case: dedpn (step lines), dedpp (off steps listed and not counted), dedpq (FAIL on a failed step), dedpv (gate steps), dedpr (numbers across the container and host runs), dedpt (counted again after a failed image build), dedps (the step list on the container run line). dednz wanted a run line with no step list, so it's commented out with the reason. ddgmj, de54f, ddys9, ddrpk, dedma, dedmd, dedme, ddydm and ddydq now match the new text.
+	- Verified: 2026-10-26, the full run at e23b810 numbered every step 1 to 9 in order across the container and the host, after the step order fix (deeaz). The output reads clearly.
 
 - CICD reset: test IDs.
 	- ID: 2026102416280106
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, for the fuzz lines with their real IDs and the harness in the container with the packaging rebuilds.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -249,14 +254,15 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: testids
 	- Commit: 7618572
 	- Test case: dedq9 (old IDs refused), dedqa (`new` skips a taken minute), dedq8 (harness PASS, FAIL and SKIP lines), dedqb (fuzz lines). ddgwd now checks the Go test line too.
+	- Verified: 2026-10-26, the full run at e23b810 printed the fuzz lines with their IDs (d9nx3, d9nx4, d9nx5) and passed the harness in the container, ddge9 included.
 
 - CICD reset: standard flags.
 	- ID: 2026102416280104
 	- Type: Enhancement
-	- Status: Waiting on a full CICD run
-	- Needs local test suite run?: a full `cicd/cicd.bash` run, then one `--backlog-run-full`, which builds the current image and runs the real pins check, the demo gif made in the temp folder, and the profiler. `git status` should be the same after it.
-	- Needs external testing: Yes. Hosted CI: a manual run of the workflow, which is the first merge gate on the runner.
-	- Needs hand testing: a look at the `--list` and `--help` output and the area names, since they're what a person reads and types.
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Needs external testing: No.
+	- Needs hand testing: No.
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -292,6 +298,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: dedr7 (`--list`), dedr8 (quick run, no areas), dedr9 (named areas), dedra (`--gate`, `--ci`, `--slow`), dedrb (other hosts and `--no-remote`), dedrc (full run and merge gate run every check), dedrd (the three change nothing they mustn't, against a plain run that does all of it), dedre (each of those stages left on is caught), dedrf (hook: main only, and the skip list), dedrg (the skip list matches files, and skips nothing a test reads), dedrh (workflow), dedrj (harness areas).
 	- Branch: flags2
 	- Commit: 14fe62d
+	- Verified: 2026-10-26, two `--backlog-run-full` runs passed with pins, demo gif and profiler, and left `git status` clean. Hosted run 40256013604 passed, its pipeline job included (17m41s). `--list` and `--help` read clearly.
 
 - The Windows `.exe` files have no icon or version information resource.
 	- ID: 2026101411014805
@@ -384,8 +391,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: other hosts, the runner and FreeBSD.
 	- ID: 2026102516555342
 	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: one full run, plain or `--backlog-run-full`, where the Other hosts step should end with `PASS dee6x freebsd-x86_64 on vmFreeBSD`, and vmFreeBSD should be back as it was found.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: High
 	- Opened: 20261025-165553
 	- Opened by: split from 2026102416280101
@@ -408,6 +415,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: `--no-remote`, `REMOTE_CMD` and "other hosts" across the docs. design.md, development.md and the changelog have it now. contributing.md's other hosts are the network checks, and stay.
 	- Test case: dee6x (the FreeBSD check on the box), dee71 (hold and cleanup), dee72 (no answer is a SKIP), dee73 (no hold is a SKIP), dee74 (different answers fail), dee75 (the step gets the boxes and the hold, and is off with none), deeaz (step numbers in run order, with the profiler and other hosts on).
 	- Branch: cicd2
+	- Verified: 2026-10-26, both full runs ended Other hosts with `PASS dee6x freebsd-x86_64 on vmFreeBSD`, and vmFreeBSD was off again after.
 
 - CICD reset: other hosts, Windows.
 	- ID: 2026102516555347
@@ -471,8 +479,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: CICD process gaps.
 	- ID: 2026102416280109
 	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: one `cicd/cicd.bash --backlog-run-full`, in the container. The Tests step should run the race detector, the soak test and CodeQL, and the run should end with one `cleanup:` line that names docker's part and the run folder. It needs 2026102518082587 and 2026102518111571 fixed first, or the unit tests and dee7v and dee8z stop it.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: Avg
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -502,12 +510,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: cicd2
 	- Prereq IDs: 2026102518082587, 2026102518111571
 	- Its full run waits on the two bugs from the temp files work.
+	- Verified: 2026-10-26, the full run at e23b810 ran the race detector, the soak test (de54s) and CodeQL clean, and ended with one `cleanup:` line of about 46 KB (deeay).
 
 - CICD reset: FreeBSD `.pkg`.
 	- ID: 2026102518082687
 	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: one `cicd/cicd.bash --backlog-run-full`, in the container, with vmFreeBSD in `private/remote-hosts.bash`. Release packaging should pass ddge9 and dee9w with zstd from the image, and the Other hosts step should end with `PASS dee9x freebsd-x86_64 package on vmFreeBSD`.
+	- Status: Done
+	- Needs local test suite run?: No.
 	- Priority: Avg
 	- Opened: 20261025-180826
 	- Opened by: split from 2026102416280109
@@ -533,6 +542,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: dee9w (two `.pkg` files, manifests first, sums and version right), ddge9 (rebuilds to the same bytes), ddge1 (release notes list it), dee9x (installed, run and removed on the box), dee9y (the same against stand-ins), dee9z (an install already there is left alone, no root login is a SKIP), deea0 (a package that isn't removed fails).
 	- Branch: cicd2
 	- Note: 20261025, ddge1 wanted a FreeBSD row of binary and `.tgz`, and now wants the `.pkg` after them too.
+	- Verified: 2026-10-26, the full run at e23b810 passed ddge9 and dee9w with the image's zstd, and Other hosts ended with `PASS dee9x freebsd-x86_64 package on vmFreeBSD`.
 
 - The repo has no social preview image, so shared links show GitHub's generic card.
 	- ID: 2026101416210405
@@ -2869,7 +2879,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - FreeBSD gets only a tarball.
 	- ID: 2026101411014806
 	- Type: Feature
-	- Status: Waiting on automated testing
+	- Status: Done
 	- Priority: Low
 	- Opened: 20261014-110148
 	- Opened by: Repo review 20261014
@@ -2879,6 +2889,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: design.md defers it, beside the macOS `.dmg`.
 	- Prereq IDs: 2026102518082687
 	- 2026-10-26: the `.pkg` went in through 2026102518082687, so this needs only that item's full run.
+	- Verified: 2026-10-26, through 2026102518082687's full run.
 
 ## Old format
 
