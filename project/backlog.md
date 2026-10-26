@@ -334,7 +334,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: other hosts and VMs.
 	- ID: 2026102416280101
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Started
 	- Needs external testing: Yes, on the Windows, macOS, FreeBSD, and arm64 Linux test boxes.
 	- Priority: High
 	- Opened: 20261024-162801
@@ -347,6 +347,78 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Each box is held through the shared host lock while it's in use. A VM is put back the way it was found, through the VM state helper.
 		- A box that isn't there shows as SKIP with a warning, and the run goes on.
 		- Each box gets a work folder for this project under its temp root.
+	- Progress log:
+		- 20261025: split by platform into 2026102516555342 (the runner, and FreeBSD), 2026102516555347 (Windows), 2026102516555352 (Intel macOS) and 2026102516555357 (arm64 Linux). This closes with the last of them.
+
+- CICD reset: other hosts, the runner and FreeBSD.
+	- ID: 2026102516555342
+	- Type: Enhancement
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: one full run, plain or `--backlog-run-full`, where the Other hosts step should end with `PASS dee6x freebsd-x86_64 on vmFreeBSD`, and vmFreeBSD should be back as it was found.
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Target OS: FreeBSD
+	- Requirements:
+		- The Other hosts step runs each box named in config, held through the host lock and put back by the VM state helper.
+		- A box that isn't there, or is busy past the wait, shows as SKIP with a warning, and the run goes on.
+		- Each box gets a work folder for this project under its temp root, removed at the end.
+		- vmFreeBSD runs the freebsd x86_64 release build, and its answers match the native build's.
+	- Progress log:
+		- 20261025: `cicd/utility/remote-hosts.bash` is the Other hosts step. It copies each box's build to a work folder under the box's temp root, runs a fixed set of conversions there and here, and fails on any difference. Both sides use a scratch HOME and UTC, so neither touches a user config.
+		- 20261025: the boxes and the hold command live in `../private/remote-hosts.bash`, read through `REMOTE_LOCAL`, since they're personal. Without it the step is off. The hold is the VM state helper's `wrap`, which takes the host lock.
+		- 20261025: a box that doesn't answer, or that the hold can't have, is a SKIP with a warning. Each box prints one PASS, FAIL or SKIP line with its test ID at the end.
+		- 20261025: stale work folders of ours on a box, older than 2 days, are removed at the start.
+	- Verified: 20261025, on vmFreeBSD from off: 13 cases matched the native build, the work folder was gone after, and the VM was off again. A run with a box the lock doesn't know went on with a SKIP.
+	- Verified: the CI engine area passes 109 of 109 and the self-check 6 of 6. dee71 to dee74 each failed with the code they watch broken, and dee75 failed before the empty-list fix.
+	- Note: the remote check's ID, dee6x, is in `remote-hosts.bash`, which `test-ids.py` doesn't read, so it can't see a clash there.
+	- Swept: `--no-remote`, `REMOTE_CMD` and "other hosts" across the docs. design.md, development.md and the changelog have it now. contributing.md's other hosts are the network checks, and stay.
+	- Test case: dee6x (the FreeBSD check on the box), dee71 (hold and cleanup), dee72 (no answer is a SKIP), dee73 (no hold is a SKIP), dee74 (different answers fail), dee75 (the step gets the boxes and the hold, and is off with none).
+	- Branch: cicd2
+
+- CICD reset: other hosts, Windows.
+	- ID: 2026102516555347
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: Windows
+	- Requirements:
+		- b29w runs the windows x86_64 exe through the runner from 2026102516555342, and its answers match the native build's.
+		- The installer is run there too, in its quiet mode, then uninstalled. b29w has admin over ssh.
+		- vm925w only for GPU or timed work, so not here.
+
+- CICD reset: other hosts, Intel macOS.
+	- ID: 2026102516555352
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: macOS
+	- Requirements:
+		- An Intel Mac runs the darwin x86_64 and universal builds through the runner from 2026102516555342, and their answers match the native build's.
+		- `install.bash` is tried there if it can run against the local build with a stand-in for the download.
+
+- CICD reset: other hosts, arm64 Linux.
+	- ID: 2026102516555357
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: Linux
+	- Requirements:
+		- vmDebARM64 runs the linux arm64 build through the runner from 2026102516555342, and its answers match the native build's.
+		- The arm64 deb is installed and removed there, if that fits its slow emulated CPU.
 
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812

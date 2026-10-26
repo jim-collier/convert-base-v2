@@ -2673,6 +2673,11 @@ UNIT_AREAS_CMD=(printf '%s\n' ./pkga ./sub/pkgb); TEST_AREAS_CMD=(printf '%s\t%s
 MERGE_GATE_SKIP=(notes.md 'docs/*')
 [[ -z "${CE_AREAS:-}" ]] || { FMT_CHECK_CMD=(true); VET_CMD=(true); UNIT_TEST_CMD=(sh -c 'echo "unit-ran $*"' sh ./...); }
 [[ -z "${CE_REMOTE:-}" ]] || REMOTE_CMD=(echo remote-ran)
+case "${CE_REMOTE_HOSTS:-}" in
+	"") ;;
+	none) REMOTE_CMD=(true); REMOTE_HOSTS=(); REMOTE_LOCAL="nowhere.bash" ;;
+	*) REMOTE_CMD=(sh -c 'echo "remote-args $CICD_CROSS_RAN $*"' sh); REMOTE_HOSTS=('vmA|freebsd-x86_64|a@box'); REMOTE_WRAP=(hold '{}' --) ;;
+esac
 EOF
 cat >"${ceBin}/go" <<'EOF'
 #!/bin/sh
@@ -2982,6 +2987,56 @@ fCeRun -y; ceRemote+="$(grep -oE 'Other hosts \([^)]*\)' <<<"${ceOut}" || true);
 [[ "${ceRemote}" == "0:1:Step 3 of 3; PASS Other hosts;0:0:Other hosts (--no-remote);0:0:Other hosts (--backlog-run-quick);0:1:Step 3 of 3; PASS Other hosts;Other hosts (no REMOTE_CMD in config.bash);" ]] \
 	&& _pass dedrb "other hosts step, and --no-remote" \
 	|| _fail dedrb "other hosts step, and --no-remote" "got=[${ceRemote}] $(fCeTail)"
+
+## The step hands REMOTE_CMD the hold command as --wrap words, then the boxes,
+## and is off when REMOTE_HOSTS is there but empty.
+ceRemote=""
+CE_REMOTE_HOSTS=1 fCeRun -y; ceRemote+="${ceRc}:$(grep '^remote-args' <<<"${ceOut}" || true);"
+CE_REMOTE_HOSTS=none fCeRun -y; ceRemote+="${ceRc}:$(grep -oE 'Other hosts \([^)]*\)' <<<"${ceOut}" || true)"
+[[ "${ceRemote}" == "0:remote-args 0 --wrap hold --wrap {} --wrap -- vmA|freebsd-x86_64|a@box;0:Other hosts (no boxes in nowhere.bash)" ]] \
+	&& _pass dee75 "other hosts step gets the boxes and the hold" \
+	|| _fail dee75 "other hosts step gets the boxes and the hold" "got=[${ceRemote}] $(fCeTail)"
+
+## The runner itself, against stand-ins: an ssh that runs the command here, with
+## the box's temp root in a folder of its own, and a hold that writes down its box.
+## A run folder of ours from 2020 is stale, and keep isn't ours.
+rhDir="${CBT_TMP}/rh"; rhBox="${rhDir}/box/cbv"
+mkdir -p "${rhDir}/bin" "${rhDir}/dist" "${rhBox}/20200101-000000_001" "${rhBox}/keep"
+cat >"${rhDir}/bin/ssh" <<'EOF'
+#!/bin/sh
+while [ "$1" = -o ]; do shift 2; done
+case "$1" in gone@*) exit 255 ;; esac
+shift
+TMPDIR="$RH_BOX" exec sh -c "$*"
+EOF
+printf '%s\n' '#!/bin/sh' 'echo "hold $1" >>"$RH_HOLDS"' 'if [ -n "${RH_HOLD_RC:-}" ]; then exit "$RH_HOLD_RC"; fi' 'shift 2' 'exec "$@"' >"${rhDir}/bin/hold"
+printf '%s\n' '#!/bin/sh' 'echo "stub $*"' >"${rhDir}/ref"
+printf '%s\n' '#!/bin/sh' 'echo "stub${RH_ODD:-} $*"' >"${rhDir}/dist/cbv-freebsd-x86_64"
+chmod +x "${rhDir}/bin/ssh" "${rhDir}/bin/hold" "${rhDir}/ref" "${rhDir}/dist/cbv-freebsd-x86_64"
+fRhRun(){
+	local run; run="$(mktemp -d "${rhDir}/run.XXXXXX")"; : >"${rhDir}/holds"; mkdir -p "${rhBox}/20200101-000000_001"; touch -d 2020-01-01 "${rhBox}/20200101-000000_001"; rhRc=0
+	rhOut="$(RH_BOX="${rhDir}/box" RH_HOLDS="${rhDir}/holds" CICD_SSH="${rhDir}/bin/ssh" CICD_APP=cbv CICD_DIST="${rhDir}/dist" CICD_REF_BIN="${rhDir}/ref" \
+		CICD_RUN_TMP="${run}" CICD_CROSS_RAN=1 bash "${meDir}/utility/remote-hosts.bash" --wrap "${rhDir}/bin/hold" --wrap '{}' --wrap -- "$@" 2>&1)" || rhRc=$?
+	rhHolds="$(tr '\n' ',' <"${rhDir}/holds")"; rhLeft="$(cd "${rhBox}" && printf '%s,' *)"
+}
+fRhRun 'vmA|freebsd-x86_64|a@box'
+[[ "${rhRc}" == 0 && "${rhHolds}" == "hold vmA," && "${rhLeft}" == "keep," ]] && grep -qxF 'PASS dee6x freebsd-x86_64 on vmA' <<<"${rhOut}" \
+	&& grep -qE '^vmA: work folder .*/box/cbv/[0-9]{8}-[0-9]{6}_001$' <<<"${rhOut}" \
+	&& _pass dee71 "other hosts: a box runs inside its hold, and its folders are removed" \
+	|| _fail dee71 "other hosts: a box runs inside its hold, and its folders are removed" "rc=${rhRc} holds=[${rhHolds}] left=[${rhLeft}] out=[${rhOut}]"
+fRhRun 'vmGone|freebsd-x86_64|gone@box' 'vmA|freebsd-x86_64|a@box'
+[[ "${rhRc}" == 0 && "${rhHolds}" == "hold vmGone,hold vmA," ]] && grep -qxF 'SKIP dee6x freebsd-x86_64 on vmGone, no answer' <<<"${rhOut}" \
+	&& grep -qxF 'WARNING: vmGone skipped, no answer' <<<"${rhOut}" && grep -qxF 'PASS dee6x freebsd-x86_64 on vmA' <<<"${rhOut}" \
+	&& _pass dee72 "other hosts: a box that doesn't answer is a SKIP, and the rest go on" \
+	|| _fail dee72 "other hosts: a box that doesn't answer is a SKIP, and the rest go on" "rc=${rhRc} holds=[${rhHolds}] out=[${rhOut}]"
+RH_HOLD_RC=3 fRhRun 'vmA|freebsd-x86_64|a@box'
+[[ "${rhRc}" == 0 ]] && grep -qxF "SKIP dee6x freebsd-x86_64 on vmA, couldn't have it (exit 3)" <<<"${rhOut}" && grep -q '^WARNING: vmA skipped' <<<"${rhOut}" \
+	&& _pass dee73 "other hosts: a box the hold can't have is a SKIP" \
+	|| _fail dee73 "other hosts: a box the hold can't have is a SKIP" "rc=${rhRc} out=[${rhOut}]"
+RH_ODD=-odd fRhRun 'vmA|freebsd-x86_64|a@box'
+[[ "${rhRc}" == 1 && "${rhLeft}" == "keep," ]] && grep -qxF 'FAIL dee6x freebsd-x86_64 on vmA' <<<"${rhOut}" && grep -qxF '> stub-odd 255 16' <<<"${rhOut}" \
+	&& _pass dee74 "other hosts: answers that differ from the native build fail" \
+	|| _fail dee74 "other hosts: answers that differ from the native build fail" "rc=${rhRc} left=[${rhLeft}] out=[${rhOut}]"
 
 ## --backlog-run-full and --merge-gate run every check a plain run does: the pins,
 ## long tests, fuzz, leak checks, the checks that reach another host, and the

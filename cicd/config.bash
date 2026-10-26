@@ -216,9 +216,14 @@ BUILD_CROSS=1
 RELEASE_CMD=(make -C "${SRC_DIR}" release)
 RELEASE_ARTIFACT_DIR="${SRC_DIR}/dist"
 
-## Builds and tests on the test boxes and VMs, after the cross builds. Not set
-## up yet, so the step is off. --no-remote turns it off.
-REMOTE_CMD=()
+## Builds and tests on the test boxes and VMs, after the cross builds. Each box
+## is "BOX|PLATFORM|SSH_TARGET" in REMOTE_HOSTS, and the boxes are personal, so
+## REMOTE_LOCAL, a bash file outside the repo, sets them, and REMOTE_WRAP, the
+## host lock command, with {} for the box. No boxes turns the step off, and so
+## does --no-remote. cicd/utility/remote-hosts.bash says the rest.
+REMOTE_CMD=(bash cicd/utility/remote-hosts.bash)
+REMOTE_HOSTS=(); REMOTE_WRAP=()
+REMOTE_LOCAL="../private/remote-hosts.bash"
 
 ## Stage 7: dogfood. Overwrite EXE_NAME in the first existing, writable dir of
 ## DOGFOOD_FIXED_DESTS with the native release build. DOGFOOD_CROSS does the same
@@ -306,3 +311,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-10-19 JC: PSScriptAnalyzer in the lint stage.
 ##		- 2026-10-25 JC: CONTAINER_VOLUME_CAP.
 ##		- 2026-10-25 JC: Areas for --backlog-run-quick, REMOTE_CMD, and the paths a push to main can change without the merge gate.
+##		- 2026-10-25 JC: REMOTE_HOSTS and REMOTE_LOCAL.

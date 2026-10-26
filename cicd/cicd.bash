@@ -29,7 +29,7 @@
 ##	   - tests (unit + integration harness + fuzz + govulncheck security + leak checks)
 ##	   - profiler (flamegraph SVG; non-gating artifact - see failure policy)
 ##	   - cross-compile + package every shipping platform (archives, deb/rpm, Windows installers, checksums)
-##	   - other hosts (builds and tests on the test boxes and VMs, from REMOTE_CMD; none yet)
+##	   - other hosts (the release builds run on the test boxes and VMs REMOTE_LOCAL names)
 ##	   - dogfood (install the optimized native build locally, fixed name, and any cross builds listed)
 ##	   - screenshots
 ##	   - demo gif
@@ -72,7 +72,7 @@
 ##	   --gate              another name for --backlog-run-quick
 ##	   --ci                another name for --merge-gate
 ##	   --list              print the steps the other flags would run, and the areas, and run nothing
-##	   --no-remote         skip the builds and tests on the other hosts and VMs (none are set up yet)
+##	   --no-remote         skip the builds and tests on the other hosts and VMs
 ##	   --long              the exhaustive tests (CICDTEST_DO_LONGTEST=1). A run without --quick has them
 ##	                       already, so this is for adding them back to a --quick run.
 ##	   --slow              another name for --long
@@ -192,6 +192,14 @@ source "${here}/config.bash"
 ## Personal dogfood dirs, kept out of the repo. Before the options, so --no-dogfood still wins.
 # shellcheck source=/dev/null
 if [[ -n "${DOGFOOD_LOCAL:-}" && -f "${root}/${DOGFOOD_LOCAL}" ]]; then source "${root}/${DOGFOOD_LOCAL}"; fi
+## The test boxes are personal too. A config with REMOTE_HOSTS runs REMOTE_CMD
+## only when REMOTE_LOCAL names some; an older one runs it as it is.
+# shellcheck source=/dev/null
+if [[ -n "${REMOTE_LOCAL:-}" && -f "${root}/${REMOTE_LOCAL}" ]]; then source "${root}/${REMOTE_LOCAL}"; fi
+## -v says no to an empty array, so declare -p it is.
+remote_hosts_named=0; if declare -p REMOTE_HOSTS >/dev/null 2>&1; then remote_hosts_named=1; fi
+[[ -v REMOTE_HOSTS ]] || REMOTE_HOSTS=()
+[[ -v REMOTE_WRAP ]] || REMOTE_WRAP=()
 source "${here}/utility/include/gfs-rotate.bash"       ## gfs_rotate() for the artifact dirs
 cd "${root}"
 stamp="$(date +%Y%m%d-%H%M%S)"
@@ -348,7 +356,9 @@ fStepOffWhy(){
 		Tests)              ((run_unit || run_harness)) || why="no test area" ;;
 		Profiler)           ((PROFILE_ENABLE)) || why="PROFILE_ENABLE=0 in config.bash" ;;
 		"Cross + package")  ((BUILD_CROSS)) || why="BUILD_CROSS=0 in config.bash" ;;
-		"Other hosts")      ((${#REMOTE_CMD[@]})) || why="no REMOTE_CMD in config.bash" ;;
+		"Other hosts")
+			if ((! ${#REMOTE_CMD[@]})); then why="no REMOTE_CMD in config.bash"
+			elif ((remote_hosts_named && ! ${#REMOTE_HOSTS[@]})); then why="no boxes in ${REMOTE_LOCAL:-REMOTE_LOCAL}"; fi ;;
 		Dogfood)            ((${#DOGFOOD_FIXED_DESTS[@]} + ${#DOGFOOD_CROSS[@]})) || why="no dogfood dirs in config.bash" ;;
 		Screenshots)        ((DO_SCREENSHOTS)) || why="DO_SCREENSHOTS=0 in config.bash" ;;
 		"Backup + publish") ((${#GIT_PUBLISH[@]})) || why="no GIT_PUBLISH in config.bash" ;;
@@ -1156,10 +1166,12 @@ if fStep "Cross + package"; then
 	fStepDone
 fi
 
-## Builds and tests on the test boxes and VMs. None are set up yet, so this is
-## off unless config.bash names a REMOTE_CMD, and --no-remote turns it off.
+## Builds and tests on the test boxes and VMs, which REMOTE_LOCAL names. A box
+## that isn't there is a SKIP, and --no-remote turns the step off.
 if fStep "Other hosts"; then
-	"${REMOTE_CMD[@]}"
+	remote_wrap=(); for w in "${REMOTE_WRAP[@]}"; do remote_wrap+=(--wrap "${w}"); done
+	CICD_APP="${EXE_NAME}" CICD_DIST="${RELEASE_ARTIFACT_DIR}" CICD_REF_BIN="${STAGED_RELEASE_BIN:-${STAGED_BIN}}" \
+		CICD_CROSS_RAN="${BUILD_CROSS}" CICD_RUN_TMP="${run_tmp}" "${REMOTE_CMD[@]}" "${remote_wrap[@]}" "${REMOTE_HOSTS[@]}"
 	fStepDone
 fi
 
@@ -1298,3 +1310,4 @@ fEcho_Clean
 ##		- 2026-10-25 JC: Step lines with the time and "Step N of M", PASS or FAIL, and the steps turned off listed first. The pin checks are a step.
 ##		- 2026-10-25 JC: Fuzz lines read PASS or FAIL, then the ID and target.
 ##		- 2026-10-25 JC: --backlog-run-quick with areas, --backlog-run-full and --merge-gate, which never sync, dogfood, publish or rewrite a tracked file. --gate and --ci are other names for them. --list, --no-remote, --slow.
+##		- 2026-10-25 JC: The Other hosts step runs the boxes REMOTE_LOCAL names.
