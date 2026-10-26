@@ -504,7 +504,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: FreeBSD `.pkg`.
 	- ID: 2026102518082687
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: one `cicd/cicd.bash --backlog-run-full`, in the container, with vmFreeBSD in `private/remote-hosts.bash`. Release packaging should pass ddge9 and dee9w with zstd from the image, and the Other hosts step should end with `PASS dee9x freebsd-x86_64 package on vmFreeBSD`.
 	- Priority: Avg
 	- Opened: 20261025-180826
 	- Opened by: split from 2026102416280109
@@ -516,6 +517,20 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Each FreeBSD release build, x86_64 and arm64, gets a native `.pkg` beside its tarball, named with the version, and listed in the checksums file.
 		- vmFreeBSD installs it with `pkg add`, runs it, and removes it, through the Other hosts runner.
 	- Note: nfpm doesn't write `.pkg`. A `.pkg` is a compressed tar with `+COMPACT_MANIFEST` and `+MANIFEST` first, so `package.bash` could write one with tar, or `pkg create` could on the box.
+	- Progress log:
+		- 20261025: `package.bash` writes `convert-base-v2-VERSION-freebsd-ARCH.pkg` for x86_64 and arm64 with tar and zstd, in the layout `pkg create` gives. It holds the binary in `/usr/local/bin` and the license in `/usr/local/share/licenses/convert-base-v2/`. It rebuilds to the same bytes, and `checksums.txt` lists it.
+		- 20261025: the release notes table and `install.md` list it, and design.md no longer defers it.
+		- 20261025: a box in `REMOTE_HOSTS` can have a fourth field, a root login. With one, the Other hosts step adds the package with `pkg add`, runs the same cases with the installed binary, removes it, and checks nothing is left. A package already installed, or a binary already in its place, is a SKIP, so nobody's install is touched. vmFreeBSD has `root@vmFreeBSD` now.
+	- Decisions:
+		- 20261025: the version in the name and inside has a `.` where the tag has a `-`, such as `3.1.0.beta1`, since pkg allows no `-` there. pkg sorts it below `3.1.0`.
+		- 20261025: the ABI is `FreeBSD:*:amd64` or `FreeBSD:*:aarch64`, any release, since the build is static. Origin and category are `converters`.
+		- 20261025: written here with tar rather than by `pkg create` on the box, so a release needs no FreeBSD box, and the release workflow gets the same file.
+	- Verified: 20261025, on vmFreeBSD 15.1 with pkg 2.7.5: the x86_64 `.pkg` installed with `pkg add`, ran, passed `pkg check -s`, and `pkg delete` left no file or folder. The arm64 one was refused there as the wrong arch. The Other hosts runner gave `PASS dee9x freebsd-x86_64 package on vmFreeBSD`, and FAIL with the arm64 package put in its place. The VM was off again after each.
+	- Verified: 20261025, on the host, the release area passes 71 of 71 and the CI area 121 of 121, and `--backlog-run-quick format lint release ci` passes. dee9w and ddge1 failed against the old `package.bash` and `release-notes.bash`. dee9y, dee9z and deea0 failed against the old `remote-hosts.bash`, and dee9z with the installed-package guard taken out.
+	- Swept: every reader of asset names: `release-notes.bash`, the stage 6 count in `cicd.bash`, the release workflow, which uploads `lib/dist/*` and now installs zstd, `install.md`, README and design.md. The `REMOTE_HOSTS` format in `config.bash` and the private list.
+	- Test case: dee9w (two `.pkg` files, manifests first, sums and version right), ddge9 (rebuilds to the same bytes), ddge1 (release notes list it), dee9x (installed, run and removed on the box), dee9y (the same against stand-ins), dee9z (an install already there is left alone, no root login is a SKIP), deea0 (a package that isn't removed fails).
+	- Branch: cicd2
+	- Note: 20261025, ddge1 wanted a FreeBSD row of binary and `.tgz`, and now wants the `.pkg` after them too.
 
 - The repo has no social preview image, so shared links show GitHub's generic card.
 	- ID: 2026101416210405

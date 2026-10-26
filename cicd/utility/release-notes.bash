@@ -73,6 +73,8 @@ fClassify(){
 		"${PKG}"_*_arm64.deb)        cOs=linux;   cArch=arm64;     cLabel=".deb";      cRank=3 ;;
 		"${PKG}"-*.x86_64.rpm)       cOs=linux;   cArch=x86_64;    cLabel=".rpm";      cRank=4 ;;
 		"${PKG}"-*.aarch64.rpm)      cOs=linux;   cArch=arm64;     cLabel=".rpm";      cRank=4 ;;
+		"${PKG}"-*-freebsd-x86_64.pkg) cOs=freebsd; cArch=x86_64;  cLabel=".pkg";      cRank=3 ;;
+		"${PKG}"-*-freebsd-arm64.pkg) cOs=freebsd; cArch=arm64;    cLabel=".pkg";      cRank=3 ;;
 		"${PKG}".wasm)               cOs=wasi;    cArch=universal; cLabel=".wasm";     cRank=1 ;;
 		"${PKG}"-windows-*-setup.exe) stem="${name#"${PKG}"-}"; stem="${stem%-setup.exe}"; cLabel="installer"; cRank=5 ;;
 		"${PKG}"-*.tgz)              stem="${name#"${PKG}"-}"; stem="${stem%.tgz}"; cLabel=".tgz";   cRank=2 ;;
@@ -182,3 +184,4 @@ fi
 
 ##	History:
 ##		- 2026-10-04: Created. Changelog section, downloads table, build line.
+##		- 2026-10-25: The FreeBSD .pkg in the table.

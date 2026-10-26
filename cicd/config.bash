@@ -225,7 +225,8 @@ RELEASE_CMD=(make -C "${SRC_DIR}" release)
 RELEASE_ARTIFACT_DIR="${SRC_DIR}/dist"
 
 ## Builds and tests on the test boxes and VMs, after the cross builds. Each box
-## is "BOX|PLATFORM|SSH_TARGET" in REMOTE_HOSTS, and the boxes are personal, so
+## is "BOX|PLATFORM|SSH_TARGET[|ROOT_TARGET]" in REMOTE_HOSTS, where ROOT_TARGET
+## installs and removes the package. The boxes are personal, so
 ## REMOTE_LOCAL, a bash file outside the repo, sets them, and REMOTE_WRAP, the
 ## host lock command, with {} for the box. No boxes turns the step off, and so
 ## does --no-remote. cicd/utility/remote-hosts.bash says the rest.

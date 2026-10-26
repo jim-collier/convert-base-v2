@@ -1937,7 +1937,7 @@ for rnName in checksums.txt convert-base-v2.wasm notes.txt \
 	convert-base-v2_9.9.9~beta1_amd64.deb convert-base-v2_9.9.9~beta1_arm64.deb \
 	convert-base-v2-9.9.9~beta1-1.x86_64.rpm convert-base-v2-9.9.9~beta1-1.aarch64.rpm \
 	convert-base-v2-{linux,darwin,freebsd}-{x86_64,arm64}{,.tgz} convert-base-v2-darwin-universal{,.tgz} \
-	convert-base-v2-windows-{x86_64,arm64}{.exe,.zip,-setup.exe}; do
+	convert-base-v2-windows-{x86_64,arm64}{.exe,.zip,-setup.exe} convert-base-v2-9.9.9.beta1-freebsd-{x86_64,arm64}.pkg; do
 	if [[ "${rnName}" =~ ^convert-base-v2-(linux|darwin|freebsd)-[a-z0-9_]+$ ]]; then
 		printf '#!/bin/sh\necho "convert-base-v2 v9.9.9-beta1 build abcde"\n' >"${rnDist}/${rnName}"; chmod +x "${rnDist}/${rnName}"
 	else
@@ -1958,7 +1958,7 @@ rnWant="$(cat <<EOF
 | Linux | [binary](${rnU}/convert-base-v2-linux-x86_64), [.tgz](${rnU}/convert-base-v2-linux-x86_64.tgz), [.deb](${rnU}/convert-base-v2_9.9.9.beta1_amd64.deb), [.rpm](${rnU}/convert-base-v2-9.9.9.beta1-1.x86_64.rpm) | [binary](${rnU}/convert-base-v2-linux-arm64), [.tgz](${rnU}/convert-base-v2-linux-arm64.tgz), [.deb](${rnU}/convert-base-v2_9.9.9.beta1_arm64.deb), [.rpm](${rnU}/convert-base-v2-9.9.9.beta1-1.aarch64.rpm) |
 | macOS | [binary](${rnU}/convert-base-v2-darwin-x86_64), [.tgz](${rnU}/convert-base-v2-darwin-x86_64.tgz) | [binary](${rnU}/convert-base-v2-darwin-arm64), [.tgz](${rnU}/convert-base-v2-darwin-arm64.tgz) | [binary](${rnU}/convert-base-v2-darwin-universal), [.tgz](${rnU}/convert-base-v2-darwin-universal.tgz)
 | Windows | [.exe](${rnU}/convert-base-v2-windows-x86_64.exe), [.zip](${rnU}/convert-base-v2-windows-x86_64.zip), [installer](${rnU}/convert-base-v2-windows-x86_64-setup.exe) | [.exe](${rnU}/convert-base-v2-windows-arm64.exe), [.zip](${rnU}/convert-base-v2-windows-arm64.zip), [installer](${rnU}/convert-base-v2-windows-arm64-setup.exe) |
-| FreeBSD | [binary](${rnU}/convert-base-v2-freebsd-x86_64), [.tgz](${rnU}/convert-base-v2-freebsd-x86_64.tgz) | [binary](${rnU}/convert-base-v2-freebsd-arm64), [.tgz](${rnU}/convert-base-v2-freebsd-arm64.tgz) |
+| FreeBSD | [binary](${rnU}/convert-base-v2-freebsd-x86_64), [.tgz](${rnU}/convert-base-v2-freebsd-x86_64.tgz), [.pkg](${rnU}/convert-base-v2-9.9.9.beta1-freebsd-x86_64.pkg) | [binary](${rnU}/convert-base-v2-freebsd-arm64), [.tgz](${rnU}/convert-base-v2-freebsd-arm64.tgz), [.pkg](${rnU}/convert-base-v2-9.9.9.beta1-freebsd-arm64.pkg) |
 | WebAssembly (WASI) |  |  | [.wasm](${rnU}/convert-base-v2.wasm)
 
 Also: [notes.txt](${rnU}/notes.txt)
@@ -2014,7 +2014,7 @@ make -s -C "${meDir}/../lib" clean BINARY="${pgDir}/no-binary" DIST="${pgDir}/mc
 	|| _fail ddgkc "make clean: own dist only" "rc=${mcrc} theirs: [$(fNames "${pgDir}/mc-theirs")] ours: [$(fNames "${pgDir}/mc-ours")]"
 ## The two full packaging runs take several seconds each, so --quick skips them.
 if ((doQuick)); then
-	_warn "ddge9 ddgkb de5ec de5ee ddgea ddgeb de57e de57f" "packaging rebuild checks skipped: --quick" asked
+	_warn "ddge9 ddgkb de5ec de5ee ddgea ddgeb de57e de57f dee9w" "packaging rebuild checks skipped: --quick" asked
 else
 	pkDir="${CBT_TMP}/pk"; pkrc=0
 	pkArgs=(--version v9.9.9-beta1 --build-epoch 1700000000)
@@ -2105,6 +2105,35 @@ else
 		else
 			[[ "${pkVers}" =~ ^(9\.9\.9~beta1 )+$ ]] && _pass ddgeb "prerelease package version keeps its ~" || _fail ddgeb "prerelease package version keeps its ~" "got [${pkVers}]"
 		fi
+	fi
+	## FreeBSD .pkg: the two manifests first, then each file at the absolute path
+	## and with the checksum +MANIFEST gives it, and a version pkg can read.
+	if ! command -v zstd >/dev/null 2>&1; then
+		_warn dee9w "FreeBSD .pkg check skipped: zstd not installed"
+	else
+		pkWhy=""
+		for pkArch in x86_64:amd64 arm64:aarch64; do
+			pkFile="convert-base-v2-9.9.9.beta1-freebsd-${pkArch%%:*}.pkg"
+			grep -qE "^[0-9a-f]{64}  ${pkFile//./\\.}\$" "${pkSums}" 2>/dev/null || { pkWhy+="${pkFile} not in checksums.txt; "; continue; }
+			zstd -qdc "${pkDir}/a/${pkFile}" >"${pkDir}/fbsd.tar" 2>/dev/null || { pkWhy+="${pkFile} isn't zstd; "; continue; }
+			pkWhy+="$(python3 -I - "${pkDir}/fbsd.tar" "FreeBSD:*:${pkArch#*:}" <<-'EOF'
+				import hashlib, json, sys, tarfile
+				t = tarfile.open(sys.argv[1]); names = t.getnames()
+				m = json.load(t.extractfile("+MANIFEST")); c = json.load(t.extractfile("+COMPACT_MANIFEST"))
+				bad = []
+				if names[:2] != ["+COMPACT_MANIFEST", "+MANIFEST"]: bad.append(f"order {names[:2]}")
+				if sorted(names[2:]) != sorted(m.get("files", {})): bad.append(f"files {names[2:]}")
+				for n in names[2:]:
+				    f = t.extractfile(n)
+				    if f is None or m["files"].get(n, {}).get("sum") != "1$" + hashlib.sha256(f.read()).hexdigest(): bad.append(f"sum {n}")
+				if (m["version"], m["abi"], m["name"]) != ("9.9.9.beta1", sys.argv[2], "convert-base-v2"): bad.append(f"meta {m['version']} {m['abi']}")
+				if "files" in c or {k: v for k, v in m.items() if k != "files"} != c: bad.append("compact manifest")
+				if "/usr/local/bin/convert-base-v2" not in names: bad.append("no binary")
+				print("; ".join(bad) + ("; " if bad else ""), end="")
+			EOF
+			)" || pkWhy+="${pkFile} unreadable; "
+		done
+		[[ -z "${pkWhy}" ]] && _pass dee9w "FreeBSD .pkg per arch, manifests first, sums match" || _fail dee9w "FreeBSD .pkg per arch, manifests first, sums match" "${pkWhy}"
 	fi
 fi
 
@@ -3111,18 +3140,34 @@ cat >"${rhDir}/bin/ssh" <<'EOF'
 #!/bin/sh
 while [ "$1" = -o ]; do shift 2; done
 case "$1" in gone@*) exit 255 ;; esac
+case "$1" in root@*) shift; c="$(printf '%s' "$*" | sed "s,/usr/local/,$RH_ROOT/usr/local/,g")"; PATH="$RH_FAKE:$PATH" TMPDIR="$RH_BOX" exec sh -c "$c" ;; esac
 shift
 TMPDIR="$RH_BOX" exec sh -c "$*"
+EOF
+## pkg as root on the box, over a folder of its own. Its package is the stub.
+mkdir -p "${rhDir}/fake"
+cat >"${rhDir}/fake/pkg" <<'EOF'
+#!/bin/sh
+r="$RH_ROOT/usr/local"
+case "$1" in
+	info) [ -e "$RH_ROOT/installed" ] ;;
+	add) echo add >>"$RH_PKG_LOG"; mkdir -p "$r/bin" "$r/share/licenses/cbv" && cp "$2" "$r/bin/cbv" && chmod +x "$r/bin/cbv" && : >"$r/share/licenses/cbv/license.md" && : >"$RH_ROOT/installed" ;;
+	delete) echo delete >>"$RH_PKG_LOG"; [ -z "${RH_PKG_KEEP:-}" ] || exit 0; rm -f "$RH_ROOT/installed" "$r/bin/cbv" "$r/share/licenses/cbv/license.md" && rmdir "$r/share/licenses/cbv" ;;
+esac
 EOF
 printf '%s\n' '#!/bin/sh' 'echo "hold $1" >>"$RH_HOLDS"' 'if [ -n "${RH_HOLD_RC:-}" ]; then exit "$RH_HOLD_RC"; fi' 'shift 2' 'exec "$@"' >"${rhDir}/bin/hold"
 printf '%s\n' '#!/bin/sh' 'echo "stub $*"' >"${rhDir}/ref"
 printf '%s\n' '#!/bin/sh' 'echo "stub${RH_ODD:-} $*"' >"${rhDir}/dist/cbv-freebsd-x86_64"
-chmod +x "${rhDir}/bin/ssh" "${rhDir}/bin/hold" "${rhDir}/ref" "${rhDir}/dist/cbv-freebsd-x86_64"
+cp "${rhDir}/dist/cbv-freebsd-x86_64" "${rhDir}/dist/cbv-9.9.9-freebsd-x86_64.pkg"
+chmod +x "${rhDir}/bin/ssh" "${rhDir}/bin/hold" "${rhDir}/ref" "${rhDir}/dist/cbv-freebsd-x86_64" "${rhDir}/fake/pkg"
 fRhRun(){
 	local run; run="$(mktemp -d "${rhDir}/run.XXXXXX")"; : >"${rhDir}/holds"; mkdir -p "${rhBox}/20200101-000000_001"; touch -d 2020-01-01 "${rhBox}/20200101-000000_001"; rhRc=0
-	rhOut="$(RH_BOX="${rhDir}/box" RH_HOLDS="${rhDir}/holds" CICD_SSH="${rhDir}/bin/ssh" CICD_APP=cbv CICD_DIST="${rhDir}/dist" CICD_REF_BIN="${rhDir}/ref" \
+	rhRoot="$(mktemp -d "${rhDir}/root.XXXXXX")"; : >"${rhDir}/pkglog"
+	[[ -z "${RH_PRE:-}" ]] || { mkdir -p "${rhRoot}/usr/local/bin"; : >"${rhRoot}/${RH_PRE}"; }
+	rhOut="$(RH_ROOT="${rhRoot}" RH_FAKE="${rhDir}/fake" RH_PKG_LOG="${rhDir}/pkglog" RH_BOX="${rhDir}/box" RH_HOLDS="${rhDir}/holds" CICD_SSH="${rhDir}/bin/ssh" CICD_APP=cbv CICD_DIST="${rhDir}/dist" CICD_REF_BIN="${rhDir}/ref" \
 		CICD_RUN_TMP="${run}" CICD_CROSS_RAN=1 bash "${meDir}/utility/remote-hosts.bash" --wrap "${rhDir}/bin/hold" --wrap '{}' --wrap -- "$@" 2>&1)" || rhRc=$?
 	rhHolds="$(tr '\n' ',' <"${rhDir}/holds")"; rhLeft="$(cd "${rhBox}" && printf '%s,' *)"
+	rhPkg="$(tr '\n' ',' <"${rhDir}/pkglog")"; rhLeftRoot="$(cd "${rhRoot}" && find . -mindepth 1 ! -type d | sort | tr '\n' ',')"
 }
 fRhRun 'vmA|freebsd-x86_64|a@box'
 [[ "${rhRc}" == 0 && "${rhHolds}" == "hold vmA," && "${rhLeft}" == "keep," ]] && grep -qxF 'PASS dee6x freebsd-x86_64 on vmA' <<<"${rhOut}" \
@@ -3142,6 +3187,27 @@ RH_ODD=-odd fRhRun 'vmA|freebsd-x86_64|a@box'
 [[ "${rhRc}" == 1 && "${rhLeft}" == "keep," ]] && grep -qxF 'FAIL dee6x freebsd-x86_64 on vmA' <<<"${rhOut}" && grep -qxF '> stub-odd 255 16' <<<"${rhOut}" \
 	&& _pass dee74 "other hosts: answers that differ from the native build fail" \
 	|| _fail dee74 "other hosts: answers that differ from the native build fail" "rc=${rhRc} left=[${rhLeft}] out=[${rhOut}]"
+## The package, where a root login is given: added, run, removed, and nothing left.
+fRhRun 'vmA|freebsd-x86_64|a@box|root@box'
+[[ "${rhRc}" == 0 && "${rhPkg}" == "add,delete," && -z "${rhLeftRoot}" && "${rhLeft}" == "keep," ]] && grep -qxF 'PASS dee9x freebsd-x86_64 package on vmA' <<<"${rhOut}" \
+	&& grep -qxF 'PASS dee6x freebsd-x86_64 on vmA' <<<"${rhOut}" \
+	&& _pass dee9y "other hosts: the package is installed, runs, and is removed" \
+	|| _fail dee9y "other hosts: the package is installed, runs, and is removed" "rc=${rhRc} pkg=[${rhPkg}] root left=[${rhLeftRoot}] left=[${rhLeft}] out=[${rhOut}]"
+## Somebody's install, or a binary in its place, is left alone. No root login is a SKIP.
+rhGuard=""
+RH_PRE=installed fRhRun 'vmA|freebsd-x86_64|a@box|root@box'
+[[ "${rhRc}" == 0 && -z "${rhPkg}" && "${rhLeftRoot}" == "./installed," ]] && grep -qxF "SKIP dee9x freebsd-x86_64 package on vmA, cbv is already installed on vmA, so it's left alone" <<<"${rhOut}" || rhGuard+="installed: rc=${rhRc} pkg=[${rhPkg}] root=[${rhLeftRoot}] out=[${rhOut}] "
+RH_PRE=usr/local/bin/cbv fRhRun 'vmA|freebsd-x86_64|a@box|root@box'
+[[ "${rhRc}" == 0 && -z "${rhPkg}" && "${rhLeftRoot}" == "./usr/local/bin/cbv," ]] && grep -qxF "SKIP dee9x freebsd-x86_64 package on vmA, /usr/local/bin/cbv on vmA isn't from the package, so it's left alone" <<<"${rhOut}" || rhGuard+="binary: rc=${rhRc} pkg=[${rhPkg}] root=[${rhLeftRoot}] out=[${rhOut}] "
+fRhRun 'vmA|freebsd-x86_64|a@box'
+[[ "${rhRc}" == 0 && -z "${rhPkg}" ]] && grep -qxF 'SKIP dee9x freebsd-x86_64 package on vmA, no root login for vmA' <<<"${rhOut}" || rhGuard+="no root: rc=${rhRc} out=[${rhOut}] "
+[[ -z "${rhGuard}" ]] && _pass dee9z "other hosts: an install already there is left alone, and no root login is a SKIP" \
+	|| _fail dee9z "other hosts: an install already there is left alone, and no root login is a SKIP" "${rhGuard}"
+## A package that won't go away fails.
+RH_PKG_KEEP=1 fRhRun 'vmA|freebsd-x86_64|a@box|root@box'
+[[ "${rhRc}" == 1 && "${rhPkg}" == "add,delete," ]] && grep -qxF 'FAIL dee9x freebsd-x86_64 package on vmA, pkg delete left the package or its files on vmA' <<<"${rhOut}" \
+	&& _pass deea0 "other hosts: a package that isn't removed fails" \
+	|| _fail deea0 "other hosts: a package that isn't removed fails" "rc=${rhRc} pkg=[${rhPkg}] out=[${rhOut}]"
 
 ## --backlog-run-full and --merge-gate run every check a plain run does: the pins,
 ## long tests, fuzz, leak checks, the checks that reach another host, and the

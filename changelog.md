@@ -44,6 +44,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Releases include the WASI build of the command, `convert-base-v2.wasm`, for any WebAssembly runtime.
 
+- FreeBSD releases include a `.pkg` for x86_64 and arm64, such as `convert-base-v2-3.1.0.beta1-freebsd-x86_64.pkg`, for `pkg add`. A beta's version has a `.` where the tag has a `-`, since pkg doesn't allow one there, and it still sorts below its final release. `pkg delete convert-base-v2` removes it.
+
 - The Windows `.exe` files and installers have an icon, the project mascot, and version details that Explorer shows on the Properties tab.
 
 - A PowerShell install script, `install.ps1`, for Windows PowerShell 5.1 and PowerShell 7 on any OS. Like the Bash one, it checks the download against `checksums.txt`, shows its plan, and asks first. On Windows it installs for the user by default and adds the folder to the PATH.
@@ -147,6 +149,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - A full pipeline run also runs the release builds on other machines, starting with FreeBSD, and checks that they give the same answers as the native build. Each box is listed in a file outside the repo. A box that doesn't answer is skipped with a warning, and `--no-remote` skips them all.  [20261025]
 
 - The pipeline's leak checks run by how long each takes. The fast ones, goleak and the race detector run, are in every run, `--quick` and the backlog quick run too. The soak test and CodeQL are slow, and run in a plain run and with `--long`, which would also have any that take hours. `--leakcheck` adds them all, and `--no-leakcheck` takes them all out, goleak included.  [20261025]
+
+- The pipeline's Other hosts step installs the FreeBSD `.pkg` with `pkg add` where the box list gives a root login, runs the same cases with it, and removes it. A box that already has the package, or a binary in its place, is left alone.  [20261025]
 
 - One line at the end of a pipeline run says what its cleanup removed, from docker, old run folders and its own, and about how much that freed.  [20261025]
 

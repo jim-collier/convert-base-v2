@@ -1261,7 +1261,7 @@ if fStep Profiler; then run_profiler; fStepDone; fi
 ## Stage 6: cross-compile + package (build sanity + release artifacts).
 if fStep "Cross + package"; then
 	"${RELEASE_CMD[@]}"
-	count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.exe' \) 2>/dev/null | wc -l)"
+	count="$(find "${RELEASE_ARTIFACT_DIR}" -maxdepth 1 -type f \( -name '*.tgz' -o -name '*.zip' -o -name '*.deb' -o -name '*.rpm' -o -name '*.pkg' -o -name '*.exe' \) 2>/dev/null | wc -l)"
 	((count > 0)) || fDie "cross + package produced no artifacts in ${RELEASE_ARTIFACT_DIR}/"
 	fEcho "OK: release artifacts: ${count} in ${RELEASE_ARTIFACT_DIR}/"
 	fStepDone
