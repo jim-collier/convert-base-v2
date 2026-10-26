@@ -2867,7 +2867,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - FreeBSD gets only a tarball.
 	- ID: 2026101411014806
 	- Type: Feature
-	- Status: Deferred
+	- Status: Waiting on automated testing
 	- Priority: Low
 	- Opened: 20261014-110148
 	- Opened by: Repo review 20261014
@@ -2875,6 +2875,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Requirements:
 		- Build a native `.pkg` for FreeBSD.
 	- Note: design.md defers it, beside the macOS `.dmg`.
+	- Prereq IDs: 2026102518082687
+	- 2026-10-26: the `.pkg` went in through 2026102518082687, so this needs only that item's full run.
 
 ## Old format
 
