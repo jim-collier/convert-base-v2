@@ -364,6 +364,7 @@ fSection(){ fEcho_Clean; fEcho_Clean "${_letterbox}"; fStepStamp; fEcho "${step_
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••
 ## The backlog runs and the merge gate check the format where Format would fix it.
 fmt_steps=(Format); if [[ -n "${run_mode}" ]]; then fmt_steps=(Format "Format check"); fi
+## Which steps run inside the container. Their order comes from step_order.
 container_steps=(Pins "${fmt_steps[@]}" "Native build" Lint Tests "Cross + package" "Demo gif")
 steps_on=(); steps_off=(); steps_numbered=(); step_open=""; step_num=0; step_stamp=""
 fInList(){ local want="$1" item; shift; for item in "$@"; do if [[ "${item}" == "${want}" ]]; then return 0; fi; done; return 1; }
@@ -400,13 +401,16 @@ fStepOffWhy(){
 	step_off_why="${why}"
 }
 ## Inside the container only its own steps run, numbered as the host run that
-## started it says in CICD_STEPS.
+## started it says in CICD_STEPS. A container run does all of those first, then
+## the rest, each part in the order below, which is the order of the script.
+step_order=(Pins "${fmt_steps[@]}" "Native build" Lint Tests Profiler "Cross + package" "Other hosts" Dogfood Screenshots "Demo gif" "Backup + publish")
 fStepPlan(){
 	local s
-	local -a order
-	if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then order=("${container_steps[@]}")
-	elif ((use_container)); then order=("${container_steps[@]}" "Other hosts" Profiler Dogfood Screenshots "Backup + publish")
-	else order=(Pins "${fmt_steps[@]}" "Native build" Lint Tests Profiler "Cross + package" "Other hosts" Dogfood Screenshots "Demo gif" "Backup + publish"); fi
+	local -a order=() rest=()
+	for s in "${step_order[@]}"; do if fInList "${s}" "${container_steps[@]}"; then order+=("${s}"); else rest+=("${s}"); fi; done
+	if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then :
+	elif ((use_container)); then order+=("${rest[@]}")
+	else order=("${step_order[@]}"); fi
 	steps_on=(); steps_off=()
 	for s in "${order[@]}"; do
 		fStepOffWhy "${s}"
@@ -555,20 +559,35 @@ fDockerBytes(){
 		if (u == "kB") m = 1e3; else if (u == "MB") m = 1e6; else if (u == "GB") m = 1e9; else if (u == "TB") m = 1e12
 		t += n * m } END { printf "%.0f\n", t }'
 }
-fDockerTotal(){ { "${docker_engine}" system df --format '{{.Size}}' 2>/dev/null || true; } | fDockerBytes; }
+## Each image's unique size, by short ID and by name, and each volume's size,
+## into docker_sizes. What can't be read counts as 0, so a busy daemon gives a
+## low figure rather than a wrong one.
+declare -A docker_sizes=()
+fDockerSizes(){
+	local kind name size ref
+	docker_sizes=()
+	while read -r kind name size ref; do
+		size="$(fDockerBytes <<<"${size}")"
+		if [[ "${kind}" == I ]]; then name="${name#sha256:}"; docker_sizes["${name:0:12}"]="${size}"; docker_sizes["${ref}"]="${size}"
+		elif [[ "${kind}" == V ]]; then docker_sizes["volume ${name}"]="${size}"; fi
+	done < <("${docker_engine}" system df -v --format '{{range .Images}}I {{.ID}} {{.UniqueSize}} {{.Repository}}:{{.Tag}}{{println}}{{end}}{{range .Volumes}}V {{.Name}} {{.Size}}{{println}}{{end}}' 2>/dev/null || true)
+}
 ## du -k, since macOS du has no -b.
 fDirBytes(){ local kb; kb="$(du -sk -- "$1" 2>/dev/null | cut -f1)"; echo "$(( ${kb:-0} * 1024 ))"; }
 fBytesSay(){ awk -v b="${1:-0}" 'BEGIN { if (b >= 1e9) printf "%.1f GB", b / 1e9; else if (b >= 1e6) printf "%.1f MB", b / 1e6; else printf "%d KB", int((b + 999) / 1000) }'; }
 cleanup_what=(); cleanup_bytes=0; cleanup_said=0
 ## What this run made in docker, pass or fail. Only what has this project's
 ## label, and never rmi -f or system prune, since other projects share docker.
+## What it freed is the sum of what it removed, sized before. Docker's total
+## before and after would count what other projects did meanwhile. Containers
+## add nothing, since they ran with --rm and this only finds a leftover.
 fDockerCleanup(){
 	if ((! docker_used || docker_cleaned)); then return 0; fi
 	docker_cleaned=1
-	local engine="${docker_engine}" proj="dev.project=${APP_NAME}" before after id ref volProj volSize pruned i=0
-	local -i nCont=0 nImg=0
+	local engine="${docker_engine}" proj="dev.project=${APP_NAME}" id ref volProj volSize pruned i=0
+	local -i nCont=0 nImg=0 freed=0
 	local -a tags=() what=()
-	before="$(fDockerTotal)"
+	fDockerSizes
 	if ((keep_temp)); then
 		while IFS= read -r id; do
 			if [[ -n "${id}" ]]; then fEcho "kept container ${id} (--keep-temp)"; fi
@@ -579,7 +598,7 @@ fDockerCleanup(){
 		done < <("${engine}" ps -aq --filter "label=${proj}" --filter "label=dev.run=${run_name}" 2>/dev/null || true)
 	fi
 	while IFS= read -r id; do
-		if [[ -n "${id}" ]] && "${engine}" rmi "${id}" >/dev/null 2>&1; then nImg+=1; fi
+		if [[ -n "${id}" ]] && "${engine}" rmi "${id}" >/dev/null 2>&1; then nImg+=1; freed+=${docker_sizes["${id:0:12}"]:-0}; fi
 	done < <("${engine}" image ls -q --filter dangling=true --filter "label=${proj}" 2>/dev/null || true)
 	## Older tags go once a newer one passed. The one before it stays. Ordered
 	## by when each was tagged here, since a reproducible build's created date
@@ -592,7 +611,7 @@ fDockerCleanup(){
 		for ref in "${tags[@]}"; do
 			if [[ -z "${ref}" || "${ref}" == "${run_image}" ]]; then continue; fi
 			i=$((i + 1)); if ((i == 1)); then continue; fi
-			if "${engine}" rmi "${ref}" >/dev/null 2>&1; then nImg+=1; else fEcho_Chat "kept ${ref} (in use)"; fi
+			if "${engine}" rmi "${ref}" >/dev/null 2>&1; then nImg+=1; freed+=${docker_sizes["${ref}"]:-0}; else fEcho_Chat "kept ${ref} (in use)"; fi
 		done
 	fi
 	if ((nCont)); then what+=("${nCont} container(s)"); fi
@@ -600,18 +619,17 @@ fDockerCleanup(){
 	## Emptied whole, by removing it. The next run makes it again.
 	volProj="$("${engine}" volume inspect --format '{{index .Labels "dev.project"}}' "${CONTAINER_VOLUME}" 2>/dev/null || true)"
 	if [[ "${volProj}" == "${APP_NAME}" ]]; then
-		volSize="$("${engine}" system df -v --format '{{range .Volumes}}{{.Name}} {{.Size}}{{println}}{{end}}' 2>/dev/null \
-			| awk -v v="${CONTAINER_VOLUME}" '$1 == v { print $2 }' | fDockerBytes || true)"
-		if (( ${volSize:-0} > CONTAINER_VOLUME_CAP )) && "${engine}" volume rm "${CONTAINER_VOLUME}" >/dev/null 2>&1; then what+=("volume ${CONTAINER_VOLUME}"); fi
+		volSize="${docker_sizes["volume ${CONTAINER_VOLUME}"]:-0}"
+		if (( volSize > CONTAINER_VOLUME_CAP )) && "${engine}" volume rm "${CONTAINER_VOLUME}" >/dev/null 2>&1; then what+=("volume ${CONTAINER_VOLUME}"); freed+=volSize; fi
 	elif "${engine}" volume inspect "${CONTAINER_VOLUME}" >/dev/null 2>&1; then
 		fEcho_Chat "NOTE: volume ${CONTAINER_VOLUME} has no ${proj} label, so its size isn't checked"
 	fi
 	## A week of every project's build cache stays, so the next build is warm.
 	pruned="$("${engine}" builder prune -f --filter until=168h 2>&1 | grep -oE '[0-9.]+[kMGT]?B' | tail -1 || true)"
 	what+=("build cache older than a week (${pruned:-0B})")
-	after="$(fDockerTotal)"
+	freed+="$(fDockerBytes <<<"${pruned:-0B}")"
 	cleanup_what+=("${what[@]}")
-	if (( ${before:-0} > ${after:-0} )); then cleanup_bytes=$((cleanup_bytes + before - after)); fi
+	cleanup_bytes=$((cleanup_bytes + freed))
 }
 ## What the run's cleanup removed and about what it freed, in one line. The run
 ## folder goes right after, and is counted here so the line comes before the

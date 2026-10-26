@@ -401,11 +401,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261025: the boxes and the hold command live in `../private/remote-hosts.bash`, read through `REMOTE_LOCAL`, since they're personal. Without it the step is off. The hold is the VM state helper's `wrap`, which takes the host lock.
 		- 20261025: a box that doesn't answer, or that the hold can't have, is a SKIP with a warning. Each box prints one PASS, FAIL or SKIP line with its test ID at the end.
 		- 20261025: stale work folders of ours on a box, older than 2 days, are removed at the start.
+		- 20261026: the container run numbered Other hosts before the profiler but ran the profiler first. Both plans now come from one list in the order the script runs the steps. deeaz failed before and passes after.
 	- Verified: 20261025, on vmFreeBSD from off: 13 cases matched the native build, the work folder was gone after, and the VM was off again. A run with a box the lock doesn't know went on with a SKIP.
 	- Verified: the CI engine area passes 109 of 109 and the self-check 6 of 6. dee71 to dee74 each failed with the code they watch broken, and dee75 failed before the empty-list fix.
 	- Note: the remote check's ID, dee6x, is in `remote-hosts.bash`, which `test-ids.py` doesn't read, so it can't see a clash there.
 	- Swept: `--no-remote`, `REMOTE_CMD` and "other hosts" across the docs. design.md, development.md and the changelog have it now. contributing.md's other hosts are the network checks, and stay.
-	- Test case: dee6x (the FreeBSD check on the box), dee71 (hold and cleanup), dee72 (no answer is a SKIP), dee73 (no hold is a SKIP), dee74 (different answers fail), dee75 (the step gets the boxes and the hold, and is off with none).
+	- Test case: dee6x (the FreeBSD check on the box), dee71 (hold and cleanup), dee72 (no answer is a SKIP), dee73 (no hold is a SKIP), dee74 (different answers fail), dee75 (the step gets the boxes and the hold, and is off with none), deeaz (step numbers in run order, with the profiler and other hosts on).
 	- Branch: cicd2
 
 - CICD reset: other hosts, Windows.
@@ -491,12 +492,13 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261025: one `cleanup:` line at the end says what went, from docker, stale run folders and the run's own folder, and about how much that freed. It comes before the closing banner, as the docker line did. The run inside the container doesn't print one.
 		- 20261025: the FreeBSD `.pkg` is split into 2026102518082687.
 		- 2026-10-25: dedm8 wanted `[ docker cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB); about 0.0 GB freed ]`, and now wants `[ cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB), the run folder (SIZE); about SIZE freed ]`, with any size. dedm9 wanted `docker cleanup: removed`, and now wants `cleanup: removed 1 container(s)`.
+		- 20261026: the full run's cleanup line said about 315.7 GB freed, which was all of docker, since docker's total came back empty after. The docker part is now the sum of what the run removed, sized before: each image's unique size, the volume, and the pruned build cache. Docker's total isn't read, since other projects change it during a run. deeay failed before and passes after.
 	- Decisions:
 		- 20261025: goleak goes by a build tag rather than an env var, so a normal `go test` always has it.
 	- Verified: 20261025, a real `--backlog-run-quick convertbase errcode` ran the unit tests and the race run on those 2 packages and passed, and with `--no-leakcheck` ran the unit tests without goleak and no race run.
 	- Verified: 20261025, on the host, the CI engine area passes 118 of 118 and the release area's dee8p passes. In the container, all but dee7v and dee8z pass, through 2026102518111571. dee8p failed with the tag gone from one package and with goleak gone from another. dee8q, dee8r, dee8s, dee8t and dee8z each failed with the code they watch broken.
 	- Swept: `--leakcheck`, `--no-leakcheck`, "leak checks" and "docker cleanup" across the scripts and docs. contributing.md, development.md and the changelog have it now. The four `leak_test.go` files all have the tag.
-	- Test case: dee8p (goleak in every package, and the tag drops it), dee8q (by length), dee8r (`--leakcheck` and `--no-leakcheck`), dee8s (no goleak under `--no-leakcheck`), dee8t (race run follows the Go areas), dee8z (the cleanup line).
+	- Test case: dee8p (goleak in every package, and the tag drops it), dee8q (by length), dee8r (`--leakcheck` and `--no-leakcheck`), dee8s (no goleak under `--no-leakcheck`), dee8t (race run follows the Go areas), dee8z (the cleanup line), deeay (only what was removed counts as freed).
 	- Branch: cicd2
 	- Prereq IDs: 2026102518082587, 2026102518111571
 	- Its full run waits on the two bugs from the temp files work.

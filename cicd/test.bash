@@ -2698,7 +2698,7 @@ FMT_CMD=(); NATIVE_BUILD_CMD=(${CE_BUILD_FAIL:+false}); NATIVE_BUILD_CMD+=(true)
 PIN_TOOLS_CMD=(); VENDOR_CHECK_CMD=(); INTEROP_CHECK_CMD=(); VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=()
 UNIT_TEST_CMD=(true); TEST_ID_CMD=(); TEST_CMD=(sh -c 'env | grep "^CICDTEST_" | sort >"$CE_KNOBS"; printf "%s|%s|%s|%s\n" "$TMPDIR" "$TEMP" "$TMP" "$(cat "$TMPDIR/run.pid" 2>/dev/null)" >"$CE_KNOBS.tmp"')
 GO_TEST_PKG="."; FUZZ_ENABLE=1; FUZZ_TIME="1s"; FUZZ_TIME_QUICK="1s"; FUZZ_MINIMIZE_TIME="1s"; FUZZ_MINIMIZE_TIME_QUICK="1s"
-VULN_PROBE=(false); VULN_CMD=(${CE_VULN:+true}); PROFILE_ENABLE=0; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=${CE_CROSS:-0}; RELEASE_ARTIFACT_DIR="dist"
+VULN_PROBE=(false); VULN_CMD=(${CE_VULN:+true}); PROFILE_ENABLE=${CE_PROFILE:-0}; PROFILE_STRICT=0; PROFILE_BENCH="BenchmarkX"; PROFILE_TIME="1s"; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=${CE_CROSS:-0}; RELEASE_ARTIFACT_DIR="dist"
 RELEASE_CMD=(sh -c 'mkdir -p dist && echo "win $$" >dist/cbv-test-windows-x86_64.exe && echo "mac $$" >dist/cbv-test-darwin-universal')
 CONTAINER_DIR="cicd/container"; CONTAINER_IMAGE="cbv-test-cicd"; CONTAINER_VOLUME="cbv-test-cache"; CONTAINER_MOUNTS=("demos" "nowhere")
 CONTAINER_DEFAULT=${CE_CONTAINER_DEFAULT:-0}; CONTAINER_CONTEXTS=("ctx=${CE_CTX:-ctxdir}"); CONTAINER_CONTEXT_MISSING=(--no-demogif)
@@ -2774,7 +2774,15 @@ case "$1 $2" in
 	"volume inspect")
 		[ -n "${CE_HAVE_VOL:-}" ] || exit 1
 		case "$*" in *--format*) echo "${CE_VOL_PROJ:-}" ;; esac ;;
-	"system df") case "$*" in *" -v "*) echo "cbv-test-cache ${CE_VOL_SIZE:-1.5GB}" ;; *) printf '%s\n' 1GB 2.5GB ;; esac ;;
+	## Docker's total reads once, then fails, as on a busy daemon. Other
+	## projects' images are in the -v list too.
+	"system df")
+		case "$*" in
+			*" -v "*) printf '%s\n' "I sha256:d4ngl3d4ngl3e5e5 100MB <none>:<none>" "I sha256:0ld0ld0ld0ldaaaa 200MB cbv-test-cicd:0ld0ld0ld0ld" \
+				"I sha256:2222zzzz0000bbbb 300MB cbv-test-cicd:zzz000000000" "I sha256:pr3v10us0000cccc 400MB cbv-test-cicd:pr3v10us0000" \
+				"I sha256:07he707he7dddd 5GB other-cicd:1" "V cbv-test-cache ${CE_VOL_SIZE:-1.5GB}" "V other-cache 9GB" ;;
+			*) [ "$(grep -c '^system df --format' "$CE_DOCKER_LOG")" -le 1 ] || exit 1; printf '%s\n' 1GB 2.5GB ;;
+		esac ;;
 	"builder prune") printf 'Total:\t12.5MB\n' ;;
 	build*)
 		if [ -n "${CE_BUILD_SIGINT:-}" ]; then kill -INT "$PPID"; exit 1; fi
@@ -3388,6 +3396,11 @@ ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | 
 	&& [[ "$(grep -n 'cleanup: removed 1 container' <<<"${ceOut}" | cut -d: -f1)" -lt "$(grep -n 'CI/CD: done' <<<"${ceOut}" | cut -d: -f1)" ]]; } \
 	&& _pass dedm8 "docker cleanup after a pass" \
 	|| _fail dedm8 "docker cleanup after a pass" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
+## What it freed is what it removed: 3 images of 100, 200 and 300 MB, and
+## 12.5 MB of build cache, plus a run folder of a few KB. Docker's total isn't
+## read, since another project can change it, and it can come back empty.
+[[ "${ceOut}" == *"; about 612.5 MB freed ]"* ]] && _pass deeay "cleanup counts only what it removed" \
+	|| _fail deeay "cleanup counts only what it removed" "line=[$(grep 'cleanup:' <<<"${ceOut}" || true)]"
 ceStepsCont="$(fCeSteps)"
 { ((ceRc == 0)) && [[ "${ceOut}" == *"inner run"* && "${ceOut}" == *"Step 4 of 4; Starting Dogfood"* && "${ceOut}" == *"OK: installed -> "* \
 	&& "${ceOut}" != *"Starting Native build"* && "${ceOut}" != *"OK: integration harness"* && "${ceOut}" != *"Starting Cross"* ]]; } && _pass ddrpk "--container host stages" \
@@ -3399,6 +3412,13 @@ CE_INSIDE=1 CE_STEPS="Native build|Tests|Dogfood" fCeRun -y; ceSteps="$(fCeSteps
 	&& [[ "${ceOut}" != *"local CI/CD"* && "${ceOut}" != *"Turned off"* && "${ceOut}" != *"container part done"* ]]; } \
 	&& _pass dedpr "step numbers across the container and host runs" \
 	|| _fail dedpr "step numbers across the container and host runs" "host=[${ceStepsCont}] inside=[${ceSteps}] $(fCeTail)"
+## The steps run in the order they're numbered, in a container run and a plain
+## one, with the profiler and other hosts both on, since those two swapped once.
+CE_PROFILE=1 CE_REMOTE=1 CE_CROSS=1 CE_HAVE_IMAGE=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container; ceOrder="${ceRc}:$(fCeSteps)|"
+CE_PROFILE=1 CE_REMOTE=1 CE_CROSS=1 fCeRun -y; ceOrder+="${ceRc}:$(fCeSteps)"
+[[ "${ceOrder}" == "0:4/6 Profiler PASS;5/6 Other hosts PASS;6/6 Dogfood PASS;|0:1/5 Native build PASS;2/5 Tests PASS;3/5 Profiler PASS;4/5 Cross + package PASS;5/5 Other hosts PASS;" ]] \
+	&& _pass deeaz "steps run in the order they're numbered" \
+	|| _fail deeaz "steps run in the order they're numbered" "got=[${ceOrder}] $(fCeTail)"
 CE_HAVE_IMAGE=1 CE_RUN_RC=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container
 { ((ceRc == 1)) && [[ "${ceOut}" == *"the run in the container failed"* && "${ceOut}" != *"OK: installed"* && "${ceDocker}" != *"build "* ]]; } && _pass ddrpm "--container inner failure" \
 	|| _fail ddrpm "--container inner failure" "docker=[${ceDocker}] $(fCeTail)"
