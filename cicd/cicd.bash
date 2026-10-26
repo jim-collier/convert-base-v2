@@ -73,16 +73,15 @@
 ##	   --ci                another name for --merge-gate
 ##	   --list              print the steps the other flags would run, and the areas, and run nothing
 ##	   --no-remote         skip the builds and tests on the other hosts and VMs
-##	   --long              the exhaustive tests (CICDTEST_DO_LONGTEST=1). A run without --quick has them
-##	                       already, so this is for adding them back to a --quick run.
+##	   --long              the exhaustive tests (CICDTEST_DO_LONGTEST=1), and every leak check, the ones
+##	                       that take hours too. A run without --quick has the tests already.
 ##	   --slow              another name for --long
-##	   --leakcheck         the leak checks: the Go tests again under the race detector, the soak
-##	                       test, and CodeQL, which keep their heap profiles and SARIF under
-##	                       cicd/artifacts. A run without --quick has them already, so this is for
-##	                       adding them to a --quick run.
-##	   --no-leakcheck      skip the leak checks on a full run
+##	   --leakcheck         every leak check, whatever its length: goleak in the unit tests, the Go
+##	                       tests again under the race detector, the soak test, and CodeQL, which
+##	                       keep their heap profiles and SARIF under cicd/artifacts
+##	   --no-leakcheck      no leak checks at all, goleak and the fast ones included
 ##	   --quick             the fast checks only. Skips the profiler, screenshots, demo gif, the long tests,
-##	                       the leak checks, and the checks that reach another host (vendor and interop pins,
+##	                       the slow leak checks, and the checks that reach another host (vendor and interop pins,
 ##	                       govulncheck). Fuzz is shorter, and the harness skips its perf section and packaging
 ##	                       rebuild check. It still cross-compiles and packages, which takes seconds.
 ##	   --container         run the steps through tests, cross + package and the demo gif in the pinned
@@ -95,9 +94,13 @@
 ##	   --image-tag         print the image tag a container run would use, and exit. Hosted CI
 ##	                       builds the image under that tag, with its layer cache, before the run.
 ##	   -h, --help          show this help, and the areas
-##	- A run with no flags runs everything, the long tests and leak checks included. --quick
-##	  leaves them out, and --long and --leakcheck put them back, whichever comes first.
-##	  Of --leakcheck and --no-leakcheck, the last one named wins.
+##	- A run with no flags runs everything but the leak checks that take hours. --quick
+##	  leaves out the long tests and slow leak checks, and --long puts them back.
+##	- Each leak check has a length in LEAK_LENGTH in config.bash, by measured time.
+##	  Fast ones run in every run, --quick and --backlog-run-quick included. Slow ones
+##	  run in a plain run and with --long, and those that take hours only with --long.
+##	  --leakcheck adds them all and --no-leakcheck takes them all out, and of the
+##	  two the last one named wins.
 ##	- --quick still fetches first and publishes last. --no-sync and --no-publish skip those.
 ##	- If neither -q/-y nor -m is given, the run prompts once for a commit message
 ##	  (blank = git editor; Ctrl+C aborts the whole run), then finishes unattended.
@@ -118,6 +121,8 @@
 ##	  and after a pass every older image tag but one. Then the build cache older than
 ##	  a week, for every project, and the cache volume once it's over 2 GB. Nothing
 ##	  without the project's label is touched.
+##	- One line at the end says what the cleanup removed, docker, stale run folders
+##	  and the run's own folder, and about what it freed.
 ##	- Reuse: copy the cicd/ directory into another project and edit config.bash.
 
 ##	History: At bottom of script.
@@ -183,6 +188,12 @@ source "${here}/config.bash"
 [[ -v RACE_TEST_CMD ]] || RACE_TEST_CMD=()
 [[ -v SOAK_CMD ]] || SOAK_CMD=()
 [[ -v CODEQL_CMD ]] || CODEQL_CMD=()
+## An older config has no lengths, so its leak checks are all slow, as they were.
+declare -p LEAK_LENGTH >/dev/null 2>&1 || declare -A LEAK_LENGTH=()
+[[ -v GOLEAK_OFF_TAG ]] || GOLEAK_OFF_TAG=""
+for leakName in "${!LEAK_LENGTH[@]}"; do
+	case "${LEAK_LENGTH[${leakName}]}" in fast|slow|hours) ;; *) echo "LEAK_LENGTH[${leakName}] is ${LEAK_LENGTH[${leakName}]}, not fast, slow or hours" >&2; exit 2 ;; esac
+done
 [[ -v PSSA_CMD ]] || PSSA_CMD=()
 [[ -v LINT_JOBS_FLAG ]] || LINT_JOBS_FLAG=""
 [[ -v REMOTE_CMD ]] || REMOTE_CMD=()
@@ -212,7 +223,7 @@ export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the En
 declare -A step_why=()
 fStepWhy(){ [[ -n "${step_why[$1]:-}" ]] || step_why[$1]="$2"; }
 orig_args=("$@")
-assume_yes=0; quiet=0; quick=0; do_long=""; do_leakcheck=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; image_tag=0; keep_temp=0
+assume_yes=0; quiet=0; quick=0; do_long=""; long_named=0; do_leakcheck=""; cli_message=""; use_container=""; inner_args=(); do_sync=1; image_tag=0; keep_temp=0
 run_mode=""; mode_note=""; quick_areas=(); list_only=0; want_help=0
 fQuick(){ local s; quick=1; PROFILE_ENABLE=0; DO_SCREENSHOTS=0; DO_DEMOGIF=0; for s in Profiler Screenshots "Demo gif" Pins; do fStepWhy "${s}" "$1"; done; }
 ## One of the backlog runs or the merge gate, by its own name or the other one.
@@ -245,7 +256,7 @@ while (($#)); do case "$1" in
 	--backlog-run-full)       fRunMode "$1" "$1"; shift ;;
 	--merge-gate|--ci)        fRunMode --merge-gate "$1"; shift ;;
 	--list)                   list_only=1; shift ;;
-	--long|--slow)            do_long=1; inner_args+=(--long); shift ;;
+	--long|--slow)            do_long=1; long_named=1; inner_args+=(--long); shift ;;
 	--leakcheck)              do_leakcheck=1; inner_args+=("$1"); shift ;;
 	--no-leakcheck)           do_leakcheck=0; inner_args+=("$1"); shift ;;
 	--quick)                  fQuick "$1"; inner_args+=("$1"); shift ;;
@@ -279,8 +290,20 @@ elif [[ -n "${run_mode}" ]]; then
 fi
 ## The slow extras a plain run does and --quick doesn't. Each starts empty, and
 ## its flag sets it to 1, so naming one keeps it in a quick run.
-full_extras=(do_long do_leakcheck)
+full_extras=(do_long)
 for extra in "${full_extras[@]}"; do [[ -n "${!extra}" ]] || printf -v "${extra}" '%s' "$(( ! quick ))"; done
+## Leak checks go by length. --leakcheck and --no-leakcheck beat it, the last
+## one named winning. Fast is every run, slow a plain run, hours only --long.
+fLeakOn(){
+	case "${do_leakcheck}" in 1) return 0 ;; 0) return 1 ;; esac
+	case "${LEAK_LENGTH[$1]:-slow}" in
+		fast)  return 0 ;;
+		slow)  ((! quick || long_named)) ;;
+		*)     ((long_named)) ;;
+	esac
+}
+## Why one is off, for its skip line.
+fLeakWhy(){ if [[ "${do_leakcheck}" == 0 ]]; then echo "--no-leakcheck"; else echo "${LEAK_LENGTH[$1]:-slow}"; fi; }
 ## --quick stays on this machine. These checks reach another host.
 if ((quick)); then VENDOR_CHECK_CMD=(); INTEROP_CHECK_CMD=(); VULN_CMD=(); fi
 ## The container run does its part and leaves the rest to the host run that
@@ -533,12 +556,16 @@ fDockerBytes(){
 		t += n * m } END { printf "%.0f\n", t }'
 }
 fDockerTotal(){ { "${docker_engine}" system df --format '{{.Size}}' 2>/dev/null || true; } | fDockerBytes; }
+## du -k, since macOS du has no -b.
+fDirBytes(){ local kb; kb="$(du -sk -- "$1" 2>/dev/null | cut -f1)"; echo "$(( ${kb:-0} * 1024 ))"; }
+fBytesSay(){ awk -v b="${1:-0}" 'BEGIN { if (b >= 1e9) printf "%.1f GB", b / 1e9; else if (b >= 1e6) printf "%.1f MB", b / 1e6; else printf "%d KB", int((b + 999) / 1000) }'; }
+cleanup_what=(); cleanup_bytes=0; cleanup_said=0
 ## What this run made in docker, pass or fail. Only what has this project's
 ## label, and never rmi -f or system prune, since other projects share docker.
 fDockerCleanup(){
 	if ((! docker_used || docker_cleaned)); then return 0; fi
 	docker_cleaned=1
-	local engine="${docker_engine}" proj="dev.project=${APP_NAME}" before after id ref volProj volSize pruned line="" w i=0
+	local engine="${docker_engine}" proj="dev.project=${APP_NAME}" before after id ref volProj volSize pruned i=0
 	local -i nCont=0 nImg=0
 	local -a tags=() what=()
 	before="$(fDockerTotal)"
@@ -583,8 +610,30 @@ fDockerCleanup(){
 	pruned="$("${engine}" builder prune -f --filter until=168h 2>&1 | grep -oE '[0-9.]+[kMGT]?B' | tail -1 || true)"
 	what+=("build cache older than a week (${pruned:-0B})")
 	after="$(fDockerTotal)"
-	for w in "${what[@]}"; do line+="${line:+, }${w}"; done
-	fEcho "docker cleanup: removed ${line}; about $(awk -v b="${before:-0}" -v a="${after:-0}" 'BEGIN { d = b - a; if (d < 0) d = 0; printf "%.1f GB", d / 1e9 }') freed"
+	cleanup_what+=("${what[@]}")
+	if (( ${before:-0} > ${after:-0} )); then cleanup_bytes=$((cleanup_bytes + before - after)); fi
+}
+## What the run's cleanup removed and about what it freed, in one line. The run
+## folder goes right after, and is counted here so the line comes before the
+## closing banner.
+fCleanupReport(){
+	local runBytes w line=""
+	if ((cleanup_said)); then return 0; fi
+	cleanup_said=1
+	fDockerCleanup
+	## The container goes with its run folder in it, and the host run says the rest.
+	if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then return 0; fi
+	if ((! keep_temp)) && [[ -n "${run_tmp}" && -d "${run_tmp}" ]]; then
+		runBytes="$(fDirBytes "${run_tmp}")"
+		cleanup_what+=("the run folder ($(fBytesSay "${runBytes}"))"); cleanup_bytes=$((cleanup_bytes + runBytes))
+	fi
+	if ((${#cleanup_what[@]})); then
+		for w in "${cleanup_what[@]}"; do line+="${line:+, }${w}"; done
+		fEcho "cleanup: removed ${line}; about $(fBytesSay "${cleanup_bytes}") freed"
+	else
+		fEcho "cleanup: nothing to remove"
+	fi
+	fEcho_Clean
 }
 ## Stage 3. go vet is gating; golangci-lint, staticcheck, shellcheck,
 ## ruff and PSScriptAnalyzer run when installed (a failed probe skips that one with
@@ -648,18 +697,26 @@ fUnitTests(){
 	if ((${#TEST_ID_CMD[@]})); then
 		(cd "${root}" && "${TEST_ID_CMD[@]}" check) || fDie "a test has no ID, a bad one, or shares one"
 	fi
-	fGoTests "${UNIT_TEST_CMD[@]}" || fDie "unit tests failed"
-	fEcho "OK: unit tests"
+	## goleak is in the unit tests, so --no-leakcheck builds them without it.
+	if [[ "${do_leakcheck}" == 0 && -n "${GOLEAK_OFF_TAG}" ]]; then
+		fGoTests env "GOFLAGS=${GOFLAGS} -tags=${GOLEAK_OFF_TAG}" "${UNIT_TEST_CMD[@]}" || fDie "unit tests failed"
+		fEcho "OK: unit tests, without goleak (--no-leakcheck)"
+	else
+		fGoTests "${UNIT_TEST_CMD[@]}" || fDie "unit tests failed"
+		fEcho "OK: unit tests"
+	fi
 }
-## Stage 4d, the slow leak checks, on a plain run or with --leakcheck. The Go
+## Stage 4d, the leak checks, each when its length says, per fLeakOn. The Go
 ## tests again under the race detector, then the soak test, which keeps its
 ## heap profiles, then CodeQL, which keeps its SARIF. Any CodeQL result fails.
 fLeakCheck(){
-	if ((! do_leakcheck)); then
-		fEcho_Chat "leak checks skipped"
-		return 0
-	fi
-	if ((${#RACE_TEST_CMD[@]})); then
+	local name
+	for name in race soak codeql; do
+		if ! fLeakOn "${name}"; then fEcho_Chat "${name} leak check skipped ($(fLeakWhy "${name}"))"; fi
+	done
+	if ((${#RACE_TEST_CMD[@]})) && fLeakOn race && ((! run_unit)); then
+		fEcho_Chat "race leak check skipped (no Go area named)"
+	elif ((${#RACE_TEST_CMD[@]})) && fLeakOn race; then
 		if in_src "${RACE_PROBE[@]}" >/dev/null 2>&1; then
 			fGoTests "${heavy_env[@]}" "${RACE_TEST_CMD[@]}" || fDie "tests failed under the race detector"
 			fEcho "OK: race detector clean"
@@ -667,7 +724,7 @@ fLeakCheck(){
 			fSkip "race detector skipped (it needs cgo and a C compiler)"
 		fi
 	fi
-	if ((${#SOAK_CMD[@]})); then
+	if ((${#SOAK_CMD[@]})) && fLeakOn soak; then
 		local soakDir="${root}/${SOAK_OUT_DIR}"
 		mkdir -p "${soakDir}"
 		fGoTests "${heavy_env[@]}" "CICD_SOAK_OUT=${soakDir}" "${SOAK_CMD[@]}" || fDie "soak test failed; its heap profiles are in ${SOAK_OUT_DIR}/"
@@ -675,7 +732,7 @@ fLeakCheck(){
 		gfs_rotate "${soakDir}" heap-2n pprof >/dev/null 2>&1 || true
 		fEcho "OK: soak test, heap profiles in ${SOAK_OUT_DIR}/"
 	fi
-	if ((${#CODEQL_CMD[@]})); then
+	if ((${#CODEQL_CMD[@]})) && fLeakOn codeql; then
 		if "${CODEQL_PROBE[@]}" >/dev/null 2>&1; then
 			local codeqlDir="${root}/${CODEQL_OUT_DIR}"
 			mkdir -p "${codeqlDir}"
@@ -805,6 +862,12 @@ fPickAreas(){
 	done
 	((hit)) || fDie "UNIT_TEST_CMD has no ./... to narrow to ${unit_pkgs[*]}"
 	UNIT_TEST_CMD=("${narrowed[@]}")
+	## The race run is the same tests again, so it takes the same packages.
+	narrowed=()
+	for w in "${RACE_TEST_CMD[@]}"; do
+		if [[ "${w}" == "./..." ]]; then narrowed+=("${unit_pkgs[@]}"); else narrowed+=("${w}"); fi
+	done
+	RACE_TEST_CMD=("${narrowed[@]}")
 }
 ## The area table for --help and --list. A * marks what a --backlog-run-quick
 ## with these flags would run.
@@ -897,12 +960,14 @@ if [[ "${CICD_IN_CONTAINER:-0}" != "1" || -z "${CICD_STEPS:-}" ]]; then
 		fEcho_Chat "Fuzz ................: (disabled)"
 	fi
 	if ((${#VULN_CMD[@]})); then fEcho_Chat "Security ............: ${VULN_CMD[*]}  (if installed)"; else fEcho_Chat "Security ............: (skipped)"; fi
-	if ((do_leakcheck)); then
-		fEcho_Chat "Leak checks .........: ${RACE_TEST_CMD[*]:-(no race run)}"
-		((${#SOAK_CMD[@]})) && \
-		fEcho_Chat "                       ${SOAK_CMD[*]} -> ${SOAK_OUT_DIR}/"
-		((${#CODEQL_CMD[@]})) && \
-		fEcho_Chat "                       ${CODEQL_CMD[*]} -> ${CODEQL_OUT_DIR}/  (if installed)"
+	leak_plan=()
+	if [[ -n "${GOLEAK_OFF_TAG}" && "${do_leakcheck}" != 0 ]]; then leak_plan+=("goleak in the unit tests (fast)"); fi
+	if ((${#RACE_TEST_CMD[@]})) && fLeakOn race; then leak_plan+=("${RACE_TEST_CMD[*]} ($(fLeakWhy race))"); fi
+	if ((${#SOAK_CMD[@]})) && fLeakOn soak; then leak_plan+=("${SOAK_CMD[*]} -> ${SOAK_OUT_DIR}/ ($(fLeakWhy soak))"); fi
+	if ((${#CODEQL_CMD[@]})) && fLeakOn codeql; then leak_plan+=("${CODEQL_CMD[*]} -> ${CODEQL_OUT_DIR}/ ($(fLeakWhy codeql), if installed)"); fi
+	if ((${#leak_plan[@]})); then
+		fEcho_Chat "Leak checks .........: ${leak_plan[0]}"
+		for leakLine in "${leak_plan[@]:1}"; do fEcho_Chat "                       ${leakLine}"; done
 	else
 		fEcho_Chat "Leak checks .........: (skipped)"
 	fi
@@ -965,12 +1030,15 @@ mkdir -p "${run_parent}" || fDie "could not make ${run_parent}"
 ## A run folder older than 2 days whose run.pid names no live process is a
 ## leftover from a killed run. A folder with no run.pid wasn't made by a run.
 fRunTmpSweep(){
-	local d pid
+	local d pid bytes staleBytes=0
+	local -i staleN=0
 	while IFS= read -r d; do
 		pid=""; if [[ -f "${d}/run.pid" ]]; then read -r pid <"${d}/run.pid" || true; else continue; fi
 		if [[ "${pid}" =~ ^[0-9]+$ ]] && ps -p "${pid}" >/dev/null 2>&1; then continue; fi
-		if fSafeRm "${d}"; then fEcho_Chat "removed stale run folder ${d}"; fi
+		bytes="$(fDirBytes "${d}")"
+		if fSafeRm "${d}"; then fEcho_Chat "removed stale run folder ${d}"; staleN+=1; staleBytes=$((staleBytes + bytes)); fi
 	done < <(find "${run_parent}" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*-[0-9]*_[0-9][0-9][0-9]' -mmin +2880 2>/dev/null)
+	if ((staleN)); then cleanup_what+=("${staleN} stale run folder(s) ($(fBytesSay "${staleBytes}"))"); cleanup_bytes=$((cleanup_bytes + staleBytes)); fi
 }
 fRunTmpSweep
 for ((runN = 1; runN < 1000; runN++)); do
@@ -988,7 +1056,7 @@ fRunTmpGone(){
 	fSafeRm "${run_tmp}" || true
 	rmdir "${run_parent}" 2>/dev/null || true
 }
-fRunCleanup(){ fStepExit "$?"; fDockerCleanup; fRunTmpGone; }
+fRunCleanup(){ fStepExit "$?"; fCleanupReport; fRunTmpGone; }
 trap fRunCleanup EXIT
 ## docker catches Ctrl+C and exits on its own, which bash takes as handled, so
 ## without this a failed build would carry on here and a container run go on to
@@ -1311,7 +1379,7 @@ if fStep "Backup + publish"; then
 	fStepDone
 fi
 
-fDockerCleanup
+fCleanupReport
 ## Inside the container the host run has more steps to go, and says when it's done.
 if [[ "${CICD_IN_CONTAINER:-0}" != "1" ]]; then fSection "${APP_NAME} CI/CD: done."
 elif [[ -z "${CICD_STEPS:-}" ]]; then fSection "${APP_NAME} CI/CD: container part done."; fi
@@ -1342,3 +1410,5 @@ fEcho_Clean
 ##		- 2026-10-25 JC: --backlog-run-quick with areas, --backlog-run-full and --merge-gate, which never sync, dogfood, publish or rewrite a tracked file. --gate and --ci are other names for them. --list, --no-remote, --slow.
 ##		- 2026-10-25 JC: The Other hosts step runs the boxes REMOTE_LOCAL names.
 ##		- 2026-10-25 JC: The run folder is ${HOST_TEMP}/<project>/<time>_<NNN>, with TMPDIR, TEMP and TMP pointing at it, and --keep-temp keeps it. Stale ones of ours go at the start. Removal goes through safe-rm.bash.
+##		- 2026-10-25 JC: Leak checks run by length, fast, slow or hours, from LEAK_LENGTH. --no-leakcheck drops goleak too.
+##		- 2026-10-25 JC: One cleanup line at the end for docker, the stale run folders and the run folder.

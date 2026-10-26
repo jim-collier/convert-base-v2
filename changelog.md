@@ -146,6 +146,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - A full pipeline run also runs the release builds on other machines, starting with FreeBSD, and checks that they give the same answers as the native build. Each box is listed in a file outside the repo. A box that doesn't answer is skipped with a warning, and `--no-remote` skips them all.  [20261025]
 
+- The pipeline's leak checks run by how long each takes. The fast ones, goleak and the race detector run, are in every run, `--quick` and the backlog quick run too. The soak test and CodeQL are slow, and run in a plain run and with `--long`, which would also have any that take hours. `--leakcheck` adds them all, and `--no-leakcheck` takes them all out, goleak included.  [20261025]
+
+- One line at the end of a pipeline run says what its cleanup removed, from docker, old run folders and its own, and about how much that freed.  [20261025]
+
 - A pipeline run with no flags includes the long tests. `--quick` still cross-compiles and packages, which takes seconds, and leaves out the checks that reach other hosts.  [20261019]
 
 - The lint stage checks the PowerShell files with PSScriptAnalyzer, and the pipeline image has PowerShell 7 for it.  [20261019]

@@ -165,8 +165,8 @@ FUZZ_MINIMIZE_TIME_QUICK="1s"
 VULN_PROBE=(govulncheck -version)
 VULN_CMD=(govulncheck ./...)
 
-## Stage 4d: leak checks, on a plain run or with --leakcheck, and never under
-## --quick alone or with --no-leakcheck. First the whole Go suite again with the race detector, uncached.
+## Stage 4d: leak checks, each when LEAK_LENGTH below says. First the whole Go
+## suite again with the race detector, uncached.
 ## -race needs cgo and a C compiler, though release builds use CGO_ENABLED=0, so
 ## the probe asks Go whether cgo is on. It skips with a warning where it isn't,
 ## and fails the run in the container, which has gcc. Empty a command to skip it.
@@ -186,6 +186,14 @@ SOAK_OUT_DIR="cicd/artifacts/soak"
 CODEQL_PROBE=(codeql version)
 CODEQL_CMD=(cicd/utility/codeql-scan.bash)
 CODEQL_OUT_DIR="cicd/artifacts/codeql"
+## Each leak check's length, by measured time, says which runs have it: fast is
+## every run, --quick and --backlog-run-quick too, slow is a plain run and
+## --long, hours is --long only. Timed 2026-10-25 at 8 jobs: the race run 9 s,
+## the soak test 11 s, CodeQL minutes. The soak and CodeQL stay slow, as the
+## CICD rules name them. goleak is in the unit tests, so it's fast, and
+## --no-leakcheck builds them with GOLEAK_OFF_TAG to drop it.
+declare -A LEAK_LENGTH=([race]=fast [soak]=slow [codeql]=slow)
+GOLEAK_OFF_TAG="noleakcheck"
 
 ## Stage 5: profiler (non-gating artifact, not a pass/fail test). Runs the
 ## BenchmarkProfile workload (big-int math/big path + streaming codec path) under
@@ -312,3 +320,4 @@ PUBLISH_AUTO_MESSAGE=""
 ##		- 2026-10-25 JC: CONTAINER_VOLUME_CAP.
 ##		- 2026-10-25 JC: Areas for --backlog-run-quick, REMOTE_CMD, and the paths a push to main can change without the merge gate.
 ##		- 2026-10-25 JC: REMOTE_HOSTS and REMOTE_LOCAL.
+##		- 2026-10-25 JC: LEAK_LENGTH and GOLEAK_OFF_TAG.

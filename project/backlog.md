@@ -408,6 +408,35 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: dee6x (the FreeBSD check on the box), dee71 (hold and cleanup), dee72 (no answer is a SKIP), dee73 (no hold is a SKIP), dee74 (different answers fail), dee75 (the step gets the boxes and the hold, and is off with none).
 	- Branch: cicd2
 
+- The contractions test fails on the new temp folder message in `install.bash`.
+	- ID: 2026102518082587
+	- Type: Bug
+	- Status: Queued
+	- Severity: High
+	- Opened: 20261025-180825
+	- Opened by: found while testing 2026102416280109
+	- Related IDs: 2026102416280107
+	- Steps to reproduce [Bug]:
+		- From `lib/`, `go test -run TestMessagesUseContractions ./cmd/convert-base-v2`.
+	- Incorrect behavior [Bug]: de56v fails with `install.bash:193: "could not"`, so the Go unit tests and the merge gate fail on cicd2.
+	- Expected behavior [Bug]: It passes, with the message written as "couldn't".
+	- Possible cause [Bug]: faa094f added the line, in the temp files work.
+
+- In the container, the stale run folder sweep takes a live run's folder for a dead one.
+	- ID: 2026102518111571
+	- Type: Bug
+	- Status: Queued
+	- Severity: High
+	- Opened: 20261025-181115
+	- Opened by: found while testing 2026102416280109
+	- Related IDs: 2026102416280107
+	- Steps to reproduce [Bug]:
+		- `cicd/cicd.bash --backlog-run-quick ci`, in the container.
+	- Incorrect behavior [Bug]: dee7v fails. The folder whose `run.pid` names a live process is removed too.
+	- Expected behavior [Bug]: Only the folder whose process is gone is removed, as on the host.
+	- Possible cause [Bug]: the image has no `ps`, so `fRunTmpSweep`'s `ps -p` always fails. `kill -0` is a builtin.
+	- Note: dee8z fails with it in the container too, since it counts 2 stale folders there rather than 1.
+
 - CICD reset: other hosts, Windows.
 	- ID: 2026102516555347
 	- Type: Enhancement
@@ -470,7 +499,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: CICD process gaps.
 	- ID: 2026102416280109
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: one `cicd/cicd.bash --backlog-run-full`, in the container. The Tests step should run the race detector, the soak test and CodeQL, and the run should end with one `cleanup:` line that names docker's part and the run folder. It needs 2026102518082587 and 2026102518111571 fixed first, or the unit tests and dee7v and dee8z stop it.
 	- Priority: Avg
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -481,6 +511,38 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 			- The leak checks aren't sorted into fast, slow, and hours-long groups by measured time.
 			- No FreeBSD `.pkg`.
 			- No end-of-run line saying what cleanup removed and freed.
+	- Progress log:
+		- 20261025: goleak was already in every Go package with tests, from 2026101816351432. dee8p now checks that it stays so.
+		- 20261025: each leak check has a length in `LEAK_LENGTH` in `config.bash`. Fast runs in every run, `--quick` and the backlog quick run included. Slow runs in a plain run and with `--long`. Hours runs only with `--long`. `--leakcheck` adds them all, and `--no-leakcheck` takes them all out.
+		- 20261025: the race run is fast, at 9 s on 8 jobs. The soak test (11 s) and CodeQL are slow, since the CICD rules name them so. Nothing takes hours yet.
+		- 20261025: `--no-leakcheck` runs the unit tests with the `noleakcheck` build tag, which drops goleak's `TestMain`.
+		- 20261025: in a backlog quick run the race run takes the same Go areas as the unit tests, and none when no Go area is named.
+		- 20261025: one `cleanup:` line at the end says what went, from docker, stale run folders and the run's own folder, and about how much that freed. It comes before the closing banner, as the docker line did. The run inside the container doesn't print one.
+		- 20261025: the FreeBSD `.pkg` is split into 2026102518082687.
+		- 2026-10-25: dedm8 wanted `[ docker cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB); about 0.0 GB freed ]`, and now wants `[ cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB), the run folder (SIZE); about SIZE freed ]`, with any size. dedm9 wanted `docker cleanup: removed`, and now wants `cleanup: removed 1 container(s)`.
+	- Decisions:
+		- 20261025: goleak goes by a build tag rather than an env var, so a normal `go test` always has it.
+	- Verified: 20261025, a real `--backlog-run-quick convertbase errcode` ran the unit tests and the race run on those 2 packages and passed, and with `--no-leakcheck` ran the unit tests without goleak and no race run.
+	- Verified: 20261025, on the host, the CI engine area passes 118 of 118 and the release area's dee8p passes. In the container, all but dee7v and dee8z pass, through 2026102518111571. dee8p failed with the tag gone from one package and with goleak gone from another. dee8q, dee8r, dee8s, dee8t and dee8z each failed with the code they watch broken.
+	- Swept: `--leakcheck`, `--no-leakcheck`, "leak checks" and "docker cleanup" across the scripts and docs. contributing.md, development.md and the changelog have it now. The four `leak_test.go` files all have the tag.
+	- Test case: dee8p (goleak in every package, and the tag drops it), dee8q (by length), dee8r (`--leakcheck` and `--no-leakcheck`), dee8s (no goleak under `--no-leakcheck`), dee8t (race run follows the Go areas), dee8z (the cleanup line).
+	- Branch: cicd2
+
+- CICD reset: FreeBSD `.pkg`.
+	- ID: 2026102518082687
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261025-180826
+	- Opened by: split from 2026102416280109
+	- Parent ID: 2026102416280109
+	- Related IDs: 2026101411014806, 2026102516555342
+	- Target OS: FreeBSD
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes the deferral in design.md and in 2026101411014806.
+		- Each FreeBSD release build, x86_64 and arm64, gets a native `.pkg` beside its tarball, named with the version, and listed in the checksums file.
+		- vmFreeBSD installs it with `pkg add`, runs it, and removes it, through the Other hosts runner.
+	- Note: nfpm doesn't write `.pkg`. A `.pkg` is a compressed tar with `+COMPACT_MANIFEST` and `+MANIFEST` first, so `package.bash` could write one with tar, or `pkg create` could on the box.
 
 - The repo has no social preview image, so shared links show GitHub's generic card.
 	- ID: 2026101416210405

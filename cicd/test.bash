@@ -2638,6 +2638,18 @@ tgRep="$( {
 { grep -qF "Write at 0x00c by goroutine 7" <<<"${tgRep}" && grep -qF "frame 30" <<<"${tgRep}" && grep -qF "goleak: Errors on successful test run" <<<"${tgRep}"; } \
 	&& _pass de553 "test-ids race and leak reports from the top" \
 	|| _fail de553 "test-ids race and leak reports from the top" "report=[$(tr '\n' ' ' <<<"${tgRep}")]"
+## Every Go package with tests runs goleak, and the tag --no-leakcheck builds
+## with drops it. The browser module only builds for js/wasm.
+if command -v go >/dev/null 2>&1 && [[ -d "${meDir}/../lib" ]]; then
+	glList(){ (cd "${meDir}/../lib" && go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}} {{.TestImports}} {{.XTestImports}}{{end}}' "$@" 2>/dev/null) | grep -v '^$' || true; }
+	glOn="$(glList ./...; GOOS=js GOARCH=wasm glList ./wasm)"
+	glOff="$(glList -tags=noleakcheck ./...; GOOS=js GOARCH=wasm glList -tags=noleakcheck ./wasm)"
+	glBad="$(grep -v 'go.uber.org/goleak' <<<"${glOn}" | cut -d' ' -f1 || true)$(grep 'go.uber.org/goleak' <<<"${glOff}" | cut -d' ' -f1 || true)"
+	{ [[ -z "${glBad}" ]] && (( $(wc -l <<<"${glOn}") >= 4 )) && grep -q '/wasm ' <<<"${glOn}"; } && _pass dee8p "every Go package with tests runs goleak, and noleakcheck drops it" \
+		|| _fail dee8p "every Go package with tests runs goleak, and noleakcheck drops it" "bad=[${glBad}] on=[$(cut -d' ' -f1 <<<"${glOn}" | tr '\n' ' ')]"
+else
+	_warn dee8p "goleak in every Go package (no go here)"
+fi
 fi  ## area release
 
 
@@ -2683,6 +2695,9 @@ fi
 UNIT_AREAS_CMD=(printf '%s\n' ./pkga ./sub/pkgb); TEST_AREAS_CMD=(printf '%s\t%s\n' alpha "Alpha one" beta "Beta one; Beta two"); QUICK_AREAS=(format lint go alpha)
 MERGE_GATE_SKIP=(notes.md 'docs/*')
 [[ -z "${CE_AREAS:-}" ]] || { FMT_CHECK_CMD=(true); VET_CMD=(true); UNIT_TEST_CMD=(sh -c 'echo "unit-ran $*"' sh ./...); }
+## One leak check of each length, codeql's from CE_LEAK_LEN.
+[[ -z "${CE_LEAK_LEN:-}" ]] || { declare -A LEAK_LENGTH=([race]=fast [soak]=slow [codeql]="${CE_LEAK_LEN}"); GOLEAK_OFF_TAG="noleakcheck"
+	UNIT_TEST_CMD=(sh -c 'echo "unit-ran GOFLAGS=$GOFLAGS $*"' sh ./...); RACE_TEST_CMD=(sh -c 'echo "race-ran $*"' sh ./...); }
 [[ -z "${CE_REMOTE:-}" ]] || REMOTE_CMD=(echo remote-ran)
 case "${CE_REMOTE_HOSTS:-}" in
 	"") ;;
@@ -2838,7 +2853,7 @@ IFS='|' read -r ceRunDir ceRunTemp ceRunTmp2 ceRunPid <"${ceDir}/knobs.tmp" || t
 	|| _fail dee7s "run folder under HOST_TEMP, in TMPDIR, TEMP and TMP, with run.pid, gone after" "dir=[${ceRunDir}] temp=[${ceRunTemp}] tmp=[${ceRunTmp2}] pid=[${ceRunPid}] $(fCeTail)"
 for ceD in "${ceProj}"/*_001; do fSafeRmUnder "${ceProj}" "${ceD}" || true; done; rmdir "${ceProj}" || true
 ## --keep-temp keeps it and says where.
-fCeRun -y --keep-temp
+fCeRun -y --keep-temp; ceKeepOut="${ceOut}"
 IFS='|' read -r ceRunDir _ _ _ <"${ceDir}/knobs.tmp" || true
 { ((ceRc == 0)) && [[ -n "${ceRunDir}" && -d "${ceRunDir}" && "${ceOut}" == *"[ kept temp folder ${ceRunDir} (--keep-temp) ]"* ]]; } \
 	&& _pass dee7t "--keep-temp keeps the run folder and prints it" || _fail dee7t "--keep-temp keeps the run folder and prints it" "dir=[${ceRunDir}] $(fCeTail)"
@@ -2849,11 +2864,17 @@ if [[ -n "${ceRunDir}" && -d "${ceRunDir}" ]]; then fSafeRmUnder "${ceProj}" "${
 ceOld="$(date -d '3 days ago' +%Y%m%d-%H%M%S)"; sh -c 'exit 0' & ceDead=$!; wait "${ceDead}" || true
 mkdir -p "${ceProj}/${ceOld}_001" "${ceProj}/${ceOld}_002" "${ceProj}/${ceOld}_003" "${ceProj}/20990101-000000_001" "${ceRealTmp}/other/${ceOld}_001"
 echo "${ceDead}" >"${ceProj}/${ceOld}_001/run.pid"; echo "$$" >"${ceProj}/${ceOld}_002/run.pid"; echo "${ceDead}" >"${ceProj}/20990101-000000_001/run.pid"; echo "${ceDead}" >"${ceRealTmp}/other/${ceOld}_001/run.pid"
+head -c 300000 /dev/zero >"${ceProj}/${ceOld}_001/leftover"
 touch -d '3 days ago' "${ceProj}/${ceOld}_001" "${ceProj}/${ceOld}_002" "${ceProj}/${ceOld}_003" "${ceRealTmp}/other/${ceOld}_001"
 fCeRun -y
 { ((ceRc == 0)) && [[ ! -e "${ceProj}/${ceOld}_001" && -d "${ceProj}/${ceOld}_002" && -d "${ceProj}/${ceOld}_003" && -d "${ceProj}/20990101-000000_001" && -d "${ceRealTmp}/other/${ceOld}_001" ]] \
 	&& [[ "${ceOut}" == *"removed stale run folder ${ceProj}/${ceOld}_001"* ]]; } && _pass dee7v "stale run folders of ours go, and nothing else" \
 	|| _fail dee7v "stale run folders of ours go, and nothing else" "left=[$(find "${ceProj}" "${ceRealTmp}/other" -mindepth 1 -maxdepth 1 2>&1 | tr '\n' ' ')] $(fCeTail)"
+## One line at the end says what went, the stale folder and the run's own, and
+## about what that freed. --keep-temp leaves the run folder out of it.
+{ ((ceRc == 0)) && grep -qE '^\[ cleanup: removed 1 stale run folder\(s\) \([0-9.]+ (KB|MB)\), the run folder \([0-9.]+ (KB|MB)\); about [0-9.]+ (KB|MB) freed \]$' <<<"${ceOut}" \
+	&& [[ "${ceKeepOut}" == *"[ cleanup: nothing to remove ]"* ]]; } && _pass dee8z "one cleanup line: stale folders, the run folder, and about what it freed" \
+	|| _fail dee8z "one cleanup line: stale folders, the run folder, and about what it freed" "keep=[$(grep 'cleanup:' <<<"${ceKeepOut}" || true)] $(fCeTail)"
 for ceD in "${ceProj}"/*_00[0-9] "${ceRealTmp}/other/${ceOld}_001"; do if [[ -d "${ceD}" ]]; then fSafeRmUnder "${ceRealTmp}" "${ceD}" || true; fi; done; rmdir "${ceProj}" "${ceRealTmp}/other" || true
 ## The guard refuses what it should, and removes the rest.
 ceSr="${ceRealTmp}/sr"; mkdir -p "${ceSr}/a/b" "${ceSr}/c" "${ceRealTmp}/sr2"; touch "${ceSr}/a/b/f"; ln -s "${ceSr}" "${ceRealTmp}/srlink"; ceRefused=""
@@ -2913,6 +2934,37 @@ for ceArgs in "-y --no-leakcheck" "-y --leakcheck --no-leakcheck" "-y --no-leakc
 done
 [[ "${ceNoLeak}" == "0:0;0:0;0:3;" ]] && _pass de5d7 "--no-leakcheck skips the leak checks, last flag wins" \
 	|| _fail de5d7 "--no-leakcheck skips the leak checks, last flag wins" "got=[${ceNoLeak}] $(fCeTail)"
+## Each leak check runs by its length: fast in every run, slow in a plain run
+## and --long, hours only with --long. A length that isn't one of those stops it.
+fCeLeaks(){ local l=""; grep -q '^race-ran ' <<<"${ceOut}" && l+=r; grep -q '^soak-ran ' <<<"${ceOut}" && l+=s; grep -q '^codeql-ran ' <<<"${ceOut}" && l+=c; printf '%s' "${l:--}"; }
+ceLens=""
+for ceArgs in "-y --quick" "--backlog-run-quick" "-y" "--backlog-run-full" "-y --long" "-y --quick --long"; do
+	CE_LEAK_LEN=hours fCeRun ${ceArgs}; ceLens+="${ceRc}:$(fCeLeaks);"
+done
+CE_LEAK_LEN=weekly fCeRun -y
+{ [[ "${ceLens}" == "0:r;0:r;0:rs;0:rs;0:rsc;0:rsc;" ]] && ((ceRc == 2)) && [[ "${ceOut}" == *"LEAK_LENGTH[codeql] is weekly, not fast, slow or hours"* ]]; } \
+	&& _pass dee8q "leak checks by length: fast always, slow in a plain run, hours with --long" \
+	|| _fail dee8q "leak checks by length: fast always, slow in a plain run, hours with --long" "got=[${ceLens}] $(fCeTail)"
+## --leakcheck adds every length, --no-leakcheck drops every one, and of the two
+## the last one named wins.
+ceLens=""
+for ceArgs in "-y --quick --leakcheck" "--backlog-run-quick --leakcheck" "-y --long --no-leakcheck" "--backlog-run-quick --no-leakcheck" "-y --no-leakcheck --leakcheck" "-y --leakcheck --no-leakcheck"; do
+	CE_LEAK_LEN=hours fCeRun ${ceArgs}; ceLens+="${ceRc}:$(fCeLeaks);"
+done
+[[ "${ceLens}" == "0:rsc;0:rsc;0:-;0:-;0:rsc;0:-;" ]] && _pass dee8r "--leakcheck adds every leak check, --no-leakcheck drops every one" \
+	|| _fail dee8r "--leakcheck adds every leak check, --no-leakcheck drops every one" "got=[${ceLens}] $(fCeTail)"
+## goleak is in the unit tests, so --no-leakcheck builds them with the tag that drops it.
+CE_LEAK_LEN=hours fCeRun -y; ceUnitOn="$(grep '^unit-ran ' <<<"${ceOut}" || true)"
+CE_LEAK_LEN=hours fCeRun -y --no-leakcheck
+{ ((ceRc == 0)) && [[ -n "${ceUnitOn}" && "${ceUnitOn}" != *"-tags="* ]] && grep -qE '^unit-ran GOFLAGS=.* -tags=noleakcheck \./\.\.\.$' <<<"${ceOut}" \
+	&& [[ "${ceOut}" == *"OK: unit tests, without goleak (--no-leakcheck)"* ]]; } && _pass dee8s "--no-leakcheck runs the unit tests without goleak" \
+	|| _fail dee8s "--no-leakcheck runs the unit tests without goleak" "on=[${ceUnitOn}] $(fCeTail)"
+## In a backlog quick run the race run takes the Go areas named, and none is no race run.
+CE_AREAS=1 CE_LEAK_LEN=hours fCeRun --backlog-run-quick pkga; ceRaceA="${ceRc}:$(grep '^race-ran ' <<<"${ceOut}" || true)"
+CE_AREAS=1 CE_LEAK_LEN=hours fCeRun --backlog-run-quick alpha
+{ [[ "${ceRaceA}" == "0:race-ran ./pkga" ]] && ((ceRc == 0)) && ! grep -q '^race-ran' <<<"${ceOut}" && [[ "${ceOut}" == *"race leak check skipped (no Go area named)"* ]]; } \
+	&& _pass dee8t "backlog quick run: the race run takes the Go areas named" \
+	|| _fail dee8t "backlog quick run: the race run takes the Go areas named" "pkga=[${ceRaceA}] $(fCeTail)"
 ## -race needs cgo. Without it the race run warns and the soak test still runs,
 ## except where every tool must be there.
 CE_RACE_PROBE=false fCeRun -y --quick --leakcheck; ceNoCgo=0
@@ -3266,8 +3318,8 @@ ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | 
 	&& grep -qxF "ps -aq --filter label=dev.project=cbv-test --filter label=dev.run=${ceRunName}" <<<"${ceDocker}" \
 	&& grep -qxF "image ls -q --filter dangling=true --filter label=dev.project=cbv-test" <<<"${ceDocker}" \
 	&& grep -qxF "image ls cbv-test-cicd --filter label=dev.project=cbv-test --format {{.Repository}}:{{.Tag}}" <<<"${ceDocker}" \
-	&& [[ "${ceOut}" == *"[ docker cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB); about 0.0 GB freed ]"* ]] \
-	&& [[ "$(grep -n 'docker cleanup' <<<"${ceOut}" | cut -d: -f1)" -lt "$(grep -n 'CI/CD: done' <<<"${ceOut}" | cut -d: -f1)" ]]; } \
+	&& [[ "${ceOut}" == *"[ cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB), the run folder ("*"); about "*" freed ]"* ]] \
+	&& [[ "$(grep -n 'cleanup: removed 1 container' <<<"${ceOut}" | cut -d: -f1)" -lt "$(grep -n 'CI/CD: done' <<<"${ceOut}" | cut -d: -f1)" ]]; } \
 	&& _pass dedm8 "docker cleanup after a pass" \
 	|| _fail dedm8 "docker cleanup after a pass" "gone=[${ceGone}] docker=[${ceDocker}] $(fCeTail)"
 ceStepsCont="$(fCeSteps)"
@@ -3286,7 +3338,7 @@ CE_HAVE_IMAGE=1 CE_RUN_RC=1 CE_DEST="${ceDir}/home/bin" fCeRun -y --container
 	|| _fail ddrpm "--container inner failure" "docker=[${ceDocker}] $(fCeTail)"
 ## A failed run cleans up too, but keeps the older tags, since nothing newer passed.
 ceGone="$(grep -E '^(rm|rmi|volume rm|builder|system prune)' <<<"${ceDocker}" | tr '\n' ';' || true)"
-{ ((ceRc == 1)) && [[ "${ceGone}" == "rm -f c0ffeec0ffee;rmi d4ngl3d4ngl3;builder prune -f --filter until=168h;" && "${ceOut}" == *"docker cleanup: removed"* ]]; } \
+{ ((ceRc == 1)) && [[ "${ceGone}" == "rm -f c0ffeec0ffee;rmi d4ngl3d4ngl3;builder prune -f --filter until=168h;" && "${ceOut}" == *"cleanup: removed 1 container(s)"* ]]; } \
 	&& _pass dedm9 "docker cleanup after a failure" \
 	|| _fail dedm9 "docker cleanup after a failure" "gone=[${ceGone}] $(fCeTail)"
 ## So does Ctrl+C in the middle of the container run or the image build, and
