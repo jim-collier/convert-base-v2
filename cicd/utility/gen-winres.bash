@@ -39,6 +39,8 @@ fi
 set -Eeuo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+source "${here}/include/safe-rm.bash"
+tmpRoot="$(realpath -- "${TMPDIR:-/tmp}")"
 root="$(cd "${here}/../.." && pwd)"
 exeName="convert-base-v2"
 icon="${root}/assets/${exeName}.ico"
@@ -73,8 +75,8 @@ fDie(){ printf '%s\n' "gen-winres: $*" >&2; exit 1; }
 if ((iconOnly)); then
 	for tool in magick icotool optipng; do command -v "${tool}" >/dev/null 2>&1 || fDie "--icon needs ${tool}."; done
 	[[ -f "${logo}" ]] || fDie "no mascot at assets/$(basename "${logo}")."
-	tmp="$(mktemp -d "${TMPDIR:-/tmp}/cbv2-ico.XXXXXX")"
-	trap 'rm -rf -- "${tmp:?}"' EXIT
+	tmp="$(mktemp -d "${tmpRoot}/cbv2-ico.XXXXXX")"
+	trap 'fSafeRmUnder "${tmpRoot}" "${tmp}" || true' EXIT
 	## A touch of unsharp on the small ones, or the face turns to mush at 16 px.
 	for s in 16 32 48; do magick "${logo}" -filter Lanczos -resize "${s}x${s}" -unsharp 0x0.5+0.6+0.02 -strip "${tmp}/i${s}.png"; done
 	for s in 64 128 256; do
@@ -113,8 +115,8 @@ command -v goversioninfo >/dev/null 2>&1 || { fEcho_Clean "  goversioninfo isn't
 copyrightYear="$(sed -n 's/^[[:space:]]*copyrightYear[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' "${mainGo}" || true)"
 [[ -n "${copyrightYear}" ]] || fDie "couldn't read copyrightYear from lib/cmd/${exeName}/main.go."
 
-scratch="$(mktemp -d "${TMPDIR:-/tmp}/cbv2-winres.XXXXXX")"
-trap 'rm -rf -- "${scratch:?}"' EXIT
+scratch="$(mktemp -d "${tmpRoot}/cbv2-winres.XXXXXX")"
+trap 'fSafeRmUnder "${tmpRoot}" "${scratch}" || true' EXIT
 json="${scratch}/versioninfo.json"
 cat > "${json}" <<-JSON
 	{

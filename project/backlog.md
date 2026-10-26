@@ -68,6 +68,36 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Branch: ps1
 	- Commit: d3d16d7
 
+- CICD reset: temp files and safe removal.
+	- ID: 2026102416280107
+	- Type: Enhancement
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: one `cicd/cicd.bash --backlog-run-full`, in the container, where the run inside makes its folder under the image's `/tmp`. Nothing of the run should be left under `HOST_TEMP` after, and `git status` should be the same.
+	- Needs external testing: `install.bash` on an Intel Mac (b26) and `install.ps1` on Windows (vm925w), under the host lock, each leaving no `cbv2-install` folder in the temp folder.
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101910123200
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each run already has its own temp folder, removed on exit. What's left is below.
+		- The folder goes under `${HOST_TEMP}/<project>/`, named by time and a counter, and `TMPDIR`, `TEMP`, and `TMP` point at it.
+		- `--keep-temp` keeps it and prints the path.
+		- Each run also removes this project's stale run folders, older than 2 days with no live process from their `run.pid`.
+		- Every recursive remove in the pipeline, the helpers, and the installers goes through the repo's own copy of the safe removal guard, or one that names the one parent it may remove under. File list in the private notes.
+	- Progress log:
+		- 20261025: the run folder is `${HOST_TEMP}/convert-base-v2/<time>_<NNN>`, made with a plain `mkdir` that counts up when the name is taken, and `TMPDIR`, `TEMP` and `TMP` point at it. It holds `run.pid`. It goes at the end, pass, fail or Ctrl+C, and the project folder too once empty.
+		- 20261025: `--keep-temp` keeps the folder and prints its path, as it already did for the containers.
+		- 20261025: a run first removes this project's run folders older than 2 days whose `run.pid` names no live process. A folder with no `run.pid`, and another project's, stay.
+		- 20261025: `cicd/utility/include/safe-rm.bash` is the repo's copy of the guard, with `fSafeRm` for temp paths and `fSafeRmUnder` for one named parent. The pipeline, `check-vendor`, `codeql-scan`, `gen-winres`, `interop/fetch`, `package.bash`, the harness, `bench-encoders`, `gen-screenshots` and `make clean` use it. The installers check their one work folder inline, since they run alone.
+		- 20261025: it works on BSD and macOS too, which have no `realpath -e` or `rm --one-file-system`.
+	- Decisions:
+		- 20261025: the run folder's name is now the docker run label and container name, so `dedps` and `dedmb` expect `<time>_<NNN>` where they wanted `cicd-run.*`. The harness's own runs of the pipeline get their own `HOST_TEMP`.
+	- Verified: 20261025, the format, lint, ci, self, cli and release areas pass, the release area with packaging. `dee7s`, `dee7t`, `dee7v` and `dee7w` each fail with the code they watch broken. `check-vendor.bash` and `make clean` leave nothing behind.
+	- Swept: every `rm -rf` and `Remove-Item -Recurse` in the repo. The Dockerfile's run in the image build on paths it made, and stay. The remote side of `remote-hosts.bash` keeps its own check of the work folder's shape.
+	- Test case: `dee7s` the run folder and its env, `dee7t` `--keep-temp`, `dee7v` the stale sweep, `dee7w` the guard. `de587` checks `install.ps1` leaves its temp folder empty.
+	- Branch: cicd2
+
 - CICD reset: containers.
 	- ID: 2026102416280100
 	- Type: Enhancement
@@ -435,22 +465,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- A rebuild of the tag with the Go, nfpm and NSIS versions the workflow used gives the same checksums. NSIS comes from the runner's apt, so its version is read from the workflow log.
 		- The release notes table renders, every link downloads, and the notes end with the build line.
 	- Note: once this passes, add one line under Packages and installers in `install.md`: every asset rebuilds to the same bytes from its tagged commit, so the published checksums can be checked against your own build.
-
-- CICD reset: temp files and safe removal.
-	- ID: 2026102416280107
-	- Type: Enhancement
-	- Status: Queued
-	- Priority: Avg
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026101910123200
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each run already has its own temp folder, removed on exit. What's left is below.
-		- The folder goes under `${HOST_TEMP}/<project>/`, named by time and a counter, and `TMPDIR`, `TEMP`, and `TMP` point at it.
-		- `--keep-temp` keeps it and prints the path.
-		- Each run also removes this project's stale run folders, older than 2 days with no live process from their `run.pid`.
-		- Every recursive remove in the pipeline, the helpers, and the installers goes through the repo's own copy of the safe removal guard, or one that names the one parent it may remove under. File list in the private notes.
 
 - CICD reset: CICD process gaps.
 	- ID: 2026102416280109

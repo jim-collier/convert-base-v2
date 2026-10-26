@@ -189,8 +189,15 @@ if ((! ASSUME_YES)); then
 	fEcho_Clean ""
 fi
 
-work="$(mktemp -d)"
-trap 'rm -rf "${work}"' EXIT
+tmpRoot="$(cd "${TMPDIR:-/tmp}" && pwd -P)" || fDie "no temp folder at ${TMPDIR:-/tmp}"
+work="$(mktemp -d "${tmpRoot}/cbv2-install.XXXXXX")" || fDie "could not make a work folder in ${tmpRoot}"
+## Removes only the one folder it made, under the one temp folder it named.
+fWorkGone(){
+	case "${work}" in
+		"${tmpRoot}"/cbv2-install.?*) if [[ -d "${work}" && ! -L "${work}" && "${work}" != *..* ]]; then rm -rf -- "${work}"; fi ;;
+	esac
+}
+trap fWorkGone EXIT
 
 fEcho "Downloading ${asset} ${tag}"
 curl -fSL --progress-bar -o "${work}/${asset}" "${url}" || fDie "download failed: ${url}"

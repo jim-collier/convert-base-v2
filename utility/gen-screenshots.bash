@@ -64,7 +64,9 @@ LARGE="${REPO}/assets/screenshots/large"
 SMALL="${REPO}/assets/screenshots"
 mkdir -p "${LARGE}" "${SMALL}"
 
-WORK="$(mktemp -d)"; trap 'rm -rf "${WORK}"' EXIT
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/../cicd/utility/include/safe-rm.bash"
+workRoot="$(realpath -- "${TMPDIR:-/tmp}")"
+WORK="$(mktemp -d "${workRoot}/cbv2-shots.XXXXXX")"; trap 'fSafeRmUnder "${workRoot}" "${WORK}" || true' EXIT
 
 
 #••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••

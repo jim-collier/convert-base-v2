@@ -142,6 +142,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The pipeline takes the flags its sister projects share. `--backlog-run-quick` runs the quick checks, or only the areas named after it, and `--backlog-run-full` and `--merge-gate` run every check. None of the three installs, commits, pushes, or changes a tracked file. The pre-push hook runs the merge gate for `main` only, and not for a push that only changes docs. Hosted CI runs it for `main` in place of a quick run on every push.  [20261025]
 
+- Each pipeline run works in its own temp folder under `HOST_TEMP`, removed at the end, and `--keep-temp` keeps it. Folders left by a killed run are removed after 2 days. Every recursive remove in the scripts goes through one guard that refuses links and anything outside a temp folder or the one parent it names.  [20261025]
+
 - A full pipeline run also runs the release builds on other machines, starting with FreeBSD, and checks that they give the same answers as the native build. Each box is listed in a file outside the repo. A box that doesn't answer is skipped with a warning, and `--no-remote` skips them all.  [20261025]
 
 - A pipeline run with no flags includes the long tests. `--quick` still cross-compiles and packages, which takes seconds, and leaves out the checks that reach other hosts.  [20261019]

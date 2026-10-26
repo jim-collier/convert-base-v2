@@ -79,5 +79,5 @@ fmt:
 	gofmt -w .
 
 clean:
-	rm -rf $(BINARY)
-	if [ -f '$(DIST)/$(DIST_MARK)' ]; then rm -rf '$(DIST)'; elif [ -d '$(DIST)' ]; then rmdir '$(DIST)' 2>/dev/null || { echo '$(DIST) has files in it and no sign a build made them; left alone' >&2; exit 1; }; fi
+	rm -f $(BINARY)
+	if [ -f '$(DIST)/$(DIST_MARK)' ]; then bash -c '. ../cicd/utility/include/safe-rm.bash && d="$$(realpath -- "$$1")" && fSafeRmUnder "$${d%/*}" "$$d"' safe-rm '$(DIST)'; elif [ -d '$(DIST)' ]; then rmdir '$(DIST)' 2>/dev/null || { echo '$(DIST) has files in it and no sign a build made them; left alone' >&2; exit 1; }; fi

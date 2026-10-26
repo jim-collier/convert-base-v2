@@ -130,18 +130,21 @@ platforms=(
 	freebsd/amd64 freebsd/arm64
 )
 
-work="$(mktemp -d)"
+source "${here}/include/safe-rm.bash"
+tmpRoot="$(realpath -- "${TMPDIR:-/tmp}")"
+work="$(mktemp -d "${tmpRoot}/package.XXXXXX")"
 ## The linker only takes a .syso from the package dir itself (go build -overlay
 ## doesn't cover them), so the resource goes there for the Windows builds and no
 ## longer. The _windows_<arch> suffix keeps it out of every other target.
 winres=""
-trap 'rm -rf "${work}"; [[ -z "${winres}" ]] || rm -f "${winres}"' EXIT
+trap 'fSafeRmUnder "${tmpRoot}" "${work}" || true; [[ -z "${winres}" ]] || rm -f "${winres}"' EXIT
 
 ## Only a dir with the mark is cleared, so --out can't empty someone's folder.
 ## An empty dir is taken over. lib/Makefile writes the same mark.
 distMark=".convert-base-v2-dist"
 if [[ -f "${OUT}/${distMark}" ]]; then
-	rm -rf "${OUT}"
+	outReal="$(realpath -- "${OUT}")"
+	fSafeRmUnder "${outReal%/*}" "${outReal}"
 elif [[ -e "${OUT}" ]]; then
 	rmdir "${OUT}" 2>/dev/null || { echo "${OUT} has files in it and no sign a build made them; empty it or pick another --out" >&2; exit 1; }
 fi

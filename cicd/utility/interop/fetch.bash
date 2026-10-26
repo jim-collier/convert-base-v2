@@ -26,11 +26,13 @@ set -Eeuo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 manifest="${here}/manifest.sha256"
+source "${here}/../include/safe-rm.bash"
+tmpRoot="$(realpath -- "${TMPDIR:-/tmp}")"
 
 ## One work dir, cleaned on any exit. fDie bypasses a RETURN trap, which used
 ## to leak the downloads on every failure path.
 tmp=""
-trap '[[ -z "${tmp}" ]] || rm -rf "${tmp}"' EXIT
+trap '[[ -z "${tmp}" ]] || fSafeRmUnder "${tmpRoot}" "${tmp}" || true' EXIT
 
 # shellcheck disable=1091  ## 'Not following.' The pin file is data, and it sits next to this script.
 source "${here}/pins.env"
@@ -79,7 +81,7 @@ fDownloadPin(){ # DEST URL NAME VERSION WANT_SHA
 
 fRefresh(){
 	command -v curl >/dev/null 2>&1 || fDie "curl is needed to refresh"
-	tmp="$(mktemp -d)"
+	tmp="$(mktemp -d "${tmpRoot}/interop.XXXXXX")"
 
 	local pin name version url want upstream archive dest
 	for pin in "${INTEROP_PINS[@]}"; do
@@ -93,8 +95,8 @@ fRefresh(){
 		[[ "${name}" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fDie "pins.env name '${name}' is not a plain directory name"
 		## Both archive kinds wrap everything in one top directory whose name
 		## carries the version, so strip it and keep our own stable name.
-		dest="${here}/thirdparty/${name}"
-		rm -rf "${dest}"
+		mkdir -p "${here}/thirdparty"; dest="$(realpath -- "${here}/thirdparty")/${name}"
+		if [[ -e "${dest}" || -L "${dest}" ]]; then fSafeRmUnder "${dest%/*}" "${dest}"; fi
 		mkdir -p "${dest}"
 		tar xzf "${archive}" -C "${dest}" --strip-components=1
 		fEcho "${name} ${version} <- ${upstream}"
@@ -125,7 +127,7 @@ fLatestVersion(){ # URL
 
 fUpstream(){
 	command -v curl >/dev/null 2>&1 || { fEcho "WARNING: no curl - pins unverified against upstream"; return 0; }
-	tmp="$(mktemp -d)"
+	tmp="$(mktemp -d "${tmpRoot}/interop.XXXXXX")"
 
 	local pin name version url want upstream archive dest latest
 	local -i failed=0 checked=0 unreached=0

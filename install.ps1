@@ -459,6 +459,12 @@ Notes:
 		}
 		Write-Output ''
 	} finally {
-		Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+		## Only the one folder made above, under the temp folder it named, and never through a link.
+		$tempRoot = [IO.Path]::GetFullPath([IO.Path]::GetTempPath())
+		$workItem = Get-Item -LiteralPath $work -Force -ErrorAction SilentlyContinue
+		$inTemp = ([IO.Path]::GetFullPath($work)).StartsWith((Join-Path -Path $tempRoot -ChildPath 'cbv2-install-'), [StringComparison]::Ordinal)
+		if ($inTemp -and $workItem -and $workItem.PSIsContainer -and -not ($workItem.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+			Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
+		}
 	}
 } $Release $Target $Yes $Version $Help ($MyInvocation.MyCommand -is [Management.Automation.ExternalScriptInfo] -and $MyInvocation.MyCommand.Path -eq $PSCommandPath)

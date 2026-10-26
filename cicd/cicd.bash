@@ -91,7 +91,7 @@
 ##	                       The default when config.bash sets CONTAINER_DEFAULT=1.
 ##	   --no-container      run every stage here, with whatever tools this machine has
 ##	   --host              another name for --no-container
-##	   --keep-temp         keep the run's containers, and print their names at the end
+##	   --keep-temp         keep the run's temp folder and containers, and print where they are at the end
 ##	   --image-tag         print the image tag a container run would use, and exit. Hosted CI
 ##	                       builds the image under that tag, with its layer cache, before the run.
 ##	   -h, --help          show this help, and the areas
@@ -201,6 +201,7 @@ remote_hosts_named=0; if declare -p REMOTE_HOSTS >/dev/null 2>&1; then remote_ho
 [[ -v REMOTE_HOSTS ]] || REMOTE_HOSTS=()
 [[ -v REMOTE_WRAP ]] || REMOTE_WRAP=()
 source "${here}/utility/include/gfs-rotate.bash"       ## gfs_rotate() for the artifact dirs
+source "${here}/utility/include/safe-rm.bash"          ## fSafeRm, fSafeRmUnder
 cd "${root}"
 stamp="$(date +%Y%m%d-%H%M%S)"
 export MAKEFLAGS="${MAKEFLAGS:+$MAKEFLAGS }--no-print-directory"  ## drop the Entering/Leaving dir noise
@@ -956,8 +957,37 @@ if ((! assume_yes)); then
 fi
 
 ## Scratch for this run, gone however it ends. An abort used to leave the fuzz log.
-run_tmp="$(mktemp -d "${TMPDIR:-/tmp}/cicd-run.XXXXXX")"
-fRunTmpGone(){ if [[ -d "${run_tmp}" && "${run_tmp}" == "${TMPDIR:-/tmp}/cicd-run."* ]]; then rm -rf "${run_tmp}"; fi; }
+## ${HOST_TEMP}/<project>/<time>_<NNN>, and what the steps write lands there too.
+HOST_TEMP="$(realpath -- "${HOST_TEMP:-${TMPDIR:-/tmp}}")" || fDie "no temp folder: ${HOST_TEMP:-${TMPDIR:-/tmp}}"
+projectName="${APP_NAME}"; run_parent="${HOST_TEMP}/${projectName}"; run_tmp=""
+export HOST_TEMP projectName
+mkdir -p "${run_parent}" || fDie "could not make ${run_parent}"
+## A run folder older than 2 days whose run.pid names no live process is a
+## leftover from a killed run. A folder with no run.pid wasn't made by a run.
+fRunTmpSweep(){
+	local d pid
+	while IFS= read -r d; do
+		pid=""; if [[ -f "${d}/run.pid" ]]; then read -r pid <"${d}/run.pid" || true; else continue; fi
+		if [[ "${pid}" =~ ^[0-9]+$ ]] && ps -p "${pid}" >/dev/null 2>&1; then continue; fi
+		if fSafeRm "${d}"; then fEcho_Chat "removed stale run folder ${d}"; fi
+	done < <(find "${run_parent}" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*-[0-9]*_[0-9][0-9][0-9]' -mmin +2880 2>/dev/null)
+}
+fRunTmpSweep
+for ((runN = 1; runN < 1000; runN++)); do
+	printf -v run_tmp '%s/%s_%03d' "${run_parent}" "${stamp}" "${runN}"
+	## Another run can take the empty project folder away at its end.
+	if mkdir -p "${run_parent}" 2>/dev/null && mkdir "${run_tmp}" 2>/dev/null; then break; fi
+	run_tmp=""
+done
+[[ -n "${run_tmp}" ]] || fDie "no free run folder under ${run_parent} for ${stamp}"
+printf '%s\n' "$$" >"${run_tmp}/run.pid"
+export TMPDIR="${run_tmp}" TEMP="${run_tmp}" TMP="${run_tmp}"
+fRunTmpGone(){
+	if [[ -z "${run_tmp}" || ! -d "${run_tmp}" ]]; then return 0; fi
+	if ((keep_temp)); then fEcho "kept temp folder ${run_tmp} (--keep-temp)"; return 0; fi
+	fSafeRm "${run_tmp}" || true
+	rmdir "${run_parent}" 2>/dev/null || true
+}
 fRunCleanup(){ fStepExit "$?"; fDockerCleanup; fRunTmpGone; }
 trap fRunCleanup EXIT
 ## docker catches Ctrl+C and exits on its own, which bash takes as handled, so
@@ -1311,3 +1341,4 @@ fEcho_Clean
 ##		- 2026-10-25 JC: Fuzz lines read PASS or FAIL, then the ID and target.
 ##		- 2026-10-25 JC: --backlog-run-quick with areas, --backlog-run-full and --merge-gate, which never sync, dogfood, publish or rewrite a tracked file. --gate and --ci are other names for them. --list, --no-remote, --slow.
 ##		- 2026-10-25 JC: The Other hosts step runs the boxes REMOTE_LOCAL names.
+##		- 2026-10-25 JC: The run folder is ${HOST_TEMP}/<project>/<time>_<NNN>, with TMPDIR, TEMP and TMP pointing at it, and --keep-temp keeps it. Stale ones of ours go at the start. Removal goes through safe-rm.bash.

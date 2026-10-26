@@ -35,8 +35,10 @@ fi
 mustHave=(cmd/convert-base-v2/main.go convertbase/convert.go convertbase/convert_test.go internal/errcode/ shcl/shcl.go
 	wasm/main.go reactor/main.go vendor/go.uber.org/goleak/)
 
-tmp="$(mktemp -d "${TMPDIR:-/tmp}/codeql.XXXXXX")"
-fCleanup(){ if [[ -d "${tmp}" && "${tmp}" == "${TMPDIR:-/tmp}/codeql."* ]]; then rm -rf "${tmp}"; fi; }
+source "${here}/include/safe-rm.bash"
+tmpRoot="$(realpath -- "${TMPDIR:-/tmp}")"
+tmp="$(mktemp -d "${tmpRoot}/codeql.XXXXXX")"
+fCleanup(){ if [[ -d "${tmp}" ]]; then fSafeRmUnder "${tmpRoot}" "${tmp}" || true; fi; }
 trap fCleanup EXIT
 
 ## go mod vendor writes into the module, so it never runs in the repo.
