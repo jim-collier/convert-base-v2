@@ -102,6 +102,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The Windows installer replaced a machine PATH longer than 1024 characters with its own folder, so every other entry was lost. It keeps the PATH as it was now, and adds its folder at the end, once. Uninstalling takes the folder off the PATH again, which it never did before. v3.0.0's installer has the same fault.
+
 - A config field indented under another field, such as `decimal:` under `negative:`, was never read, and an empty field above it still switched its marker off. The base was built wrong with no error. It is refused now, naming the base, the field and the line.
 
 - A raw block as a config value was mishandled. Under `symbols` it was reported as missing symbols, and under `aliases` or `tail` it was dropped without a word. A marker took the block's text, line breaks and all. Every field now refuses one, naming the base, the field and the line, since rows of digits could mean one digit per row or one per character.
@@ -151,6 +153,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - The pipeline's leak checks run by how long each takes. The fast ones, goleak and the race detector run, are in every run, `--quick` and the backlog quick run too. The soak test and CodeQL are slow, and run in a plain run and with `--long`, which would also have any that take hours. `--leakcheck` adds them all, and `--no-leakcheck` takes them all out, goleak included.  [20261025]
 
 - The pipeline's Other hosts step installs the FreeBSD `.pkg` with `pkg add` where the box list gives a root login, runs the same cases with it, and removes it. A box that already has the package, or a binary in its place, is left alone.  [20261025]
+
+- The Other hosts step runs the Windows build on a Windows box too, and installs, reinstalls and uninstalls the setup `.exe` there with an admin login. It checks the machine PATH after each, and puts it back at the end.  [20261026]
+
+- The Other hosts step runs the macOS x86_64 and universal builds on an Intel Mac, and runs `install.bash` there against the local build.  [20261026]
+
+- Hosted CI runs the universal macOS binary, packaged the way a release is, on an Apple silicon Mac. It has to give the arm64 build's answers, and Gatekeeper has to treat the two the same.  [20261026]
+
+- The Other hosts step runs the Linux arm64 build on an arm64 Debian box, and installs and removes the arm64 `.deb` there with `dpkg`.  [20261026]
 
 - One line at the end of a pipeline run says what its cleanup removed, from docker, old run folders and its own, and about how much that freed.  [20261025]
 

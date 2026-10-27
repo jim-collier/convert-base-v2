@@ -1,5 +1,7 @@
-# Three jobs. "build" is the bare safety net: the module vets, tests and builds
-# with nothing but Go. "macos-arm64" tests and runs it on Apple silicon. Both
+# Five jobs. "build" is the bare safety net: the module vets, tests and builds
+# with nothing but Go. "macos-arm64" tests and runs it on Apple silicon.
+# "darwin-universal" packages the way the release does, and "macos-universal"
+# runs that universal binary on Apple silicon beside the per-arch one. All four
 # run on every push to main or dev and every pull request.
 # "pipeline" runs cicd/cicd.bash --merge-gate, with its build and test steps in
 # the image from cicd/container, so the long tests, the leak checks, the
@@ -70,6 +72,82 @@ jobs:
           check aGVsbG8= sh -c "printf hello | ./convert-base-v2 --from bytes --to 64"
           check hello sh -c "printf aGVsbG8= | ./convert-base-v2 --from 64 --to bytes"
           check "ɼధശಳপݷટථރŦၓƨ൝" ./convert-base-v2 1234567899999999999999999999999999987654321 2048qntm
+
+  # The release's own packaging, on the release's runner, so the universal
+  # binary tested next is the one a release would ship.
+  darwin-universal:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # package.bash stamps the version and build from tags and history
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: .go-version
+          cache: false
+      # nfpm, makensis and goversioninfo are left out, so their packages skip
+      # with a warning. The binaries don't use them.
+      - name: package
+        run: bash cicd/utility/package.bash --out "$RUNNER_TEMP/dist"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: darwin
+          path: |
+            ${{ runner.temp }}/dist/convert-base-v2-darwin-universal
+            ${{ runner.temp }}/dist/convert-base-v2-darwin-arm64
+          retention-days: 1
+          if-no-files-found: error
+
+  # The universal binary's arm64 half on a real Apple silicon Mac. It has to
+  # give the per-arch build's answers, and Gatekeeper has to judge the two the
+  # same, quarantined or not.
+  macos-universal:
+    needs: darwin-universal
+    runs-on: macos-15
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: darwin
+      - name: run
+        run: |
+          set -euo pipefail
+          uni=./convert-base-v2-darwin-universal; one=./convert-base-v2-darwin-arm64
+          chmod +x "${uni}" "${one}"
+          file "${uni}"
+          lipo -archs "${uni}" | tee /dev/stderr | grep -qx 'x86_64 arm64'
+          [[ "$(uname -m)" == arm64 ]]
+          "${uni}" --version | tee /dev/stderr | grep -E '^convert-base-v2 v[0-9].* build [0-9a-z]+'
+          check() { got="$("${@:2}")"; [[ "${got}" == "$1" ]] || { echo "got '${got}' from $*" >&2; exit 1; }; }
+          for exe in "${uni}" "${one}"; do
+            check "$("${one}" --version)" "${exe}" --version
+            check J7JQxujqrMS "${exe}" --from 16 --to 62 DEADBEEFCAFE1234
+            check aGVsbG8= sh -c "printf hello | ${exe} --from bytes --to 64"
+            check hello sh -c "printf aGVsbG8= | ${exe} --from 64 --to bytes"
+          done
+      # Each verdict is printed, then the two compared with the file name taken
+      # out. Only spctl's first line counts: the universal build adds "source=no
+      # usable signature", since its x86_64 half is unsigned, where the arm64
+      # build's ad hoc signature gives no source. Both are rejected all the same.
+      # perl's alarm stands in for timeout, which macOS doesn't have, in case a
+      # quarantined run waits on a prompt.
+      - name: gatekeeper
+        run: |
+          set -uo pipefail
+          spctl --status || true
+          verdict() {
+            local f="$1" out rc
+            echo "codesign: $(codesign --verify --arch arm64 "${f}" 2>&1; echo "rc $?")"
+            out="$(spctl --assess --type execute -vv "${f}" 2>&1)"; rc=$?
+            printf '%s\n' "${out}" >&2
+            echo "spctl: ${out%%$'\n'*} rc ${rc}"
+            cp "${f}" "${f}.q"
+            xattr -w com.apple.quarantine "0081;$(printf %x "$(date +%s)");Safari;" "${f}.q"
+            echo "quarantined run: $(perl -e 'alarm 30; exec @ARGV' "${f}.q" 255 16 2>&1; echo "rc $?")"
+          }
+          uni="$(verdict ./convert-base-v2-darwin-universal)"; one="$(verdict ./convert-base-v2-darwin-arm64)"
+          printf 'universal:\n%s\narm64:\n%s\n' "${uni}" "${one}"
+          [[ "${uni//-darwin-universal/}" == "${one//-darwin-arm64/}" ]] || { echo "Gatekeeper treats the universal build differently" >&2; exit 1; }
 
   # The image is built on every run from the Actions layer cache and loaded
   # here, never pushed. It's tagged the way cicd.bash looks for it, so the run
