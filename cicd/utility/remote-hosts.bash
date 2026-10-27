@@ -7,10 +7,11 @@
 ##	- Syntax: remote-hosts.bash [--wrap WORD]... BOX|PLATFORM|SSH_TARGET[|ROOT_TARGET] ...
 ##	  e.g. "vmFreeBSD|freebsd-x86_64|bsdtest@vmFreeBSD|root@vmFreeBSD". PLATFORM
 ##	  picks the build, dist/APP-PLATFORM, and a case in fPlatformId.
-##	- ROOT_TARGET, where the platform has a package in fPackageId, installs it,
-##	  runs the same cases with the installed binary, and removes it. A package
-##	  that's already installed, or a binary already in its place, is a SKIP, so
-##	  nobody's install is touched. Without ROOT_TARGET the package is a SKIP.
+##	- ROOT_TARGET, where the platform has a package in fPackageId, a FreeBSD
+##	  .pkg or a .deb, installs it, runs the same cases with the installed
+##	  binary, and removes it. A package that's already installed, or a binary
+##	  already in its place, is a SKIP, so nobody's install is touched. Without
+##	  ROOT_TARGET the package is a SKIP.
 ##	- The --wrap words make a command that holds a box for its turn, with {} for
 ##	  the box and the command to run after them. It takes the box in the host
 ##	  lock and wakes a VM, then puts it back as it was found. Without one the
@@ -59,6 +60,7 @@ fPlatformId(){
 		windows-x86_64) echo defm6 ;;
 		darwin-x86_64) echo defmk ;;
 		darwin-universal) echo defmm ;;
+		linux-arm64) echo defmy ;;
 		*) return 1 ;;
 	esac
 }
@@ -70,6 +72,7 @@ fPackageId(){
 		freebsd-x86_64) echo "dee9x ${app}-*-$1.pkg" ;;
 		windows-x86_64) echo "defm7 ${app}-$1-setup.exe" ;;
 		darwin-x86_64) echo "defmn install.bash" ;;
+		linux-arm64) echo "defmz ${app}_*_arm64.deb" ;;
 		*) return 1 ;;
 	esac
 }
@@ -108,27 +111,36 @@ fRunLocal(){
 ## The package, installed as root, runs the cases, and is removed. Reads fOne's
 ## locals. Prints the result word and any reason.
 fPackage(){
-	local rootTarget="$1" pkgFile="$2" pkgHome="${work}/pkg-home" bin="/usr/local/bin/${app}" rc=0 got
+	local rootTarget="$1" pkgFile="$2" pkgHome="${work}/pkg-home" rc=0 got ext bin doc has add del delYes
 	[[ -n "${rootTarget}" ]] || { echo "SKIP no root login for ${box}"; return; }
 	[[ -n "${pkgFile}" ]] || { echo "FAIL no package in ${dist}"; return; }
-	"${sshCmd[@]}" "${target}" "cat >'${work}/${app}.pkg'" <"${pkgFile}" || { echo "FAIL package copy failed"; return; }
-	"${sshCmd[@]}" "${rootTarget}" "if pkg info -e '${app}'; then exit 77; fi; [ ! -e '${bin}' ] || exit 78
-		ASSUME_ALWAYS_YES=yes nice -n 19 pkg add '${work}/${app}.pkg'" </dev/null >/dev/null 2>&1 || rc=$?
+	## FreeBSD's pkg, or dpkg for a .deb.
+	ext="${pkgFile##*.}"
+	if [[ "${ext}" == deb ]]; then
+		bin="/usr/bin/${app}" doc="/usr/share/doc/${app}" has="dpkg -s '${app}' >/dev/null 2>&1"
+		add="dpkg -i" del="dpkg -P" delYes=""
+	else
+		bin="/usr/local/bin/${app}" doc="/usr/local/share/licenses/${app}" has="pkg info -e '${app}'"
+		add="pkg add" del="pkg delete" delYes=" -y"
+	fi
+	"${sshCmd[@]}" "${target}" "cat >'${work}/${app}.${ext}'" <"${pkgFile}" || { echo "FAIL package copy failed"; return; }
+	"${sshCmd[@]}" "${rootTarget}" "if ${has}; then exit 77; fi; [ ! -e '${bin}' ] || exit 78
+		ASSUME_ALWAYS_YES=yes DEBIAN_FRONTEND=noninteractive nice -n 19 ${add} '${work}/${app}.${ext}'" </dev/null >/dev/null 2>&1 || rc=$?
 	case "${rc}" in
 		0) ;;
 		77) echo "SKIP ${app} is already installed on ${box}, so it's left alone"; return ;;
 		78) echo "SKIP ${bin} on ${box} isn't from the package, so it's left alone"; return ;;
-		*) echo "FAIL pkg add exit ${rc}"; return ;;
+		*) echo "FAIL ${add} exit ${rc}"; return ;;
 	esac
 	got="$(fCases | "${sshCmd[@]}" "${rootTarget}" "mkdir '${pkgHome}' && cd '${pkgHome}' && HOME='${pkgHome}' XDG_CONFIG_HOME='${pkgHome}/.config' TZ=UTC nice -n 19 sh -s '${bin}'" 2>&1)" || true
 	got="${got//"${pkgHome}"/HOME}"
 	## Removed either way, and nothing of it left behind.
-	rc=0; "${sshCmd[@]}" "${rootTarget}" "rm -rf -- '${pkgHome}'; ASSUME_ALWAYS_YES=yes nice -n 19 pkg delete -y '${app}' >/dev/null || exit 1
-		! pkg info -e '${app}' && [ ! -e '${bin}' ] && [ ! -e '/usr/local/share/licenses/${app}' ]" </dev/null >/dev/null 2>&1 || rc=$?
+	rc=0; "${sshCmd[@]}" "${rootTarget}" "rm -rf -- '${pkgHome}'; ASSUME_ALWAYS_YES=yes nice -n 19 ${del}${delYes} '${app}' >/dev/null || exit 1
+		! ${has} && [ ! -e '${bin}' ] && [ ! -e '${doc}' ]" </dev/null >/dev/null 2>&1 || rc=$?
 	if [[ "${got}" != "$(<"${want}")" ]]; then
 		echo "FAIL installed package answers differ from the native build's"
 		diff <(cat "${want}") <(printf '%s\n' "${got}") | head -40 >&2 || true
-	elif ((rc)); then echo "FAIL pkg delete left the package or its files on ${box}"
+	elif ((rc)); then echo "FAIL ${del} left the package or its files on ${box}"
 	else echo PASS; fi
 }
 
@@ -396,3 +408,4 @@ fMain "$@"
 ##		- 2026-10-25 JC: The FreeBSD .pkg, installed and removed as root.
 ##		- 2026-10-26 JC: Windows, and its setup .exe.
 ##		- 2026-10-26 JC: macOS, x86_64 and universal, and install.bash there.
+##		- 2026-10-26 JC: Linux arm64, and its .deb.

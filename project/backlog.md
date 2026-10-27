@@ -401,7 +401,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: other hosts, arm64 Linux.
 	- ID: 2026102516555357
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: a full run, to see `PASS defmy` and `PASS defmz` in the Other hosts step.
 	- Priority: High
 	- Opened: 20261025-165553
 	- Opened by: split from 2026102416280101
@@ -411,6 +412,19 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Requirements:
 		- vmDebARM64 runs the linux arm64 build through the runner from 2026102516555342, and its answers match the native build's.
 		- The arm64 deb is installed and removed there, if that fits its slow emulated CPU.
+	- Progress log:
+		- 20261026: `remote-hosts.bash` runs `linux-arm64` on vmDebARM64 as `tester`, through the POSIX path FreeBSD uses.
+		- 20261026: with a root login, the arm64 `.deb` goes in with `dpkg -i`, runs the same cases from `/usr/bin`, and comes out with `dpkg -P`, with no binary or doc folder left. The `.pkg` code takes either now. An install already there, or a binary in its place, is a SKIP, as with FreeBSD.
+		- 20261026: vmDebARM64 is in `private/remote-hosts.bash`, with `root@vmDebARM64`.
+	- Decisions:
+		- 20261026: the `.deb` fits. The box's whole turn, boot and shutdown included, took about 2 minutes.
+		- 20261026: `dpkg -P` rather than `-r`, so nothing of it stays in dpkg's list.
+	- Verified: 20261026, on vmDebARM64 from off, against builds of a8370ec plus this change: `PASS defmy` and `PASS defmz`, and the VM was off again after. With the amd64 `.deb` in the arm64 one's place, `defmz` failed on `dpkg -i`.
+	- Verified: 20261026, `--backlog-run-quick format lint ci` passes, the ci area 125 of 125. `defn0` failed against the old `remote-hosts.bash`, and again with the installed-package guard taken out.
+	- Note: `defmy` and `defmz` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
+	- Swept: the FreeBSD `pkg` messages `dee9y`, `dee9z` and `deea0` match are unchanged. The root stand-in in the harness maps any quoted `/usr/` path now, not only `/usr/local/`. design.md and the changelog say what the arm64 box does.
+	- Test case: `defmy` (the arm64 build on vmDebARM64), `defmz` (the `.deb` on vmDebARM64), `defn0` (the same `.deb` check against stand-ins: install, run and remove, one already there left alone, one that won't go away fails).
+	- Branch: cicd3
 
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
