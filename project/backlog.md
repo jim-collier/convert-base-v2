@@ -34,6 +34,445 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- CICD reset: other hosts, Windows.
+	- ID: 2026102516555347
+	- Type: Enhancement
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: a full run, to see `PASS defm6` and `PASS defm7` in the Other hosts step.
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: Windows
+	- Requirements:
+		- b29w runs the windows x86_64 exe through the runner from 2026102516555342, and its answers match the native build's.
+		- The installer is run there too, in its quiet mode, then uninstalled. b29w has admin over ssh.
+		- vm925w only for GPU or timed work, so not here.
+	- Progress log:
+		- 20261026: `remote-hosts.bash` has a Windows path. The cases run from a `.cmd` file as `wintest`, a plain user, and match the native build's. The work folder is under the login's `%TEMP%`, made and removed through PowerShell, and old ones are swept as on FreeBSD.
+		- 20261026: with the elevated `collierjr` login as the root login, `cicd/utility/remote-setup.ps1` installs the setup quietly, runs the cases with the installed exe, installs again and uninstalls. It checks the machine PATH after each, and puts it back at the end whatever happened. An existing install is a SKIP.
+		- 20261026: b29w is in `private/remote-hosts.bash`.
+	- Decisions:
+		- 20261026: the `--version` date isn't compared on Windows. Go there takes the box's own time zone, not `TZ`, so it can be a day off from the native run.
+		- 20261026: a `.cmd` file runs the cases, not PowerShell, since Windows PowerShell re-encodes piped bytes.
+	- Verified: 20261026, on b29w: `PASS defm6` and `PASS defm7`. `defm6` failed on a stray prompt in the output before the fix to how the `.cmd` is started, and `defm7` failed on the setup from before 2026102519371715. Both work folders were gone after, and no config was left in either profile.
+	- Verified: 20261026, the ci area passes 123 of 123, `dee71` to `dee75` and `deeaz` among them. PSScriptAnalyzer is clean on `remote-setup.ps1`.
+	- Note: `defm6` and `defm7` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
+	- Note: the Windows arm64 build isn't run anywhere, since b29w is x86_64.
+	- Swept: `fMain` adds `.exe` for a Windows build, and the setup's glob matches `package.bash`'s name. design.md and the changelog say what the Windows box does.
+	- Test case: `defm6` (the exe's answers on b29w), `defm7` (the setup on b29w: PATH kept, installed exe's answers, reinstall, uninstall).
+	- Branch: cicd3
+
+- CICD reset: other hosts, Intel macOS.
+	- ID: 2026102516555352
+	- Type: Enhancement
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: a full run, to see `PASS defmk`, `PASS defmm` and `PASS defmn` in the Other hosts step.
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: macOS
+	- Requirements:
+		- An Intel Mac runs the darwin x86_64 and universal builds through the runner from 2026102516555342, and their answers match the native build's.
+		- `install.bash` is tried there if it can run against the local build with a stand-in for the download.
+	- Progress log:
+		- 20261026: `remote-hosts.bash` runs `darwin-x86_64` and `darwin-universal` on b26 as `mactest`, through the POSIX path FreeBSD uses. macOS's `TMPDIR` ends in a slash, so the work folder's path drops it now.
+		- 20261026: on `darwin-x86_64`, `install.bash` runs in place of a package, as `mactest`, in a HOME and TMPDIR of its own, with a stand-in `curl` that serves this build as the only release and its sum in `checksums.txt`. It has to install it, find it current on a second run, leave nothing in TMPDIR, and the installed binary has to give the native build's answers.
+		- 20261026: b26 is in `private/remote-hosts.bash`, once per build.
+	- Decisions:
+		- 20261026: b26, not vmKt6m. b26 is real Intel hardware and spares the build box, and vmKt6m ignores the ACPI shutdown, so the VM state helper would wait 300s to put it back.
+		- 20261026: the installer runs only for `darwin-x86_64`, since that's the build `install.bash` picks on an Intel Mac. It needs no root login.
+	- Verified: 20261026, on b26 (macOS 15.8.1, stock bash 3.2), against builds of a98ac9e: `PASS defmk`, `PASS defmn` and `PASS defmm`. Both work folders were gone after, and `mactest` had no `~/.local/bin`.
+	- Verified: each check failed with its fault put in: the arm64 build in the universal's place failed `defmm`; `install.bash` without its cleanup trap, and without its current check, each failed `defmn`; and a missing `install.bash` failed it rather than asking for a root login.
+	- Verified: 20261026, `--backlog-run-quick format lint ci` passes, the ci area 125 of 125. `defmp` failed against the old `remote-hosts.bash`, and again with only the trailing-slash fix taken out.
+	- Note: `defmk`, `defmm` and `defmn` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
+	- Note: the universal build's arm64 half still needs an Apple silicon Mac, per 2026101411014811.
+	- Swept: every `package` word in `fMain`'s summary lines, the stand-in stubs the other `dee7x` and `dee9x` checks share, design.md and the changelog.
+	- Test case: `defmk` (the x86_64 build on b26), `defmm` (the universal build on b26), `defmn` (`install.bash` on b26), `defmp` (the same `install.bash` check against stand-ins, with a TMPDIR that ends in a slash, and a FAIL when the answers differ).
+	- Branch: cicd3
+
+- CICD reset: other hosts, arm64 Linux.
+	- ID: 2026102516555357
+	- Type: Enhancement
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: a full run, to see `PASS defmy` and `PASS defmz` in the Other hosts step.
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: Linux
+	- Requirements:
+		- vmDebARM64 runs the linux arm64 build through the runner from 2026102516555342, and its answers match the native build's.
+		- The arm64 deb is installed and removed there, if that fits its slow emulated CPU.
+	- Progress log:
+		- 20261026: `remote-hosts.bash` runs `linux-arm64` on vmDebARM64 as `tester`, through the POSIX path FreeBSD uses.
+		- 20261026: with a root login, the arm64 `.deb` goes in with `dpkg -i`, runs the same cases from `/usr/bin`, and comes out with `dpkg -P`, with no binary or doc folder left. The `.pkg` code takes either now. An install already there, or a binary in its place, is a SKIP, as with FreeBSD.
+		- 20261026: vmDebARM64 is in `private/remote-hosts.bash`, with `root@vmDebARM64`.
+	- Decisions:
+		- 20261026: the `.deb` fits. The box's whole turn, boot and shutdown included, took about 2 minutes.
+		- 20261026: `dpkg -P` rather than `-r`, so nothing of it stays in dpkg's list.
+	- Verified: 20261026, on vmDebARM64 from off, against builds of a8370ec plus this change: `PASS defmy` and `PASS defmz`, and the VM was off again after. With the amd64 `.deb` in the arm64 one's place, `defmz` failed on `dpkg -i`.
+	- Verified: 20261026, `--backlog-run-quick format lint ci` passes, the ci area 125 of 125. `defn0` failed against the old `remote-hosts.bash`, and again with the installed-package guard taken out.
+	- Note: `defmy` and `defmz` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
+	- Swept: the FreeBSD `pkg` messages `dee9y`, `dee9z` and `deea0` match are unchanged. The root stand-in in the harness maps any quoted `/usr/` path now, not only `/usr/local/`. design.md and the changelog say what the arm64 box does.
+	- Test case: `defmy` (the arm64 build on vmDebARM64), `defmz` (the `.deb` on vmDebARM64), `defn0` (the same `.deb` check against stand-ins: install, run and remove, one already there left alone, one that won't go away fails).
+	- Branch: cicd3
+
+- At the next beta, check the release downloads and rebuild.
+	- ID: 2026101411014812
+	- Type: Task
+	- Status: Stalled
+	- Needs external testing: Yes, against the next beta's published assets.
+	- Priority: Avg
+	- Opened: 20261014-110148
+	- Opened by: gathered from 2026100412472515, 2026100409572736 and 2026100412472615
+	- Related IDs: 2026100412472515, 2026100409572736, 2026100412472615
+	- Target OS: Any
+	- Requirements:
+		- With the `.deb` and `.rpm` files downloaded beside `checksums.txt`, `sha256sum -c checksums.txt` passes.
+		- A rebuild of the tag with the Go, nfpm and NSIS versions the workflow used gives the same checksums. NSIS comes from the runner's apt, so its version is read from the workflow log.
+		- The release notes table renders, every link downloads, and the notes end with the build line.
+	- Note: once this passes, add one line under Packages and installers in `install.md`: every asset rebuilds to the same bytes from its tagged commit, so the published checksums can be checked against your own build.
+	- Held for the 3.0.1-beta1 release. It checks that release's published assets, and the beta isn't cut yet.
+
+- A bare `tail: ,` in a config reads as no tail.
+	- ID: 2026101411014813
+	- Type: Bug
+	- Status: Stalled
+	- Severity: Low
+	- Opened: 20261014-110148
+	- Opened by: split from 2026100417280514
+	- Related IDs: 2026100417280514, 2026100508035901
+	- Target OS: Any
+	- Steps to reproduce:
+		- A config base with `tail: ,` or `tail: , ,`.
+		- Smallest repro in shcl: parse `x: ,` and read `x` as a list. It comes back empty, the same as `x:`.
+	- Incorrect behavior: the base loads with no tail, and nothing is said.
+	- Expected behavior: a comma tail, or an error that names the line. A quoted `","` reaches the loader and is refused as only commas.
+	- Reproduced: 20261005, on shcl 2317df56.
+	- Note: shcl friction, a silent wrong answer. The config loads at exit 0, and the base isn't the one the file describes.
+	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
+	- Progress log:
+		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
+		- 20261025: shcl's dev tip 6d046939 refuses a bare comma in a value with `E026`, which may cover this. Unverified, since it's only from reading shcl's backlog. Still not tagged 3.0.0, so the pin stays.
+
+- The repo has no social preview image, so shared links show GitHub's generic card.
+	- ID: 2026101416210405
+	- Type: Task
+	- Status: Stalled
+	- Priority: Low
+	- Opened: 20261014-162104
+	- Opened by: Repo review 20261014
+	- Assigned to: JC
+	- Target OS: Any
+	- Note: GitHub takes it only on the repo settings page, with no API for it. A 1280x640 image from the demo gif is ready outside the repo.
+	- Held for a hand upload of private/social-preview.png on the repo settings page, which has no API.
+
+- CICD reset: other hosts and VMs.
+	- ID: 2026102416280101
+	- Type: Enhancement
+	- Status: Started
+	- Needs external testing: Yes, on the Windows, macOS, FreeBSD, and arm64 Linux test boxes.
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101411014805, 2026101411014811, 2026101301161880
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- The default run tests the Windows, Intel macOS, FreeBSD, and arm64 Linux builds on the test boxes, and the installers where a box can run them. `--no-remote` skips them.
+		- Windows tests go to b29w first, and to vm925w only for GPU or timed work.
+		- Each box is held through the shared host lock while it's in use. A VM is put back the way it was found, through the VM state helper.
+		- A box that isn't there shows as SKIP with a warning, and the run goes on.
+		- Each box gets a work folder for this project under its temp root.
+	- Progress log:
+		- 20261025: split by platform into 2026102516555342 (the runner, and FreeBSD), 2026102516555347 (Windows), 2026102516555352 (Intel macOS) and 2026102516555357 (arm64 Linux). This closes with the last of them.
+
+- The Windows setup `.exe` replaces a long machine PATH with its own folder.
+	- ID: 2026102519371715
+	- Type: Bug
+	- Status: Done
+	- Needs external testing: None left.
+	- Severity: Critical
+	- Opened: 20261025-193717
+	- Opened by: cicd2 test batch
+	- Related IDs: 2026101411014803, 2026101411014805
+	- Target OS: Windows
+	- Test environment: b29w, Windows 11 10.0.26200, machine PATH 4030 characters in 78 entries.
+	- Version and build: setup from e23b810 (3.0.0-336-ge23b810). The PATH code is the same in v3.0.0's `installer.nsi`, so the released setup most likely has it too (unverified).
+	- Steps to reproduce:
+		- On a box whose machine PATH is longer than 1024 characters, run `convert-base-v2-windows-x86_64-setup.exe /S` elevated.
+	- Incorrect behavior: the machine PATH afterwards holds only `C:\Program Files\convert-base-v2`. All 78 old entries were gone.
+	- Expected behavior: the old PATH kept as it was, with the folder added once at the end.
+	- Reproduced: 20261025, twice on b29w, once per shell, during the `install.ps1` checks. The PATH was saved first and put back after each run.
+	- Reproduced: 20261026, under Wine 10 with a 5086-character PATH. The old setup left only its folder.
+	- Possible cause: `installer.nsi` reads the PATH with `ReadRegStr`, which gives an empty string for a value longer than NSIS's string limit (1024 by default). The `$0 == ""` branch then writes `$INSTDIR` alone.
+	- Actual cause: as above. Also, a PATH ending in `;` got a second one.
+	- Note: the uninstall section never removes the PATH entry it added.
+		- 20261026: it does now.
+	- Actual fix: the setup reads and writes the PATH through the registry API, and keeps the value in native memory. Only single entries become NSIS strings. It adds its folder at the end unless an entry already matches, in any case and with or without a trailing `\`, and keeps the value's type. The uninstaller takes out every matching entry. A PATH it can't read is left alone.
+	- Decisions:
+		- 20261026: the System plugin that comes with NSIS, rather than the EnVar plugin or a large-strings NSIS build. The pinned image's `nsis` builds it, and no PATH is too long for it.
+		- 20261026: no Wine in the container image, for its size. The check's Wine prefix alone is about 1.4 GB. A container run skips `defkt` as asked, and the Windows box covers the real setup.
+	- Verified: 20261026, `defkt` passes under Wine, and fails 6 of its 8 checks on the old `installer.nsi`. The release area passed 72 of 72 on the host.
+	- Verified: 20261026, on b29w, with its 4030-character machine PATH saved first: the fixed setup kept the PATH and added its folder once, a second install changed nothing, and uninstall put the PATH back byte for byte, still REG_EXPAND_SZ. The old setup cut it to its folder alone, so `defm7` failed, and the check put it back the same as the saved copy.
+	- Swept: `installer.nsi` has no other PATH write, and its other registry values are short. `install.ps1` reads the PATH through .NET, with no length limit. `install.bash` never touches a Windows PATH.
+	- Test case: `defkt`, under Wine: a long PATH is kept and gets the folder once, a second install changes nothing, and uninstall puts the PATH back. Also an entry already there in another case, a trailing `;`, and no PATH at all. `defm7` does the same on b29w, from 2026102516555347.
+	- Branch: cicd3
+	- Commit: 3a81a79
+	- Closed: 20261026-171244
+
+- The contractions test fails on the new temp folder message in `install.bash`.
+	- ID: 2026102518082587
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261025-180825
+	- Opened by: found while testing 2026102416280109
+	- Related IDs: 2026102416280107
+	- Steps to reproduce [Bug]:
+		- From `lib/`, `go test -run TestMessagesUseContractions ./cmd/convert-base-v2`.
+	- Incorrect behavior [Bug]: de56v fails with `install.bash:193: "could not"`, so the Go unit tests and the merge gate fail on cicd2.
+	- Expected behavior [Bug]: It passes, with the message written as "couldn't".
+	- Possible cause [Bug]: faa094f added the line, in the temp files work.
+	- Reproduced [Bug]: 20261025, de56v failed as described.
+	- Actual cause [Bug]: the line faa094f added said "could not".
+	- Actual fix [Bug]: it says "couldn't" now.
+	- Verified: 20261025, de56v failed before and passes after. The format, lint and convert-base-v2 areas pass.
+	- Swept: every string faa094f added. `cicd.bash` mixes both forms, and de56v doesn't read it.
+	- Branch: cicd2
+	- Test case: de56v
+	- Closed: 20261025-182633
+
+- In the container, the stale run folder sweep takes a live run's folder for a dead one.
+	- ID: 2026102518111571
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261025-181115
+	- Opened by: found while testing 2026102416280109
+	- Related IDs: 2026102416280107
+	- Steps to reproduce [Bug]:
+		- `cicd/cicd.bash --backlog-run-quick ci`, in the container.
+	- Incorrect behavior [Bug]: dee7v fails. The folder whose `run.pid` names a live process is removed too.
+	- Expected behavior [Bug]: Only the folder whose process is gone is removed, as on the host.
+	- Possible cause [Bug]: the image has no `ps`, so `fRunTmpSweep`'s `ps -p` always fails. `kill -0` is a builtin.
+	- Note: dee8z fails with it in the container too, since it counts 2 stale folders there rather than 1.
+	- Reproduced [Bug]: 20261025, in the container dee7v and dee8z failed with `ps -p` back in.
+	- Actual cause [Bug]: the image has no `ps`, so every `run.pid` read as dead.
+	- Actual fix [Bug]: the sweep checks the pid with `kill -0`, a builtin. A "not permitted" answer counts as live, as `ps -p` did for another user's process.
+	- Verified: 20261025, `--backlog-run-quick ci` in the container failed dee7v and dee8z before the fix, and passed both, and the rest of the area, after. Nothing was left under `HOST_TEMP`.
+	- Swept: every `ps`, `pgrep` and `pidof` in the scripts and `lib/Makefile`. The rest are `docker ps`. `fRunTmpSweep` is the only reader of `run.pid`.
+	- Branch: cicd2
+	- Test case: dee7v, dee8z
+	- Closed: 20261025-182633
+
+- Hosted CI fails at the native build on every dev push since the `install.ps1` merge.
+	- ID: 2026101911072100
+	- Type: Bug
+	- Status: Done
+	- Priority: High
+	- Opened: 20261019-110721
+	- Opened by: JC
+	- Related IDs: 2026101411014803
+	- Target OS: Linux
+	- Reproduced: 20261019, 7 runs in a row, from 39278064158 on the `install.ps1` merge to 39297916319: `mkdir /cache/home/.cache/go-build: permission denied`.
+	- Cause: the pwsh check at the end of the Dockerfile's pwsh `RUN` runs as root with `HOME=/cache/home`. It leaves root-owned `.cache/powershell` and `.local/share/powershell` there, which a new `/cache` volume copies in. Local runs pass because the existing volume hides it.
+	- Probable fix: run that check with a throwaway `HOME`, such as `HOME=/tmp/pwsh`, before the `rm -rf /tmp/pwsh`. Or remove both dirs in the same `RUN`.
+		- Add a harness check that `/cache/home` in the built image has nothing owned by root under it, so the next tool that does this fails here.
+		- Then run on a new docker volume, and watch hosted CI go green.
+	- Fixed: the pwsh check runs with `HOME=/tmp/pwsh`, which is removed after. The Dockerfile's last step fails the build if anything is in `/cache/home`.
+	- Verified: 20261019, on a new volume, the old image fails with the same `permission denied` making the Go cache, and the new one makes it. The old image fails the new last step.
+	- Test case: `de5e1` the Dockerfile's last step checks `/cache/home`. `de5e2` nothing root-owned in the container's HOME, which failed on the old image and a new volume.
+	- Branch: cleanup
+	- Closed: 20261019. Hosted CI passed on dev, run 39325671266.
+
+- The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
+	- ID: 2026100413480002
+	- Type: Bug
+	- Status: Done
+	- Needs external testing: none. Hosted CI passed on dev at 971ae42, run 37252643753.
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- Leave a truncated copy of the default config where the first run writes it, then run `convert-base-v2 255 16`.
+		- Or start 16 first runs at once on an empty config dir.
+	- Incorrect behavior: a cut that drops the Format line gets migrated and stamped as current. A cut inside the `10emoji` block makes every run fail, `--help` included, with an error that blames an old format. Parallel first runs both wrote the file in 1 of 30 trials.
+	- Expected behavior: the file is either whole or absent, and only one process creates it.
+	- Reproduced: 20261004, by the review, in a scratch home.
+	- Possible cause: `userconfig.go:51` uses `os.WriteFile`. The migration path already writes atomically.
+	- Probable fix: `shcl.WriteFileAtomic`, which creates exclusively through a temp file and a link.
+	- Origin: `userconfig.go:51`, last touched by 51f59b6 on 2026-10-03; the in-place write is older. Not seen by an earlier round. Confirmed.
+	- Actual cause: `os.WriteFile` creates and truncates in place, so a half-written file is visible, and a second run that passed the existence check writes over the first.
+		- `shcl.WriteFileAtomic`, the first fix, checks for the file again itself. A run that finds one by then replaces it and reports success, so the write was atomic but not exclusive.
+	- Actual fix: the first run creates the file itself. The text goes to a synced temp file beside it, and a hard link puts it in place. A link fails if anything is at the path, so only one run creates the file and the rest leave it be. The truncated-copy case has the same cause: now a whole file appears or none does. Where links don't work, an exclusive create in place still allows one creator, but a crash there can leave half a file.
+	- Note: a new file takes 0666 less the umask, like any newly created file, where it took 0644 less the umask. Under the usual 022 umask both are 0644. A crash mid-write can leave a `.convert-base-v2.shcl.tmp*` file beside the config instead of a broken config.
+	- Note: a dangling symlink at the config path is now left alone, and the run goes on without a config. Before, the default was written to wherever the link pointed.
+	- Verified: 20261004, go vet, golangci-lint and `go test ./...` clean.
+	- Verified: 20261004, second fix: go vet (linux, windows, darwin), golangci-lint and `go test ./...` clean. 30 trials of 16 first-run processes at once each had one creator and no leftover files.
+	- Swept: every file create in `lib/` and `cicd/`. The migration backup already links with an exclusive fallback. The config rewrite, `keepBackup` and the macho-fat output mean to replace. wasm and reactor write no files.
+	- Branch: exit-fixes, firstrun-excl
+	- Commit: e5892c9, 7a01a50
+	- Test case: `ddgjt` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
+		- Second fix: it now runs 60 trials on two threads, since the gap showed on a small CI runner and almost never with many cores. With the first fix it failed 20 of 20 plain runs here, and 46 of 50 at `-count=50 -cpu 2` before the test change. With this fix it passed 20 of 20 plain runs, and 50 of 50 at `-cpu` 1, 2, 4 and 32 and under the race detector.
+		- `ddgs5` TestUserConfigCreateKeepsFile: the create step finds a file already there and leaves it. It failed with the first fix's write in its place.
+		- `ddgs6` TestUserConfigCreateWithoutLinks: with no hard links, one create succeeds, whole, and a second finds the file. It failed with a truncating create in the fallback.
+	- Acceptance signoff: closed without it. Tested here and on hosted CI. The dangling symlink case is left alone on purpose, since writing through a link to a missing target is a guess about where the file should live.
+	- Progress log:
+		- 20261004: reopened. `ddgjt` fails on hosted CI on every dev push since the merge, 2 runs creating the file. It passes here, so the window is timing.
+		- Cause: `ensureUserConfig` checks that the file is missing, then `shcl.WriteFileAtomic` checks again. A run that finds the file there by its second check replaces it, and still reports it created. So the write is atomic but not exclusive.
+		- Probable fix: create it in `ensureUserConfig` itself. Write a temp file beside it, then `os.Link` it into place; "exists" means another run made it. Where links don't work, an `O_EXCL` create.
+		- 20261004: fixed on firstrun-excl, as the probable fix above. Reproduced here first with `-count=50 -cpu 2`, 46 of 50 runs with 2 to 4 creators.
+		- Note: shcl friction, a missing capability. `WriteFileAtomic` has no create-only mode, so a caller can't create a file whole and only if absent. Smallest repro: 16 goroutines each calling it on one new path. Several return nil, where one is wanted.
+	- Closed: 20261004-184623
+
+- A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
+	- ID: 2026100413480003
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- Define a 2048-symbol base with two-character digits, an 8-symbol tail and the qntm scheme, then encode bytes to it and decode them back.
+	- Incorrect behavior: the encode works, and the decode fails with `symbol "..." is not in the base`.
+	- Expected behavior: the base is refused when it is defined, or it round trips.
+	- Reproduced: 20261004, by the review, with a throwaway test in package `convertbase`. A config `tail:` field or `--to-tail` reaches it.
+	- Possible cause: `Finalize` accepts the tail, and the buffered big-base decoder reads one character at a time. The streaming path already demands one-character digits.
+	- Origin: `convert.go:1773` and `registry.go` Finalize, from 2757bd5 "Big-base binary interop" on 2026-07-06. Not seen by an earlier round. Confirmed.
+	- Related IDs: 2026100413480020
+	- Note: also reproduced 20261004 on the command. Five bytes encoded through `--to-symbols` and `--to-tail`, and decoding them failed both piped and as an argument.
+	- Actual cause: both binary decoders of a tail base read one character per digit. The streaming one is kept off such a base by its one-character gate, but the buffered one is not, and `Finalize` accepted the tail.
+	- Decisions:
+		- A tail now needs every digit and every tail symbol to be one character, checked in `Finalize`. That is the rule the streaming path already had, and a tail's whole point is that the base streams.
+		- Supporting longer digits was passed over. The tokenizer would have to tell a tail symbol from the start of a longer digit at the end of the input, for a case no built-in base has.
+	- Actual fix: `Finalize` refuses such a tail with an error naming the base and the offending digit or tail symbol. The config comments and the wide-symbols design doc say so. README and design.md don't describe tails.
+	- Verified: every built-in base and the default config still load. Every built-in tail base round trips. `go vet`, `golangci-lint`, `go test ./...` and the harness Binary/streaming section pass.
+	- Swept: every way a tail is set goes through `Finalize`: the built-ins, the config `tail:` field, `--from-tail`/`--to-tail` through `ApplyOptions`, and library callers. The browser and reactor modules take no tail. `decodeBigBaseNative` has no other caller.
+	- Branch: bigbase-tail
+	- Commit: 44ed0be
+	- Test case: `ddgkk` TestTailNeedsOneCharDigits, `ddgkm` "tail on two-character digits rejected" and `ddgkn` "config tail on two-character digits rejected". All three fail before the fix and pass after.
+	- Acceptance signoff: Closed on review: refusing at definition matches the streaming rule, and the error names the base and the digit.
+	- Closed: 20261004-182334
+
+- A tail layout with no tail symbols, such as from `--to-tail ','`, decodes bytes wrong at exit 0.
+	- ID: 2026100416041479
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Note: raised from Low once the command was found to reach it. It blocks release, since the result is wrong bytes at exit 0.
+	- Opened: 20261004-160414
+	- Opened by: found while working 2026100413480003
+	- Target OS: Any
+	- Steps to reproduce:
+		- In Go, build a `Base` with `BinaryScheme` set to a tail scheme and no tail, then decode bytes from it.
+	- Incorrect behavior: fails with `symbol "..." is not in the base`, which doesn't say what is wrong.
+	- Expected behavior: `Finalize` refuses a tail scheme without a tail, naming the base.
+	- Reproduced: 20261004. The command reaches it too. `--to-tail ','` parses to no tail symbols but still sets the qntm layout, and 3, 7 and 10 bytes then decode to the wrong bytes with exit 0. A config `tail:` can't reach it, since the layout is set only when the tail has symbols.
+	- Actual cause: binary mode picks the tail codec from `BinaryScheme` alone, and nothing checked that a tail layout had a tail. A tail spec of only commas parses to an empty list with no error, and `ApplyOptions` set the layout anyway.
+	- Actual fix: `Finalize` refuses a tail layout with no tail symbols, naming the base and the layout, beside the one-character tail check. The command reports it the same way.
+	- Note: a config `tail:` of only commas is still ignored without a word, for the same parsing reason. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
+	- Verified: every built-in base still loads, and clearing a tail with an empty `--to-tail` still works on a tail base and a codec base. `go vet`, `golangci-lint`, `go test ./...` and the full harness in quick mode pass.
+	- Swept: every way a scheme is set. Built-ins all have a tail with a tail layout. The config sets one only with a nonempty tail. `ApplyOptions` clears the layout with an empty tail and sets it with a parsed one, which is now checked. The browser and reactor modules take no tail.
+	- Branch: digit-values
+	- Commit: fbf6380
+	- Test case: `ddgpn` TestTailSchemeNeedsTail, for each tail layout and for a comma-only tail through `ApplyOptions`, and `ddgpp` "comma-only tail rejected" on the command. Both fail before the fix and pass after.
+	- Acceptance signoff: Closed on review: an error in place of wrong bytes at exit 0, naming the base and the layout.
+	- Related IDs: 2026100417280514
+	- Closed: 20261004-182334
+
+- `package.bash` deletes whatever directory `--out` names before it builds. (Code review 20261004 item 4)
+	- ID: 2026100413480004
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The cicd run through stage 6 passed on 20261004, with the harness at 572 of 572. Packaging made all 25 artifacts in a fresh, marked `lib/dist`.
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Linux
+	- Steps to reproduce:
+		- `make release DIST=<a dir with other files in it>`
+	- Incorrect behavior: the directory is emptied, whatever was in it.
+	- Expected behavior: only a directory the script made or marked as its own is cleared. Anything else is refused.
+	- Reproduced: 20261004, by the review, with a fake `go` and a scratch dir.
+	- Origin: `package.bash:115`, from 9c40e8d "release packaging" on 2026-07-12. Not seen by an earlier round. Confirmed.
+	- Sweep: every `rm -rf` on a variable path in `cicd/` and `utility/`. `interop/fetch.bash:93` is one; see item 16.
+	- Actual cause: the script cleared `--out` with `rm -rf` before building, whatever it held. `make clean` did the same to `DIST`.
+	- Actual fix: a build marks the dir it makes with a hidden file. `package.bash` clears a dir only when it has the mark, takes over an empty one, and refuses anything else with a message. `make wasm` and `make reactor` mark the dir when they create it, and `make clean` follows the same rule. The mark stays out of `checksums.txt`, and the release workflow's `lib/dist/*` upload skips it as a dotfile.
+	- Swept: every `rm -r` in `cicd/`, `utility/`, `install.bash` and `lib/Makefile`. The trap removes in `package.bash`, `check-vendor.bash`, `interop/fetch.bash`, `test.bash`, `bench-encoders.bash`, `gen-screenshots.bash` and `install.bash` each take a dir the same script made with `mktemp -d`. `interop/fetch.bash:94` is fixed under item 16. `lib/Makefile` clean was the twin of this one and is fixed here. The other `rm` calls remove single files.
+	- Verified: 20261004, the three new checks fail on dev and pass on this branch. The packaging section ran with real builds: two full packages still rebuild to the same checksums, and the prerelease name checks pass. `make wasm` into a new dir marks it, and the next packaging run clears it. Shellcheck finds nothing new.
+	- Note: `make release` and `make clean` now stop on an old `lib/dist` with no mark, and say so. Removing that old dir once clears it.
+	- Branch: bash-traps
+	- Commit: 65ce2be
+	- Test case: harness checks `ddgk9` (an `--out` with other files is left alone), `ddgka` (a marked dir is cleared and an empty one taken), `ddgkc` (`make clean`) and `ddgkb` (the mark is not in `checksums.txt`). The first three fail on dev. `ddgkb` fails when the mark is left in the checksum list.
+	- Acceptance signoff: Closed on review: the refusal says what to do, and a marked folder is the usual way a build tool knows its own output.
+	- Closed: 20261004-182334
+
+- A failed write of the result still exits 0. (Code review 20261004 item 1)
+	- ID: 2026100413480001
+	- Type: Bug
+	- Status: Done
+	- Needs local test suite run?: No. The full `cicd/test.bash` passed 569 of 569 on 20261004, on a tree with this fix merged.
+	- Severity: High
+	- Opened: 20261004-134800
+	- Opened by: Code review 20261004
+	- Target OS: Any
+	- Steps to reproduce:
+		- `convert-base-v2 255 16 >/dev/full`
+	- Incorrect behavior: exit 0 with nothing written. Same for `--list`, `--get-index-count`, `--get-base-name` and a piped `-` input.
+	- Expected behavior: an error and a non-zero exit, as `-n 255 16`, `--version` and streaming already do.
+	- Reproduced: 20261004, with a stripped build.
+	- Possible cause: the result prints go through `fmt.Fprint*` with errcheck turned off for them, and nothing checks a flush. The `.golangci.yml` comment says every write that matters is checked; these are not.
+	- Probable fix: one buffered writer over stdout in `run()`, with the flush error returned.
+	- Origin: `main.go:509` and its siblings, from the first v1.0.0-rc1 commit ad488ce. Not seen by an earlier round. Confirmed.
+	- Sweep: every stdout write in `lib/cmd`, `lib/wasm` and `lib/reactor`.
+	- Actual cause: the result prints were unchecked, as the possible cause says. Only `-n` output, `--version`/`--help` and the streams checked their writes.
+	- Actual fix: one buffered writer over stdout in `run()`. It keeps the first write error, and the deferred flush returns it, so the run exits 1 with the error. The streams still write stdout directly and check their own writes. The errcheck exclusions in `.golangci.yml` add that writer's `WriteString`, and their comment now says where each kind of write is checked.
+	- Swept: every stdout write in `lib/cmd/convert-base-v2`, all in `main.go`: the info flags, `--list` and `--list-compat`, `--get-index-count`, `--get-base-name`, `--show-symbols` and `-0`, the newline after a stream, and the result. `lib/wasm` and `lib/reactor` write nothing to stdout, by `grep -n 'os.Stdout\|fmt.Print'`. The library's `Registry.Print` writes to the writer it is given, so its errors come out at the command's flush.
+	- Verified: 20261004, the harness sections from CLI surface through control-character escapes pass, 342 of 342, and so do the reactor, browser module and frontend parity sections. Output of 25 sample commands matched the dev build byte for byte, apart from the version stamp. go vet, golangci-lint, staticcheck and `go test ./...` clean.
+	- Branch: exit-fixes
+	- Commit: 7eb27c9
+	- Test case: harness check `ddgjw`, 13 ways of writing a result to `/dev/full`. On dev 8 of them exit 0. With the fix all 13 fail with the write error.
+	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, the Sweep is answered, and the full suite passed.
+	- Closed: 20261004-165456
+
+- A field written under another field in a config file is ignored without a word.
+	- ID: 2026100314430255
+	- Type: Bug
+	- Status: Done
+	- Severity: High
+	- Opened: 20261003-144302
+	- Opened by: found while working 2026100313304802
+	- Target OS: Any
+	- Steps to reproduce:
+		- A base block with `negative:` and, indented under it, `decimal: X`.
+	- Incorrect behavior: it loads. The negative marker is switched off and the decimal line is never read.
+	- Expected behavior: refused, like any other unknown or misplaced field, citing the line.
+	- Reproduced: 20261003, with both the old and the new shcl.
+		- 20261003: again on dev. With `negative: N` and `decimal: D` under it, 1.5 to that base printed `1.5` at exit 0.
+	- Possible cause: the field check looks one level down only.
+	- Actual cause: the field check looked at the names directly under each base block and nothing below them. No base field takes fields of its own, so anything under one was dropped unread. A dotted name like `negative.decimal: X` builds the same tree and slipped past the same way.
+	- Note: blocks release, since the result is a wrong alphabet at exit 0.
+	- Progress log:
+		- Done: anything under a base field is refused, at any depth. The error names the base, the stray field and the field it sits under, and cites the stray field's line. That makes nine refusal paths that cite a line.
+		- Note: no shcl bug was involved. Two same-named fields that both have fields under them merge into one in shcl, so the repeat check misses them, but the new check still catches the fields under them.
+		- Note: found along the way, logged as 2026100315002873: a raw block as a field value drops aliases without a word and reports symbols as missing.
+	- Actual fix: the field check now also refuses any field under a base field.
+	- Sweep: every place config.go walks children, the top level of the file, fields under list-valued fields, and whether `lib/wasm` and `lib/reactor` load configs.
+	- Swept: config.go walks children in two places, the top level and each base block. The top level refuses every name but `base`, so nothing under them is ever read. Each base block's fields are now checked for children. Under `aliases:` and stacked `* x` lists, a field is caught by this check or already refused by shcl as a list mixed with fields. `configBase` only reads fixed paths. `lib/wasm` and `lib/reactor` load no config at all; the only `LoadConfig` callers are the command's two paths in `main.go`, both through `Registry.LoadConfig`.
+	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The new unit test and the new harness check fail on dev and pass on this branch. The full `cicd/test.bash` passed 446 of 446 with the fixed build. Shellcheck finds nothing new in `cicd/test.bash`.
+	- Branch: nested-field
+	- Commit: 5c64d73
+	- Test case: `ddf59` TestConfigRejectsNestedField and the "nested" case in `dav1v` TestConfigErrorsCiteLines; `ddf58` "config nested field rejected" in the harness.
+	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
+	- Closed: 20261003-150028
+
 - CICD reset: containers.
 	- ID: 2026102416280100
 	- Type: Enhancement
@@ -235,46 +674,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Commit: 14fe62d
 	- Verified: 2026-10-26, two `--backlog-run-full` runs passed with pins, demo gif and profiler, and left `git status` clean. Hosted run 40256013604 passed, its pipeline job included (17m41s). `--list` and `--help` read clearly.
 
-- A bare `tail: ,` in a config reads as no tail.
-	- ID: 2026101411014813
-	- Type: Bug
-	- Status: Stalled
-	- Severity: Low
-	- Opened: 20261014-110148
-	- Opened by: split from 2026100417280514
-	- Related IDs: 2026100417280514, 2026100508035901
-	- Target OS: Any
-	- Steps to reproduce:
-		- A config base with `tail: ,` or `tail: , ,`.
-		- Smallest repro in shcl: parse `x: ,` and read `x` as a list. It comes back empty, the same as `x:`.
-	- Incorrect behavior: the base loads with no tail, and nothing is said.
-	- Expected behavior: a comma tail, or an error that names the line. A quoted `","` reaches the loader and is refused as only commas.
-	- Reproduced: 20261005, on shcl 2317df56.
-	- Note: shcl friction, a silent wrong answer. The config loads at exit 0, and the base isn't the one the file describes.
-	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
-	- Progress log:
-		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
-		- 20261025: shcl's dev tip 6d046939 refuses a bare comma in a value with `E026`, which may cover this. Unverified, since it's only from reading shcl's backlog. Still not tagged 3.0.0, so the pin stays.
-
-- CICD reset: other hosts and VMs.
-	- ID: 2026102416280101
-	- Type: Enhancement
-	- Status: Started
-	- Needs external testing: Yes, on the Windows, macOS, FreeBSD, and arm64 Linux test boxes.
-	- Priority: High
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026101411014805, 2026101411014811, 2026101301161880
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- The default run tests the Windows, Intel macOS, FreeBSD, and arm64 Linux builds on the test boxes, and the installers where a box can run them. `--no-remote` skips them.
-		- Windows tests go to b29w first, and to vm925w only for GPU or timed work.
-		- Each box is held through the shared host lock while it's in use. A VM is put back the way it was found, through the VM state helper.
-		- A box that isn't there shows as SKIP with a warning, and the run goes on.
-		- Each box gets a work folder for this project under its temp root.
-	- Progress log:
-		- 20261025: split by platform into 2026102516555342 (the runner, and FreeBSD), 2026102516555347 (Windows), 2026102516555352 (Intel macOS) and 2026102516555357 (arm64 Linux). This closes with the last of them.
-
 - CICD reset: other hosts, the runner and FreeBSD.
 	- ID: 2026102516555342
 	- Type: Enhancement
@@ -303,503 +702,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: dee6x (the FreeBSD check on the box), dee71 (hold and cleanup), dee72 (no answer is a SKIP), dee73 (no hold is a SKIP), dee74 (different answers fail), dee75 (the step gets the boxes and the hold, and is off with none), deeaz (step numbers in run order, with the profiler and other hosts on).
 	- Branch: cicd2
 	- Verified: 2026-10-26, both full runs ended Other hosts with `PASS dee6x freebsd-x86_64 on vmFreeBSD`, and vmFreeBSD was off again after.
-
-- The Windows setup `.exe` replaces a long machine PATH with its own folder.
-	- ID: 2026102519371715
-	- Type: Bug
-	- Status: Done
-	- Needs external testing: None left.
-	- Severity: Critical
-	- Opened: 20261025-193717
-	- Opened by: cicd2 test batch
-	- Related IDs: 2026101411014803, 2026101411014805
-	- Target OS: Windows
-	- Test environment: b29w, Windows 11 10.0.26200, machine PATH 4030 characters in 78 entries.
-	- Version and build: setup from e23b810 (3.0.0-336-ge23b810). The PATH code is the same in v3.0.0's `installer.nsi`, so the released setup most likely has it too (unverified).
-	- Steps to reproduce:
-		- On a box whose machine PATH is longer than 1024 characters, run `convert-base-v2-windows-x86_64-setup.exe /S` elevated.
-	- Incorrect behavior: the machine PATH afterwards holds only `C:\Program Files\convert-base-v2`. All 78 old entries were gone.
-	- Expected behavior: the old PATH kept as it was, with the folder added once at the end.
-	- Reproduced: 20261025, twice on b29w, once per shell, during the `install.ps1` checks. The PATH was saved first and put back after each run.
-	- Reproduced: 20261026, under Wine 10 with a 5086-character PATH. The old setup left only its folder.
-	- Possible cause: `installer.nsi` reads the PATH with `ReadRegStr`, which gives an empty string for a value longer than NSIS's string limit (1024 by default). The `$0 == ""` branch then writes `$INSTDIR` alone.
-	- Actual cause: as above. Also, a PATH ending in `;` got a second one.
-	- Note: the uninstall section never removes the PATH entry it added.
-		- 20261026: it does now.
-	- Actual fix: the setup reads and writes the PATH through the registry API, and keeps the value in native memory. Only single entries become NSIS strings. It adds its folder at the end unless an entry already matches, in any case and with or without a trailing `\`, and keeps the value's type. The uninstaller takes out every matching entry. A PATH it can't read is left alone.
-	- Decisions:
-		- 20261026: the System plugin that comes with NSIS, rather than the EnVar plugin or a large-strings NSIS build. The pinned image's `nsis` builds it, and no PATH is too long for it.
-		- 20261026: no Wine in the container image, for its size. The check's Wine prefix alone is about 1.4 GB. A container run skips `defkt` as asked, and the Windows box covers the real setup.
-	- Verified: 20261026, `defkt` passes under Wine, and fails 6 of its 8 checks on the old `installer.nsi`. The release area passed 72 of 72 on the host.
-	- Verified: 20261026, on b29w, with its 4030-character machine PATH saved first: the fixed setup kept the PATH and added its folder once, a second install changed nothing, and uninstall put the PATH back byte for byte, still REG_EXPAND_SZ. The old setup cut it to its folder alone, so `defm7` failed, and the check put it back the same as the saved copy.
-	- Swept: `installer.nsi` has no other PATH write, and its other registry values are short. `install.ps1` reads the PATH through .NET, with no length limit. `install.bash` never touches a Windows PATH.
-	- Test case: `defkt`, under Wine: a long PATH is kept and gets the folder once, a second install changes nothing, and uninstall puts the PATH back. Also an entry already there in another case, a trailing `;`, and no PATH at all. `defm7` does the same on b29w, from 2026102516555347.
-	- Branch: cicd3
-	- Commit: 3a81a79
-	- Closed: 20261026-171244
-
-- CICD reset: other hosts, Windows.
-	- ID: 2026102516555347
-	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: a full run, to see `PASS defm6` and `PASS defm7` in the Other hosts step.
-	- Priority: High
-	- Opened: 20261025-165553
-	- Opened by: split from 2026102416280101
-	- Parent ID: 2026102416280101
-	- Prereq IDs: 2026102516555342
-	- Target OS: Windows
-	- Requirements:
-		- b29w runs the windows x86_64 exe through the runner from 2026102516555342, and its answers match the native build's.
-		- The installer is run there too, in its quiet mode, then uninstalled. b29w has admin over ssh.
-		- vm925w only for GPU or timed work, so not here.
-	- Progress log:
-		- 20261026: `remote-hosts.bash` has a Windows path. The cases run from a `.cmd` file as `wintest`, a plain user, and match the native build's. The work folder is under the login's `%TEMP%`, made and removed through PowerShell, and old ones are swept as on FreeBSD.
-		- 20261026: with the elevated `collierjr` login as the root login, `cicd/utility/remote-setup.ps1` installs the setup quietly, runs the cases with the installed exe, installs again and uninstalls. It checks the machine PATH after each, and puts it back at the end whatever happened. An existing install is a SKIP.
-		- 20261026: b29w is in `private/remote-hosts.bash`.
-	- Decisions:
-		- 20261026: the `--version` date isn't compared on Windows. Go there takes the box's own time zone, not `TZ`, so it can be a day off from the native run.
-		- 20261026: a `.cmd` file runs the cases, not PowerShell, since Windows PowerShell re-encodes piped bytes.
-	- Verified: 20261026, on b29w: `PASS defm6` and `PASS defm7`. `defm6` failed on a stray prompt in the output before the fix to how the `.cmd` is started, and `defm7` failed on the setup from before 2026102519371715. Both work folders were gone after, and no config was left in either profile.
-	- Verified: 20261026, the ci area passes 123 of 123, `dee71` to `dee75` and `deeaz` among them. PSScriptAnalyzer is clean on `remote-setup.ps1`.
-	- Note: `defm6` and `defm7` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
-	- Note: the Windows arm64 build isn't run anywhere, since b29w is x86_64.
-	- Swept: `fMain` adds `.exe` for a Windows build, and the setup's glob matches `package.bash`'s name. design.md and the changelog say what the Windows box does.
-	- Test case: `defm6` (the exe's answers on b29w), `defm7` (the setup on b29w: PATH kept, installed exe's answers, reinstall, uninstall).
-	- Branch: cicd3
-
-- CICD reset: other hosts, Intel macOS.
-	- ID: 2026102516555352
-	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: a full run, to see `PASS defmk`, `PASS defmm` and `PASS defmn` in the Other hosts step.
-	- Priority: High
-	- Opened: 20261025-165553
-	- Opened by: split from 2026102416280101
-	- Parent ID: 2026102416280101
-	- Prereq IDs: 2026102516555342
-	- Target OS: macOS
-	- Requirements:
-		- An Intel Mac runs the darwin x86_64 and universal builds through the runner from 2026102516555342, and their answers match the native build's.
-		- `install.bash` is tried there if it can run against the local build with a stand-in for the download.
-	- Progress log:
-		- 20261026: `remote-hosts.bash` runs `darwin-x86_64` and `darwin-universal` on b26 as `mactest`, through the POSIX path FreeBSD uses. macOS's `TMPDIR` ends in a slash, so the work folder's path drops it now.
-		- 20261026: on `darwin-x86_64`, `install.bash` runs in place of a package, as `mactest`, in a HOME and TMPDIR of its own, with a stand-in `curl` that serves this build as the only release and its sum in `checksums.txt`. It has to install it, find it current on a second run, leave nothing in TMPDIR, and the installed binary has to give the native build's answers.
-		- 20261026: b26 is in `private/remote-hosts.bash`, once per build.
-	- Decisions:
-		- 20261026: b26, not vmKt6m. b26 is real Intel hardware and spares the build box, and vmKt6m ignores the ACPI shutdown, so the VM state helper would wait 300s to put it back.
-		- 20261026: the installer runs only for `darwin-x86_64`, since that's the build `install.bash` picks on an Intel Mac. It needs no root login.
-	- Verified: 20261026, on b26 (macOS 15.8.1, stock bash 3.2), against builds of a98ac9e: `PASS defmk`, `PASS defmn` and `PASS defmm`. Both work folders were gone after, and `mactest` had no `~/.local/bin`.
-	- Verified: each check failed with its fault put in: the arm64 build in the universal's place failed `defmm`; `install.bash` without its cleanup trap, and without its current check, each failed `defmn`; and a missing `install.bash` failed it rather than asking for a root login.
-	- Verified: 20261026, `--backlog-run-quick format lint ci` passes, the ci area 125 of 125. `defmp` failed against the old `remote-hosts.bash`, and again with only the trailing-slash fix taken out.
-	- Note: `defmk`, `defmm` and `defmn` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
-	- Note: the universal build's arm64 half still needs an Apple silicon Mac, per 2026101411014811.
-	- Swept: every `package` word in `fMain`'s summary lines, the stand-in stubs the other `dee7x` and `dee9x` checks share, design.md and the changelog.
-	- Test case: `defmk` (the x86_64 build on b26), `defmm` (the universal build on b26), `defmn` (`install.bash` on b26), `defmp` (the same `install.bash` check against stand-ins, with a TMPDIR that ends in a slash, and a FAIL when the answers differ).
-	- Branch: cicd3
-
-- CICD reset: other hosts, arm64 Linux.
-	- ID: 2026102516555357
-	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: a full run, to see `PASS defmy` and `PASS defmz` in the Other hosts step.
-	- Priority: High
-	- Opened: 20261025-165553
-	- Opened by: split from 2026102416280101
-	- Parent ID: 2026102416280101
-	- Prereq IDs: 2026102516555342
-	- Target OS: Linux
-	- Requirements:
-		- vmDebARM64 runs the linux arm64 build through the runner from 2026102516555342, and its answers match the native build's.
-		- The arm64 deb is installed and removed there, if that fits its slow emulated CPU.
-	- Progress log:
-		- 20261026: `remote-hosts.bash` runs `linux-arm64` on vmDebARM64 as `tester`, through the POSIX path FreeBSD uses.
-		- 20261026: with a root login, the arm64 `.deb` goes in with `dpkg -i`, runs the same cases from `/usr/bin`, and comes out with `dpkg -P`, with no binary or doc folder left. The `.pkg` code takes either now. An install already there, or a binary in its place, is a SKIP, as with FreeBSD.
-		- 20261026: vmDebARM64 is in `private/remote-hosts.bash`, with `root@vmDebARM64`.
-	- Decisions:
-		- 20261026: the `.deb` fits. The box's whole turn, boot and shutdown included, took about 2 minutes.
-		- 20261026: `dpkg -P` rather than `-r`, so nothing of it stays in dpkg's list.
-	- Verified: 20261026, on vmDebARM64 from off, against builds of a8370ec plus this change: `PASS defmy` and `PASS defmz`, and the VM was off again after. With the amd64 `.deb` in the arm64 one's place, `defmz` failed on `dpkg -i`.
-	- Verified: 20261026, `--backlog-run-quick format lint ci` passes, the ci area 125 of 125. `defn0` failed against the old `remote-hosts.bash`, and again with the installed-package guard taken out.
-	- Note: `defmy` and `defmz` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
-	- Swept: the FreeBSD `pkg` messages `dee9y`, `dee9z` and `deea0` match are unchanged. The root stand-in in the harness maps any quoted `/usr/` path now, not only `/usr/local/`. design.md and the changelog say what the arm64 box does.
-	- Test case: `defmy` (the arm64 build on vmDebARM64), `defmz` (the `.deb` on vmDebARM64), `defn0` (the same `.deb` check against stand-ins: install, run and remove, one already there left alone, one that won't go away fails).
-	- Branch: cicd3
-
-- At the next beta, check the release downloads and rebuild.
-	- ID: 2026101411014812
-	- Type: Task
-	- Status: Stalled
-	- Needs external testing: Yes, against the next beta's published assets.
-	- Priority: Avg
-	- Opened: 20261014-110148
-	- Opened by: gathered from 2026100412472515, 2026100409572736 and 2026100412472615
-	- Related IDs: 2026100412472515, 2026100409572736, 2026100412472615
-	- Target OS: Any
-	- Requirements:
-		- With the `.deb` and `.rpm` files downloaded beside `checksums.txt`, `sha256sum -c checksums.txt` passes.
-		- A rebuild of the tag with the Go, nfpm and NSIS versions the workflow used gives the same checksums. NSIS comes from the runner's apt, so its version is read from the workflow log.
-		- The release notes table renders, every link downloads, and the notes end with the build line.
-	- Note: once this passes, add one line under Packages and installers in `install.md`: every asset rebuilds to the same bytes from its tagged commit, so the published checksums can be checked against your own build.
-	- Held for the 3.0.1-beta1 release. It checks that release's published assets, and the beta isn't cut yet.
-
-- CICD reset: CICD process gaps.
-	- ID: 2026102416280109
-	- Type: Enhancement
-	- Status: Done
-	- Needs local test suite run?: No.
-	- Priority: Avg
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- What's left of the shared CICD rules after the other reset items:
-			- No goleak check in the Go tests.
-			- The leak checks aren't sorted into fast, slow, and hours-long groups by measured time.
-			- No FreeBSD `.pkg`.
-			- No end-of-run line saying what cleanup removed and freed.
-	- Progress log:
-		- 20261025: goleak was already in every Go package with tests, from 2026101816351432. dee8p now checks that it stays so.
-		- 20261025: each leak check has a length in `LEAK_LENGTH` in `config.bash`. Fast runs in every run, `--quick` and the backlog quick run included. Slow runs in a plain run and with `--long`. Hours runs only with `--long`. `--leakcheck` adds them all, and `--no-leakcheck` takes them all out.
-		- 20261025: the race run is fast, at 9 s on 8 jobs. The soak test (11 s) and CodeQL are slow, since the CICD rules name them so. Nothing takes hours yet.
-		- 20261025: `--no-leakcheck` runs the unit tests with the `noleakcheck` build tag, which drops goleak's `TestMain`.
-		- 20261025: in a backlog quick run the race run takes the same Go areas as the unit tests, and none when no Go area is named.
-		- 20261025: one `cleanup:` line at the end says what went, from docker, stale run folders and the run's own folder, and about how much that freed. It comes before the closing banner, as the docker line did. The run inside the container doesn't print one.
-		- 20261025: the FreeBSD `.pkg` is split into 2026102518082687.
-		- 2026-10-25: dedm8 wanted `[ docker cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB); about 0.0 GB freed ]`, and now wants `[ cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB), the run folder (SIZE); about SIZE freed ]`, with any size. dedm9 wanted `docker cleanup: removed`, and now wants `cleanup: removed 1 container(s)`.
-		- 20261026: the full run's cleanup line said about 315.7 GB freed, which was all of docker, since docker's total came back empty after. The docker part is now the sum of what the run removed, sized before: each image's unique size, the volume, and the pruned build cache. Docker's total isn't read, since other projects change it during a run. deeay failed before and passes after.
-	- Decisions:
-		- 20261025: goleak goes by a build tag rather than an env var, so a normal `go test` always has it.
-	- Verified: 20261025, a real `--backlog-run-quick convertbase errcode` ran the unit tests and the race run on those 2 packages and passed, and with `--no-leakcheck` ran the unit tests without goleak and no race run.
-	- Verified: 20261025, on the host, the CI engine area passes 118 of 118 and the release area's dee8p passes. In the container, all but dee7v and dee8z pass, through 2026102518111571. dee8p failed with the tag gone from one package and with goleak gone from another. dee8q, dee8r, dee8s, dee8t and dee8z each failed with the code they watch broken.
-	- Swept: `--leakcheck`, `--no-leakcheck`, "leak checks" and "docker cleanup" across the scripts and docs. contributing.md, development.md and the changelog have it now. The four `leak_test.go` files all have the tag.
-	- Test case: dee8p (goleak in every package, and the tag drops it), dee8q (by length), dee8r (`--leakcheck` and `--no-leakcheck`), dee8s (no goleak under `--no-leakcheck`), dee8t (race run follows the Go areas), dee8z (the cleanup line), deeay (only what was removed counts as freed).
-	- Branch: cicd2
-	- Prereq IDs: 2026102518082587, 2026102518111571
-	- Its full run waits on the two bugs from the temp files work.
-	- Verified: 2026-10-26, the full run at e23b810 ran the race detector, the soak test (de54s) and CodeQL clean, and ended with one `cleanup:` line of about 46 KB (deeay).
-
-- CICD reset: FreeBSD `.pkg`.
-	- ID: 2026102518082687
-	- Type: Enhancement
-	- Status: Done
-	- Needs local test suite run?: No.
-	- Priority: Avg
-	- Opened: 20261025-180826
-	- Opened by: split from 2026102416280109
-	- Parent ID: 2026102416280109
-	- Related IDs: 2026101411014806, 2026102516555342
-	- Target OS: FreeBSD
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes the deferral in design.md and in 2026101411014806.
-		- Each FreeBSD release build, x86_64 and arm64, gets a native `.pkg` beside its tarball, named with the version, and listed in the checksums file.
-		- vmFreeBSD installs it with `pkg add`, runs it, and removes it, through the Other hosts runner.
-	- Note: nfpm doesn't write `.pkg`. A `.pkg` is a compressed tar with `+COMPACT_MANIFEST` and `+MANIFEST` first, so `package.bash` could write one with tar, or `pkg create` could on the box.
-	- Progress log:
-		- 20261025: `package.bash` writes `convert-base-v2-VERSION-freebsd-ARCH.pkg` for x86_64 and arm64 with tar and zstd, in the layout `pkg create` gives. It holds the binary in `/usr/local/bin` and the license in `/usr/local/share/licenses/convert-base-v2/`. It rebuilds to the same bytes, and `checksums.txt` lists it.
-		- 20261025: the release notes table and `install.md` list it, and design.md no longer defers it.
-		- 20261025: a box in `REMOTE_HOSTS` can have a fourth field, a root login. With one, the Other hosts step adds the package with `pkg add`, runs the same cases with the installed binary, removes it, and checks nothing is left. A package already installed, or a binary already in its place, is a SKIP, so nobody's install is touched. vmFreeBSD has `root@vmFreeBSD` now.
-	- Decisions:
-		- 20261025: the version in the name and inside has a `.` where the tag has a `-`, such as `3.1.0.beta1`, since pkg allows no `-` there. pkg sorts it below `3.1.0`.
-		- 20261025: the ABI is `FreeBSD:*:amd64` or `FreeBSD:*:aarch64`, any release, since the build is static. Origin and category are `converters`.
-		- 20261025: written here with tar rather than by `pkg create` on the box, so a release needs no FreeBSD box, and the release workflow gets the same file.
-	- Verified: 20261025, on vmFreeBSD 15.1 with pkg 2.7.5: the x86_64 `.pkg` installed with `pkg add`, ran, passed `pkg check -s`, and `pkg delete` left no file or folder. The arm64 one was refused there as the wrong arch. The Other hosts runner gave `PASS dee9x freebsd-x86_64 package on vmFreeBSD`, and FAIL with the arm64 package put in its place. The VM was off again after each.
-	- Verified: 20261025, on the host, the release area passes 71 of 71 and the CI area 121 of 121, and `--backlog-run-quick format lint release ci` passes. dee9w and ddge1 failed against the old `package.bash` and `release-notes.bash`. dee9y, dee9z and deea0 failed against the old `remote-hosts.bash`, and dee9z with the installed-package guard taken out.
-	- Swept: every reader of asset names: `release-notes.bash`, the stage 6 count in `cicd.bash`, the release workflow, which uploads `lib/dist/*` and now installs zstd, `install.md`, README and design.md. The `REMOTE_HOSTS` format in `config.bash` and the private list.
-	- Test case: dee9w (two `.pkg` files, manifests first, sums and version right), ddge9 (rebuilds to the same bytes), ddge1 (release notes list it), dee9x (installed, run and removed on the box), dee9y (the same against stand-ins), dee9z (an install already there is left alone, no root login is a SKIP), deea0 (a package that isn't removed fails).
-	- Branch: cicd2
-	- Note: 20261025, ddge1 wanted a FreeBSD row of binary and `.tgz`, and now wants the `.pkg` after them too.
-	- Verified: 2026-10-26, the full run at e23b810 passed ddge9 and dee9w with the image's zstd, and Other hosts ended with `PASS dee9x freebsd-x86_64 package on vmFreeBSD`.
-
-- The repo has no social preview image, so shared links show GitHub's generic card.
-	- ID: 2026101416210405
-	- Type: Task
-	- Status: Stalled
-	- Priority: Low
-	- Opened: 20261014-162104
-	- Opened by: Repo review 20261014
-	- Assigned to: JC
-	- Target OS: Any
-	- Note: GitHub takes it only on the repo settings page, with no API for it. A 1280x640 image from the demo gif is ready outside the repo.
-	- Held for a hand upload of private/social-preview.png on the repo settings page, which has no API.
-
-- The universal macOS binary hasn't been run on an Apple silicon Mac.
-	- ID: 2026101411014811
-	- Type: Task
-	- Status: Done
-	- Needs external testing: none. Hosted CI run 40428830157 passed on cicd3.
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: split from 2026100313304792
-	- Related IDs: 2026100313304792, 2026102318390688
-	- Target OS: macOS
-	- Note: hosted CI now tests and runs a native darwin/arm64 build on an Apple silicon runner. That isn't the release's universal binary, so this stays open.
-	- Progress log:
-		- 20261026: two new jobs in `ci.yml`. `darwin-universal` runs `package.bash` on ubuntu, as the release does, and passes the universal and arm64 binaries on. `macos-universal` runs both on `macos-15`: `lipo` shows both halves, and `--version` and three conversions, bytes both ways included, match.
-		- 20261026: it also compares Gatekeeper's view of the two: `codesign --verify --arch arm64`, the `spctl --assess` verdict, and a run with the quarantine flag set.
-	- Decisions:
-		- 20261026: the jobs run on every push to main or dev, like `macos-arm64`, so the check stays a regression test, not a one-off. They add about 1.5 minutes of runner time.
-		- 20261026: only spctl's first line is compared. The universal build adds `source=no usable signature`, since its x86_64 half is unsigned, while the arm64 build's ad hoc signature names no source. Both are rejected with exit 3, and both run with the quarantine flag set.
-	- Verified: 20261026, run 40428830157: the universal binary ran on Apple silicon and gave the arm64 build's version line and answers. Both builds pass `codesign --verify` for arm64, spctl rejects both, and both run quarantined.
-	- Verified: run 40428406503 failed the Gatekeeper step when the whole spctl text was compared, so the comparison catches a difference.
-	- Swept: design.md's hosted CI paragraph and the changelog. The `dedrh` check covers the new jobs, so neither can pick up an `if:`, and it catches one put on either.
-	- Branch: cicd3
-	- Commit: 27532aa, 7baf037
-	- Test case: the `macos-universal` job in `ci.yml`, as with `macos-arm64`. No local one, since it needs the hosted runner.
-	- Closed: 20261026-175330
-
-- CICD reset: temp files and safe removal.
-	- ID: 2026102416280107
-	- Type: Enhancement
-	- Status: Done
-	- Needs local test suite run?: No.
-	- Needs external testing: None left.
-	- Priority: Avg
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026101910123200
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- Each run already has its own temp folder, removed on exit. What's left is below.
-		- The folder goes under `${HOST_TEMP}/<project>/`, named by time and a counter, and `TMPDIR`, `TEMP`, and `TMP` point at it.
-		- `--keep-temp` keeps it and prints the path.
-		- Each run also removes this project's stale run folders, older than 2 days with no live process from their `run.pid`.
-		- Every recursive remove in the pipeline, the helpers, and the installers goes through the repo's own copy of the safe removal guard, or one that names the one parent it may remove under. File list in the private notes.
-	- Progress log:
-		- 20261025: the run folder is `${HOST_TEMP}/convert-base-v2/<time>_<NNN>`, made with a plain `mkdir` that counts up when the name is taken, and `TMPDIR`, `TEMP` and `TMP` point at it. It holds `run.pid`. It goes at the end, pass, fail or Ctrl+C, and the project folder too once empty.
-		- 20261025: `--keep-temp` keeps the folder and prints its path, as it already did for the containers.
-		- 20261025: a run first removes this project's run folders older than 2 days whose `run.pid` names no live process. A folder with no `run.pid`, and another project's, stay.
-		- 20261025: `cicd/utility/include/safe-rm.bash` is the repo's copy of the guard, with `fSafeRm` for temp paths and `fSafeRmUnder` for one named parent. The pipeline, `check-vendor`, `codeql-scan`, `gen-winres`, `interop/fetch`, `package.bash`, the harness, `bench-encoders`, `gen-screenshots` and `make clean` use it. The installers check their one work folder inline, since they run alone.
-		- 20261025: it works on BSD and macOS too, which have no `realpath -e` or `rm --one-file-system`.
-	- Decisions:
-		- 20261025: the run folder's name is now the docker run label and container name, so `dedps` and `dedmb` expect `<time>_<NNN>` where they wanted `cicd-run.*`. The harness's own runs of the pipeline get their own `HOST_TEMP`.
-	- Verified: 20261025, the format, lint, ci, self, cli and release areas pass, the release area with packaging. `dee7s`, `dee7t`, `dee7v` and `dee7w` each fail with the code they watch broken. `check-vendor.bash` and `make clean` leave nothing behind.
-	- Swept: every `rm -rf` and `Remove-Item -Recurse` in the repo. The Dockerfile's run in the image build on paths it made, and stay. The remote side of `remote-hosts.bash` keeps its own check of the work folder's shape.
-	- Test case: `dee7s` the run folder and its env, `dee7t` `--keep-temp`, `dee7v` the stale sweep, `dee7w` the guard. `de587` checks `install.ps1` leaves its temp folder empty.
-	- Branch: cicd2
-	- Verified: 2026-10-26, the full run at e23b810 in the container left nothing of its own under HOST_TEMP and `git status` clean. The installer checks on other boxes are left.
-	- Verified: 20261025, on b26 as `mactest`, under stock bash 3.2 and Homebrew bash 5.3, `install.bash` in the `bash <(...)` form left no `cbv2-install.*` folder in `$TMPDIR` after a good install, after a prompt answered n, and after a download made to fail once the work folder existed.
-	- Verified: 20261025, on b29w rather than vm925w, which another session held: `install.ps1` left no `cbv2-install-*` folder in the temp folder, in 5.1 and pwsh 7, as a plain user and elevated.
-	- Closed: 20261025-193717
-
-- There is no PowerShell installer.
-	- ID: 2026101411014803
-	- Type: Feature
-	- Status: Done
-	- Needs external testing: None left. The one-liner reads raw main, so its URL works once `install.ps1` is merged there. The code it runs is the same.
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: Windows, Linux, macOS
-	- Requirements:
-		- `install.ps1` beside `install.bash`, working on Windows PowerShell 5.1 and on pwsh 7 on any OS.
-		- It takes `-Release`, `-Target`, `-Yes`, `-Help` and `-Version`.
-		- It checks the download against `checksums.txt`.
-		- It shows the plan and asks before it installs, unless given `-Yes`.
-		- A permission problem gets a clear error.
-		- ASCII only.
-		- The README shows the one-line install.
-	- Done: `install.ps1` at the repo root, run from raw main like `install.bash`. Same releases list and version sort, same assets, same already-current check. On Windows it installs the bare `.exe` under `%LOCALAPPDATA%\Programs` or `%ProgramFiles%`, and adds the folder to the user or machine PATH through the registry. Elsewhere it uses `~/.local/bin` or `/usr/local/bin`, with sudo, as `install.bash` does.
-	- Done: a read-only folder is refused before any download, with the folder named. A system install on Windows from a plain shell is refused up front, and a running `.exe` that can't be replaced says so.
-	- Done: PSScriptAnalyzer runs in the lint stage over every tracked PowerShell file, with 5.1 and 7.0 syntax checks, and the pipeline image has pwsh 7.6.6 and PSScriptAnalyzer 1.25.0, pinned in `tool-versions.env`. The harness checks that PowerShell files are ASCII.
-	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
-	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
-	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
-	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
-	- Reproduced: 20261019, hosted CI run 39278064158 on the merge failed at the native build: `mkdir /cache/home/.cache/go-build: permission denied`.
-	- Cause: the image's pwsh check runs as root with `HOME=/cache/home`, and leaves root-owned `.cache/powershell` and `.local/share/powershell` there. A new `/cache` volume copies them in, so the build user can't make the Go cache. Local runs pass only because the existing volume hides it.
-	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
-	- Note: the fix is its own item, 2026101911072100.
-	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
-	- Swept: each `install.bash` check has a twin here (`ddgke`, `ddydt`, `ddydv`, `ddydw`, `ddys7`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
-	- Test case: `de582` PowerShell files are ASCII. `de583` parses from its raw bytes. `de584` options. `de585` and `de586` the version pick. `de587` installs in the one-liner form and leaves the caller's shell alone. `de588` already current. `de589` tampered checksum. `de58a` read-only folder. `de58b` the prompt. `de58c` says why. `de58d`, `de58e` and `de58f` the lint step. `de56v` now reads `install.ps1` too.
-	- Branch: ps1
-	- Commit: d3d16d7
-	- Verified: 20261025, on b29w as `wintest`, in Windows PowerShell 5.1 and pwsh 7.6.6, from a local copy run the one-liner way through `[scriptblock]::Create`: `-Help`, `-Version`, a prompt answered n touches nothing, answered y installs v3.0.0 under `%LOCALAPPDATA%\Programs`, the caller shell keeps its preferences, the user PATH stays REG_EXPAND_SZ with its old entries unexpanded, a shell built from the registry PATH finds `convert-base-v2`, a second run is current, and `-Target system` from a plain shell is refused before any download.
-	- Verified: 20261025, on b29w as an elevated `collierjr`, in both shells: over a setup `.exe` install, `-Target system` names the setup copy in its plan and replaces it, and leaves the machine PATH alone. On a clean box it installs to `%ProgramFiles%` and adds the folder at the end of the machine PATH, REG_EXPAND_SZ, with the old value kept as it was. A second run is current. No `cbv2-install-*` folder is left in either user's temp folder.
-	- Stand-in: the y and n answers came from a `Read-Host` function defined in the calling scope, since ssh has no console to type into. The "new shell" was a `cmd` started with the PATH built from the registry, machine then user.
-	- Note: 20261025, the setup `.exe` run for the "over a setup install" case wiped b29w's machine PATH. That is the setup's bug, filed as 2026102519371715, not this script's.
-	- Closed: 20261025-193717
-
-- The Windows `.exe` files have no icon or version information resource.
-	- ID: 2026101411014805
-	- Type: Enhancement
-	- Status: Done
-	- Needs external testing: None left. A look in Explorer by eye was replaced by the stand-in below.
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: Windows
-	- Note: Explorer shows a generic icon and an empty Details tab.
-	- Requirements:
-		- Each `.exe` has the project icon and version information.
-	- Progress log:
-		- 20261019: The resource is built at packaging time from the stamped version, not committed, so `--version` and the Details tab agree. goversioninfo is pinned and in the container image. The installers get the same icon and version details. Design notes are in design.md under packaging.
-	- Decisions:
-		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
-	- Verified: `make release` builds both exes and both installers with the icon (16 to 256 px) and the right version, read back from the files. The release assets still rebuild to the same bytes, with and without every packaging tool required.
-	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, packaging included.
-	- Verified: 20261019, on vm925w, Windows PowerShell 5.1 and pwsh 7 read the version info on both exes and both installers: product, description, version, prerelease flag on the exes, company, original filename, and the copyright with its real U+00A9. Windows pulls the icon from each of the 4 files. The x86_64 exe runs and its `--version` matches.
-	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
-	- Branch: winres
-	- Commit: 22399be
-	- Test case: de57e (bare exes), de57f (installers). Both failed before the change and pass after.
-	- Verified: 20261025, on b29w, in Windows PowerShell 5.1 and pwsh 7, on the e23b810 release build: all 4 `.exe` files have their version info, with a real U+00A9, and the shell's Details columns (Copyright, Company, File description) read it back. Each file's icon, as Explorer extracts it, differs from the generic application icon.
-	- Verified: 20261025, after a silent install of the x86_64 setup `.exe`, the Add/Remove Programs entry has the name, version and publisher, and its `DisplayIcon` is the installed exe, which yields the full-color project icon.
-	- Stand-in: the icon and Details tab were read through the shell and `ExtractAssociatedIcon` over ssh, in place of a look in Explorer. Departs from the wording that way.
-	- Closed: 20261025-193717
-
-- Run on the last Core 2 Duo, and AMD CPUs from that era.
-	- ID: 2026101301161880
-	- Type: Enhancement
-	- Status: Done
-	- Needs external testing: None left. Real old hardware isn't at hand, and the emulated CPUs stand in for it.
-	- Priority [Feature|Enhancement] | Severity [Bug]: Low
-	- Opened: 20261013-011618
-	- Opened by: JC
-	- Target OS: Linux, Windows and FreeBSD on x86_64, where this project builds them. Macs that old can't run a current macOS anyway.
-	- Requirements [Feature]:
-		- Release builds run on the last Core 2 Duo (Penryn, 2008), and on AMD Phenom II and Athlon II, if that's reasonably doable.
-			- Penryn has SSSE3 and SSE4.1 but no POPCNT. The AMD ones have POPCNT but no SSSE3. So the shared floor is plain x86-64, also called x86-64-v1.
-		- If that isn't doable, the floor is the first Core i3/i5/i7 (Nehalem, 2008), which is x86-64-v2. AMD's first chip at that level is Bulldozer, 2011.
-		- Faster code for newer CPUs is still fine, but it's picked at run time by a CPU feature test, never by the build target.
-		- Tests run the release build on an emulated Penryn and Phenom II, through Intel SDE or QEMU's `-cpu Penryn` and `-cpu phenom`.
-	- Progress log:
-		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
-			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
-		- 20261019: `package.bash` pins `GOAMD64=v1`. The pipeline image has qemu-user, and the harness runs the linux x86_64 release build as a Penryn and a Phenom II.
-	- Verified: 20261019, under qemu-user, a v1 build converts on Penryn, Phenom and Nehalem. A v2 build is refused on Penryn and Phenom and runs on Nehalem, and a v3 build is refused on all 3.
-	- Note: still open on real hardware, and for the Windows and FreeBSD builds, which are the same code.
-	- Test case: `de5ec` every x86_64 release build says `GOAMD64=v1`. `de5ee` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ddge9` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
-	- Branch: cleanup
-	- Verified: 20261025, both full runs at e23b810 passed `de5ec` (every x86_64 release build says `GOAMD64=v1`, the Windows and FreeBSD ones included) and `de5ee` (the linux x86_64 build converts on an emulated Penryn and Phenom II).
-	- Note: closed on emulation alone, which departs from "still open on real hardware". The Windows and FreeBSD builds are the same Go code with the same `GOAMD64=v1`, so they weren't run emulated.
-	- Closed: 20261025-193717
-
-- The contractions test fails on the new temp folder message in `install.bash`.
-	- ID: 2026102518082587
-	- Type: Bug
-	- Status: Done
-	- Severity: High
-	- Opened: 20261025-180825
-	- Opened by: found while testing 2026102416280109
-	- Related IDs: 2026102416280107
-	- Steps to reproduce [Bug]:
-		- From `lib/`, `go test -run TestMessagesUseContractions ./cmd/convert-base-v2`.
-	- Incorrect behavior [Bug]: de56v fails with `install.bash:193: "could not"`, so the Go unit tests and the merge gate fail on cicd2.
-	- Expected behavior [Bug]: It passes, with the message written as "couldn't".
-	- Possible cause [Bug]: faa094f added the line, in the temp files work.
-	- Reproduced [Bug]: 20261025, de56v failed as described.
-	- Actual cause [Bug]: the line faa094f added said "could not".
-	- Actual fix [Bug]: it says "couldn't" now.
-	- Verified: 20261025, de56v failed before and passes after. The format, lint and convert-base-v2 areas pass.
-	- Swept: every string faa094f added. `cicd.bash` mixes both forms, and de56v doesn't read it.
-	- Branch: cicd2
-	- Test case: de56v
-	- Closed: 20261025-182633
-
-- In the container, the stale run folder sweep takes a live run's folder for a dead one.
-	- ID: 2026102518111571
-	- Type: Bug
-	- Status: Done
-	- Severity: High
-	- Opened: 20261025-181115
-	- Opened by: found while testing 2026102416280109
-	- Related IDs: 2026102416280107
-	- Steps to reproduce [Bug]:
-		- `cicd/cicd.bash --backlog-run-quick ci`, in the container.
-	- Incorrect behavior [Bug]: dee7v fails. The folder whose `run.pid` names a live process is removed too.
-	- Expected behavior [Bug]: Only the folder whose process is gone is removed, as on the host.
-	- Possible cause [Bug]: the image has no `ps`, so `fRunTmpSweep`'s `ps -p` always fails. `kill -0` is a builtin.
-	- Note: dee8z fails with it in the container too, since it counts 2 stale folders there rather than 1.
-	- Reproduced [Bug]: 20261025, in the container dee7v and dee8z failed with `ps -p` back in.
-	- Actual cause [Bug]: the image has no `ps`, so every `run.pid` read as dead.
-	- Actual fix [Bug]: the sweep checks the pid with `kill -0`, a builtin. A "not permitted" answer counts as live, as `ps -p` did for another user's process.
-	- Verified: 20261025, `--backlog-run-quick ci` in the container failed dee7v and dee8z before the fix, and passed both, and the rest of the area, after. Nothing was left under `HOST_TEMP`.
-	- Swept: every `ps`, `pgrep` and `pidof` in the scripts and `lib/Makefile`. The rest are `docker ps`. `fRunTmpSweep` is the only reader of `run.pid`.
-	- Branch: cicd2
-	- Test case: dee7v, dee8z
-	- Closed: 20261025-182633
-
-- CICD reset: version line.
-	- ID: 2026102416280108
-	- Type: Enhancement
-	- Status: Done
-	- Priority: Avg
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026102318392210
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- It overrides the one-line `--version` that `ddgdv` pins.
-		- The build number and the date of a non-release build are in. What's left is the copyright line after the version line in `--version`.
-	- Progress log:
-		- 20261025: `--version` prints the version line, then the same copyright line `--about` and `--help` have. `--about` still covers `--version`. The version line itself is unchanged, so `ddgdv` stays as it was.
-		- 20261025: both installers and the release notes read only the first line now. The installers' own versions went to 1.1.2 and 1.0.1.
-		- 20261025: README, design.md, the help text and the changelog say so.
-	- Decisions:
-		- 20261025: `ddgdw`, `ddf3r`, `ddf3s` and `ddg7b` now expect the copyright line after the version line, where they wanted the version line alone. Harness `ddgdx` was "one-line format" and checks both lines now. `ddf3p` counts the first line only.
-	- Verified: 20261025, the Go tests and the format, lint, go, cli and release areas pass. `ddgdw`, `ddf3r` and `ddf3s` fail with the copyright line taken out. The new `ddys7` case, an unstamped build with the copyright line, fails on the old `install.bash` logic.
-	- Swept: every `--version` reader in the repo: both installers, `release-notes.bash`, `remote-hosts.bash`, which compares the whole output on both sides, and the harness.
-	- Test case: `ddgdx` both lines, `ddgdw` from a stamped binary, `ddf3r` and `ddf3s` in Go, `ddys7` and `de588` for the installers.
-	- Branch: cicd2
-	- Closed: 20261025
-
-- Run CICD on GitHub's free arm64 macOS runners.
-	- ID: 2026102318390688
-	- Type: Enhancement
-	- Status: Done
-	- Priority: Avg
-	- Opened: 20261023-183906
-	- Opened by: JC
-	- Related IDs: 2026101411014811
-	- Target OS: macOS
-	- Requirements:
-		- Build, run the tests, and smoke-test the CLI on the built binary.
-	- Progress log:
-		- 20261023: new `macos-arm64` job in `ci.yml` on `macos-15`. It runs `go test`, builds with the version stamp, checks the binary is arm64, and runs `--version` and 5 conversions, bytes both ways included.
-	- Verified: 20261023, run 40051477372 passed all 3 jobs. The Mac printed `convert-base-v2 v3.0.0-298-g515f6ee build debg3 (2026-10-24)`, the date in the runner's UTC.
-	- Test case: the job is the test. No local one, since it needs the hosted runner.
-	- Branch: macos-date
-	- Closed: 20261023
-
-- Non-release builds show the date after the build number.
-	- ID: 2026102318392210
-	- Type: Enhancement
-	- Status: Done
-	- Priority: Low
-	- Opened: 20261023-183906
-	- Opened by: JC
-	- Target OS: Any
-	- Requirements:
-		- For non-release builds, include " (YYYY-mm-DD)" after the build number.
-		- Report the date as the local date of whoever views the version.
-	- Progress log:
-		- 20261023: a release is a bare tag, betas and RCs included. A describe suffix, `-dirty`, a bare hash or `dev` adds the commit date in the local time zone. Unstamped builds have no build number and no date. The installers read only the first word, so they're unaffected.
-	- Verified: 20261023, the same build reads 2026-10-19 here and 2026-10-20 with `TZ=Asia/Tokyo`. The date test failed with the date forced to UTC.
-	- Test case: `debg1` which versions count as releases. `debg2` the date and its time zone, and no date on a release. `ddgdw` now expects the date from a stamped non-release binary. Harness `ddgdx` takes the date on the one-line format.
-	- Branch: macos-date
-	- Closed: 20261023
-
-- Hosted CI fails at the native build on every dev push since the `install.ps1` merge.
-	- ID: 2026101911072100
-	- Type: Bug
-	- Status: Done
-	- Priority: High
-	- Opened: 20261019-110721
-	- Opened by: JC
-	- Related IDs: 2026101411014803
-	- Target OS: Linux
-	- Reproduced: 20261019, 7 runs in a row, from 39278064158 on the `install.ps1` merge to 39297916319: `mkdir /cache/home/.cache/go-build: permission denied`.
-	- Cause: the pwsh check at the end of the Dockerfile's pwsh `RUN` runs as root with `HOME=/cache/home`. It leaves root-owned `.cache/powershell` and `.local/share/powershell` there, which a new `/cache` volume copies in. Local runs pass because the existing volume hides it.
-	- Probable fix: run that check with a throwaway `HOME`, such as `HOME=/tmp/pwsh`, before the `rm -rf /tmp/pwsh`. Or remove both dirs in the same `RUN`.
-		- Add a harness check that `/cache/home` in the built image has nothing owned by root under it, so the next tool that does this fails here.
-		- Then run on a new docker volume, and watch hosted CI go green.
-	- Fixed: the pwsh check runs with `HOME=/tmp/pwsh`, which is removed after. The Dockerfile's last step fails the build if anything is in `/cache/home`.
-	- Verified: 20261019, on a new volume, the old image fails with the same `permission denied` making the Go cache, and the new one makes it. The old image fails the new last step.
-	- Test case: `de5e1` the Dockerfile's last step checks `/cache/home`. `de5e2` nothing root-owned in the container's HOME, which failed on the old image and a new volume.
-	- Branch: cleanup
-	- Closed: 20261019. Hosted CI passed on dev, run 39325671266.
 
 - Updates to CICD script flags.
 	- ID: 2026101816351431
@@ -842,203 +744,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `de54e` long tests on a plain run, off under `--quick`, back with `--long`. `de54f` `--quick` cross-compiles and `--no-cross` wins. `de54g` `--quick` skips the checks that reach another host. `ddgmg` and `ddgmh` still pin the perf and quick knobs. `de5d7` `--no-leakcheck` skips them, last flag wins. `de5d8` `--no-leakcheck` reaches the container run.
 	- Branch: flags
 	- Commit: 2abd0ac
-
-- Verify or ensure that builds clean up stale artifacts and side-effects after they're done: caches, container cruft, tmp files, etc.
-	- ID: 2026101910123200
-	- Type: Enhancement
-	- Status: Done
-	- Opened: 20261019-101232
-	- Opened by: JC
-	- Note: pre-next-cut.
-	- Checked: 20261019. Logs, heap profiles, SARIF and flame graphs in `cicd/artifacts/` are pruned on rotation, and total under 2 MB. `package.bash`, the CodeQL helper and the harness each remove their temp dir on exit. Containers run with `--rm`, and a new image removes the one it replaces.
-	- Checked: the cache volume is 1.1 GB, nearly all the Go build cache, which Go trims by itself.
-	- Fixed: an aborted `cicd.bash` run left its fuzz log in `/tmp`, and a failed image build left an empty dir. Both go in one per-run dir now, removed on exit.
-	- Note: the docker build cache isn't pruned by the pipeline, since `docker builder prune` clears every project's cache.
-	- Test case: `de5e3` a failed image build leaves nothing in TMPDIR, which failed on the old engine. `ddgme` and `ddgmf` already cover the fuzz log.
-	- Branch: cleanup
-
-- The first-run config is written in place, so a crash or a second process can leave a broken file. (Code review 20261004 item 2)
-	- ID: 2026100413480002
-	- Type: Bug
-	- Status: Done
-	- Needs external testing: none. Hosted CI passed on dev at 971ae42, run 37252643753.
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Steps to reproduce:
-		- Leave a truncated copy of the default config where the first run writes it, then run `convert-base-v2 255 16`.
-		- Or start 16 first runs at once on an empty config dir.
-	- Incorrect behavior: a cut that drops the Format line gets migrated and stamped as current. A cut inside the `10emoji` block makes every run fail, `--help` included, with an error that blames an old format. Parallel first runs both wrote the file in 1 of 30 trials.
-	- Expected behavior: the file is either whole or absent, and only one process creates it.
-	- Reproduced: 20261004, by the review, in a scratch home.
-	- Possible cause: `userconfig.go:51` uses `os.WriteFile`. The migration path already writes atomically.
-	- Probable fix: `shcl.WriteFileAtomic`, which creates exclusively through a temp file and a link.
-	- Origin: `userconfig.go:51`, last touched by 51f59b6 on 2026-10-03; the in-place write is older. Not seen by an earlier round. Confirmed.
-	- Actual cause: `os.WriteFile` creates and truncates in place, so a half-written file is visible, and a second run that passed the existence check writes over the first.
-		- `shcl.WriteFileAtomic`, the first fix, checks for the file again itself. A run that finds one by then replaces it and reports success, so the write was atomic but not exclusive.
-	- Actual fix: the first run creates the file itself. The text goes to a synced temp file beside it, and a hard link puts it in place. A link fails if anything is at the path, so only one run creates the file and the rest leave it be. The truncated-copy case has the same cause: now a whole file appears or none does. Where links don't work, an exclusive create in place still allows one creator, but a crash there can leave half a file.
-	- Note: a new file takes 0666 less the umask, like any newly created file, where it took 0644 less the umask. Under the usual 022 umask both are 0644. A crash mid-write can leave a `.convert-base-v2.shcl.tmp*` file beside the config instead of a broken config.
-	- Note: a dangling symlink at the config path is now left alone, and the run goes on without a config. Before, the default was written to wherever the link pointed.
-	- Verified: 20261004, go vet, golangci-lint and `go test ./...` clean.
-	- Verified: 20261004, second fix: go vet (linux, windows, darwin), golangci-lint and `go test ./...` clean. 30 trials of 16 first-run processes at once each had one creator and no leftover files.
-	- Swept: every file create in `lib/` and `cicd/`. The migration backup already links with an exclusive fallback. The config rewrite, `keepBackup` and the macho-fat output mean to replace. wasm and reactor write no files.
-	- Branch: exit-fixes, firstrun-excl
-	- Commit: e5892c9, 7a01a50
-	- Test case: `ddgjt` TestUserConfigFirstRunsRace, 20 trials of 16 first runs at once. Each must have one creator, the whole default text and no leftover files. On dev it failed on the first trial in 5 of 5 runs, with 2 to 4 creators. With the fix it passed 10 of 10 runs under the race detector.
-		- Second fix: it now runs 60 trials on two threads, since the gap showed on a small CI runner and almost never with many cores. With the first fix it failed 20 of 20 plain runs here, and 46 of 50 at `-count=50 -cpu 2` before the test change. With this fix it passed 20 of 20 plain runs, and 50 of 50 at `-cpu` 1, 2, 4 and 32 and under the race detector.
-		- `ddgs5` TestUserConfigCreateKeepsFile: the create step finds a file already there and leaves it. It failed with the first fix's write in its place.
-		- `ddgs6` TestUserConfigCreateWithoutLinks: with no hard links, one create succeeds, whole, and a second finds the file. It failed with a truncating create in the fallback.
-	- Acceptance signoff: closed without it. Tested here and on hosted CI. The dangling symlink case is left alone on purpose, since writing through a link to a missing target is a guess about where the file should live.
-	- Progress log:
-		- 20261004: reopened. `ddgjt` fails on hosted CI on every dev push since the merge, 2 runs creating the file. It passes here, so the window is timing.
-		- Cause: `ensureUserConfig` checks that the file is missing, then `shcl.WriteFileAtomic` checks again. A run that finds the file there by its second check replaces it, and still reports it created. So the write is atomic but not exclusive.
-		- Probable fix: create it in `ensureUserConfig` itself. Write a temp file beside it, then `os.Link` it into place; "exists" means another run made it. Where links don't work, an `O_EXCL` create.
-		- 20261004: fixed on firstrun-excl, as the probable fix above. Reproduced here first with `-count=50 -cpu 2`, 46 of 50 runs with 2 to 4 creators.
-		- Note: shcl friction, a missing capability. `WriteFileAtomic` has no create-only mode, so a caller can't create a file whole and only if absent. Smallest repro: 16 goroutines each calling it on one new path. Several return nil, where one is wanted.
-	- Closed: 20261004-184623
-
-- A big base with multi-character digits and a tail encodes data it can't decode. (Code review 20261004 item 3)
-	- ID: 2026100413480003
-	- Type: Bug
-	- Status: Done
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Steps to reproduce:
-		- Define a 2048-symbol base with two-character digits, an 8-symbol tail and the qntm scheme, then encode bytes to it and decode them back.
-	- Incorrect behavior: the encode works, and the decode fails with `symbol "..." is not in the base`.
-	- Expected behavior: the base is refused when it is defined, or it round trips.
-	- Reproduced: 20261004, by the review, with a throwaway test in package `convertbase`. A config `tail:` field or `--to-tail` reaches it.
-	- Possible cause: `Finalize` accepts the tail, and the buffered big-base decoder reads one character at a time. The streaming path already demands one-character digits.
-	- Origin: `convert.go:1773` and `registry.go` Finalize, from 2757bd5 "Big-base binary interop" on 2026-07-06. Not seen by an earlier round. Confirmed.
-	- Related IDs: 2026100413480020
-	- Note: also reproduced 20261004 on the command. Five bytes encoded through `--to-symbols` and `--to-tail`, and decoding them failed both piped and as an argument.
-	- Actual cause: both binary decoders of a tail base read one character per digit. The streaming one is kept off such a base by its one-character gate, but the buffered one is not, and `Finalize` accepted the tail.
-	- Decisions:
-		- A tail now needs every digit and every tail symbol to be one character, checked in `Finalize`. That is the rule the streaming path already had, and a tail's whole point is that the base streams.
-		- Supporting longer digits was passed over. The tokenizer would have to tell a tail symbol from the start of a longer digit at the end of the input, for a case no built-in base has.
-	- Actual fix: `Finalize` refuses such a tail with an error naming the base and the offending digit or tail symbol. The config comments and the wide-symbols design doc say so. README and design.md don't describe tails.
-	- Verified: every built-in base and the default config still load. Every built-in tail base round trips. `go vet`, `golangci-lint`, `go test ./...` and the harness Binary/streaming section pass.
-	- Swept: every way a tail is set goes through `Finalize`: the built-ins, the config `tail:` field, `--from-tail`/`--to-tail` through `ApplyOptions`, and library callers. The browser and reactor modules take no tail. `decodeBigBaseNative` has no other caller.
-	- Branch: bigbase-tail
-	- Commit: 44ed0be
-	- Test case: `ddgkk` TestTailNeedsOneCharDigits, `ddgkm` "tail on two-character digits rejected" and `ddgkn` "config tail on two-character digits rejected". All three fail before the fix and pass after.
-	- Acceptance signoff: Closed on review: refusing at definition matches the streaming rule, and the error names the base and the digit.
-	- Closed: 20261004-182334
-
-- A tail layout with no tail symbols, such as from `--to-tail ','`, decodes bytes wrong at exit 0.
-	- ID: 2026100416041479
-	- Type: Bug
-	- Status: Done
-	- Severity: High
-	- Note: raised from Low once the command was found to reach it. It blocks release, since the result is wrong bytes at exit 0.
-	- Opened: 20261004-160414
-	- Opened by: found while working 2026100413480003
-	- Target OS: Any
-	- Steps to reproduce:
-		- In Go, build a `Base` with `BinaryScheme` set to a tail scheme and no tail, then decode bytes from it.
-	- Incorrect behavior: fails with `symbol "..." is not in the base`, which doesn't say what is wrong.
-	- Expected behavior: `Finalize` refuses a tail scheme without a tail, naming the base.
-	- Reproduced: 20261004. The command reaches it too. `--to-tail ','` parses to no tail symbols but still sets the qntm layout, and 3, 7 and 10 bytes then decode to the wrong bytes with exit 0. A config `tail:` can't reach it, since the layout is set only when the tail has symbols.
-	- Actual cause: binary mode picks the tail codec from `BinaryScheme` alone, and nothing checked that a tail layout had a tail. A tail spec of only commas parses to an empty list with no error, and `ApplyOptions` set the layout anyway.
-	- Actual fix: `Finalize` refuses a tail layout with no tail symbols, naming the base and the layout, beside the one-character tail check. The command reports it the same way.
-	- Note: a config `tail:` of only commas is still ignored without a word, for the same parsing reason. `--to-symbols ','` is refused, but as "need at least 2 symbols, have 0".
-	- Verified: every built-in base still loads, and clearing a tail with an empty `--to-tail` still works on a tail base and a codec base. `go vet`, `golangci-lint`, `go test ./...` and the full harness in quick mode pass.
-	- Swept: every way a scheme is set. Built-ins all have a tail with a tail layout. The config sets one only with a nonempty tail. `ApplyOptions` clears the layout with an empty tail and sets it with a parsed one, which is now checked. The browser and reactor modules take no tail.
-	- Branch: digit-values
-	- Commit: fbf6380
-	- Test case: `ddgpn` TestTailSchemeNeedsTail, for each tail layout and for a comma-only tail through `ApplyOptions`, and `ddgpp` "comma-only tail rejected" on the command. Both fail before the fix and pass after.
-	- Acceptance signoff: Closed on review: an error in place of wrong bytes at exit 0, naming the base and the layout.
-	- Related IDs: 2026100417280514
-	- Closed: 20261004-182334
-
-- `package.bash` deletes whatever directory `--out` names before it builds. (Code review 20261004 item 4)
-	- ID: 2026100413480004
-	- Type: Bug
-	- Status: Done
-	- Needs local test suite run?: No. The cicd run through stage 6 passed on 20261004, with the harness at 572 of 572. Packaging made all 25 artifacts in a fresh, marked `lib/dist`.
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Linux
-	- Steps to reproduce:
-		- `make release DIST=<a dir with other files in it>`
-	- Incorrect behavior: the directory is emptied, whatever was in it.
-	- Expected behavior: only a directory the script made or marked as its own is cleared. Anything else is refused.
-	- Reproduced: 20261004, by the review, with a fake `go` and a scratch dir.
-	- Origin: `package.bash:115`, from 9c40e8d "release packaging" on 2026-07-12. Not seen by an earlier round. Confirmed.
-	- Sweep: every `rm -rf` on a variable path in `cicd/` and `utility/`. `interop/fetch.bash:93` is one; see item 16.
-	- Actual cause: the script cleared `--out` with `rm -rf` before building, whatever it held. `make clean` did the same to `DIST`.
-	- Actual fix: a build marks the dir it makes with a hidden file. `package.bash` clears a dir only when it has the mark, takes over an empty one, and refuses anything else with a message. `make wasm` and `make reactor` mark the dir when they create it, and `make clean` follows the same rule. The mark stays out of `checksums.txt`, and the release workflow's `lib/dist/*` upload skips it as a dotfile.
-	- Swept: every `rm -r` in `cicd/`, `utility/`, `install.bash` and `lib/Makefile`. The trap removes in `package.bash`, `check-vendor.bash`, `interop/fetch.bash`, `test.bash`, `bench-encoders.bash`, `gen-screenshots.bash` and `install.bash` each take a dir the same script made with `mktemp -d`. `interop/fetch.bash:94` is fixed under item 16. `lib/Makefile` clean was the twin of this one and is fixed here. The other `rm` calls remove single files.
-	- Verified: 20261004, the three new checks fail on dev and pass on this branch. The packaging section ran with real builds: two full packages still rebuild to the same checksums, and the prerelease name checks pass. `make wasm` into a new dir marks it, and the next packaging run clears it. Shellcheck finds nothing new.
-	- Note: `make release` and `make clean` now stop on an old `lib/dist` with no mark, and say so. Removing that old dir once clears it.
-	- Branch: bash-traps
-	- Commit: 65ce2be
-	- Test case: harness checks `ddgk9` (an `--out` with other files is left alone), `ddgka` (a marked dir is cleared and an empty one taken), `ddgkc` (`make clean`) and `ddgkb` (the mark is not in `checksums.txt`). The first three fail on dev. `ddgkb` fails when the mark is left in the checksum list.
-	- Acceptance signoff: Closed on review: the refusal says what to do, and a marked folder is the usual way a build tool knows its own output.
-	- Closed: 20261004-182334
-
-- A failed write of the result still exits 0. (Code review 20261004 item 1)
-	- ID: 2026100413480001
-	- Type: Bug
-	- Status: Done
-	- Needs local test suite run?: No. The full `cicd/test.bash` passed 569 of 569 on 20261004, on a tree with this fix merged.
-	- Severity: High
-	- Opened: 20261004-134800
-	- Opened by: Code review 20261004
-	- Target OS: Any
-	- Steps to reproduce:
-		- `convert-base-v2 255 16 >/dev/full`
-	- Incorrect behavior: exit 0 with nothing written. Same for `--list`, `--get-index-count`, `--get-base-name` and a piped `-` input.
-	- Expected behavior: an error and a non-zero exit, as `-n 255 16`, `--version` and streaming already do.
-	- Reproduced: 20261004, with a stripped build.
-	- Possible cause: the result prints go through `fmt.Fprint*` with errcheck turned off for them, and nothing checks a flush. The `.golangci.yml` comment says every write that matters is checked; these are not.
-	- Probable fix: one buffered writer over stdout in `run()`, with the flush error returned.
-	- Origin: `main.go:509` and its siblings, from the first v1.0.0-rc1 commit ad488ce. Not seen by an earlier round. Confirmed.
-	- Sweep: every stdout write in `lib/cmd`, `lib/wasm` and `lib/reactor`.
-	- Actual cause: the result prints were unchecked, as the possible cause says. Only `-n` output, `--version`/`--help` and the streams checked their writes.
-	- Actual fix: one buffered writer over stdout in `run()`. It keeps the first write error, and the deferred flush returns it, so the run exits 1 with the error. The streams still write stdout directly and check their own writes. The errcheck exclusions in `.golangci.yml` add that writer's `WriteString`, and their comment now says where each kind of write is checked.
-	- Swept: every stdout write in `lib/cmd/convert-base-v2`, all in `main.go`: the info flags, `--list` and `--list-compat`, `--get-index-count`, `--get-base-name`, `--show-symbols` and `-0`, the newline after a stream, and the result. `lib/wasm` and `lib/reactor` write nothing to stdout, by `grep -n 'os.Stdout\|fmt.Print'`. The library's `Registry.Print` writes to the writer it is given, so its errors come out at the command's flush.
-	- Verified: 20261004, the harness sections from CLI surface through control-character escapes pass, 342 of 342, and so do the reactor, browser module and frontend parity sections. Output of 25 sample commands matched the dev build byte for byte, apart from the version stamp. go vet, golangci-lint, staticcheck and `go test ./...` clean.
-	- Branch: exit-fixes
-	- Commit: 7eb27c9
-	- Test case: harness check `ddgjw`, 13 ways of writing a result to `/dev/full`. On dev 8 of them exit 0. With the fix all 13 fail with the write error.
-	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, the Sweep is answered, and the full suite passed.
-	- Closed: 20261004-165456
-
-- A field written under another field in a config file is ignored without a word.
-	- ID: 2026100314430255
-	- Type: Bug
-	- Status: Done
-	- Severity: High
-	- Opened: 20261003-144302
-	- Opened by: found while working 2026100313304802
-	- Target OS: Any
-	- Steps to reproduce:
-		- A base block with `negative:` and, indented under it, `decimal: X`.
-	- Incorrect behavior: it loads. The negative marker is switched off and the decimal line is never read.
-	- Expected behavior: refused, like any other unknown or misplaced field, citing the line.
-	- Reproduced: 20261003, with both the old and the new shcl.
-		- 20261003: again on dev. With `negative: N` and `decimal: D` under it, 1.5 to that base printed `1.5` at exit 0.
-	- Possible cause: the field check looks one level down only.
-	- Actual cause: the field check looked at the names directly under each base block and nothing below them. No base field takes fields of its own, so anything under one was dropped unread. A dotted name like `negative.decimal: X` builds the same tree and slipped past the same way.
-	- Note: blocks release, since the result is a wrong alphabet at exit 0.
-	- Progress log:
-		- Done: anything under a base field is refused, at any depth. The error names the base, the stray field and the field it sits under, and cites the stray field's line. That makes nine refusal paths that cite a line.
-		- Note: no shcl bug was involved. Two same-named fields that both have fields under them merge into one in shcl, so the repeat check misses them, but the new check still catches the fields under them.
-		- Note: found along the way, logged as 2026100315002873: a raw block as a field value drops aliases without a word and reports symbols as missing.
-	- Actual fix: the field check now also refuses any field under a base field.
-	- Sweep: every place config.go walks children, the top level of the file, fields under list-valued fields, and whether `lib/wasm` and `lib/reactor` load configs.
-	- Swept: config.go walks children in two places, the top level and each base block. The top level refuses every name but `base`, so nothing under them is ever read. Each base block's fields are now checked for children. Under `aliases:` and stacked `* x` lists, a field is caught by this check or already refused by shcl as a list mixed with fields. `configBase` only reads fixed paths. `lib/wasm` and `lib/reactor` load no config at all; the only `LoadConfig` callers are the command's two paths in `main.go`, both through `Registry.LoadConfig`.
-	- Verified: go vet, golangci-lint and `go test ./...` in lib pass. The new unit test and the new harness check fail on dev and pass on this branch. The full `cicd/test.bash` passed 446 of 446 with the fixed build. Shellcheck finds nothing new in `cicd/test.bash`.
-	- Branch: nested-field
-	- Commit: 5c64d73
-	- Test case: `ddf59` TestConfigRejectsNestedField and the "nested" case in `dav1v` TestConfigErrorsCiteLines; `ddf58` "config nested field rejected" in the harness.
-	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
-	- Closed: 20261003-150028
 
 - Every run builds all hundred or so built-in bases, though a conversion uses two. (Code review 20261004 item 17)
 	- ID: 2026100413480017
@@ -1272,6 +977,150 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next beta. Download its `.deb` and `.rpm` files beside `checksums.txt` and run `sha256sum -c checksums.txt`.
 	- Acceptance signoff: Self-closed: reproduced, its test failed before the fix and passes after, and the full suite passed.
 	- Closed: 20261004-131952
+
+- CICD reset: CICD process gaps.
+	- ID: 2026102416280109
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- What's left of the shared CICD rules after the other reset items:
+			- No goleak check in the Go tests.
+			- The leak checks aren't sorted into fast, slow, and hours-long groups by measured time.
+			- No FreeBSD `.pkg`.
+			- No end-of-run line saying what cleanup removed and freed.
+	- Progress log:
+		- 20261025: goleak was already in every Go package with tests, from 2026101816351432. dee8p now checks that it stays so.
+		- 20261025: each leak check has a length in `LEAK_LENGTH` in `config.bash`. Fast runs in every run, `--quick` and the backlog quick run included. Slow runs in a plain run and with `--long`. Hours runs only with `--long`. `--leakcheck` adds them all, and `--no-leakcheck` takes them all out.
+		- 20261025: the race run is fast, at 9 s on 8 jobs. The soak test (11 s) and CodeQL are slow, since the CICD rules name them so. Nothing takes hours yet.
+		- 20261025: `--no-leakcheck` runs the unit tests with the `noleakcheck` build tag, which drops goleak's `TestMain`.
+		- 20261025: in a backlog quick run the race run takes the same Go areas as the unit tests, and none when no Go area is named.
+		- 20261025: one `cleanup:` line at the end says what went, from docker, stale run folders and the run's own folder, and about how much that freed. It comes before the closing banner, as the docker line did. The run inside the container doesn't print one.
+		- 20261025: the FreeBSD `.pkg` is split into 2026102518082687.
+		- 2026-10-25: dedm8 wanted `[ docker cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB); about 0.0 GB freed ]`, and now wants `[ cleanup: removed 1 container(s), 3 image(s), build cache older than a week (12.5MB), the run folder (SIZE); about SIZE freed ]`, with any size. dedm9 wanted `docker cleanup: removed`, and now wants `cleanup: removed 1 container(s)`.
+		- 20261026: the full run's cleanup line said about 315.7 GB freed, which was all of docker, since docker's total came back empty after. The docker part is now the sum of what the run removed, sized before: each image's unique size, the volume, and the pruned build cache. Docker's total isn't read, since other projects change it during a run. deeay failed before and passes after.
+	- Decisions:
+		- 20261025: goleak goes by a build tag rather than an env var, so a normal `go test` always has it.
+	- Verified: 20261025, a real `--backlog-run-quick convertbase errcode` ran the unit tests and the race run on those 2 packages and passed, and with `--no-leakcheck` ran the unit tests without goleak and no race run.
+	- Verified: 20261025, on the host, the CI engine area passes 118 of 118 and the release area's dee8p passes. In the container, all but dee7v and dee8z pass, through 2026102518111571. dee8p failed with the tag gone from one package and with goleak gone from another. dee8q, dee8r, dee8s, dee8t and dee8z each failed with the code they watch broken.
+	- Swept: `--leakcheck`, `--no-leakcheck`, "leak checks" and "docker cleanup" across the scripts and docs. contributing.md, development.md and the changelog have it now. The four `leak_test.go` files all have the tag.
+	- Test case: dee8p (goleak in every package, and the tag drops it), dee8q (by length), dee8r (`--leakcheck` and `--no-leakcheck`), dee8s (no goleak under `--no-leakcheck`), dee8t (race run follows the Go areas), dee8z (the cleanup line), deeay (only what was removed counts as freed).
+	- Branch: cicd2
+	- Prereq IDs: 2026102518082587, 2026102518111571
+	- Its full run waits on the two bugs from the temp files work.
+	- Verified: 2026-10-26, the full run at e23b810 ran the race detector, the soak test (de54s) and CodeQL clean, and ended with one `cleanup:` line of about 46 KB (deeay).
+
+- CICD reset: FreeBSD `.pkg`.
+	- ID: 2026102518082687
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Priority: Avg
+	- Opened: 20261025-180826
+	- Opened by: split from 2026102416280109
+	- Parent ID: 2026102416280109
+	- Related IDs: 2026101411014806, 2026102516555342
+	- Target OS: FreeBSD
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes the deferral in design.md and in 2026101411014806.
+		- Each FreeBSD release build, x86_64 and arm64, gets a native `.pkg` beside its tarball, named with the version, and listed in the checksums file.
+		- vmFreeBSD installs it with `pkg add`, runs it, and removes it, through the Other hosts runner.
+	- Note: nfpm doesn't write `.pkg`. A `.pkg` is a compressed tar with `+COMPACT_MANIFEST` and `+MANIFEST` first, so `package.bash` could write one with tar, or `pkg create` could on the box.
+	- Progress log:
+		- 20261025: `package.bash` writes `convert-base-v2-VERSION-freebsd-ARCH.pkg` for x86_64 and arm64 with tar and zstd, in the layout `pkg create` gives. It holds the binary in `/usr/local/bin` and the license in `/usr/local/share/licenses/convert-base-v2/`. It rebuilds to the same bytes, and `checksums.txt` lists it.
+		- 20261025: the release notes table and `install.md` list it, and design.md no longer defers it.
+		- 20261025: a box in `REMOTE_HOSTS` can have a fourth field, a root login. With one, the Other hosts step adds the package with `pkg add`, runs the same cases with the installed binary, removes it, and checks nothing is left. A package already installed, or a binary already in its place, is a SKIP, so nobody's install is touched. vmFreeBSD has `root@vmFreeBSD` now.
+	- Decisions:
+		- 20261025: the version in the name and inside has a `.` where the tag has a `-`, such as `3.1.0.beta1`, since pkg allows no `-` there. pkg sorts it below `3.1.0`.
+		- 20261025: the ABI is `FreeBSD:*:amd64` or `FreeBSD:*:aarch64`, any release, since the build is static. Origin and category are `converters`.
+		- 20261025: written here with tar rather than by `pkg create` on the box, so a release needs no FreeBSD box, and the release workflow gets the same file.
+	- Verified: 20261025, on vmFreeBSD 15.1 with pkg 2.7.5: the x86_64 `.pkg` installed with `pkg add`, ran, passed `pkg check -s`, and `pkg delete` left no file or folder. The arm64 one was refused there as the wrong arch. The Other hosts runner gave `PASS dee9x freebsd-x86_64 package on vmFreeBSD`, and FAIL with the arm64 package put in its place. The VM was off again after each.
+	- Verified: 20261025, on the host, the release area passes 71 of 71 and the CI area 121 of 121, and `--backlog-run-quick format lint release ci` passes. dee9w and ddge1 failed against the old `package.bash` and `release-notes.bash`. dee9y, dee9z and deea0 failed against the old `remote-hosts.bash`, and dee9z with the installed-package guard taken out.
+	- Swept: every reader of asset names: `release-notes.bash`, the stage 6 count in `cicd.bash`, the release workflow, which uploads `lib/dist/*` and now installs zstd, `install.md`, README and design.md. The `REMOTE_HOSTS` format in `config.bash` and the private list.
+	- Test case: dee9w (two `.pkg` files, manifests first, sums and version right), ddge9 (rebuilds to the same bytes), ddge1 (release notes list it), dee9x (installed, run and removed on the box), dee9y (the same against stand-ins), dee9z (an install already there is left alone, no root login is a SKIP), deea0 (a package that isn't removed fails).
+	- Branch: cicd2
+	- Note: 20261025, ddge1 wanted a FreeBSD row of binary and `.tgz`, and now wants the `.pkg` after them too.
+	- Verified: 2026-10-26, the full run at e23b810 passed ddge9 and dee9w with the image's zstd, and Other hosts ended with `PASS dee9x freebsd-x86_64 package on vmFreeBSD`.
+
+- CICD reset: temp files and safe removal.
+	- ID: 2026102416280107
+	- Type: Enhancement
+	- Status: Done
+	- Needs local test suite run?: No.
+	- Needs external testing: None left.
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101910123200
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- Each run already has its own temp folder, removed on exit. What's left is below.
+		- The folder goes under `${HOST_TEMP}/<project>/`, named by time and a counter, and `TMPDIR`, `TEMP`, and `TMP` point at it.
+		- `--keep-temp` keeps it and prints the path.
+		- Each run also removes this project's stale run folders, older than 2 days with no live process from their `run.pid`.
+		- Every recursive remove in the pipeline, the helpers, and the installers goes through the repo's own copy of the safe removal guard, or one that names the one parent it may remove under. File list in the private notes.
+	- Progress log:
+		- 20261025: the run folder is `${HOST_TEMP}/convert-base-v2/<time>_<NNN>`, made with a plain `mkdir` that counts up when the name is taken, and `TMPDIR`, `TEMP` and `TMP` point at it. It holds `run.pid`. It goes at the end, pass, fail or Ctrl+C, and the project folder too once empty.
+		- 20261025: `--keep-temp` keeps the folder and prints its path, as it already did for the containers.
+		- 20261025: a run first removes this project's run folders older than 2 days whose `run.pid` names no live process. A folder with no `run.pid`, and another project's, stay.
+		- 20261025: `cicd/utility/include/safe-rm.bash` is the repo's copy of the guard, with `fSafeRm` for temp paths and `fSafeRmUnder` for one named parent. The pipeline, `check-vendor`, `codeql-scan`, `gen-winres`, `interop/fetch`, `package.bash`, the harness, `bench-encoders`, `gen-screenshots` and `make clean` use it. The installers check their one work folder inline, since they run alone.
+		- 20261025: it works on BSD and macOS too, which have no `realpath -e` or `rm --one-file-system`.
+	- Decisions:
+		- 20261025: the run folder's name is now the docker run label and container name, so `dedps` and `dedmb` expect `<time>_<NNN>` where they wanted `cicd-run.*`. The harness's own runs of the pipeline get their own `HOST_TEMP`.
+	- Verified: 20261025, the format, lint, ci, self, cli and release areas pass, the release area with packaging. `dee7s`, `dee7t`, `dee7v` and `dee7w` each fail with the code they watch broken. `check-vendor.bash` and `make clean` leave nothing behind.
+	- Swept: every `rm -rf` and `Remove-Item -Recurse` in the repo. The Dockerfile's run in the image build on paths it made, and stay. The remote side of `remote-hosts.bash` keeps its own check of the work folder's shape.
+	- Test case: `dee7s` the run folder and its env, `dee7t` `--keep-temp`, `dee7v` the stale sweep, `dee7w` the guard. `de587` checks `install.ps1` leaves its temp folder empty.
+	- Branch: cicd2
+	- Verified: 2026-10-26, the full run at e23b810 in the container left nothing of its own under HOST_TEMP and `git status` clean. The installer checks on other boxes are left.
+	- Verified: 20261025, on b26 as `mactest`, under stock bash 3.2 and Homebrew bash 5.3, `install.bash` in the `bash <(...)` form left no `cbv2-install.*` folder in `$TMPDIR` after a good install, after a prompt answered n, and after a download made to fail once the work folder existed.
+	- Verified: 20261025, on b29w rather than vm925w, which another session held: `install.ps1` left no `cbv2-install-*` folder in the temp folder, in 5.1 and pwsh 7, as a plain user and elevated.
+	- Closed: 20261025-193717
+
+- CICD reset: version line.
+	- ID: 2026102416280108
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Avg
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026102318392210
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- It overrides the one-line `--version` that `ddgdv` pins.
+		- The build number and the date of a non-release build are in. What's left is the copyright line after the version line in `--version`.
+	- Progress log:
+		- 20261025: `--version` prints the version line, then the same copyright line `--about` and `--help` have. `--about` still covers `--version`. The version line itself is unchanged, so `ddgdv` stays as it was.
+		- 20261025: both installers and the release notes read only the first line now. The installers' own versions went to 1.1.2 and 1.0.1.
+		- 20261025: README, design.md, the help text and the changelog say so.
+	- Decisions:
+		- 20261025: `ddgdw`, `ddf3r`, `ddf3s` and `ddg7b` now expect the copyright line after the version line, where they wanted the version line alone. Harness `ddgdx` was "one-line format" and checks both lines now. `ddf3p` counts the first line only.
+	- Verified: 20261025, the Go tests and the format, lint, go, cli and release areas pass. `ddgdw`, `ddf3r` and `ddf3s` fail with the copyright line taken out. The new `ddys7` case, an unstamped build with the copyright line, fails on the old `install.bash` logic.
+	- Swept: every `--version` reader in the repo: both installers, `release-notes.bash`, `remote-hosts.bash`, which compares the whole output on both sides, and the harness.
+	- Test case: `ddgdx` both lines, `ddgdw` from a stamped binary, `ddf3r` and `ddf3s` in Go, `ddys7` and `de588` for the installers.
+	- Branch: cicd2
+	- Closed: 20261025
+
+- Run CICD on GitHub's free arm64 macOS runners.
+	- ID: 2026102318390688
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Avg
+	- Opened: 20261023-183906
+	- Opened by: JC
+	- Related IDs: 2026101411014811
+	- Target OS: macOS
+	- Requirements:
+		- Build, run the tests, and smoke-test the CLI on the built binary.
+	- Progress log:
+		- 20261023: new `macos-arm64` job in `ci.yml` on `macos-15`. It runs `go test`, builds with the version stamp, checks the binary is arm64, and runs `--version` and 5 conversions, bytes both ways included.
+	- Verified: 20261023, run 40051477372 passed all 3 jobs. The Mac printed `convert-base-v2 v3.0.0-298-g515f6ee build debg3 (2026-10-24)`, the date in the runner's UTC.
+	- Test case: the job is the test. No local one, since it needs the hosted runner.
+	- Branch: macos-date
+	- Closed: 20261023
 
 - Leak, memory, and correctness checks in the CICD process, for the code end users run.
 	- ID: 2026101816351432
@@ -2356,6 +2205,143 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Self-closed. The tests fail before the fix and pass after, and the wider refusal of tail, pad and markers follows the same reason as the digits.
 	- Closed: 20261005-084420
 
+- The universal macOS binary hasn't been run on an Apple silicon Mac.
+	- ID: 2026101411014811
+	- Type: Task
+	- Status: Done
+	- Needs external testing: none. Hosted CI run 40428830157 passed on cicd3.
+	- Priority: Low
+	- Opened: 20261014-110148
+	- Opened by: split from 2026100313304792
+	- Related IDs: 2026100313304792, 2026102318390688
+	- Target OS: macOS
+	- Note: hosted CI now tests and runs a native darwin/arm64 build on an Apple silicon runner. That isn't the release's universal binary, so this stays open.
+	- Progress log:
+		- 20261026: two new jobs in `ci.yml`. `darwin-universal` runs `package.bash` on ubuntu, as the release does, and passes the universal and arm64 binaries on. `macos-universal` runs both on `macos-15`: `lipo` shows both halves, and `--version` and three conversions, bytes both ways included, match.
+		- 20261026: it also compares Gatekeeper's view of the two: `codesign --verify --arch arm64`, the `spctl --assess` verdict, and a run with the quarantine flag set.
+	- Decisions:
+		- 20261026: the jobs run on every push to main or dev, like `macos-arm64`, so the check stays a regression test, not a one-off. They add about 1.5 minutes of runner time.
+		- 20261026: only spctl's first line is compared. The universal build adds `source=no usable signature`, since its x86_64 half is unsigned, while the arm64 build's ad hoc signature names no source. Both are rejected with exit 3, and both run with the quarantine flag set.
+	- Verified: 20261026, run 40428830157: the universal binary ran on Apple silicon and gave the arm64 build's version line and answers. Both builds pass `codesign --verify` for arm64, spctl rejects both, and both run quarantined.
+	- Verified: run 40428406503 failed the Gatekeeper step when the whole spctl text was compared, so the comparison catches a difference.
+	- Swept: design.md's hosted CI paragraph and the changelog. The `dedrh` check covers the new jobs, so neither can pick up an `if:`, and it catches one put on either.
+	- Branch: cicd3
+	- Commit: 27532aa, 7baf037
+	- Test case: the `macos-universal` job in `ci.yml`, as with `macos-arm64`. No local one, since it needs the hosted runner.
+	- Closed: 20261026-175330
+
+- There is no PowerShell installer.
+	- ID: 2026101411014803
+	- Type: Feature
+	- Status: Done
+	- Needs external testing: None left. The one-liner reads raw main, so its URL works once `install.ps1` is merged there. The code it runs is the same.
+	- Priority: Low
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: Windows, Linux, macOS
+	- Requirements:
+		- `install.ps1` beside `install.bash`, working on Windows PowerShell 5.1 and on pwsh 7 on any OS.
+		- It takes `-Release`, `-Target`, `-Yes`, `-Help` and `-Version`.
+		- It checks the download against `checksums.txt`.
+		- It shows the plan and asks before it installs, unless given `-Yes`.
+		- A permission problem gets a clear error.
+		- ASCII only.
+		- The README shows the one-line install.
+	- Done: `install.ps1` at the repo root, run from raw main like `install.bash`. Same releases list and version sort, same assets, same already-current check. On Windows it installs the bare `.exe` under `%LOCALAPPDATA%\Programs` or `%ProgramFiles%`, and adds the folder to the user or machine PATH through the registry. Elsewhere it uses `~/.local/bin` or `/usr/local/bin`, with sudo, as `install.bash` does.
+	- Done: a read-only folder is refused before any download, with the folder named. A system install on Windows from a plain shell is refused up front, and a running `.exe` that can't be replaced says so.
+	- Done: PSScriptAnalyzer runs in the lint stage over every tracked PowerShell file, with 5.1 and 7.0 syntax checks, and the pipeline image has pwsh 7.6.6 and PSScriptAnalyzer 1.25.0, pinned in `tool-versions.env`. The harness checks that PowerShell files are ASCII.
+	- Done: README, `install.md`, `contributing.md`, `development.md`, the code style guide, and the changelog under beta1. `install.bash` points Windows users at `install.ps1` now.
+	- Verified: the new checks pass on this host and in the new image, against a `make release` build and against a stub release. The full harness passed in the new image.
+	- Verified: PSScriptAnalyzer is clean, and the file parses from its raw bytes. Each check failed against a planted fault: a byte-order mark, no checksum compare, no write probe, a prompt that takes anything, a preference leaking into the caller's shell, no suffix padding in the sort, and a prefix match in `checksums.txt`. The lint checks failed against an engine that ignored the analyzer's exit and its empty file list.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, the PSScriptAnalyzer lint and the installer checks included.
+	- Reproduced: 20261019, hosted CI run 39278064158 on the merge failed at the native build: `mkdir /cache/home/.cache/go-build: permission denied`.
+	- Cause: the image's pwsh check runs as root with `HOME=/cache/home`, and leaves root-owned `.cache/powershell` and `.local/share/powershell` there. A new `/cache` volume copies them in, so the build user can't make the Go cache. Local runs pass only because the existing volume hides it.
+	- Probable fix: run that check with a throwaway `HOME`, or remove both dirs in the same `RUN`. Then a run on a new volume, and hosted CI.
+	- Note: the fix is its own item, 2026101911072100.
+	- Note: Windows PowerShell 5.1 hasn't run it. The analyzer checks 5.1 syntax only, not which .NET members 5.1 has.
+	- Swept: each `install.bash` check has a twin here (`ddgke`, `ddydt`, `ddydv`, `ddydw`, `ddys7`). `git grep` for `install.bash`, `installer .exe` and the lint tool names over the repo. The release notes and `package.bash` are unchanged, since the script comes from raw main, not a release asset.
+	- Test case: `de582` PowerShell files are ASCII. `de583` parses from its raw bytes. `de584` options. `de585` and `de586` the version pick. `de587` installs in the one-liner form and leaves the caller's shell alone. `de588` already current. `de589` tampered checksum. `de58a` read-only folder. `de58b` the prompt. `de58c` says why. `de58d`, `de58e` and `de58f` the lint step. `de56v` now reads `install.ps1` too.
+	- Branch: ps1
+	- Commit: d3d16d7
+	- Verified: 20261025, on b29w as `wintest`, in Windows PowerShell 5.1 and pwsh 7.6.6, from a local copy run the one-liner way through `[scriptblock]::Create`: `-Help`, `-Version`, a prompt answered n touches nothing, answered y installs v3.0.0 under `%LOCALAPPDATA%\Programs`, the caller shell keeps its preferences, the user PATH stays REG_EXPAND_SZ with its old entries unexpanded, a shell built from the registry PATH finds `convert-base-v2`, a second run is current, and `-Target system` from a plain shell is refused before any download.
+	- Verified: 20261025, on b29w as an elevated `collierjr`, in both shells: over a setup `.exe` install, `-Target system` names the setup copy in its plan and replaces it, and leaves the machine PATH alone. On a clean box it installs to `%ProgramFiles%` and adds the folder at the end of the machine PATH, REG_EXPAND_SZ, with the old value kept as it was. A second run is current. No `cbv2-install-*` folder is left in either user's temp folder.
+	- Stand-in: the y and n answers came from a `Read-Host` function defined in the calling scope, since ssh has no console to type into. The "new shell" was a `cmd` started with the PATH built from the registry, machine then user.
+	- Note: 20261025, the setup `.exe` run for the "over a setup install" case wiped b29w's machine PATH. That is the setup's bug, filed as 2026102519371715, not this script's.
+	- Closed: 20261025-193717
+
+- The Windows `.exe` files have no icon or version information resource.
+	- ID: 2026101411014805
+	- Type: Enhancement
+	- Status: Done
+	- Needs external testing: None left. A look in Explorer by eye was replaced by the stand-in below.
+	- Priority: Low
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: Windows
+	- Note: Explorer shows a generic icon and an empty Details tab.
+	- Requirements:
+		- Each `.exe` has the project icon and version information.
+	- Progress log:
+		- 20261019: The resource is built at packaging time from the stamped version, not committed, so `--version` and the Details tab agree. goversioninfo is pinned and in the container image. The installers get the same icon and version details. Design notes are in design.md under packaging.
+	- Decisions:
+		- 20261018: the icon is the round chameleon mascot, from a 512x512 image kept outside the repo.
+	- Verified: `make release` builds both exes and both installers with the icon (16 to 256 px) and the right version, read back from the files. The release assets still rebuild to the same bytes, with and without every packaging tool required.
+	- Verified: 20261019, a plain `cicd/cicd.bash -y --no-publish --no-dogfood` in the container passed every stage, packaging included.
+	- Verified: 20261019, on vm925w, Windows PowerShell 5.1 and pwsh 7 read the version info on both exes and both installers: product, description, version, prerelease flag on the exes, company, original filename, and the copyright with its real U+00A9. Windows pulls the icon from each of the 4 files. The x86_64 exe runs and its `--version` matches.
+	- Swept: all 4 Windows `.exe` assets, the 2 bare exes and the 2 installers. Non-Windows builds come out byte for byte the same with the resource present.
+	- Branch: winres
+	- Commit: 22399be
+	- Test case: de57e (bare exes), de57f (installers). Both failed before the change and pass after.
+	- Verified: 20261025, on b29w, in Windows PowerShell 5.1 and pwsh 7, on the e23b810 release build: all 4 `.exe` files have their version info, with a real U+00A9, and the shell's Details columns (Copyright, Company, File description) read it back. Each file's icon, as Explorer extracts it, differs from the generic application icon.
+	- Verified: 20261025, after a silent install of the x86_64 setup `.exe`, the Add/Remove Programs entry has the name, version and publisher, and its `DisplayIcon` is the installed exe, which yields the full-color project icon.
+	- Stand-in: the icon and Details tab were read through the shell and `ExtractAssociatedIcon` over ssh, in place of a look in Explorer. Departs from the wording that way.
+	- Closed: 20261025-193717
+
+- Run on the last Core 2 Duo, and AMD CPUs from that era.
+	- ID: 2026101301161880
+	- Type: Enhancement
+	- Status: Done
+	- Needs external testing: None left. Real old hardware isn't at hand, and the emulated CPUs stand in for it.
+	- Priority [Feature|Enhancement] | Severity [Bug]: Low
+	- Opened: 20261013-011618
+	- Opened by: JC
+	- Target OS: Linux, Windows and FreeBSD on x86_64, where this project builds them. Macs that old can't run a current macOS anyway.
+	- Requirements [Feature]:
+		- Release builds run on the last Core 2 Duo (Penryn, 2008), and on AMD Phenom II and Athlon II, if that's reasonably doable.
+			- Penryn has SSSE3 and SSE4.1 but no POPCNT. The AMD ones have POPCNT but no SSSE3. So the shared floor is plain x86-64, also called x86-64-v1.
+		- If that isn't doable, the floor is the first Core i3/i5/i7 (Nehalem, 2008), which is x86-64-v2. AMD's first chip at that level is Bulldozer, 2011.
+		- Faster code for newer CPUs is still fine, but it's picked at run time by a CPU feature test, never by the build target.
+		- Tests run the release build on an emulated Penryn and Phenom II, through Intel SDE or QEMU's `-cpu Penryn` and `-cpu phenom`.
+	- Progress log:
+		- 20261013: Go builds for plain x86-64 by default (`GOAMD64=v1`), and nothing here sets it, so this may already hold. Pin `GOAMD64=v1` in the release build so a stray environment can't raise it. The standard library already picks faster code at run time.
+			- The wasm modules aren't affected. The Rust interop driver in `cicd/` is test-only.
+		- 20261019: `package.bash` pins `GOAMD64=v1`. The pipeline image has qemu-user, and the harness runs the linux x86_64 release build as a Penryn and a Phenom II.
+	- Verified: 20261019, under qemu-user, a v1 build converts on Penryn, Phenom and Nehalem. A v2 build is refused on Penryn and Phenom and runs on Nehalem, and a v3 build is refused on all 3.
+	- Note: still open on real hardware, and for the Windows and FreeBSD builds, which are the same code.
+	- Test case: `de5ec` every x86_64 release build says `GOAMD64=v1`. `de5ee` a 120-digit conversion matches on an emulated Penryn and Phenom II, with a v2 build as the control. `ddge9` now rebuilds with `GOAMD64=v3` set. All 3 failed against the old `package.bash`.
+	- Branch: cleanup
+	- Verified: 20261025, both full runs at e23b810 passed `de5ec` (every x86_64 release build says `GOAMD64=v1`, the Windows and FreeBSD ones included) and `de5ee` (the linux x86_64 build converts on an emulated Penryn and Phenom II).
+	- Note: closed on emulation alone, which departs from "still open on real hardware". The Windows and FreeBSD builds are the same Go code with the same `GOAMD64=v1`, so they weren't run emulated.
+	- Closed: 20261025-193717
+
+- Non-release builds show the date after the build number.
+	- ID: 2026102318392210
+	- Type: Enhancement
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261023-183906
+	- Opened by: JC
+	- Target OS: Any
+	- Requirements:
+		- For non-release builds, include " (YYYY-mm-DD)" after the build number.
+		- Report the date as the local date of whoever views the version.
+	- Progress log:
+		- 20261023: a release is a bare tag, betas and RCs included. A describe suffix, `-dirty`, a bare hash or `dev` adds the commit date in the local time zone. Unstamped builds have no build number and no date. The installers read only the first word, so they're unaffected.
+	- Verified: 20261023, the same build reads 2026-10-19 here and 2026-10-20 with `TZ=Asia/Tokyo`. The date test failed with the date forced to UTC.
+	- Test case: `debg1` which versions count as releases. `debg2` the date and its time zone, and no date on a release. `ddgdw` now expects the date from a stamped non-release binary. Harness `ddgdx` takes the date on the one-line format.
+	- Branch: macos-date
+	- Closed: 20261023
+
 - Error and note text says "cannot", "is not", "does not" and the like where a person would use a contraction.
 	- ID: 2026101411014807
 	- Type: Enhancement
@@ -2779,6 +2765,35 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-140028
 
+- FreeBSD gets only a tarball.
+	- ID: 2026101411014806
+	- Type: Feature
+	- Status: Done
+	- Priority: Low
+	- Opened: 20261014-110148
+	- Opened by: Repo review 20261014
+	- Target OS: FreeBSD
+	- Requirements:
+		- Build a native `.pkg` for FreeBSD.
+	- Note: design.md defers it, beside the macOS `.dmg`.
+	- Prereq IDs: 2026102518082687
+	- 2026-10-26: the `.pkg` went in through 2026102518082687, so this needs only that item's full run.
+	- Verified: 2026-10-26, through 2026102518082687's full run.
+
+- Verify or ensure that builds clean up stale artifacts and side-effects after they're done: caches, container cruft, tmp files, etc.
+	- ID: 2026101910123200
+	- Type: Enhancement
+	- Status: Done
+	- Opened: 20261019-101232
+	- Opened by: JC
+	- Note: pre-next-cut.
+	- Checked: 20261019. Logs, heap profiles, SARIF and flame graphs in `cicd/artifacts/` are pruned on rotation, and total under 2 MB. `package.bash`, the CodeQL helper and the harness each remove their temp dir on exit. Containers run with `--rm`, and a new image removes the one it replaces.
+	- Checked: the cache volume is 1.1 GB, nearly all the Go build cache, which Go trims by itself.
+	- Fixed: an aborted `cicd.bash` run left its fuzz log in `/tmp`, and a failed image build left an empty dir. Both go in one per-run dir now, removed on exit.
+	- Note: the docker build cache isn't pruned by the pipeline, since `docker builder prune` clears every project's cache.
+	- Test case: `de5e3` a failed image build leaves nothing in TMPDIR, which failed on the old engine. `ddgme` and `ddgmf` already cover the fuzz log.
+	- Branch: cleanup
+
 - `--version` prints `v3.0.0 build ddgee`, with no program name.
 	- ID: 2026101411014809
 	- Type: Task
@@ -2984,21 +2999,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: each filter call reparses `confusables.txt` and reloads four fonts, and the populate script runs all three filters on the same 683 chunks for each of three spreadsheets.
 	- Note: reopen when the alphabet research is next run. These are one-off tools, so minutes of rework don't matter until then.
 	- Origin: b3e719f and de93848, 2026-05. Not seen by an earlier round. Plausible, not timed.
-
-- FreeBSD gets only a tarball.
-	- ID: 2026101411014806
-	- Type: Feature
-	- Status: Done
-	- Priority: Low
-	- Opened: 20261014-110148
-	- Opened by: Repo review 20261014
-	- Target OS: FreeBSD
-	- Requirements:
-		- Build a native `.pkg` for FreeBSD.
-	- Note: design.md defers it, beside the macOS `.dmg`.
-	- Prereq IDs: 2026102518082687
-	- 2026-10-26: the `.pkg` went in through 2026102518082687, so this needs only that item's full run.
-	- Verified: 2026-10-26, through 2026102518082687's full run.
 
 ## Old format
 
