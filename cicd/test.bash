@@ -3724,7 +3724,7 @@ done < <(sed -n 's/^COPY --from=\([A-Za-z0-9_-]*\) .*/\1/p' "${meDir}/../${wfCtx
 ## by hand, and never a --quick run. The plain Go and macOS jobs keep running
 ## on every push to main or dev and every pull request.
 wfPipe="$(awk '/^  pipeline:/ { on = 1; print; next } /^  [a-z]/ { on = 0 } on' "${wfDir}/ci.yml")"
-wfOthers="$(awk '/^  (build|macos-arm64):/ { on = 1; next } /^  [a-z]/ { on = 0 } on && /^    if:/' "${wfDir}/ci.yml")"
+wfOthers="$(awk '/^  (build|macos-arm64|darwin-universal|macos-universal):/ { on = 1; next } /^  [a-z]/ { on = 0 } on && /^    if:/' "${wfDir}/ci.yml")"
 { [[ "${wfPipe}" == *"github.event_name == 'workflow_dispatch'"* && "${wfPipe}" == *"(github.event_name == 'push' && github.ref == 'refs/heads/main')"* \
 	&& "${wfPipe}" == *"(github.event_name == 'pull_request' && github.base_ref == 'main')"* && "${wfPipe}" == *"run: bash cicd/cicd.bash --container --merge-gate"* ]] \
 	&& [[ -z "${wfOthers}" ]] && ! grep -qE 'run: .*cicd\.bash.* --quick' "${wfDir}/ci.yml" && grep -qxE '    branches: \[main, dev\]' "${wfDir}/ci.yml"; } \

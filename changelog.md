@@ -158,6 +158,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The Other hosts step runs the macOS x86_64 and universal builds on an Intel Mac, and runs `install.bash` there against the local build.  [20261026]
 
+- Hosted CI runs the universal macOS binary, packaged the way a release is, on an Apple silicon Mac. It has to give the arm64 build's answers, and Gatekeeper has to treat the two the same.  [20261026]
+
 - The Other hosts step runs the Linux arm64 build on an arm64 Debian box, and installs and removes the arm64 `.deb` there with `dpkg`.  [20261026]
 
 - One line at the end of a pipeline run says what its cleanup removed, from docker, old run folders and its own, and about how much that freed.  [20261025]
