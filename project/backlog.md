@@ -371,7 +371,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: other hosts, Intel macOS.
 	- ID: 2026102516555352
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: a full run, to see `PASS defmk`, `PASS defmm` and `PASS defmn` in the Other hosts step.
 	- Priority: High
 	- Opened: 20261025-165553
 	- Opened by: split from 2026102416280101
@@ -381,6 +382,21 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Requirements:
 		- An Intel Mac runs the darwin x86_64 and universal builds through the runner from 2026102516555342, and their answers match the native build's.
 		- `install.bash` is tried there if it can run against the local build with a stand-in for the download.
+	- Progress log:
+		- 20261026: `remote-hosts.bash` runs `darwin-x86_64` and `darwin-universal` on b26 as `mactest`, through the POSIX path FreeBSD uses. macOS's `TMPDIR` ends in a slash, so the work folder's path drops it now.
+		- 20261026: on `darwin-x86_64`, `install.bash` runs in place of a package, as `mactest`, in a HOME and TMPDIR of its own, with a stand-in `curl` that serves this build as the only release and its sum in `checksums.txt`. It has to install it, find it current on a second run, leave nothing in TMPDIR, and the installed binary has to give the native build's answers.
+		- 20261026: b26 is in `private/remote-hosts.bash`, once per build.
+	- Decisions:
+		- 20261026: b26, not vmKt6m. b26 is real Intel hardware and spares the build box, and vmKt6m ignores the ACPI shutdown, so the VM state helper would wait 300s to put it back.
+		- 20261026: the installer runs only for `darwin-x86_64`, since that's the build `install.bash` picks on an Intel Mac. It needs no root login.
+	- Verified: 20261026, on b26 (macOS 15.8.1, stock bash 3.2), against builds of a98ac9e: `PASS defmk`, `PASS defmn` and `PASS defmm`. Both work folders were gone after, and `mactest` had no `~/.local/bin`.
+	- Verified: each check failed with its fault put in: the arm64 build in the universal's place failed `defmm`; `install.bash` without its cleanup trap, and without its current check, each failed `defmn`; and a missing `install.bash` failed it rather than asking for a root login.
+	- Verified: 20261026, `--backlog-run-quick format lint ci` passes, the ci area 125 of 125. `defmp` failed against the old `remote-hosts.bash`, and again with only the trailing-slash fix taken out.
+	- Note: `defmk`, `defmm` and `defmn` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
+	- Note: the universal build's arm64 half still needs an Apple silicon Mac, per 2026101411014811.
+	- Swept: every `package` word in `fMain`'s summary lines, the stand-in stubs the other `dee7x` and `dee9x` checks share, design.md and the changelog.
+	- Test case: `defmk` (the x86_64 build on b26), `defmm` (the universal build on b26), `defmn` (`install.bash` on b26), `defmp` (the same `install.bash` check against stand-ins, with a TMPDIR that ends in a slash, and a FAIL when the answers differ).
+	- Branch: cicd3
 
 - CICD reset: other hosts, arm64 Linux.
 	- ID: 2026102516555357

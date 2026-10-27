@@ -26,6 +26,8 @@
 ##	  goes over encoded, and files go by scp, to a work folder under the login's
 ##	  %TEMP%. Its ROOT_TARGET is an elevated login, which runs the setup .exe
 ##	  through remote-setup.ps1 with the machine PATH saved and put back.
+##	- On darwin-x86_64 there's no package, so install.bash is run in its place, as
+##	  the box's own user, with a curl that hands it this build as a release.
 ##	- From cicd.bash: CICD_APP, CICD_DIST, CICD_REF_BIN, CICD_CROSS_RAN, and
 ##	  CICD_RUN_TMP, the run's temp folder, which it removes.
 ##	  CICD_SSH and CICD_SCP stand in for ssh and scp in the tests.
@@ -55,15 +57,19 @@ fPlatformId(){
 	case "$1" in
 		freebsd-x86_64) echo dee6x ;;
 		windows-x86_64) echo defm6 ;;
+		darwin-x86_64) echo defmk ;;
+		darwin-universal) echo defmm ;;
 		*) return 1 ;;
 	esac
 }
 
 ## The package each platform installs, as a glob in dist, and its check's ID.
+## install.bash means the repo's own installer.
 fPackageId(){
 	case "$1" in
 		freebsd-x86_64) echo "dee9x ${app}-*-$1.pkg" ;;
 		windows-x86_64) echo "defm7 ${app}-$1-setup.exe" ;;
+		darwin-x86_64) echo "defmn install.bash" ;;
 		*) return 1 ;;
 	esac
 }
@@ -123,6 +129,50 @@ fPackage(){
 		echo "FAIL installed package answers differ from the native build's"
 		diff <(cat "${want}") <(printf '%s\n' "${got}") | head -40 >&2 || true
 	elif ((rc)); then echo "FAIL pkg delete left the package or its files on ${box}"
+	else echo PASS; fi
+}
+
+## One install.bash run. Reads fInstaller's locals.
+fInstallRun(){ "${sshCmd[@]}" "${target}" "cd '${inst}' && HOME='${inst}/home' TMPDIR='${inst}/tmp' TZ=UTC PATH='${inst}/shim':\"\$PATH\" nice -n 19 bash ./install.bash -y" </dev/null 2>&1; }
+
+## install.bash, as the box's own user, in a HOME and TMPDIR of its own, with a
+## curl that hands out this build as the only release. A second run should find
+## it current. Reads fOne's locals. Prints the result word and any reason.
+fInstaller(){
+	local script="$1" inst="${work}/inst" stage pkg ver tag sum first="" again="" left="" got rc1=0 rc2=0
+	[[ -n "${script}" ]] || { echo "FAIL no install.bash"; return; }
+	pkg="$(sed -n 's/^PKG="\(.*\)"$/\1/p' "${script}")"
+	## The native build's --version line, so the tag is the one it reports.
+	ver="$(sed -n 2p "${want}")"; read -r _ tag _ <<<"${ver}"
+	read -r sum _ < <(sha256sum "${bin}")
+	stage="$(dirname "${want}")/inst-${box}-${platform}"
+	mkdir -p "${stage}/shim"
+	cp "${script}" "${stage}/install.bash"
+	printf '%s  %s\n' "${sum}" "${pkg}-${platform}" >"${stage}/shim/checksums.txt"
+	printf '[\n  {\n    "tag_name": "%s",\n    "draft": false,\n    "prerelease": false\n  }\n]\n' "${tag}" >"${stage}/shim/releases.json"
+	cat >"${stage}/shim/curl" <<-EOF
+		#!/bin/sh
+		d="\$(cd "\$(dirname "\$0")" && pwd)"; out=""; url=""
+		while [ \$# -gt 0 ]; do case "\$1" in -o) out="\$2"; shift 2 ;; -*) shift ;; *) url="\$1"; shift ;; esac; done
+		case "\$url" in
+			*api.github.com*) cat "\$d/releases.json" ;;
+			*/checksums.txt) cp "\$d/checksums.txt" "\$out" ;;
+			*) cp "\$d/../../${app}" "\$out" ;;
+		esac
+	EOF
+	chmod +x "${stage}/shim/curl"
+	tar -C "${stage}" -cf - . | "${sshCmd[@]}" "${target}" "mkdir '${inst}' '${inst}/home' '${inst}/tmp' && tar -xf - -C '${inst}'" >/dev/null 2>&1 || { echo "FAIL install.bash copy failed"; return; }
+	first="$(fInstallRun)" || rc1=$?
+	again="$(fInstallRun)" || rc2=$?
+	left="$("${sshCmd[@]}" "${target}" "ls -A '${inst}/tmp'" </dev/null 2>&1)" || left="can't list ${inst}/tmp"
+	got="$(fCases | "${sshCmd[@]}" "${target}" "mkdir '${inst}/cases' && cd '${inst}/cases' && HOME='${inst}/cases' XDG_CONFIG_HOME='${inst}/cases/.config' TZ=UTC nice -n 19 sh -s '${inst}/home/.local/bin/${pkg}'" 2>&1)" || true
+	got="${got//"${inst}/cases"/HOME}"
+	if ((rc1)) || [[ "${first}" != *"Release: ${tag} (stable)"* || "${first}" != *"Installed: ${ver}"* ]]; then echo "FAIL install.bash didn't install ${tag} (exit ${rc1})"; printf '%s\n' "${first}"
+	elif ((rc2)) || [[ "${again}" != *"is already ${tag}; nothing to do"* ]]; then echo "FAIL a second install.bash run didn't find it current (exit ${rc2})"; printf '%s\n' "${again}"
+	elif [[ -n "${left}" ]]; then echo "FAIL install.bash left ${left//$'\n'/ } in its TMPDIR"
+	elif [[ "${got}" != "$(<"${want}")" ]]; then
+		echo "FAIL the installed binary's answers differ from the native build's"
+		diff <(cat "${want}") <(printf '%s\n' "${got}") | head -40 || true
 	else echo PASS; fi
 }
 
@@ -254,7 +304,8 @@ fOne(){
 	if ! "${sshCmd[@]}" "${target}" 'uname -sm' </dev/null >/dev/null 2>&1; then
 		echo "${box}: no answer from ${target}"; return "${rcSkip}"
 	fi
-	work="$("${sshCmd[@]}" "${target}" "set -e; umask 077; t=${base}/${app}; mkdir -p \"\$t\"
+	## macOS's TMPDIR ends in a slash.
+	work="$("${sshCmd[@]}" "${target}" "set -e; umask 077; t=${base}; t=\"\${t%/}/${app}\"; mkdir -p \"\$t\"
 		find \"\$t\" -mindepth 1 -maxdepth 1 -type d -name '[0-9]*-[0-9]*_[0-9][0-9][0-9]' -mtime +2 -exec rm -rf {} + 2>/dev/null || true
 		s=\$(date +%Y%m%d-%H%M%S); n=1
 		while ! mkdir \"\$t/\${s}_\$(printf %03d \$n)\" 2>/dev/null; do n=\$((n + 1)); [ \$n -lt 1000 ]; done
@@ -274,7 +325,8 @@ fOne(){
 		diff <(cat "${want}") <(printf '%s\n' "${got}") | head -40 || true
 		rc="${rcFail}"
 	fi
-	if [[ -n "${pkgResult}" ]]; then fPackage "${rootTarget}" "${pkgFile}" >"${pkgResult}" 2>&1; echo "${box}: package $(head -1 "${pkgResult}")"; tail -n +2 "${pkgResult}"; fi
+	if [[ -n "${pkgResult}" && "$(fPackageId "${platform}")" == *" install.bash" ]]; then fInstaller "${pkgFile}" >"${pkgResult}" 2>&1; echo "${box}: install.bash $(head -1 "${pkgResult}")"; tail -n +2 "${pkgResult}"
+	elif [[ -n "${pkgResult}" ]]; then fPackage "${rootTarget}" "${pkgFile}" >"${pkgResult}" 2>&1; echo "${box}: package $(head -1 "${pkgResult}")"; tail -n +2 "${pkgResult}"; fi
 	return "${rc}"
 }
 
@@ -282,7 +334,7 @@ if [[ "${1:-}" == --one ]]; then shift; rc=0; fOne "$@" || rc=$?; exit "${rc}"; 
 
 ## Each box in turn, with one line per check at the end.
 fMain(){
-	local entry box platform target rootTarget id bin rc failed=0 scratch want pkgId pkgGlob pkgFile pkgResult pkgWord
+	local entry box platform target rootTarget id bin rc failed=0 scratch want pkgId pkgGlob pkgFile pkgResult pkgWord pkgWhat
 	local -a summary=() wrap=() held=() pkgArgs=() pkgFound=()
 	while [[ "${1:-}" == --wrap ]]; do wrap+=("${2-}"); shift 2 || shift; done
 	if ((${#wrap[@]} == 0)); then echo "WARNING: no --wrap, so the boxes are used without the host lock"; fi
@@ -291,10 +343,11 @@ fMain(){
 	mkdir "${scratch}"
 	for entry in "$@"; do
 		IFS='|' read -r box platform target rootTarget <<<"${entry}"
-		pkgId=""; pkgArgs=()
+		pkgId=""; pkgArgs=(); pkgWhat=package
 		if read -r pkgId pkgGlob < <(fPackageId "${platform}"); then
 			# shellcheck disable=SC2206  ## The glob is meant.
 			pkgFound=("${dist}"/${pkgGlob}); pkgFile=""
+			[[ "${pkgGlob}" != install.bash ]] || { pkgFound=("${here}/../../install.bash"); pkgWhat=install.bash; }
 			[[ -f "${pkgFound[0]}" ]] && pkgFile="$(realpath "${pkgFound[0]}")"
 			pkgResult="${scratch}/${box}-${platform}.pkg"; : >"${pkgResult}"
 			pkgArgs=("${rootTarget}" "${pkgFile}" "${pkgResult}")
@@ -302,7 +355,7 @@ fMain(){
 		id="$(fPlatformId "${platform}")" || { summary+=("FAIL ----- ${platform} on ${box}, no case for it in remote-hosts.bash"); failed=1; continue; }
 		bin="${dist}/${app}-${platform}"; [[ "${platform}" != windows-* ]] || bin+=".exe"
 		if [[ "${CICD_CROSS_RAN:-1}" != "1" ]]; then
-			summary+=("SKIP ${id} ${platform} on ${box}, cross + package didn't run"); [[ -z "${pkgId}" ]] || summary+=("SKIP ${pkgId} ${platform} package on ${box}, cross + package didn't run")
+			summary+=("SKIP ${id} ${platform} on ${box}, cross + package didn't run"); [[ -z "${pkgId}" ]] || summary+=("SKIP ${pkgId} ${platform} ${pkgWhat} on ${box}, cross + package didn't run")
 			echo "WARNING: ${box} skipped, cross + package didn't run"; continue
 		fi
 		if [[ ! -f "${bin}" ]]; then summary+=("FAIL ${id} ${platform} on ${box}, no ${bin}"); failed=1; continue; fi
@@ -324,10 +377,10 @@ fMain(){
 		if [[ -n "${pkgId}" ]]; then
 			pkgWord="$(head -1 "${pkgResult}")"
 			case "${pkgWord}" in
-				PASS)   summary+=("PASS ${pkgId} ${platform} package on ${box}") ;;
-				FAIL*)  summary+=("FAIL ${pkgId} ${platform} package on ${box}, ${pkgWord#FAIL }"); failed=1 ;;
-				SKIP*)  summary+=("SKIP ${pkgId} ${platform} package on ${box}, ${pkgWord#SKIP }"); echo "WARNING: ${box} package skipped, ${pkgWord#SKIP }" ;;
-				*)      summary+=("SKIP ${pkgId} ${platform} package on ${box}, the box didn't get that far") ;;
+				PASS)   summary+=("PASS ${pkgId} ${platform} ${pkgWhat} on ${box}") ;;
+				FAIL*)  summary+=("FAIL ${pkgId} ${platform} ${pkgWhat} on ${box}, ${pkgWord#FAIL }"); failed=1 ;;
+				SKIP*)  summary+=("SKIP ${pkgId} ${platform} ${pkgWhat} on ${box}, ${pkgWord#SKIP }"); echo "WARNING: ${box} ${pkgWhat} skipped, ${pkgWord#SKIP }" ;;
+				*)      summary+=("SKIP ${pkgId} ${platform} ${pkgWhat} on ${box}, the box didn't get that far") ;;
 			esac
 		fi
 	done
@@ -342,3 +395,4 @@ fMain "$@"
 ##		- 2026-10-25 JC: Created. FreeBSD.
 ##		- 2026-10-25 JC: The FreeBSD .pkg, installed and removed as root.
 ##		- 2026-10-26 JC: Windows, and its setup .exe.
+##		- 2026-10-26 JC: macOS, x86_64 and universal, and install.bash there.

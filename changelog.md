@@ -156,6 +156,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - The Other hosts step runs the Windows build on a Windows box too, and installs, reinstalls and uninstalls the setup `.exe` there with an admin login. It checks the machine PATH after each, and puts it back at the end.  [20261026]
 
+- The Other hosts step runs the macOS x86_64 and universal builds on an Intel Mac, and runs `install.bash` there against the local build.  [20261026]
+
 - One line at the end of a pipeline run says what its cleanup removed, from docker, old run folders and its own, and about how much that freed.  [20261025]
 
 - A pipeline run with no flags includes the long tests. `--quick` still cross-compiles and packages, which takes seconds, and leaves out the checks that reach other hosts.  [20261019]

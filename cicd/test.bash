@@ -3166,7 +3166,7 @@ while [ "$1" = -o ]; do shift 2; done
 case "$1" in gone@*) exit 255 ;; esac
 case "$1" in root@*) shift; c="$(printf '%s' "$*" | sed "s,/usr/local/,$RH_ROOT/usr/local/,g")"; PATH="$RH_FAKE:$PATH" TMPDIR="$RH_BOX" exec sh -c "$c" ;; esac
 shift
-TMPDIR="$RH_BOX" exec sh -c "$*"
+TMPDIR="$RH_BOX" PATH="${RH_PATH:+$RH_PATH:}$PATH" exec sh -c "$*"
 EOF
 ## pkg as root on the box, over a folder of its own. Its package is the stub.
 mkdir -p "${rhDir}/fake"
@@ -3180,15 +3180,20 @@ case "$1" in
 esac
 EOF
 printf '%s\n' '#!/bin/sh' 'echo "hold $1" >>"$RH_HOLDS"' 'if [ -n "${RH_HOLD_RC:-}" ]; then exit "$RH_HOLD_RC"; fi' 'shift 2' 'exec "$@"' >"${rhDir}/bin/hold"
-printf '%s\n' '#!/bin/sh' 'echo "stub $*"' >"${rhDir}/ref"
-printf '%s\n' '#!/bin/sh' 'echo "stub${RH_ODD:-} $*"' >"${rhDir}/dist/cbv-freebsd-x86_64"
+## The stubs' --version line is a real one's shape, for install.bash's current check.
+printf '%s\n' '#!/bin/sh' 'if [ "$1" = --version ]; then echo "convert-base-v2 v9.9.9 build stub"; else echo "stub $*"; fi' >"${rhDir}/ref"
+printf '%s\n' '#!/bin/sh' 'if [ "$1" = --version ]; then echo "convert-base-v2 v9.9.9 build stub"; else echo "stub${RH_ODD:-} $*"; fi' >"${rhDir}/dist/cbv-freebsd-x86_64"
 cp "${rhDir}/dist/cbv-freebsd-x86_64" "${rhDir}/dist/cbv-9.9.9-freebsd-x86_64.pkg"
-chmod +x "${rhDir}/bin/ssh" "${rhDir}/bin/hold" "${rhDir}/ref" "${rhDir}/dist/cbv-freebsd-x86_64" "${rhDir}/fake/pkg"
+cp "${rhDir}/dist/cbv-freebsd-x86_64" "${rhDir}/dist/cbv-darwin-x86_64"
+## A Mac, as far as install.bash can tell.
+mkdir -p "${rhDir}/mac"
+printf '%s\n' '#!/bin/sh' 'case "$1" in -s) echo Darwin ;; -m) echo x86_64 ;; *) echo Darwin x86_64 ;; esac' >"${rhDir}/mac/uname"
+chmod +x "${rhDir}/bin/ssh" "${rhDir}/bin/hold" "${rhDir}/ref" "${rhDir}/dist/cbv-freebsd-x86_64" "${rhDir}/dist/cbv-darwin-x86_64" "${rhDir}/fake/pkg" "${rhDir}/mac/uname"
 fRhRun(){
 	local run; run="$(mktemp -d "${rhDir}/run.XXXXXX")"; : >"${rhDir}/holds"; mkdir -p "${rhBox}/20200101-000000_001"; touch -d 2020-01-01 "${rhBox}/20200101-000000_001"; rhRc=0
 	rhRoot="$(mktemp -d "${rhDir}/root.XXXXXX")"; : >"${rhDir}/pkglog"
 	[[ -z "${RH_PRE:-}" ]] || { mkdir -p "${rhRoot}/usr/local/bin"; : >"${rhRoot}/${RH_PRE}"; }
-	rhOut="$(RH_ROOT="${rhRoot}" RH_FAKE="${rhDir}/fake" RH_PKG_LOG="${rhDir}/pkglog" RH_BOX="${rhDir}/box" RH_HOLDS="${rhDir}/holds" CICD_SSH="${rhDir}/bin/ssh" CICD_APP=cbv CICD_DIST="${rhDir}/dist" CICD_REF_BIN="${rhDir}/ref" \
+	rhOut="$(RH_ROOT="${rhRoot}" RH_FAKE="${rhDir}/fake" RH_PKG_LOG="${rhDir}/pkglog" RH_BOX="${rhDir}/box${RH_SLASH:-}" RH_HOLDS="${rhDir}/holds" CICD_SSH="${rhDir}/bin/ssh" CICD_APP=cbv CICD_DIST="${rhDir}/dist" CICD_REF_BIN="${rhDir}/ref" \
 		CICD_RUN_TMP="${run}" CICD_CROSS_RAN=1 bash "${meDir}/utility/remote-hosts.bash" --wrap "${rhDir}/bin/hold" --wrap '{}' --wrap -- "$@" 2>&1)" || rhRc=$?
 	rhHolds="$(tr '\n' ',' <"${rhDir}/holds")"; rhLeft="$(cd "${rhBox}" && printf '%s,' *)"
 	rhPkg="$(tr '\n' ',' <"${rhDir}/pkglog")"; rhLeftRoot="$(cd "${rhRoot}" && find . -mindepth 1 ! -type d | sort | tr '\n' ',')"
@@ -3232,6 +3237,17 @@ RH_PKG_KEEP=1 fRhRun 'vmA|freebsd-x86_64|a@box|root@box'
 [[ "${rhRc}" == 1 && "${rhPkg}" == "add,delete," ]] && grep -qxF 'FAIL dee9x freebsd-x86_64 package on vmA, pkg delete left the package or its files on vmA' <<<"${rhOut}" \
 	&& _pass deea0 "other hosts: a package that isn't removed fails" \
 	|| _fail deea0 "other hosts: a package that isn't removed fails" "rc=${rhRc} pkg=[${rhPkg}] out=[${rhOut}]"
+
+## install.bash on a Mac: it installs this build from a stand-in release, finds
+## it current on a second run, leaves nothing in its TMPDIR, and the installed
+## binary answers as the native build does. TMPDIR ends in a slash, as on macOS.
+RH_SLASH=/ RH_PATH="${rhDir}/mac" fRhRun 'macA|darwin-x86_64|a@box'
+rhMac="${rhRc}:${rhLeft}:$(grep -cxE 'PASS defmk darwin-x86_64 on macA|PASS defmn darwin-x86_64 install.bash on macA|macA: work folder .*/box/cbv/[0-9]{8}-[0-9]{6}_001' <<<"${rhOut}" || true)"
+RH_SLASH=/ RH_PATH="${rhDir}/mac" RH_ODD=-odd fRhRun 'macA|darwin-x86_64|a@box'
+rhMac+=";${rhRc}:${rhLeft}:$(grep -cxE "FAIL defmk darwin-x86_64 on macA|FAIL defmn darwin-x86_64 install.bash on macA, the installed binary's answers differ from the native build's" <<<"${rhOut}" || true)"
+[[ "${rhMac}" == "0:keep,:3;1:keep,:2" ]] \
+	&& _pass defmp "other hosts: install.bash on a Mac, against a stand-in release" \
+	|| _fail defmp "other hosts: install.bash on a Mac, against a stand-in release" "got=[${rhMac}] out=[${rhOut}]"
 
 ## --backlog-run-full and --merge-gate run every check a plain run does: the pins,
 ## long tests, fuzz, leak checks, the checks that reach another host, and the
