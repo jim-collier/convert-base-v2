@@ -307,8 +307,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The Windows setup `.exe` replaces a long machine PATH with its own folder.
 	- ID: 2026102519371715
 	- Type: Bug
-	- Status: Waiting on automated testing
-	- Needs external testing: the fixed setup on b29w, with a long machine PATH saved and put back around it. 2026102516555347 runs it.
+	- Status: Done
+	- Needs external testing: None left.
 	- Severity: Critical
 	- Opened: 20261025-193717
 	- Opened by: cicd2 test batch
@@ -331,14 +331,18 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- 20261026: the System plugin that comes with NSIS, rather than the EnVar plugin or a large-strings NSIS build. The pinned image's `nsis` builds it, and no PATH is too long for it.
 		- 20261026: no Wine in the container image, for its size. The check's Wine prefix alone is about 1.4 GB. A container run skips `defkt` as asked, and the Windows box covers the real setup.
 	- Verified: 20261026, `defkt` passes under Wine, and fails 6 of its 8 checks on the old `installer.nsi`. The release area passed 72 of 72 on the host.
+	- Verified: 20261026, on b29w, with its 4030-character machine PATH saved first: the fixed setup kept the PATH and added its folder once, a second install changed nothing, and uninstall put the PATH back byte for byte, still REG_EXPAND_SZ. The old setup cut it to its folder alone, so `defm7` failed, and the check put it back the same as the saved copy.
 	- Swept: `installer.nsi` has no other PATH write, and its other registry values are short. `install.ps1` reads the PATH through .NET, with no length limit. `install.bash` never touches a Windows PATH.
-	- Test case: `defkt`, under Wine: a long PATH is kept and gets the folder once, a second install changes nothing, and uninstall puts the PATH back. Also an entry already there in another case, a trailing `;`, and no PATH at all.
+	- Test case: `defkt`, under Wine: a long PATH is kept and gets the folder once, a second install changes nothing, and uninstall puts the PATH back. Also an entry already there in another case, a trailing `;`, and no PATH at all. `defm7` does the same on b29w, from 2026102516555347.
 	- Branch: cicd3
+	- Commit: 3a81a79
+	- Closed: 20261026-171244
 
 - CICD reset: other hosts, Windows.
 	- ID: 2026102516555347
 	- Type: Enhancement
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs local test suite run?: a full run, to see `PASS defm6` and `PASS defm7` in the Other hosts step.
 	- Priority: High
 	- Opened: 20261025-165553
 	- Opened by: split from 2026102416280101
@@ -349,6 +353,20 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- b29w runs the windows x86_64 exe through the runner from 2026102516555342, and its answers match the native build's.
 		- The installer is run there too, in its quiet mode, then uninstalled. b29w has admin over ssh.
 		- vm925w only for GPU or timed work, so not here.
+	- Progress log:
+		- 20261026: `remote-hosts.bash` has a Windows path. The cases run from a `.cmd` file as `wintest`, a plain user, and match the native build's. The work folder is under the login's `%TEMP%`, made and removed through PowerShell, and old ones are swept as on FreeBSD.
+		- 20261026: with the elevated `collierjr` login as the root login, `cicd/utility/remote-setup.ps1` installs the setup quietly, runs the cases with the installed exe, installs again and uninstalls. It checks the machine PATH after each, and puts it back at the end whatever happened. An existing install is a SKIP.
+		- 20261026: b29w is in `private/remote-hosts.bash`.
+	- Decisions:
+		- 20261026: the `--version` date isn't compared on Windows. Go there takes the box's own time zone, not `TZ`, so it can be a day off from the native run.
+		- 20261026: a `.cmd` file runs the cases, not PowerShell, since Windows PowerShell re-encodes piped bytes.
+	- Verified: 20261026, on b29w: `PASS defm6` and `PASS defm7`. `defm6` failed on a stray prompt in the output before the fix to how the `.cmd` is started, and `defm7` failed on the setup from before 2026102519371715. Both work folders were gone after, and no config was left in either profile.
+	- Verified: 20261026, the ci area passes 123 of 123, `dee71` to `dee75` and `deeaz` among them. PSScriptAnalyzer is clean on `remote-setup.ps1`.
+	- Note: `defm6` and `defm7` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
+	- Note: the Windows arm64 build isn't run anywhere, since b29w is x86_64.
+	- Swept: `fMain` adds `.exe` for a Windows build, and the setup's glob matches `package.bash`'s name. design.md and the changelog say what the Windows box does.
+	- Test case: `defm6` (the exe's answers on b29w), `defm7` (the setup on b29w: PATH kept, installed exe's answers, reinstall, uninstall).
+	- Branch: cicd3
 
 - CICD reset: other hosts, Intel macOS.
 	- ID: 2026102516555352
