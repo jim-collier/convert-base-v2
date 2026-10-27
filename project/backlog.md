@@ -34,94 +34,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
-- CICD reset: other hosts, Windows.
-	- ID: 2026102516555347
-	- Type: Enhancement
-	- Status: Done
-	- Priority: High
-	- Opened: 20261025-165553
-	- Opened by: split from 2026102416280101
-	- Parent ID: 2026102416280101
-	- Prereq IDs: 2026102516555342
-	- Target OS: Windows
-	- Requirements:
-		- b29w runs the windows x86_64 exe through the runner from 2026102516555342, and its answers match the native build's.
-		- The installer is run there too, in its quiet mode, then uninstalled. b29w has admin over ssh.
-		- vm925w only for GPU or timed work, so not here.
-	- Progress log:
-		- 20261026: `remote-hosts.bash` has a Windows path. The cases run from a `.cmd` file as `wintest`, a plain user, and match the native build's. The work folder is under the login's `%TEMP%`, made and removed through PowerShell, and old ones are swept as on FreeBSD.
-		- 20261026: with the elevated `collierjr` login as the root login, `cicd/utility/remote-setup.ps1` installs the setup quietly, runs the cases with the installed exe, installs again and uninstalls. It checks the machine PATH after each, and puts it back at the end whatever happened. An existing install is a SKIP.
-		- 20261026: b29w is in `private/remote-hosts.bash`.
-	- Decisions:
-		- 20261026: the `--version` date isn't compared on Windows. Go there takes the box's own time zone, not `TZ`, so it can be a day off from the native run.
-		- 20261026: a `.cmd` file runs the cases, not PowerShell, since Windows PowerShell re-encodes piped bytes.
-	- Verified: 20261026, on b29w: `PASS defm6` and `PASS defm7`. `defm6` failed on a stray prompt in the output before the fix to how the `.cmd` is started, and `defm7` failed on the setup from before 2026102519371715. Both work folders were gone after, and no config was left in either profile.
-	- Verified: 20261026, the ci area passes 123 of 123, `dee71` to `dee75` and `deeaz` among them. PSScriptAnalyzer is clean on `remote-setup.ps1`.
-	- Note: `defm6` and `defm7` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
-	- Note: the Windows arm64 build isn't run anywhere, since b29w is x86_64.
-	- Swept: `fMain` adds `.exe` for a Windows build, and the setup's glob matches `package.bash`'s name. design.md and the changelog say what the Windows box does.
-	- Test case: `defm6` (the exe's answers on b29w), `defm7` (the setup on b29w: PATH kept, installed exe's answers, reinstall, uninstall).
-	- Branch: cicd3
-	- Verified: 20261026, the full run in run_20261026-175840.log shows PASS defm6 and PASS defm7 on b29w.
-
-- CICD reset: other hosts, Intel macOS.
-	- ID: 2026102516555352
-	- Type: Enhancement
-	- Status: Done
-	- Priority: High
-	- Opened: 20261025-165553
-	- Opened by: split from 2026102416280101
-	- Parent ID: 2026102416280101
-	- Prereq IDs: 2026102516555342
-	- Target OS: macOS
-	- Requirements:
-		- An Intel Mac runs the darwin x86_64 and universal builds through the runner from 2026102516555342, and their answers match the native build's.
-		- `install.bash` is tried there if it can run against the local build with a stand-in for the download.
-	- Progress log:
-		- 20261026: `remote-hosts.bash` runs `darwin-x86_64` and `darwin-universal` on b26 as `mactest`, through the POSIX path FreeBSD uses. macOS's `TMPDIR` ends in a slash, so the work folder's path drops it now.
-		- 20261026: on `darwin-x86_64`, `install.bash` runs in place of a package, as `mactest`, in a HOME and TMPDIR of its own, with a stand-in `curl` that serves this build as the only release and its sum in `checksums.txt`. It has to install it, find it current on a second run, leave nothing in TMPDIR, and the installed binary has to give the native build's answers.
-		- 20261026: b26 is in `private/remote-hosts.bash`, once per build.
-	- Decisions:
-		- 20261026: b26, not vmKt6m. b26 is real Intel hardware and spares the build box, and vmKt6m ignores the ACPI shutdown, so the VM state helper would wait 300s to put it back.
-		- 20261026: the installer runs only for `darwin-x86_64`, since that's the build `install.bash` picks on an Intel Mac. It needs no root login.
-	- Verified: 20261026, on b26 (macOS 15.8.1, stock bash 3.2), against builds of a98ac9e: `PASS defmk`, `PASS defmn` and `PASS defmm`. Both work folders were gone after, and `mactest` had no `~/.local/bin`.
-	- Verified: each check failed with its fault put in: the arm64 build in the universal's place failed `defmm`; `install.bash` without its cleanup trap, and without its current check, each failed `defmn`; and a missing `install.bash` failed it rather than asking for a root login.
-	- Verified: 20261026, `--backlog-run-quick format lint ci` passes, the ci area 125 of 125. `defmp` failed against the old `remote-hosts.bash`, and again with only the trailing-slash fix taken out.
-	- Note: `defmk`, `defmm` and `defmn` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
-	- Note: the universal build's arm64 half still needs an Apple silicon Mac, per 2026101411014811.
-	- Swept: every `package` word in `fMain`'s summary lines, the stand-in stubs the other `dee7x` and `dee9x` checks share, design.md and the changelog.
-	- Test case: `defmk` (the x86_64 build on b26), `defmm` (the universal build on b26), `defmn` (`install.bash` on b26), `defmp` (the same `install.bash` check against stand-ins, with a TMPDIR that ends in a slash, and a FAIL when the answers differ).
-	- Branch: cicd3
-	- Verified: 20261026, the full run in run_20261026-175840.log shows PASS defmk, PASS defmn and PASS defmm on b26.
-
-- CICD reset: other hosts, arm64 Linux.
-	- ID: 2026102516555357
-	- Type: Enhancement
-	- Status: Done
-	- Priority: High
-	- Opened: 20261025-165553
-	- Opened by: split from 2026102416280101
-	- Parent ID: 2026102416280101
-	- Prereq IDs: 2026102516555342
-	- Target OS: Linux
-	- Requirements:
-		- vmDebARM64 runs the linux arm64 build through the runner from 2026102516555342, and its answers match the native build's.
-		- The arm64 deb is installed and removed there, if that fits its slow emulated CPU.
-	- Progress log:
-		- 20261026: `remote-hosts.bash` runs `linux-arm64` on vmDebARM64 as `tester`, through the POSIX path FreeBSD uses.
-		- 20261026: with a root login, the arm64 `.deb` goes in with `dpkg -i`, runs the same cases from `/usr/bin`, and comes out with `dpkg -P`, with no binary or doc folder left. The `.pkg` code takes either now. An install already there, or a binary in its place, is a SKIP, as with FreeBSD.
-		- 20261026: vmDebARM64 is in `private/remote-hosts.bash`, with `root@vmDebARM64`.
-	- Decisions:
-		- 20261026: the `.deb` fits. The box's whole turn, boot and shutdown included, took about 2 minutes.
-		- 20261026: `dpkg -P` rather than `-r`, so nothing of it stays in dpkg's list.
-	- Verified: 20261026, on vmDebARM64 from off, against builds of a8370ec plus this change: `PASS defmy` and `PASS defmz`, and the VM was off again after. With the amd64 `.deb` in the arm64 one's place, `defmz` failed on `dpkg -i`.
-	- Verified: 20261026, `--backlog-run-quick format lint ci` passes, the ci area 125 of 125. `defn0` failed against the old `remote-hosts.bash`, and again with the installed-package guard taken out.
-	- Note: `defmy` and `defmz` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
-	- Swept: the FreeBSD `pkg` messages `dee9y`, `dee9z` and `deea0` match are unchanged. The root stand-in in the harness maps any quoted `/usr/` path now, not only `/usr/local/`. design.md and the changelog say what the arm64 box does.
-	- Test case: `defmy` (the arm64 build on vmDebARM64), `defmz` (the `.deb` on vmDebARM64), `defn0` (the same `.deb` check against stand-ins: install, run and remove, one already there left alone, one that won't go away fails).
-	- Branch: cicd3
-	- Verified: 20261026, the full run in run_20261026-175840.log shows PASS defmy and PASS defmz on vmDebARM64.
-
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
 	- Type: Task
@@ -171,26 +83,6 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Target OS: Any
 	- Note: GitHub takes it only on the repo settings page, with no API for it. A 1280x640 image from the demo gif is ready outside the repo.
 	- Held for a hand upload of private/social-preview.png on the repo settings page, which has no API.
-
-- CICD reset: other hosts and VMs.
-	- ID: 2026102416280101
-	- Type: Enhancement
-	- Status: Done
-	- Priority: High
-	- Opened: 20261024-162801
-	- Opened by: JC
-	- Related IDs: 2026101411014805, 2026101411014811, 2026101301161880
-	- Requirements:
-		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
-		- The default run tests the Windows, Intel macOS, FreeBSD, and arm64 Linux builds on the test boxes, and the installers where a box can run them. `--no-remote` skips them.
-		- Windows tests go to b29w first, and to vm925w only for GPU or timed work.
-		- Each box is held through the shared host lock while it's in use. A VM is put back the way it was found, through the VM state helper.
-		- A box that isn't there shows as SKIP with a warning, and the run goes on.
-		- Each box gets a work folder for this project under its temp root.
-	- Progress log:
-		- 20261025: split by platform into 2026102516555342 (the runner, and FreeBSD), 2026102516555347 (Windows), 2026102516555352 (Intel macOS) and 2026102516555357 (arm64 Linux). This closes with the last of them.
-	- Test case: the children's tests, dee6x (FreeBSD), defm6 and defm7 (Windows), defmk, defmm and defmn (Intel macOS), defmy and defmz (arm64 Linux).
-	- Verified: 20261026, all of those passed in the Other hosts step of the full run in run_20261026-175840.log.
 
 - The Windows setup `.exe` replaces a long machine PATH with its own folder.
 	- ID: 2026102519371715
@@ -473,6 +365,114 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Test case: `ddf59` TestConfigRejectsNestedField and the "nested" case in `dav1v` TestConfigErrorsCiteLines; `ddf58` "config nested field rejected" in the harness.
 	- Acceptance signoff: Self-closed: reproduced, its tests failed before the fix and pass after, and the Sweep is answered.
 	- Closed: 20261003-150028
+
+- CICD reset: other hosts, Windows.
+	- ID: 2026102516555347
+	- Type: Enhancement
+	- Status: Done
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: Windows
+	- Requirements:
+		- b29w runs the windows x86_64 exe through the runner from 2026102516555342, and its answers match the native build's.
+		- The installer is run there too, in its quiet mode, then uninstalled. b29w has admin over ssh.
+		- vm925w only for GPU or timed work, so not here.
+	- Progress log:
+		- 20261026: `remote-hosts.bash` has a Windows path. The cases run from a `.cmd` file as `wintest`, a plain user, and match the native build's. The work folder is under the login's `%TEMP%`, made and removed through PowerShell, and old ones are swept as on FreeBSD.
+		- 20261026: with the elevated `collierjr` login as the root login, `cicd/utility/remote-setup.ps1` installs the setup quietly, runs the cases with the installed exe, installs again and uninstalls. It checks the machine PATH after each, and puts it back at the end whatever happened. An existing install is a SKIP.
+		- 20261026: b29w is in `private/remote-hosts.bash`.
+	- Decisions:
+		- 20261026: the `--version` date isn't compared on Windows. Go there takes the box's own time zone, not `TZ`, so it can be a day off from the native run.
+		- 20261026: a `.cmd` file runs the cases, not PowerShell, since Windows PowerShell re-encodes piped bytes.
+	- Verified: 20261026, on b29w: `PASS defm6` and `PASS defm7`. `defm6` failed on a stray prompt in the output before the fix to how the `.cmd` is started, and `defm7` failed on the setup from before 2026102519371715. Both work folders were gone after, and no config was left in either profile.
+	- Verified: 20261026, the ci area passes 123 of 123, `dee71` to `dee75` and `deeaz` among them. PSScriptAnalyzer is clean on `remote-setup.ps1`.
+	- Note: `defm6` and `defm7` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
+	- Note: the Windows arm64 build isn't run anywhere, since b29w is x86_64.
+	- Swept: `fMain` adds `.exe` for a Windows build, and the setup's glob matches `package.bash`'s name. design.md and the changelog say what the Windows box does.
+	- Test case: `defm6` (the exe's answers on b29w), `defm7` (the setup on b29w: PATH kept, installed exe's answers, reinstall, uninstall).
+	- Branch: cicd3
+	- Verified: 20261026, the full run in run_20261026-175840.log shows PASS defm6 and PASS defm7 on b29w.
+
+- CICD reset: other hosts, Intel macOS.
+	- ID: 2026102516555352
+	- Type: Enhancement
+	- Status: Done
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: macOS
+	- Requirements:
+		- An Intel Mac runs the darwin x86_64 and universal builds through the runner from 2026102516555342, and their answers match the native build's.
+		- `install.bash` is tried there if it can run against the local build with a stand-in for the download.
+	- Progress log:
+		- 20261026: `remote-hosts.bash` runs `darwin-x86_64` and `darwin-universal` on b26 as `mactest`, through the POSIX path FreeBSD uses. macOS's `TMPDIR` ends in a slash, so the work folder's path drops it now.
+		- 20261026: on `darwin-x86_64`, `install.bash` runs in place of a package, as `mactest`, in a HOME and TMPDIR of its own, with a stand-in `curl` that serves this build as the only release and its sum in `checksums.txt`. It has to install it, find it current on a second run, leave nothing in TMPDIR, and the installed binary has to give the native build's answers.
+		- 20261026: b26 is in `private/remote-hosts.bash`, once per build.
+	- Decisions:
+		- 20261026: b26, not vmKt6m. b26 is real Intel hardware and spares the build box, and vmKt6m ignores the ACPI shutdown, so the VM state helper would wait 300s to put it back.
+		- 20261026: the installer runs only for `darwin-x86_64`, since that's the build `install.bash` picks on an Intel Mac. It needs no root login.
+	- Verified: 20261026, on b26 (macOS 15.8.1, stock bash 3.2), against builds of a98ac9e: `PASS defmk`, `PASS defmn` and `PASS defmm`. Both work folders were gone after, and `mactest` had no `~/.local/bin`.
+	- Verified: each check failed with its fault put in: the arm64 build in the universal's place failed `defmm`; `install.bash` without its cleanup trap, and without its current check, each failed `defmn`; and a missing `install.bash` failed it rather than asking for a root login.
+	- Verified: 20261026, `--backlog-run-quick format lint ci` passes, the ci area 125 of 125. `defmp` failed against the old `remote-hosts.bash`, and again with only the trailing-slash fix taken out.
+	- Note: `defmk`, `defmm` and `defmn` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
+	- Note: the universal build's arm64 half still needs an Apple silicon Mac, per 2026101411014811.
+	- Swept: every `package` word in `fMain`'s summary lines, the stand-in stubs the other `dee7x` and `dee9x` checks share, design.md and the changelog.
+	- Test case: `defmk` (the x86_64 build on b26), `defmm` (the universal build on b26), `defmn` (`install.bash` on b26), `defmp` (the same `install.bash` check against stand-ins, with a TMPDIR that ends in a slash, and a FAIL when the answers differ).
+	- Branch: cicd3
+	- Verified: 20261026, the full run in run_20261026-175840.log shows PASS defmk, PASS defmn and PASS defmm on b26.
+
+- CICD reset: other hosts, arm64 Linux.
+	- ID: 2026102516555357
+	- Type: Enhancement
+	- Status: Done
+	- Priority: High
+	- Opened: 20261025-165553
+	- Opened by: split from 2026102416280101
+	- Parent ID: 2026102416280101
+	- Prereq IDs: 2026102516555342
+	- Target OS: Linux
+	- Requirements:
+		- vmDebARM64 runs the linux arm64 build through the runner from 2026102516555342, and its answers match the native build's.
+		- The arm64 deb is installed and removed there, if that fits its slow emulated CPU.
+	- Progress log:
+		- 20261026: `remote-hosts.bash` runs `linux-arm64` on vmDebARM64 as `tester`, through the POSIX path FreeBSD uses.
+		- 20261026: with a root login, the arm64 `.deb` goes in with `dpkg -i`, runs the same cases from `/usr/bin`, and comes out with `dpkg -P`, with no binary or doc folder left. The `.pkg` code takes either now. An install already there, or a binary in its place, is a SKIP, as with FreeBSD.
+		- 20261026: vmDebARM64 is in `private/remote-hosts.bash`, with `root@vmDebARM64`.
+	- Decisions:
+		- 20261026: the `.deb` fits. The box's whole turn, boot and shutdown included, took about 2 minutes.
+		- 20261026: `dpkg -P` rather than `-r`, so nothing of it stays in dpkg's list.
+	- Verified: 20261026, on vmDebARM64 from off, against builds of a8370ec plus this change: `PASS defmy` and `PASS defmz`, and the VM was off again after. With the amd64 `.deb` in the arm64 one's place, `defmz` failed on `dpkg -i`.
+	- Verified: 20261026, `--backlog-run-quick format lint ci` passes, the ci area 125 of 125. `defn0` failed against the old `remote-hosts.bash`, and again with the installed-package guard taken out.
+	- Note: `defmy` and `defmz` are in `remote-hosts.bash`, which `test-ids.py` doesn't read, as with `dee6x`.
+	- Swept: the FreeBSD `pkg` messages `dee9y`, `dee9z` and `deea0` match are unchanged. The root stand-in in the harness maps any quoted `/usr/` path now, not only `/usr/local/`. design.md and the changelog say what the arm64 box does.
+	- Test case: `defmy` (the arm64 build on vmDebARM64), `defmz` (the `.deb` on vmDebARM64), `defn0` (the same `.deb` check against stand-ins: install, run and remove, one already there left alone, one that won't go away fails).
+	- Branch: cicd3
+	- Verified: 20261026, the full run in run_20261026-175840.log shows PASS defmy and PASS defmz on vmDebARM64.
+
+- CICD reset: other hosts and VMs.
+	- ID: 2026102416280101
+	- Type: Enhancement
+	- Status: Done
+	- Priority: High
+	- Opened: 20261024-162801
+	- Opened by: JC
+	- Related IDs: 2026101411014805, 2026101411014811, 2026101301161880
+	- Requirements:
+		- Sweeping override, 2026-10-24: this supersedes any earlier decision on this project that conflicts with it.
+		- The default run tests the Windows, Intel macOS, FreeBSD, and arm64 Linux builds on the test boxes, and the installers where a box can run them. `--no-remote` skips them.
+		- Windows tests go to b29w first, and to vm925w only for GPU or timed work.
+		- Each box is held through the shared host lock while it's in use. A VM is put back the way it was found, through the VM state helper.
+		- A box that isn't there shows as SKIP with a warning, and the run goes on.
+		- Each box gets a work folder for this project under its temp root.
+	- Progress log:
+		- 20261025: split by platform into 2026102516555342 (the runner, and FreeBSD), 2026102516555347 (Windows), 2026102516555352 (Intel macOS) and 2026102516555357 (arm64 Linux). This closes with the last of them.
+	- Test case: the children's tests, dee6x (FreeBSD), defm6 and defm7 (Windows), defmk, defmm and defmn (Intel macOS), defmy and defmz (arm64 Linux).
+	- Verified: 20261026, all of those passed in the Other hosts step of the full run in run_20261026-175840.log.
 
 - CICD reset: containers.
 	- ID: 2026102416280100
