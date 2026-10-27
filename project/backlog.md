@@ -526,14 +526,27 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The universal macOS binary hasn't been run on an Apple silicon Mac.
 	- ID: 2026101411014811
 	- Type: Task
-	- Status: Queued
-	- Needs external testing: Run `convert-base-v2-darwin-universal` from a release build on an Apple silicon Mac. The Intel half passed on an Intel Mac. Check `--version` and one conversion, and that Gatekeeper treats it the same as the per-arch build.
+	- Status: Done
+	- Needs external testing: none. Hosted CI run 40428830157 passed on cicd3.
 	- Priority: Low
 	- Opened: 20261014-110148
 	- Opened by: split from 2026100313304792
 	- Related IDs: 2026100313304792, 2026102318390688
 	- Target OS: macOS
 	- Note: hosted CI now tests and runs a native darwin/arm64 build on an Apple silicon runner. That isn't the release's universal binary, so this stays open.
+	- Progress log:
+		- 20261026: two new jobs in `ci.yml`. `darwin-universal` runs `package.bash` on ubuntu, as the release does, and passes the universal and arm64 binaries on. `macos-universal` runs both on `macos-15`: `lipo` shows both halves, and `--version` and three conversions, bytes both ways included, match.
+		- 20261026: it also compares Gatekeeper's view of the two: `codesign --verify --arch arm64`, the `spctl --assess` verdict, and a run with the quarantine flag set.
+	- Decisions:
+		- 20261026: the jobs run on every push to main or dev, like `macos-arm64`, so the check stays a regression test, not a one-off. They add about 1.5 minutes of runner time.
+		- 20261026: only spctl's first line is compared. The universal build adds `source=no usable signature`, since its x86_64 half is unsigned, while the arm64 build's ad hoc signature names no source. Both are rejected with exit 3, and both run with the quarantine flag set.
+	- Verified: 20261026, run 40428830157: the universal binary ran on Apple silicon and gave the arm64 build's version line and answers. Both builds pass `codesign --verify` for arm64, spctl rejects both, and both run quarantined.
+	- Verified: run 40428406503 failed the Gatekeeper step when the whole spctl text was compared, so the comparison catches a difference.
+	- Swept: design.md's hosted CI paragraph and the changelog. The `dedrh` check covers the new jobs, so neither can pick up an `if:`, and it catches one put on either.
+	- Branch: cicd3
+	- Commit: 27532aa, 7baf037
+	- Test case: the `macos-universal` job in `ci.yml`, as with `macos-arm64`. No local one, since it needs the hosted runner.
+	- Closed: 20261026-175330
 
 - CICD reset: temp files and safe removal.
 	- ID: 2026102416280107
