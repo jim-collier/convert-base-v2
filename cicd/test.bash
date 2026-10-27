@@ -2714,7 +2714,7 @@ FMT_CMD=(); NATIVE_BUILD_CMD=(${CE_BUILD_FAIL:+false}); NATIVE_BUILD_CMD+=(true)
 PIN_TOOLS_CMD=(); VENDOR_CHECK_CMD=(); INTEROP_CHECK_CMD=(); VET_CMD=(); LINT_CMD=(); STATICCHECK_CMD=()
 UNIT_TEST_CMD=(true); TEST_ID_CMD=(); TEST_CMD=(sh -c 'env | grep "^CICDTEST_" | sort >"$CE_KNOBS"; printf "%s|%s|%s|%s\n" "$TMPDIR" "$TEMP" "$TMP" "$(cat "$TMPDIR/run.pid" 2>/dev/null)" >"$CE_KNOBS.tmp"')
 GO_TEST_PKG="."; FUZZ_ENABLE=1; FUZZ_TIME="1s"; FUZZ_TIME_QUICK="1s"; FUZZ_MINIMIZE_TIME="1s"; FUZZ_MINIMIZE_TIME_QUICK="1s"
-VULN_PROBE=(false); VULN_CMD=(${CE_VULN:+true}); PROFILE_ENABLE=${CE_PROFILE:-0}; PROFILE_STRICT=0; PROFILE_BENCH="BenchmarkX"; PROFILE_TIME="1s"; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR=""; BUILD_CROSS=${CE_CROSS:-0}; RELEASE_ARTIFACT_DIR="dist"
+VULN_PROBE=(false); VULN_CMD=(${CE_VULN:+true}); PROFILE_ENABLE=${CE_PROFILE:-0}; PROFILE_STRICT=0; PROFILE_BENCH="BenchmarkX"; PROFILE_TIME="1s"; PROFILE_OUT_DIR="prof"; LINT_LOG_DIR="${CE_LOGDIR:-}"; BUILD_CROSS=${CE_CROSS:-0}; RELEASE_ARTIFACT_DIR="dist"
 RELEASE_CMD=(sh -c 'mkdir -p dist && echo "win $$" >dist/cbv-test-windows-x86_64.exe && echo "mac $$" >dist/cbv-test-darwin-universal')
 CONTAINER_DIR="cicd/container"; CONTAINER_IMAGE="cbv-test-cicd"; CONTAINER_VOLUME="cbv-test-cache"; CONTAINER_MOUNTS=("demos" "nowhere")
 CONTAINER_DEFAULT=${CE_CONTAINER_DEFAULT:-0}; CONTAINER_CONTEXTS=("ctx=${CE_CTX:-ctxdir}"); CONTAINER_CONTEXT_MISSING=(--no-demogif)
@@ -3079,6 +3079,13 @@ CE_BUILD_FAIL=1 fCeRun -y; ceSteps="$(fCeSteps)"
 { ((ceRcFind == 1 && ceRc == 1)) && [[ "${ceStepsFind}" == "1/2 Native build PASS;2/2 Tests FAIL;" && "${ceSteps}" == "1/2 Native build FAIL;" && "${ceOut}" == *"CICD ABORTED"* ]]; } \
 	&& _pass dedpq "a failed step ends on FAIL" \
 	|| _fail dedpq "a failed step ends on FAIL" "find=[${ceStepsFind}] abort=[${ceSteps}] $(fCeTail)"
+## A failed run keeps its log past the rotation, and a passing one doesn't.
+CE_LOGDIR=lintlog fCeRun -y; ceLogs=("${ceDir}/repo/lintlog"/failed_*.log); ceLogOk=0; [[ -e "${ceLogs[0]}" ]] && ceLogOk=${#ceLogs[@]}
+CE_LOGDIR=lintlog CE_BUILD_FAIL=1 fCeRun -y; ceLogs=("${ceDir}/repo/lintlog"/failed_*.log); ceLogBad=0; [[ -e "${ceLogs[0]}" ]] && ceLogBad=${#ceLogs[@]}
+ceLogFile="${ceLogs[0]}"
+{ [[ "${ceLogOk}" == 0 && "${ceLogBad}" == 1 && -n "${ceLogFile}" ]] && grep -q "CICD ABORTED" "${ceLogFile}"; } \
+	&& _pass deh07 "a failed run keeps its log" \
+	|| _fail deh07 "a failed run keeps its log" "ok=${ceLogOk} bad=${ceLogBad} file=[${ceLogFile}]"
 ## Retired 2026-10-25 by the standard flags reset item: --gate is now another
 ## name for --backlog-run-quick, which runs the main pipeline's steps. dedr8,
 ## dedr9 and dedra check those.

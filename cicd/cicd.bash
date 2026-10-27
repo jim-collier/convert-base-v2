@@ -1077,7 +1077,7 @@ fRunTmpGone(){
 	fSafeRm "${run_tmp}" || true
 	rmdir "${run_parent}" 2>/dev/null || true
 }
-fRunCleanup(){ fStepExit "$?"; fCleanupReport; fRunTmpGone; }
+fRunCleanup(){ fStepExit "${1:-$?}"; fCleanupReport; fRunTmpGone; }
 trap fRunCleanup EXIT
 ## docker catches Ctrl+C and exits on its own, which bash takes as handled, so
 ## without this a failed build would carry on here and a container run go on to
@@ -1095,7 +1095,20 @@ if [[ -n "${LINT_LOG_DIR:-}" ]] && mkdir -p "${root}/${LINT_LOG_DIR}" 2>/dev/nul
 	## Wait for tee to drain on exit, else the shell prompt returns mid-flush and
 	## the last output lands after it (looks like the prompt "came back").
 	tee_pid=$!
-	trap 'fRunCleanup; exec 1>&- 2>&-; wait "${tee_pid}" 2>/dev/null' EXIT
+	## The rotation keeps a failed run's log no longer than any other, so a
+	## failure is copied aside, the newest few kept.
+	fRunLogEnd(){
+		local rc=$? old kept
+		fRunCleanup "${rc}"; exec 1>&- 2>&-; wait "${tee_pid}" 2>/dev/null
+		((rc)) || return 0
+		cp -- "${root}/${LINT_LOG_DIR}/run_${stamp}.log" "${root}/${LINT_LOG_DIR}/failed_${stamp}.log" 2>/dev/null || return 0
+		## Names sort by stamp, so the oldest come first.
+		mapfile -t kept < <(printf '%s\n' "${root}/${LINT_LOG_DIR}"/failed_*.log)
+		((${#kept[@]} > 20)) || return 0
+		for old in "${kept[@]:0:${#kept[@]}-20}"; do fSafeRmUnder "${root}/${LINT_LOG_DIR}" "${old}" >/dev/null 2>&1 || true; done
+		return 0
+	}
+	trap fRunLogEnd EXIT
 fi
 
 if ((use_container)); then
