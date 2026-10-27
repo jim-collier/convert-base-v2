@@ -126,16 +126,21 @@ jobs:
             check hello sh -c "printf aGVsbG8= | ${exe} --from 64 --to bytes"
           done
       # Each verdict is printed, then the two compared with the file name taken
-      # out. perl's alarm stands in for timeout, which macOS doesn't have, in
-      # case a quarantined run waits on a prompt.
+      # out. Only spctl's first line counts: the universal build adds "source=no
+      # usable signature", since its x86_64 half is unsigned, where the arm64
+      # build's ad hoc signature gives no source. Both are rejected all the same.
+      # perl's alarm stands in for timeout, which macOS doesn't have, in case a
+      # quarantined run waits on a prompt.
       - name: gatekeeper
         run: |
           set -uo pipefail
           spctl --status || true
           verdict() {
-            local f="$1"
+            local f="$1" out rc
             echo "codesign: $(codesign --verify --arch arm64 "${f}" 2>&1; echo "rc $?")"
-            echo "spctl: $(spctl --assess --type execute -vv "${f}" 2>&1; echo "rc $?")"
+            out="$(spctl --assess --type execute -vv "${f}" 2>&1)"; rc=$?
+            printf '%s\n' "${out}" >&2
+            echo "spctl: ${out%%$'\n'*} rc ${rc}"
             cp "${f}" "${f}.q"
             xattr -w com.apple.quarantine "0081;$(printf %x "$(date +%s)");Safari;" "${f}.q"
             echo "quarantined run: $(perl -e 'alarm 30; exec @ARGV' "${f}.q" 255 16 2>&1; echo "rc $?")"
