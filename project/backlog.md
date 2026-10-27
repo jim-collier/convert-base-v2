@@ -429,7 +429,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
 	- Type: Task
-	- Status: Queued
+	- Status: Stalled
 	- Needs external testing: Yes, against the next beta's published assets.
 	- Priority: Avg
 	- Opened: 20261014-110148
@@ -441,6 +441,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- A rebuild of the tag with the Go, nfpm and NSIS versions the workflow used gives the same checksums. NSIS comes from the runner's apt, so its version is read from the workflow log.
 		- The release notes table renders, every link downloads, and the notes end with the build line.
 	- Note: once this passes, add one line under Packages and installers in `install.md`: every asset rebuilds to the same bytes from its tagged commit, so the published checksums can be checked against your own build.
+	- Held for the 3.0.1-beta1 release. It checks that release's published assets, and the beta isn't cut yet.
 
 - CICD reset: CICD process gaps.
 	- ID: 2026102416280109
@@ -513,13 +514,14 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The repo has no social preview image, so shared links show GitHub's generic card.
 	- ID: 2026101416210405
 	- Type: Task
-	- Status: Queued
+	- Status: Stalled
 	- Priority: Low
 	- Opened: 20261014-162104
 	- Opened by: Repo review 20261014
 	- Assigned to: JC
 	- Target OS: Any
 	- Note: GitHub takes it only on the repo settings page, with no API for it. A 1280x640 image from the demo gif is ready outside the repo.
+	- Held for a hand upload of private/social-preview.png on the repo settings page, which has no API.
 
 - The universal macOS binary hasn't been run on an Apple silicon Mac.
 	- ID: 2026101411014811
