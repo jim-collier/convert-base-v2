@@ -37,8 +37,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: other hosts, Windows.
 	- ID: 2026102516555347
 	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: a full run, to see `PASS defm6` and `PASS defm7` in the Other hosts step.
+	- Status: Done
 	- Priority: High
 	- Opened: 20261025-165553
 	- Opened by: split from 2026102416280101
@@ -63,12 +62,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: `fMain` adds `.exe` for a Windows build, and the setup's glob matches `package.bash`'s name. design.md and the changelog say what the Windows box does.
 	- Test case: `defm6` (the exe's answers on b29w), `defm7` (the setup on b29w: PATH kept, installed exe's answers, reinstall, uninstall).
 	- Branch: cicd3
+	- Verified: 20261026, the full run in run_20261026-175840.log shows PASS defm6 and PASS defm7 on b29w.
 
 - CICD reset: other hosts, Intel macOS.
 	- ID: 2026102516555352
 	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: a full run, to see `PASS defmk`, `PASS defmm` and `PASS defmn` in the Other hosts step.
+	- Status: Done
 	- Priority: High
 	- Opened: 20261025-165553
 	- Opened by: split from 2026102416280101
@@ -93,12 +92,12 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: every `package` word in `fMain`'s summary lines, the stand-in stubs the other `dee7x` and `dee9x` checks share, design.md and the changelog.
 	- Test case: `defmk` (the x86_64 build on b26), `defmm` (the universal build on b26), `defmn` (`install.bash` on b26), `defmp` (the same `install.bash` check against stand-ins, with a TMPDIR that ends in a slash, and a FAIL when the answers differ).
 	- Branch: cicd3
+	- Verified: 20261026, the full run in run_20261026-175840.log shows PASS defmk, PASS defmn and PASS defmm on b26.
 
 - CICD reset: other hosts, arm64 Linux.
 	- ID: 2026102516555357
 	- Type: Enhancement
-	- Status: Waiting on automated testing
-	- Needs local test suite run?: a full run, to see `PASS defmy` and `PASS defmz` in the Other hosts step.
+	- Status: Done
 	- Priority: High
 	- Opened: 20261025-165553
 	- Opened by: split from 2026102416280101
@@ -121,6 +120,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Swept: the FreeBSD `pkg` messages `dee9y`, `dee9z` and `deea0` match are unchanged. The root stand-in in the harness maps any quoted `/usr/` path now, not only `/usr/local/`. design.md and the changelog say what the arm64 box does.
 	- Test case: `defmy` (the arm64 build on vmDebARM64), `defmz` (the `.deb` on vmDebARM64), `defn0` (the same `.deb` check against stand-ins: install, run and remove, one already there left alone, one that won't go away fails).
 	- Branch: cicd3
+	- Verified: 20261026, the full run in run_20261026-175840.log shows PASS defmy and PASS defmz on vmDebARM64.
 
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
@@ -175,8 +175,7 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - CICD reset: other hosts and VMs.
 	- ID: 2026102416280101
 	- Type: Enhancement
-	- Status: Started
-	- Needs external testing: Yes, on the Windows, macOS, FreeBSD, and arm64 Linux test boxes.
+	- Status: Done
 	- Priority: High
 	- Opened: 20261024-162801
 	- Opened by: JC
@@ -190,6 +189,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 		- Each box gets a work folder for this project under its temp root.
 	- Progress log:
 		- 20261025: split by platform into 2026102516555342 (the runner, and FreeBSD), 2026102516555347 (Windows), 2026102516555352 (Intel macOS) and 2026102516555357 (arm64 Linux). This closes with the last of them.
+	- Test case: the children's tests, dee6x (FreeBSD), defm6 and defm7 (Windows), defmk, defmm and defmn (Intel macOS), defmy and defmz (arm64 Linux).
+	- Verified: 20261026, all of those passed in the Other hosts step of the full run in run_20261026-175840.log.
 
 - The Windows setup `.exe` replaces a long machine PATH with its own folder.
 	- ID: 2026102519371715
