@@ -307,7 +307,8 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 - The Windows setup `.exe` replaces a long machine PATH with its own folder.
 	- ID: 2026102519371715
 	- Type: Bug
-	- Status: Queued
+	- Status: Waiting on automated testing
+	- Needs external testing: the fixed setup on b29w, with a long machine PATH saved and put back around it. 2026102516555347 runs it.
 	- Severity: Critical
 	- Opened: 20261025-193717
 	- Opened by: cicd2 test batch
@@ -320,9 +321,19 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Incorrect behavior: the machine PATH afterwards holds only `C:\Program Files\convert-base-v2`. All 78 old entries were gone.
 	- Expected behavior: the old PATH kept as it was, with the folder added once at the end.
 	- Reproduced: 20261025, twice on b29w, once per shell, during the `install.ps1` checks. The PATH was saved first and put back after each run.
+	- Reproduced: 20261026, under Wine 10 with a 5086-character PATH. The old setup left only its folder.
 	- Possible cause: `installer.nsi` reads the PATH with `ReadRegStr`, which gives an empty string for a value longer than NSIS's string limit (1024 by default). The `$0 == ""` branch then writes `$INSTDIR` alone.
+	- Actual cause: as above. Also, a PATH ending in `;` got a second one.
 	- Note: the uninstall section never removes the PATH entry it added.
-	- Test case: none yet. A check could run the setup under Wine with a long PATH in the registry and compare before and after.
+		- 20261026: it does now.
+	- Actual fix: the setup reads and writes the PATH through the registry API, and keeps the value in native memory. Only single entries become NSIS strings. It adds its folder at the end unless an entry already matches, in any case and with or without a trailing `\`, and keeps the value's type. The uninstaller takes out every matching entry. A PATH it can't read is left alone.
+	- Decisions:
+		- 20261026: the System plugin that comes with NSIS, rather than the EnVar plugin or a large-strings NSIS build. The pinned image's `nsis` builds it, and no PATH is too long for it.
+		- 20261026: no Wine in the container image, for its size. The check's Wine prefix alone is about 1.4 GB. A container run skips `defkt` as asked, and the Windows box covers the real setup.
+	- Verified: 20261026, `defkt` passes under Wine, and fails 6 of its 8 checks on the old `installer.nsi`. The release area passed 72 of 72 on the host.
+	- Swept: `installer.nsi` has no other PATH write, and its other registry values are short. `install.ps1` reads the PATH through .NET, with no length limit. `install.bash` never touches a Windows PATH.
+	- Test case: `defkt`, under Wine: a long PATH is kept and gets the folder once, a second install changes nothing, and uninstall puts the PATH back. Also an entry already there in another case, a trailing `;`, and no PATH at all.
+	- Branch: cicd3
 
 - CICD reset: other hosts, Windows.
 	- ID: 2026102516555347

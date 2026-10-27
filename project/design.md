@@ -251,7 +251,7 @@ The rationale behind the choices most likely to be questioned later. Each was se
 
 	- Targets: linux, darwin, freebsd, and windows on amd64 and arm64. ARM is built by default, since Go cross-compiles it at native speed, and `--no-arm` skips it.
 
-	- Per platform: a tarball (zip on Windows) of the static binary, a `.deb` and `.rpm` for each Linux arch, a single-file Windows installer that adds the tool to PATH and can update an existing install, a FreeBSD `.pkg` for each arch, and a checksums file. A macOS `.dmg` is deferred, so macOS gets tarballs for now.
+	- Per platform: a tarball (zip on Windows) of the static binary, a `.deb` and `.rpm` for each Linux arch, a single-file Windows installer that adds the tool to PATH and can update an existing install, and whose uninstaller takes it off the PATH again, a FreeBSD `.pkg` for each arch, and a checksums file. A macOS `.dmg` is deferred, so macOS gets tarballs for now.
 
 	- nfpm can't write a FreeBSD `.pkg`, so `package.bash` writes it with tar and zstd: `+COMPACT_MANIFEST` and `+MANIFEST` first, then the files under their absolute paths, as `pkg create` would. Its ABI is `FreeBSD:*:<arch>`, any release, since the build is static. pkg allows no `-` in a version, so a prerelease such as `3.1.0-beta1` is `3.1.0.beta1`, which pkg sorts below `3.1.0`.
 

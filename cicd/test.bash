@@ -2138,6 +2138,22 @@ else
 fi
 
 
+## The setup .exe keeps a long machine PATH, adds its folder once, and its
+## uninstaller takes the folder out again (2026102519371715). About 40 s of
+## Wine, and the image has no Wine, so a container run asks for the skip.
+if ((doQuick)); then
+	_warn defkt "setup PATH check skipped: --quick" asked
+elif ! command -v wine >/dev/null 2>&1 || ! command -v makensis >/dev/null 2>&1; then
+	if [[ "${CICD_IN_CONTAINER:-0}" == "1" ]]; then _warn defkt "setup PATH check skipped: no Wine in the image" asked
+	else _warn defkt "setup PATH check skipped: wine or makensis not installed"; fi
+else
+	wpDir="${CBT_TMP}/wp"; mkdir -p "${wpDir}"; wprc=0
+	wpOut="$(bash "${meDir}/utility/wine-setup-path.bash" "${wpDir}" 2>&1)" || wprc=$?
+	((wprc == 0)) && _pass defkt "setup .exe keeps a long machine PATH, and uninstall takes its folder out" \
+		|| _fail defkt "setup .exe keeps a long machine PATH, and uninstall takes its folder out" "rc=${wprc}: $(tr '\n' ' ' <<<"${wpOut}")"
+	fSafeRmUnder "${CBT_TMP}" "${wpDir}" >/dev/null || true
+fi
+
 ## Where every packager should be installed, a missing one stops the run before
 ## the cross builds, not a minute in.
 pnDir="${CBT_TMP}/pn"; mkdir -p "${pnDir}/bin"; ln -s "$(command -v dirname)" "${pnDir}/bin/dirname"

@@ -102,6 +102,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 
+- The Windows installer replaced a machine PATH longer than 1024 characters with its own folder, so every other entry was lost. It keeps the PATH as it was now, and adds its folder at the end, once. Uninstalling takes the folder off the PATH again, which it never did before. v3.0.0's installer has the same fault.
+
 - A config field indented under another field, such as `decimal:` under `negative:`, was never read, and an empty field above it still switched its marker off. The base was built wrong with no error. It is refused now, naming the base, the field and the line.
 
 - A raw block as a config value was mishandled. Under `symbols` it was reported as missing symbols, and under `aliases` or `tail` it was dropped without a word. A marker took the block's text, line breaks and all. Every field now refuses one, naming the base, the field and the line, since rows of digits could mean one digit per row or one per character.
