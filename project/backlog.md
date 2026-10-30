@@ -84,6 +84,73 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: GitHub takes it only on the repo settings page, with no API for it. A 1280x640 image from the demo gif is ready outside the repo.
 	- Held for a hand upload of private/social-preview.png on the repo settings page, which has no API.
 
+- The program writes files on its own: the user config on the first run, and a converted copy plus a backup of an old config.
+	- ID: 2026103007194235
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261030-071942
+	- Opened by: JC
+	- Related IDs: 2026103007194236, 2026103007194237, 2026103007194238
+	- Target OS: Any
+	- Requirements:
+		- No run creates, rewrites, or backs up a file unless asked to. The /etc and user configs are still read when they exist.
+		- `10emoji` is built in again.
+		- A flag prints the commented example config, for anyone who wants to start one.
+	- Note: a file-by-file list is in the project notes outside the repo, under `Config without writes (20261030)`.
+	- Note: best done before 3.0.1-beta1 is cut. The on-disk conversion is only in that unreleased version, so removing it then affects no one.
+	- Decisions:
+		- 20261030: keep config reading and shcl, and drop the writes. Removing the config entirely would break `--config` and custom bases for about 180 KB of code.
+
+- Make `10emoji` a built-in base again.
+	- ID: 2026103007194236
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261030-071942
+	- Opened by: JC
+	- Parent ID: 2026103007194235
+	- Target OS: Any
+	- Requirements:
+		- The same digits, markers, and `emoji10` alias as the config block has now.
+		- Every base keeps its `--list` INDEX, `10emoji` at 14 included, so `--by-index` answers don't change.
+		- The browser module and the reactor get it too.
+		- An existing config that still defines it gives the same output as before.
+		- The `design.md` decision that moved it to the config is reversed, with the reason.
+	- Test case: to come. `damym` and `damyn` change to check it without a config, plus an INDEX check.
+
+- Stop writing the user config on the first run, and add `--example-config` to print it.
+	- ID: 2026103007194237
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261030-071942
+	- Opened by: JC
+	- Parent ID: 2026103007194235
+	- Prereq IDs: 2026103007194236
+	- Target OS: Any
+	- Requirements:
+		- A run with no config leaves nothing behind, not even `~/.config/convert-base-v2/`.
+		- `--example-config` prints the commented template, ending with its Format line, so a saved copy counts as current.
+		- The help, README, and `configuration.md` say how to start a config from it.
+		- The note about an old `.conf` file goes, since it only showed when the file was created.
+	- Test case: to come. Replaces `dafvz`, `ddf4v`, and the first-run race test `ddgjt` with a check that a run writes nothing, and one that the example loads and names its format.
+
+- Read an old-format config in memory instead of converting it on disk.
+	- ID: 2026103007194238
+	- Type: Enhancement
+	- Status: Queued
+	- Priority: Avg
+	- Opened: 20261030-071942
+	- Opened by: JC
+	- Parent ID: 2026103007194235
+	- Target OS: Any
+	- Requirements:
+		- An old user or /etc config is read the old way on every run, the same as a `--config` file is now, with the same note that names `shcl migrate`.
+		- No backup and no rewrite.
+		- The default config that v3.0.0 wrote reads with no note.
+	- Test case: to come. The on-disk checks in `Config migration`, `ddf6d` to `ddf6m`, become checks that nothing is written. The v3.0.0 comparison stays.
+
 - The Windows setup `.exe` replaces a long machine PATH with its own folder.
 	- ID: 2026102519371715
 	- Type: Bug
