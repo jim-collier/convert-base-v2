@@ -55,7 +55,7 @@ fLatestTag(){
 }
 
 for pin in "${VENDOR_PINS[@]}"; do
-	IFS='|' read -r localPath repo ref upstreamPath <<< "${pin}"
+	IFS='|' read -r localPath repo ref upstreamPath frozen <<< "${pin}"
 	## Only a full SHA counts as a commit. A short one could also be a tag name,
 	## and the raw host does not reliably expand it.
 	isCommit=0; [[ "${ref}" =~ ^[0-9a-f]{40}$ ]] && isCommit=1
@@ -101,11 +101,14 @@ for pin in "${VENDOR_PINS[@]}"; do
 	fi
 
 	checked+=1
-	if ((isCommit)); then
+	if ((isCommit)) || [[ "${frozen:-}" == "frozen" ]]; then
 		echo "[ vendor: ${label} verbatim ]"
 		continue
 	fi
-	latest="$(fLatestTag "${repo}")"
+	## releases/latest skips prereleases, so a prerelease pin would be told
+	## about an older final release.
+	scope=""; [[ "${ref}" == *-* ]] && scope="any"
+	latest="$(fLatestTag "${repo}" "${scope}")"
 	if [[ -n "${latest}" && "${latest}" != "${ref}" ]]; then
 		echo "[ vendor: ${label} verbatim - upstream is now ${latest}, worth a look ]"
 	else
@@ -121,3 +124,5 @@ exit 0
 ##	History:
 ##		- 2026-07-29: Created. Drift guard for the vendored SHCL binding, once SHCL reached v1.0.0.
 ##		- 2026-10-03: A pin may name a commit SHA, with a pre-release notice each run.
+##		- 2026-11-06: A prerelease tag pin compares against prereleases too, and a
+##		  pin marked frozen gets no newer-release notice.

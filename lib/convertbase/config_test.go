@@ -196,29 +196,32 @@ func TestConfigValidForms(t *testing.T) {
 // fails here first.
 // Test ID: ddf4x
 func TestConfigBackslashLayers(t *testing.T) {
-	uEscape := `"` + `\` + `u00e9 x"` // spelled in pieces to keep the escape out of the source text
+	const mark = "◉" // SHCL's escape mark, kept out of the source as itself
 	cases := []struct {
 		name  string
 		value string
 		want  []string // nil means the load must fail
 	}{
 		{"bare space escape", `a\ b c`, []string{"a b", "c"}},
-		{"double quoted, doubled", `"a\\ b c"`, []string{"a b", "c"}},
+		// SHCL leaves a backslash alone in any quotes, so only the spec reads it.
+		{"double quoted is literal", `"a\ b c"`, []string{"a b", "c"}},
 		{"single quoted is literal", `'a\ b c'`, []string{"a b", "c"}},
 		{"bare tab escape", `x\ty`, []string{"x", "\t", "y"}},
+		{"double quoted tab escape", `"x\ty"`, []string{"x", "\t", "y"}},
 		{"bare backslash digit", `\\ x`, []string{`\`, "x"}},
-		{"double quoted backslash digit", `"\\\\ x"`, []string{`\`, "x"}},
+		{"double quoted backslash digit", `"\\ x"`, []string{`\`, "x"}},
 		// SHCL turns this one into a real tab, which the spec then splits on.
-		{"double quoted tab separates", `"x\ty"`, []string{"x", "y"}},
-		{"double quoted u escape", uEscape, []string{"é", "x"}},
-		// The list form skips ParseSymbolSpec, so a backslash there is a digit.
-		{"list element is literal", `a\ b, c`, []string{`a\ b`, "c"}},
-		// \, and \# protected the next character before shcl 3.0. Now the comma
-		// splits and the # starts a comment.
-		{"comma no longer protected", `a\, b`, []string{`a\`, "b"}},
+		{"named tab separates", `"x` + mark + `TAB` + mark + `y"`, []string{"x", "y"}},
+		{"named code point", `"` + mark + `U+00E9` + mark + ` x"`, []string{"é", "x"}},
+		{"unknown name", `"a` + mark + `NOPE` + mark + `b"`, nil},
+		// An array skips ParseSymbolSpec, so a backslash there is a digit.
+		{"array element is literal", `["a\ b", c]`, []string{`a\ b`, "c"}},
+		{"array comma", `[a\, b]`, []string{`a\`, "b"}},
+		// \, and \# protected the next character before shcl 3.0. Now a comma
+		// list needs brackets and the # starts a comment.
+		{"comma no longer protected", `a\, b`, nil},
 		{"hash no longer protected", `a\#b c`, []string{"a", `\`}},
-		{"unknown escape in double quotes", `"a\ b"`, nil},
-		{"bracket text", `[ab]`, nil},
+		{"bare comma list", `a, b`, nil},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -257,6 +260,55 @@ func TestConfigBackslashLayers(t *testing.T) {
 	}
 }
 
+// An array is digits even with one element, so `[ab]` is one digit, not the
+// spelling of two.
+// Test ID: deyr3
+func TestConfigOneElementArray(t *testing.T) {
+	err := loadConfigText(t, "base: x\n\tsymbols: [ab]\n"+shcl.FormatLine+"\n")
+	if err == nil || !strings.Contains(err.Error(), "have 1") {
+		t.Fatalf("got %v, want a one-symbol refusal", err)
+	}
+}
+
+// A one-value field holding a list read as the list's display text. In an old
+// file a comma list there is refused, since the old releases each read it
+// differently.
+// Test ID: deyrv
+func TestConfigMarkerList(t *testing.T) {
+	for _, field := range []string{"negative", "decimal", "pad", "pademit"} {
+		err := loadConfigText(t, "base: x\n\tsymbols: 0123\n\t"+field+": [a, b]\n"+shcl.FormatLine+"\n")
+		if err == nil || !strings.Contains(err.Error(), "line 3: base \"x\": "+field+" takes one value, not a list") {
+			t.Errorf("%s: got %v", field, err)
+		}
+	}
+	for field, text := range map[string]string{
+		"the name": "base: x, y\n\tsymbols: 0123\n",
+		"negative": "base: x\n\tsymbols: 0123\n\tnegative: a, b\n",
+		"decimal":  "base: x\n\tsymbols: 0123\n\tdecimal: \"a\",b\n",
+		"pad":      "base: x\n\tsymbols: 0123\n\tpad: a,b\n",
+	} {
+		err := loadConfigText(t, text)
+		if err == nil || !strings.Contains(err.Error(), field+" is a comma list") {
+			t.Errorf("old %s: got %v", field, err)
+		}
+	}
+}
+
+// A bare comma tail read as no tail, with nothing said. Format 3 refuses it.
+// An old file still reads it as no tail, the way v3.0.0 did.
+// Test ID: deysh
+func TestConfigBareCommaTail(t *testing.T) {
+	for _, v := range []string{",", ", ,"} {
+		err := loadConfigText(t, "base: x\n\tsymbols: 0123\n\ttail: "+v+"\n"+shcl.FormatLine+"\n")
+		if err == nil || !strings.Contains(err.Error(), "line 3") {
+			t.Errorf("tail %q: got %v", v, err)
+		}
+	}
+	if err := loadConfigText(t, "base: x\n\tsymbols: 0123\n\ttail: ,\n"); err != nil {
+		t.Errorf("old file: %v", err)
+	}
+}
+
 // No field takes a raw block. One used to be dropped, as an alias or a tail was,
 // or read with its line breaks kept, as a marker was. Under symbols it could mean
 // two different alphabets, one digit per row or one per character.
@@ -277,7 +329,8 @@ func TestConfigRejectsRawBlockValue(t *testing.T) {
 	}
 	for name, text := range cases {
 		t.Run(name, func(t *testing.T) {
-			err := loadConfigText(t, text)
+			// Stamped, since an old file is read the way v3.0.0 read it.
+			err := loadConfigText(t, text+shcl.FormatLine+"\n")
 			if err == nil {
 				t.Fatalf("raw block as %s loaded without error", name)
 			}

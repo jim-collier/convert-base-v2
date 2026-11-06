@@ -26,11 +26,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Notes
 
-- A beta, since config files are read with the SHCL 3.0 rules before SHCL 3.0 itself is released. A file this version writes says Format 3, and a later release could still read one a little differently.
+- A beta, since config files are read with SHCL 3.0.0-beta1, before SHCL 3.0.0 is final. A file this version writes says Format 3.
 
 - Breaking: a command line that can't be parsed exits 2, not 1. See Changed.
 
-- Breaking: in a config file, `\,` and `\#` no longer protect a comma or a `#` outside quotes. Quote the value instead. A config without backslashes reads the same as before.
+- Breaking: in a config file, a list goes in brackets, `aliases: [e10, emo]`, and `\,` and `\#` no longer protect a comma or a `#`. Quote the value instead. A config from an older version is converted, see Changed.
 
 - Breaking, library: `StreamConvert`, `StreamBytesRoute` and `SpecOpts` are private now. Use `ConvertStream`.
 
@@ -72,11 +72,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 - Long numbers convert faster, by 20 to 40 percent from a thousand to 64 thousand digits. Each digit is now looked up once instead of twice.
 
-- Config files are read with SHCL 3.0. A backslash in a value is plain text unless it is inside double quotes, where only `\t`, `\n`, `\\`, `\"`, `\'` and `\u` escapes are accepted. Any other escape there is refused. `\,` and `\#` no longer protect a comma or a `#` outside quotes; quote the value instead. A config without backslashes in it reads the same as before.
+- Config files are read with SHCL 3.0.0-beta1. A backslash in a value is plain text, quoted or not. SHCL's own escapes are a name between two `◉` marks, such as `◉TAB◉`, and an unknown name is refused. A list goes in brackets, `[a, b]`, so `aliases: a, b` is refused. In `symbols` and `tail`, a list is one digit per entry, even with one entry. `\,` and `\#` no longer protect a comma or a `#`; quote the value instead.
 
 - The config file written on the first run ends with SHCL's info block, which names the format version it was written for.
 
-- A config file without a Format line, which is every one written before this version, is read the way the older SHCL rules read it, so its bases stay the same. The user and system config files are converted once, and the original is kept beside them as `convert-base-v2_backup_YYYYmmDD-HHMMSS_format-v1.shcl`. A file named with `--config` is never rewritten. A file that can't be carried over exactly is refused, naming the line, and left as it is.
+- A config file without a Format line, which is every one written before this version, is read the way the older SHCL rules read it, so its bases stay the same. That holds for a file written for any SHCL release before 3.0, except a base name or marker written as a comma list, which is refused, since those releases read it differently. The user and system config files are converted once, and the original is kept beside them as `convert-base-v2_backup_YYYYmmDD-HHMMSS_format-v1.shcl`. A file named with `--config` is never rewritten. A file that can't be carried over exactly is refused, naming the line, and left as it is.
 
 - Every release file, archives, packages and installers included, rebuilds from its commit to the same bytes, not just the bare binaries.
 

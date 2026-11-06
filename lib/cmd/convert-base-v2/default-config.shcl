@@ -21,11 +21,12 @@
 # reuse a built-in name and your definition replaces it.
 #
 # Field names are case insensitive, indentation is tabs or spaces, and a value
-# only needs quotes when it contains a space, a comma, a colon, a "#", or a
-# quote character.
+# only needs quotes when it holds a "#", a quote character, or a comma or a
+# colon followed by a space.
 #
-# A backslash is plain text, except inside double quotes, where it starts an
-# escape and has to be written twice.
+# A backslash is plain text, quoted or not. SHCL's own escapes are a name
+# between two marks, such as ◉TAB◉, and a value in backticks is read exactly
+# as typed.
 #
 #
 # Defining a base
@@ -33,15 +34,16 @@
 # Each "base:" line starts one base. The value after the colon is its canonical
 # name, and the indented lines under it are its fields.
 #
-#	aliases    Extra names for the base, comma separated. Optional.
+#	aliases    Extra names for the base. Optional. One name, or a list in
+#	           brackets: [e10, emo].
 #
 #	symbols    The digit symbols, in order. Required. Either one string, split
 #	           on whitespace or on commas ("0123456789abcdef", "0 1 2 3"), or a
-#	           list with one entry per digit. Use the list form for symbols that
-#	           carry a space or a comma of their own. In the one string form, a
-#	           backslash keeps a space inside a digit ("\ "), and "\t", "\n"
-#	           and "\\" are a tab, a newline and a backslash. Write those
-#	           without double quotes, or double each backslash.
+#	           list in brackets with one entry per digit, ["a b", c]. Use the
+#	           list form for symbols that carry a space or a comma of their own.
+#	           In the one string form, a backslash keeps a space inside a digit
+#	           ("\ "), and "\t", "\n" and "\\" are a tab, a newline and a
+#	           backslash.
 #
 #	negative   Marker for a negative number. Defaults to "-".
 #	decimal    Marker for the fractional point. Defaults to ".".

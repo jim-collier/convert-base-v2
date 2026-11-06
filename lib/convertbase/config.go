@@ -93,7 +93,7 @@ func (r *Registry) loadConfigText(path, text string) error {
 	// failed load, and would list those as coming from a file it calls broken.
 	bases := make([]*Base, 0, doc.Count("base"))
 	for i := 0; i < doc.Count("base"); i++ {
-		sel := fmt.Sprintf("base[#%d]", i)
+		sel := fmt.Sprintf("base(%d)", i)
 		b, err := configBase(doc, sel)
 		if err != nil {
 			return err
@@ -173,7 +173,7 @@ func checkConfigFields(doc *shcl.Document) error {
 		}
 	}
 	for i := 0; i < doc.Count("base"); i++ {
-		sel := fmt.Sprintf("base[#%d]", i)
+		sel := fmt.Sprintf("base(%d)", i)
 		if doc.ReadRaw(sel).Status == shcl.Good {
 			return fmt.Errorf(`%sa "base:" name is one line, not a raw block`, citeLine(doc, sel))
 		}
@@ -221,76 +221,111 @@ func nestedField(doc *shcl.Document, path, base, field string) error {
 // configBase builds one base from the block at sel (a positional selector, so a
 // name carrying a comma or a bracket still addresses cleanly).
 func configBase(doc *shcl.Document, sel string) (*Base, error) {
-	name := strings.TrimSpace(doc.ReadString(sel).Value)
-	if name == "" {
-		return nil, fmt.Errorf(`%sa "base:" line has no name`, citeLine(doc, sel))
-	}
-	b := &Base{Aliases: append([]string{name}, doc.GetStringArrayOr(sel+".aliases", nil)...)}
-
-	symbols, err := configSymbols(doc, sel+".symbols", name, "symbols")
+	f, err := readBaseBlock(doc, sel)
 	if err != nil {
 		return nil, err
 	}
-	if len(symbols) == 0 {
-		return nil, fmt.Errorf("%sbase %q: missing 'symbols'", citeLine(doc, sel), name)
-	}
-	b.Symbols = symbols
+	return f.base(), nil
+}
 
-	tail, err := configSymbols(doc, sel+".tail", name, "tail")
-	if err != nil {
-		return nil, err
-	}
-	if len(tail) > 0 {
-		b.TailSymbols = tail
+// configFields is what one base block says, before it becomes a Base. Two of
+// them read from one file under two rule sets are how a conversion is checked.
+type configFields struct {
+	name                   string
+	aliases                []string
+	symbols, tail          symbolField
+	negative, decimal, pad *string
+	pademit                *bool
+}
+
+// symbolField is a symbols-shaped field: its digits, and the one string that
+// spelled them when it was one.
+type symbolField struct {
+	spec   *string
+	digits []string
+}
+
+func (f configFields) base() *Base {
+	b := &Base{Aliases: append([]string{f.name}, f.aliases...), Symbols: f.symbols.digits}
+	if len(f.tail.digits) > 0 {
+		b.TailSymbols = f.tail.digits
 		// A config tail always gets the qntm layout. It is the scheme that
 		// streams cleanly both ways, so the file never has to name one.
 		// Finalize() rejects a tail the base can't use.
 		b.BinaryScheme = "qntm"
 	}
-
-	b.Negative = configMarker(doc, sel+".negative")
-	b.Decimal = configMarker(doc, sel+".decimal")
-	if pad := configMarker(doc, sel+".pad"); pad != nil {
-		b.PadSymbol = *pad
-		b.PadEmit = *pad != ""
+	b.Negative, b.Decimal = f.negative, f.decimal
+	if f.pad != nil {
+		b.PadSymbol = *f.pad
+		b.PadEmit = *f.pad != ""
 	}
 	// pademit lets a config define a strip-only pad: accepted on decode, never
 	// written, like the builtin URL/hex variants.
-	switch r := doc.ReadBool(sel + ".pademit"); r.Status {
-	case shcl.Good:
-		b.PadEmit = r.Value
-	case shcl.BadType:
-		return nil, fmt.Errorf("%sbase %q: pademit must be true or false",
-			citeLine(doc, sel+".pademit"), name)
+	if f.pademit != nil {
+		b.PadEmit = *f.pademit
 	}
-	return b, nil
+	return b
 }
 
-// configSymbols decodes a symbols-shaped field. SHCL splits a value on unquoted
-// commas, so one element is the whitespace or comma delimited spelling and
-// several are literal digits, one per element - which is how a symbol carrying a
-// space or a comma of its own gets written. A raw block never gets here, since
-// the field check refuses it.
-func configSymbols(doc *shcl.Document, path, baseName, field string) ([]string, error) {
+func readBaseBlock(doc *shcl.Document, sel string) (configFields, error) {
+	f := configFields{name: strings.TrimSpace(doc.ReadString(sel).Value)}
+	if f.name == "" {
+		return f, fmt.Errorf(`%sa "base:" line has no name`, citeLine(doc, sel))
+	}
+	f.aliases = doc.GetStringArrayOr(sel+".aliases", nil)
+	var err error
+	if f.symbols, err = configSymbols(doc, sel+".symbols", f.name, "symbols"); err != nil {
+		return f, err
+	}
+	if len(f.symbols.digits) == 0 {
+		return f, fmt.Errorf("%sbase %q: missing 'symbols'", citeLine(doc, sel), f.name)
+	}
+	if f.tail, err = configSymbols(doc, sel+".tail", f.name, "tail"); err != nil {
+		return f, err
+	}
+	// A list here would read as its display text, brackets and all. Under
+	// the old rules a comma list read as the elements joined with ", ".
+	for _, field := range []string{"negative", "decimal", "pad", "pademit"} {
+		if doc.Kind(sel+"."+field) == shcl.KindArray {
+			return f, fmt.Errorf("%sbase %q: %s takes one value, not a list",
+				citeLine(doc, sel+"."+field), f.name, field)
+		}
+	}
+	f.negative = configMarker(doc, sel+".negative")
+	f.decimal = configMarker(doc, sel+".decimal")
+	f.pad = configMarker(doc, sel+".pad")
+	switch r := doc.ReadBool(sel + ".pademit"); r.Status {
+	case shcl.Good:
+		v := r.Value
+		f.pademit = &v
+	case shcl.BadType:
+		return f, fmt.Errorf("%sbase %q: pademit must be true or false",
+			citeLine(doc, sel+".pademit"), f.name)
+	}
+	return f, nil
+}
+
+// configSymbols decodes a symbols-shaped field. A plain value is the whitespace
+// or comma delimited spelling. An array is literal digits, one per element,
+// which is how a symbol carrying a space or a comma of its own gets written. A
+// raw block never gets here, since the field check refuses it.
+func configSymbols(doc *shcl.Document, path, baseName, field string) (symbolField, error) {
 	read := doc.ReadStringArray(path)
 	switch read.Status {
 	case shcl.NotFound, shcl.Empty:
-		return nil, nil
+		return symbolField{}, nil
 	case shcl.Multiple:
-		return nil, repeatedField(doc, path, baseName, field)
+		return symbolField{}, repeatedField(doc, path, baseName, field)
 	}
-	if len(read.Value) == 1 {
-		return configSpec(doc, path, baseName, field, read.Value[0])
+	if doc.Kind(path) != shcl.KindArray && len(read.Value) == 1 {
+		symbols, err := ParseSymbolSpec(read.Value[0])
+		if err != nil {
+			return symbolField{}, fmt.Errorf("%sbase %q: %s: %w", citeLine(doc, path), baseName, field, err)
+		}
+		spec := read.Value[0]
+		return symbolField{spec: &spec, digits: symbols}, nil
 	}
-	return read.Value, nil
-}
-
-func configSpec(doc *shcl.Document, path, baseName, field, spec string) ([]string, error) {
-	symbols, err := ParseSymbolSpec(spec)
-	if err != nil {
-		return nil, fmt.Errorf("%sbase %q: %s: %w", citeLine(doc, path), baseName, field, err)
-	}
-	return symbols, nil
+	return symbolField{digits: read.Value}, nil
 }
 
 // configMarker reads one marker field, keeping the tri-state the Base fields

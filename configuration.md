@@ -20,13 +20,13 @@ base: 10emoji
 
 That base is in the file as a working example to copy from. The format is [SHCL](https://github.com/yottacore/shcl), and the file itself documents every field.
 
-A backslash in a value is plain text, except inside double quotes, where it starts an escape and has to be doubled. The symbol list has escapes of its own on top of that: `symbols: a\ b c` makes `a b` one digit, and in double quotes the same list is `"a\\ b c"`.
+A backslash in a value is plain text, quoted or not. The symbol list has escapes of its own: `symbols: a\ b c` makes `a b` one digit. A list goes in brackets, such as `aliases: [e10, emo]`. In `symbols` and `tail`, a list is one digit per entry.
 
 Every value is one line, however long the alphabet. A raw block, the lines between two `~~~` fences, is refused under any field. Split over rows, an alphabet could mean one digit per row or one per character.
 
 ## Config files from older versions
 
-The file the first run writes ends with a Format line, `##    Format   3`, which names the SHCL rules it follows. A config with no such line, which is every config written before this version, follows the older rules, where a backslash could start an escape outside quotes too. Such a file is read the way the older rules read it, so its bases stay the same.
+The file the first run writes ends with a Format line, `##    Format   3`, which names the SHCL rules it follows. A config with no such line, which is every config written before this version, follows the older rules, where a backslash could start an escape and a comma made a list. Such a file is read the way the older rules read it, so its bases stay the same. That holds for a file written for any SHCL release before 3.0. The one exception is a base name, `negative`, `decimal` or `pad` written as a comma list, which is refused, since those releases didn't agree on what it says. Quote it.
 
 The user and system config files are also converted once. The original is kept beside the file as `convert-base-v2_backup_YYYYmmDD-HHMMSS_format-v1.shcl`, the converted file takes its place, comments and all, and a note on stderr names the backup. When the file can't be written, it is converted in memory on each run instead, and nothing on disk changes. A file named with `--config` is never rewritten. It is read the old way every time, with a note when that makes a difference.
 

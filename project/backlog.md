@@ -34,6 +34,46 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 
 ## Issues
 
+- Move to SHCL 3.0.0-beta1.
+	- ID: 2026110610591136
+	- Type: Task
+	- Status: Waiting for answers
+	- Priority: High
+	- Opened: 20261106-105911
+	- Opened by: JC
+	- Prereq IDs: 2026110610591137
+	- Related IDs: 2026103007194238, 2026101411014813, 2026110610591138
+	- Target OS: Any
+	- Requirements:
+		- `lib/shcl/shcl.go` is the v3.0.0-beta1 binding, pinned to that tag.
+		- A config written for any SHCL release before 3.0, prereleases included, loads and converts to the bases it did then, or is refused naming the line.
+	- Progress log:
+		- 20261106: re-pinned. Selectors are `base(i)`, a list needs brackets, and a backslash is plain text in any quotes. In `symbols` and `tail` an array is digits, even with one entry. A list in a one-value field is refused.
+		- 20261106: a config with no Format line is read with a frozen copy of SHCL 1.2.0, the one v3.0.0 used, then converted and checked field by field. Checked against all 7 releases before 3.0 on about 25,000 texts, and pinned by a corpus test.
+		- 20261106: the quick gate passes, 417 of 417. Not merged, since every wasm build fails on beta1 (2026110610591137).
+	- Questions:
+		- The release binary is 373 KB (11.6%) bigger than on dev: 106 KB for beta1, 119 KB for the 1.2.0 reader, and 147 KB for writing again the fields shcl's `Migrate` misreads. Keep that, or do 2026103007194238 first? Reading an old file without converting it drops the last part.
+		- In an old file, a base name or marker written as a comma list is refused, since the releases before 3.0 each read it differently. Is that right?
+	- Branch: shcl-beta1
+	- Test case: `deyr3` TestConfigOneElementArray, `deyrv` TestConfigMarkerList, `deysc` TestLegacyConfigCorpus, `deysh` TestConfigBareCommaTail. `ddf4t`, `ddf76`, `ddf78` and the backslash table changed to the new rules.
+
+- SHCL 3.0.0-beta1 doesn't build for wasm, so the WASI command, the reactor and the browser module all fail.
+	- ID: 2026110610591137
+	- Type: Bug
+	- Status: Stalled
+	- Severity: High
+	- Opened: 20261106-105911
+	- Opened by: found while working 2026110610591136
+	- Related IDs: 2026110610591136
+	- Target OS: WASI, browser
+	- Steps to reproduce:
+		- On branch `shcl-beta1`, from `lib/`: `GOOS=wasip1 GOARCH=wasm go build ./cmd/convert-base-v2`. Also `./reactor`, and `GOOS=js GOARCH=wasm go build ./wasm`.
+	- Incorrect behavior: `shcl/shcl.go:9157:50: undefined: syscall.O_NONBLOCK`.
+	- Expected behavior: all three build, as they did on 2317df56.
+	- Reproduced: 20261106, on the v3.0.0-beta1 binding.
+	- Actual cause: `openNoWait`, which opens a Schema line's file, uses `syscall.O_NONBLOCK` and `syscall.SetNonblock` everywhere but Windows. js and wasip1 have neither.
+	- Note: shcl friction, a missing capability: the binding can't be used on wasm at all. The fix belongs upstream, since `lib/shcl/shcl.go` is never edited here. Not yet filed in shcl's backlog.
+
 - At the next beta, check the release downloads and rebuild.
 	- ID: 2026101411014812
 	- Type: Task
@@ -51,26 +91,23 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: once this passes, add one line under Packages and installers in `install.md`: every asset rebuilds to the same bytes from its tagged commit, so the published checksums can be checked against your own build.
 	- Held for the 3.0.1-beta1 release. It checks that release's published assets, and the beta isn't cut yet.
 
-- A bare `tail: ,` in a config reads as no tail.
-	- ID: 2026101411014813
+- shcl's `Migrate` reads some 2.x lines differently from SHCL 1.2.0 and 2.0.0.
+	- ID: 2026110610591138
 	- Type: Bug
 	- Status: Stalled
 	- Severity: Low
-	- Opened: 20261014-110148
-	- Opened by: split from 2026100417280514
-	- Related IDs: 2026100417280514, 2026100508035901
+	- Opened: 20261106-105911
+	- Opened by: found while working 2026110610591136
+	- Related IDs: 2026110610591136
 	- Target OS: Any
 	- Steps to reproduce:
-		- A config base with `tail: ,` or `tail: , ,`.
-		- Smallest repro in shcl: parse `x: ,` and read `x` as a list. It comes back empty, the same as `x:`.
-	- Incorrect behavior: the base loads with no tail, and nothing is said.
-	- Expected behavior: a comma tail, or an error that names the line. A quoted `","` reaches the loader and is refused as only commas.
-	- Reproduced: 20261005, on shcl 2317df56.
-	- Note: shcl friction, a silent wrong answer. The config loads at exit 0, and the base isn't the one the file describes.
-	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
-	- Progress log:
-		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
-		- 20261025: shcl's dev tip 6d046939 refuses a bare comma in a value with `E026`, which may cover this. Unverified, since it's only from reading shcl's backlog. Still not tagged 3.0.0, so the pin stays.
+		- `shcl migrate --from-2x` on `x: o'clock, oc`. It writes `x: ["o'clock", oc]`, two values. 1.2.0 and 2.0.0 read one, `o'clock, oc`.
+		- The same on `x: jim's # mine`. It stays as written, so 3.0 reads `jim's`. The old releases read `jim's # mine`.
+		- Also a backslash before a comma, a space, or an NBSP, such as `x: yes\ , b`.
+	- Incorrect behavior: the migrated file reads differently, with no Lost or Ambiguous count.
+	- Expected behavior: the same values, or a count that says it couldn't.
+	- Reproduced: 20261106, on v3.0.0-beta1, from a differential against every release before 3.0.
+	- Note: shcl friction, a silent wrong answer. `UpgradeConfig` works around it by writing again each field that reads differently. Not yet filed in shcl's backlog.
 
 - The repo has no social preview image, so shared links show GitHub's generic card.
 	- ID: 2026101416210405
@@ -1653,6 +1690,31 @@ Sub-bullets can be prefaced with a short tag so the note's role is clear at a gl
 	- Note: check again at the next release. The table renders, every link downloads, and the notes end with the build line.
 	- Acceptance signoff: Signed off 20261004.
 	- Closed: 20261004-132358
+
+- A bare `tail: ,` in a config reads as no tail.
+	- ID: 2026101411014813
+	- Type: Bug
+	- Status: Done
+	- Severity: Low
+	- Opened: 20261014-110148
+	- Opened by: split from 2026100417280514
+	- Related IDs: 2026100417280514, 2026100508035901
+	- Target OS: Any
+	- Steps to reproduce:
+		- A config base with `tail: ,` or `tail: , ,`.
+		- Smallest repro in shcl: parse `x: ,` and read `x` as a list. It comes back empty, the same as `x:`.
+	- Incorrect behavior: the base loads with no tail, and nothing is said.
+	- Expected behavior: a comma tail, or an error that names the line. A quoted `","` reaches the loader and is refused as only commas.
+	- Reproduced: 20261005, on shcl 2317df56.
+	- Note: shcl friction, a silent wrong answer. The config loads at exit 0, and the base isn't the one the file describes.
+	- Note: the fix belongs upstream, since `lib/shcl/shcl.go` is never edited here.
+	- Progress log:
+		- 20261005: rechecked on shcl 2317df56, unchanged. shcl's backlog has no item for it.
+		- 20261025: shcl's dev tip 6d046939 refuses a bare comma in a value with `E026`, which may cover this. Unverified, since it's only from reading shcl's backlog. Still not tagged 3.0.0, so the pin stays.
+		- 20261106: on shcl 3.0.0-beta1 a bare `tail: ,` or `tail: , ,` in a Format 3 file is refused with `E026`, naming the line. A file with no Format line still reads it as no tail, the way v3.0.0 did.
+	- Actual fix: fixed upstream. SHCL 3.0.0-beta1 refuses a bare comma in a value (2026110610591136).
+	- Branch: shcl-beta1
+	- Test case: `deysh` TestConfigBareCommaTail.
 
 - A design doc says a test checks the README's Go example, and none does.
 	- ID: 2026101416210403

@@ -549,20 +549,22 @@ else
 	done
 fi
 chmod 600 "$lockedcfg"
-## SHCL leaves a bare backslash alone, so the symbol spec's own escape still
-## puts a space inside a digit. In double quotes an unknown escape is refused.
+## SHCL leaves a backslash alone, so the symbol spec's own escape still puts a
+## space inside a digit. SHCL's own escapes are names between two marks, and an
+## unknown one is refused.
 ## Both files name the current format, since one without it is read the old
 ## way (see the migration section).
 printf 'base: bs\n\tsymbols: a\\ b c\n##    Format   3\n' >"${CBT_TMP}/bslash.shcl"
 bssym=$("${EXE}" --config "${CBT_TMP}/bslash.shcl" --show-symbols-0 bs 2>/dev/null | tr '\0' '|' || true)
 [[ "$bssym" == 'a b|c' ]] && _pass ddf4s "config bare backslash escape" || _fail ddf4s "config bare backslash escape" "got='$bssym'"
-printf 'base: bs\n\tsymbols: "a\\ b c"\n##    Format   3\n' >"${CBT_TMP}/bslashq.shcl"
+printf 'base: bs\n\tsymbols: "a\342\227\211NOPE\342\227\211 b"\n##    Format   3\n' >"${CBT_TMP}/bslashq.shcl"
 check ddf4t errmsg "config bad escape rejected" 'line 2'     -- --config "${CBT_TMP}/bslashq.shcl" 255 16
 ## A raw block under symbols used to be reported as missing symbols, and under
 ## most other fields it was dropped. Rows of digits are ambiguous, so it's refused.
-printf 'base: rb\n\tsymbols:\n\t\t~~~\n\t\tABCD\n\t\tEFGH\n\t\t~~~\n' >"${CBT_TMP}/rawsym.shcl"
+## Stamped, since a file with no Format line is read the way v3.0.0 read it.
+printf 'base: rb\n\tsymbols:\n\t\t~~~\n\t\tABCD\n\t\tEFGH\n\t\t~~~\n##    Format   3\n' >"${CBT_TMP}/rawsym.shcl"
 check ddf9c errmsg "config raw block symbols rejected" 'line 2: base "rb": symbols takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawsym.shcl" 255 16
-printf 'base: rb\n\tsymbols: 01\n\taliases:\n\t\t~~~\n\t\trbx\n\t\t~~~\n' >"${CBT_TMP}/rawalias.shcl"
+printf 'base: rb\n\tsymbols: 01\n\taliases:\n\t\t~~~\n\t\trbx\n\t\t~~~\n##    Format   3\n' >"${CBT_TMP}/rawalias.shcl"
 check ddf5g errmsg "config raw block alias rejected" 'line 3: base "rb": aliases takes a one-line value, not a raw block' -- --config "${CBT_TMP}/rawalias.shcl" 255 16
 ## First run writes the default config, and 10emoji comes from it rather than
 ## from the built-in set. XDG_CONFIG_HOME was sandboxed at the top of the run.

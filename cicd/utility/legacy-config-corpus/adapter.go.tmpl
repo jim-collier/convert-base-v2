@@ -1,0 +1,60 @@
+// Copied beside each fetched shcl.go by gen.bash. Every release from 1.0.0-beta1
+// to 2.0.0 has these names. QuoteSegment came in 1.0.0-rc1, so gen.bash swaps
+// it out for the two betas.
+
+package shcl
+
+import (
+	"strings"
+
+	"legacycorpus/rec"
+)
+
+func st(s Status) string {
+	switch s {
+	case Good:
+		return "Good"
+	case Empty:
+		return "Empty"
+	case NotFound:
+		return "NotFound"
+	case BadType:
+		return "BadType"
+	case Multiple:
+		return "Multiple"
+	}
+	return "Other"
+}
+
+// ReadRec reads a one-base file the way v3.0.0's loader did.
+func ReadRec(text string) rec.Raw {
+	doc := Parse(text)
+	var r rec.Raw
+	for _, d := range doc.Diagnostics() {
+		if d.Severity == SeverityError {
+			r.ParseErr = d.Message
+			return r
+		}
+	}
+	r.Count = doc.Count("base")
+	if r.Count != 1 {
+		return r
+	}
+	r.Name = strings.TrimSpace(doc.ReadString("base").Value)
+	r.Fields = map[string]rec.Field{}
+	for _, f := range rec.FieldNames {
+		p := "base." + f
+		s, a, b := doc.ReadString(p), doc.ReadStringArray(p), doc.ReadBool(p)
+		r.Fields[f] = rec.Field{Str: s.Value, StrSt: st(s.Status), Arr: a.Value, ArrSt: st(a.Status), Bool: b.Value, BoolSt: st(b.Status)}
+	}
+	if c, ok := any(doc).(interface{ Children(string) []string }); ok {
+		r.HasChildren = true
+		r.Children = c.Children("base")
+		for _, f := range r.Children {
+			if len(c.Children("base."+QuoteSegment(f))) > 0 {
+				r.Nested = true
+			}
+		}
+	}
+	return r
+}

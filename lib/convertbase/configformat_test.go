@@ -25,7 +25,7 @@ func symbolsOf(t *testing.T, r *Registry, name string) string {
 
 // A config with no Format line was written for SHCL 1.x, and has to load to
 // the bases it did then. Each want is what v3.0.0, the last release on SHCL
-// 1.x, gave for that file. The first nine read differently under the current
+// 1.x, gave for that file. The first eight read differently under the current
 // rules as written.
 // Test ID: ddf76
 func TestUpgradeConfigKeepsOldMeaning(t *testing.T) {
@@ -38,13 +38,14 @@ func TestUpgradeConfigKeepsOldMeaning(t *testing.T) {
 	}{
 		{"bare tab escape", `x\ty`, []string{"x", "y"}, true},
 		{"bare backslash", `\\ x`, []string{" ", "x"}, true},
-		{"u escape kept as written", uEscape, []string{`\u00e9`, "x"}, true},
 		{"comma escape", `a\, b`, []string{`a\,`, "b"}, true},
 		{"hash escape", `a\#b c`, []string{`a\#b`, "c"}, true},
-		{"unknown escape in double quotes", `"a\ b"`, []string{"a", " ", "b"}, true},
 		{"single quoted tab", `'x\ty'`, []string{"x", "y"}, true},
 		{"escaped quote", `a\'b c`, []string{"a'b", "c"}, true},
 		{"windows path tab", `C:\temp x`, []string{"C:", "emp", "x"}, true},
+		{"windows path newline", `C:\new x`, []string{"C:", "ew", "x"}, true},
+		{"u escape kept as written", uEscape, []string{`\u00e9`, "x"}, false},
+		{"unknown escape in double quotes", `"a\ b"`, []string{"a", " ", "b"}, false},
 		{"space escape reads the same", `a\ b c`, []string{"a b", "c"}, false},
 		{"no backslash", `0123`, []string{"0", "1", "2", "3"}, false},
 	}
@@ -114,15 +115,13 @@ func TestUpgradeConfigRefuses(t *testing.T) {
 		text string
 		want string
 	}{
-		// The old parser read this with an error and the old loader refused
-		// it. Migrate rewrites it to `symbols: ab` and reports nothing lost.
-		{"bracket value", "base: x\n\tsymbols: [ab]\n", "line 2: bracket array syntax"},
-		{"bracket header", "base: [x]\n\tsymbols: ab\n", "line 1: bracket array syntax"},
-		// Migrate hands this back unchanged and unstamped.
-		{"unclosed raw block", "base: x\n\tsymbols: 01\n\ttail:\n\t\t~~~\n\t\tab\n", "didn't finish"},
+		// The old parser read these with an error and the old loader refused
+		// them. Migrate rewrites the first to `symbols: ab` and reports nothing
+		// lost, and hands the last back unchanged and unstamped.
+		{"bracket value", "base: x\n\tsymbols: [ab]\n", "line 2: missing colon"},
+		{"bracket header", "base: [x]\n\tsymbols: ab\n", "line 1: missing colon"},
+		{"unclosed raw block", "base: x\n\tsymbols: 01\n\ttail:\n\t\t~~~\n\t\tab\n", "line 4: unterminated raw block"},
 		{"unknown field", "base: x\n\tsybmols: ab\n", `line 2: base "x": unknown field "sybmols"`},
-		// The old rules read a newline here, which has no spelling now.
-		{"windows path newline", "base: x\n\tsymbols: C:\\new x\n", "line 2: value starts like a Windows path"},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
